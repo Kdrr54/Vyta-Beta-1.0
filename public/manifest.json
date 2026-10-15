@@ -1,0 +1,21 @@
+{
+  "name": "Vyta — Bague Intelligente Vyta One",
+  "short_name": "Vyta",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06080D",
+  "theme_color": "#06080D",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/assets/ring/ring-front.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/ring/ring-front.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

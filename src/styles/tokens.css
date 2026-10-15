@@ -1,0 +1,74 @@
+:root {
+  /* Apple Pure Monochrome & Dark Luxury Palette */
+  --bg-deep: #000000;
+  --bg-canvas: #000000;
+  --bg-studio: #08080A;
+  --bg-surface: #121214;
+  --bg-card: rgba(255, 255, 255, 0.045);
+  --bg-card-hover: rgba(255, 255, 255, 0.08);
+  --bg-card-elevated: #161618;
+  
+  /* Apple Hairline Borders & Materials */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --border-focus: rgba(255, 255, 255, 0.35);
+
+  /* Glassmorphism — Apple Frosted Material */
+  --glass-fill: rgba(26, 26, 28, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-blur: 24px;
+  --glass-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  /* Typography Colors — Apple System Hierarchy */
+  --text-primary: #FFFFFF;
+  --text-secondary: #8E8E93;
+  --text-tertiary: #636366;
+  --text-quaternary: #3A3A3C;
+
+  /* Typography Fonts */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Plus Jakarta Sans', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: -apple-system, BlinkMacSystemFont, 'SF Mono', 'JetBrains Mono', monospace;
+
+  /* Restrained Functional Accents (Subtle, never garish) */
+  --accent-white: #FFFFFF;
+  --accent-tint: rgba(255, 255, 255, 0.12);
+  --accent-green: #30D158; /* Apple System Green (used strictly for battery/optimal status) */
+  --accent-red: #FF453A;   /* Apple System Red */
+  --accent-warn: #FF9F0A;  /* Apple System Orange (alertes biométriques uniquement) */
+
+  /* CoVyta — Noir & Bordeaux (#4D0B20) */
+  --bordeaux-raw: #4D0B20;
+  --bordeaux: #A31F44;
+  --bordeaux-light: #EFA0B4;
+  --bordeaux-deep: #4D0B20;
+  --bordeaux-gradient: linear-gradient(135deg, #751431 0%, #4D0B20 55%, #250510 100%);
+  --bordeaux-soft: rgba(77, 11, 32, 0.35);
+  --bordeaux-border: rgba(163, 31, 68, 0.45);
+
+  /* Mappage des variables d'accent vers le Bordeaux #4D0B20 */
+  --gold: var(--bordeaux);
+  --gold-light: var(--bordeaux-light);
+  --gold-deep: var(--bordeaux-deep);
+  --gold-gradient: var(--bordeaux-gradient);
+  --gold-soft: var(--bordeaux-soft);
+  --gold-border: var(--bordeaux-border);
+
+  /* Motion Physics (Apple HIG Springs) */
+  --spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+  --spring-gentle: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-quick: 180ms;
+  --duration-medium: 300ms;
+
+  /* Safe Area Defaults */
+  --safe-top: env(safe-area-inset-top, 47px);
+  --safe-bottom: env(safe-area-inset-bottom, 34px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
