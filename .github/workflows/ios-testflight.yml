@@ -34,7 +34,7 @@ jobs:
         run: xcodebuild -version
 
       - name: 🔑 Configuration des certificats et profils (si secrets fournis)
-        if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
+        if: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -52,6 +52,8 @@ jobs:
             -archivePath build/App.xcarchive \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             archive
 
       - name: 📲 Génération du fichier Vyta.ipa
@@ -70,7 +72,7 @@ jobs:
           retention-days: 14
 
       - name: ✈️ Envoi vers TestFlight (si clé API App Store Connect présente)
-        if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
+        if: ${{ secrets.APP_STORE_CONNECT_API_KEY != '' }}
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
