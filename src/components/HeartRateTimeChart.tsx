@@ -359,6 +359,20 @@ export const HeartRateTimeChart: React.FC<HeartRateTimeChartProps> = ({
             </filter>
           </defs>
 
+          {/* Vertical Y-Axis Unit Header */}
+          <text
+            x={chartX - 6}
+            y={chartY - 6}
+            textAnchor="end"
+            fill="#A31F44"
+            fontSize="9"
+            fontFamily="var(--font-mono)"
+            fontWeight="700"
+            letterSpacing="0.04em"
+          >
+            BPM
+          </text>
+
           {/* Lignes de repère horizontales (FC 120, 150, 180 bpm) */}
           {yGuides.map((guide) => {
             const y = getY(guide.bpm);
@@ -377,7 +391,7 @@ export const HeartRateTimeChart: React.FC<HeartRateTimeChartProps> = ({
                   x={chartX - 6}
                   y={y + 3}
                   textAnchor="end"
-                  fill="rgba(255, 255, 255, 0.4)"
+                  fill="rgba(255, 255, 255, 0.45)"
                   fontSize="9.5"
                   fontFamily="var(--font-mono)"
                   fontWeight="500"
@@ -387,6 +401,19 @@ export const HeartRateTimeChart: React.FC<HeartRateTimeChartProps> = ({
               </g>
             );
           })}
+
+          {/* Trait Moyen (FC Moyenne de la session : ligne grise en pointillés sans texte) */}
+          {avgHr && (
+            <line
+              x1={chartX}
+              y1={getY(avgHr)}
+              x2={chartX + chartWidth}
+              y2={getY(avgHr)}
+              stroke="rgba(255, 255, 255, 0.32)"
+              strokeDasharray="4 3"
+              strokeWidth="1.2"
+            />
+          )}
 
           {/* Lignes de repère verticales du temps (00:00, 10:00, 20:00, 30:00, 41:52) */}
           {timeMarkers.map((marker) => {

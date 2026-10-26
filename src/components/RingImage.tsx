@@ -22,7 +22,7 @@ export const RingImage: React.FC<RingImageProps> = ({
   const imageSrc = angle === 'angle-left' 
     ? '/assets/ring/ring-angle-left.png' 
     : angle === 'angle-right'
-    ? '/assets/ring/ring-angle-right.png'
+    ? '/assets/ring/ring-iso-transparent.png'
     : RING_IMAGE;
 
   const shadowFilter = noShadow || size < 40 
@@ -44,7 +44,7 @@ export const RingImage: React.FC<RingImageProps> = ({
     >
       <img
         src={imageSrc}
-        alt="Vyta One R21"
+        alt="Vyta One"
         style={{
           width: '100%',
           height: '100%',

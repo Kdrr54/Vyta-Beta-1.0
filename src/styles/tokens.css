@@ -1,58 +1,61 @@
 :root {
-  /* Apple Pure Monochrome & Dark Luxury Palette */
+  /* Bioluminescent Pure Black Obsidian Editorial Theme */
   --bg-deep: #000000;
   --bg-canvas: #000000;
-  --bg-studio: #08080A;
-  --bg-surface: #121214;
-  --bg-card: rgba(255, 255, 255, 0.045);
-  --bg-card-hover: rgba(255, 255, 255, 0.08);
-  --bg-card-elevated: #161618;
-  
-  /* Apple Hairline Borders & Materials */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.15);
-  --border-focus: rgba(255, 255, 255, 0.35);
+  --bg-studio: #000000;
+  --bg-surface: rgba(14, 14, 16, 0.78);
+  --bg-card: rgba(12, 12, 14, 0.74);
+  --bg-card-hover: rgba(20, 20, 24, 0.85);
+  --bg-card-elevated: #0E0E10;
 
-  /* Glassmorphism — Apple Frosted Material */
-  --glass-fill: rgba(26, 26, 28, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.09);
-  --glass-blur: 24px;
-  --glass-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  /* Hairline Specular Borders & Smoky Glass Materials */
+  --border-subtle: rgba(255, 255, 255, 0.13);
+  --border-medium: rgba(255, 255, 255, 0.24);
+  --border-focus: rgba(217, 249, 112, 0.55);
 
-  /* Typography Colors — Apple System Hierarchy */
-  --text-primary: #FFFFFF;
-  --text-secondary: #8E8E93;
-  --text-tertiary: #636366;
-  --text-quaternary: #3A3A3C;
+  /* Glassmorphism — Smoky Obsidian Frosted Material */
+  --glass-fill: rgba(12, 12, 14, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-blur: 28px;
+  --glass-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  /* Typography Colors — Warm Ivory Hierarchy */
+  --text-primary: #FAF7F2;
+  --text-secondary: rgba(242, 234, 225, 0.68);
+  --text-tertiary: rgba(242, 234, 225, 0.45);
+  --text-quaternary: rgba(242, 234, 225, 0.26);
 
   /* Typography Fonts */
   --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Plus Jakarta Sans', sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
   --font-mono: -apple-system, BlinkMacSystemFont, 'SF Mono', 'JetBrains Mono', monospace;
 
-  /* Restrained Functional Accents (Subtle, never garish) */
-  --accent-white: #FFFFFF;
-  --accent-tint: rgba(255, 255, 255, 0.12);
-  --accent-green: #30D158; /* Apple System Green (used strictly for battery/optimal status) */
-  --accent-red: #FF453A;   /* Apple System Red */
-  --accent-warn: #FF9F0A;  /* Apple System Orange (alertes biométriques uniquement) */
+  /* Bioluminescent Accents */
+  --accent-lime: #D9F970;
+  --accent-orchid: #D946EF;
+  --accent-amber: #FB923C;
+  --accent-cyan: #A5F3FC;
+  --accent-white: #FAF7F2;
+  --accent-tint: rgba(217, 249, 112, 0.14);
+  --accent-green: #D9F970;
+  --accent-red: #FF5A52;
+  --accent-warn: #FB923C;
 
-  /* CoVyta — Noir & Bordeaux (#4D0B20) */
-  --bordeaux-raw: #4D0B20;
-  --bordeaux: #A31F44;
-  --bordeaux-light: #EFA0B4;
-  --bordeaux-deep: #4D0B20;
-  --bordeaux-gradient: linear-gradient(135deg, #751431 0%, #4D0B20 55%, #250510 100%);
-  --bordeaux-soft: rgba(77, 11, 32, 0.35);
-  --bordeaux-border: rgba(163, 31, 68, 0.45);
+  /* Accent Mapping */
+  --bordeaux-raw: #241D18;
+  --bordeaux: #D9F970;
+  --bordeaux-light: #E6FF96;
+  --bordeaux-deep: #17120F;
+  --bordeaux-gradient: linear-gradient(135deg, #332922 0%, #1A1411 100%);
+  --bordeaux-soft: rgba(217, 249, 112, 0.12);
+  --bordeaux-border: rgba(217, 249, 112, 0.3);
 
-  /* Mappage des variables d'accent vers le Bordeaux #4D0B20 */
-  --gold: var(--bordeaux);
-  --gold-light: var(--bordeaux-light);
-  --gold-deep: var(--bordeaux-deep);
-  --gold-gradient: var(--bordeaux-gradient);
-  --gold-soft: var(--bordeaux-soft);
-  --gold-border: var(--bordeaux-border);
+  --gold: #D9F970;
+  --gold-light: #E8FFA3;
+  --gold-deep: #1A1512;
+  --gold-gradient: linear-gradient(135deg, #D9F970 0%, #9BC432 100%);
+  --gold-soft: rgba(217, 249, 112, 0.12);
+  --gold-border: rgba(217, 249, 112, 0.28);
 
   /* Motion Physics (Apple HIG Springs) */
   --spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);

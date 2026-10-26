@@ -1,57 +1,48 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Battery, Lock, Sparkles } from 'lucide-react';
 import { RingImage } from './RingImage';
 
 export const AppHeader: React.FC = () => {
-  const { ring, covytaActive, setCovytaActive, openModal } = useApp();
+  const { openModal, t, ring } = useApp();
 
   return (
-    <header className="app-header" aria-label="En-tête de l'application">
-      <div className="header-left-chips">
-        {/* Uniquement le % de batterie */}
-        <div className="status-chip battery-chip" title={`Batterie bague : ${ring.batteryRing}%`}>
-          <Battery size={14} strokeWidth={2.2} />
-          <span>{ring.batteryRing}%</span>
-        </div>
+    <header className="app-header header-roman" aria-label="En-tête de l'application">
+      {/* Pilier romain horizontal gauche */}
+      <div className="header-pillar-slot left-slot">
+        <img
+          src="/assets/roman-pillar-horizontal.png"
+          alt="Pilier Romain Gauche"
+          className="header-pillar-h pillar-left"
+        />
       </div>
 
-      <div className="header-right-actions">
-        {/* Switch rapide CoVyta OFF / CoVyta ON */}
-        <button
-          type="button"
-          className={`covyta-switch-pill ${covytaActive ? 'active' : ''}`}
-          onClick={() => setCovytaActive(!covytaActive)}
-          title="Bascule rapide du mode CoVyta IA"
-          role="switch"
-          aria-checked={covytaActive}
-        >
-          {covytaActive ? (
-            <>
-              <Sparkles size={12} className="switch-sparkle" />
-              <span>CoVyta ON</span>
-            </>
-          ) : (
-            <>
-              <Lock size={11} />
-              <span>CoVyta OFF</span>
-            </>
-          )}
-        </button>
-
-        {/* Bouton Bague Vyta (remplace l'engrenage) */}
+      {/* Centre exact : Bouton Bague Vyta One */}
+      <div className="header-center-ring">
         <button
           type="button"
           className="ring-header-btn"
           onClick={() => openModal('settings')}
-          title="Bague Vyta One (R21) • Réglages & Diagnostics"
-          aria-label="Bague Vyta One"
+          title={t('header.ring_title') || 'Bague Vyta One · Réglages & Diagnostics'}
+          aria-label={t('header.ring_title') || 'Bague Vyta One'}
         >
           <div className="ring-header-btn-inner">
-            <RingImage size={28} noShadow angle="front" />
-            <span className="ring-connected-indicator" title="Connectée en Bluetooth 5.4" />
+            <RingImage size={34} noShadow angle="front" />
+            <span
+              className="ring-connected-indicator"
+              style={{ background: (ring.batteryRing ?? 88) <= 20 ? '#FF5A52' : '#30D158' }}
+              title={`Bluetooth 5.4 Connecté · Batterie ${ring.batteryRing ?? 88}%`}
+            />
           </div>
         </button>
+      </div>
+
+      {/* Pilier romain horizontal droit */}
+      <div className="header-pillar-slot right-slot">
+        <img
+          src="/assets/roman-pillar-horizontal.png"
+          alt="Pilier Romain Droit"
+          className="header-pillar-h pillar-right"
+        />
       </div>
     </header>
   );

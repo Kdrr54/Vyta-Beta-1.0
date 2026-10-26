@@ -9,6 +9,9 @@ export interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
   timeStr: string;
+  thinking?: string;
+  isRealAI?: boolean;
+  isStreaming?: boolean;
 }
 
 export interface Insight {
@@ -20,28 +23,79 @@ export interface Insight {
 
 export const quickQuestions: QuickQuestion[] = [
   {
+    id: 'target_strain',
+    label: '🎯 Calculer mon Target Strain aujourd\'hui',
+    answer:
+      `### Calcul du Target Strain · Bevel Intelligence 🎯
+
+Votre **Score de Récupération est à 89/100** avec une **VFC à 68 ms**.
+
+• **Target Strain Cible** : **11,5 à 14,2 / 21** (Progression & Surcharge)
+• **Strain actuel accumulé** : **9,1 / 21**
+• **Fenêtre d'effort idéale** : **10h30 – 12h15**
+
+🔗 **Synthèse Causale Bevel** :
+Votre sommeil profond (1h48m) a parfaitement rechargé votre tonus parasympathique. Vous pouvez monter l'intensité sans risque de surentraînement.`,
+  },
+  {
+    id: 'connecting_dots',
+    label: '🔗 Connecter les points (Synthèse Causale)',
+    answer:
+      `### Synthèse Causale · Bevel Intelligence 🔗
+
+Voici comment vos métriques interagissent en temps réel :
+
+**1. Facteur Déclencheur** : Baisse de température nocturne stabilisée à **−0,05 °C**.
+**2. Réponse Végétative** : VFC nocturne à **68 ms** (+8 ms au-dessus de la ligne de base).
+**3. Conséquence Énergétique** : Body Energy disponible à **78 %** au réveil.
+
+🔗 **Arbre de Causalité Bevel** :
+\`Sommeil réparateur\` ➔ \`Hausse VFC nocturne\` ➔ \`Restitution du tonus vagal\` ➔ \`Capacité de charge élevée\`
+
+### Recommandation Bevel
+Séance de renforcement ou cardio tempo recommandée ce matin. Verrouillez un coucher à **22h45** ce soir.`,
+  },
+  {
     id: 'hrv',
     label: 'Pourquoi ma VFC a baissé ?',
     answer:
-      'Votre VFC est passée de 74 ms cette nuit à 60 ms en journée (−14 ms). Trois facteurs se combinent : ① une température cutanée +0,4 °C au-dessus de votre ligne de base, ② une charge d’entraînement soutenue ces 3 derniers jours (zones 3-4), ③ un coucher à 23 h 15. Recommandation : hydratation dans l’heure, dîner léger, coucher à 22 h 45. Si l’écart persiste 48 h, consultez un professionnel de santé.',
+      `### Analyse de la Baisse de VFC · Bevel
+      
+Votre VFC est passée de **74 ms cette nuit** à **60 ms en journée** (−14 ms). Trois facteurs se combinent :
+
+• **Température cutanée** : **+0,4 °C** au-dessus de votre ligne de base
+• **Charge d’entraînement** : Soutenue ces 3 derniers jours (zones 3-4)
+• **Heure de coucher** : Tardif à 23h15
+
+### Plan d'Action Recommandé
+• **Hydratation** : 500 ml d'eau dans l'heure avec électrolytes
+• **Dîner léger** : Avant 20h pour favoriser la baisse thermique
+• **Coucher impératif** : **22h45** ce soir`,
+  },
+  {
+    id: 'habit_simulator',
+    label: '☕ Impact caféine & repas tardif',
+    answer:
+      `### Simulateur d'Habitudes & Métabolisme · Bevel ☕
+
+D'après votre profil et votre sensibilité circadienne :
+
+• **Coupure Caféine recommandée** : **14h00** au plus tard (demi-vie ≈ 6h).
+• **Dîner tardif (> 20h30)** : Augmente la FC au repos de **+4 bpm** et retarde le nadir cardiaque de 2 heures.
+• **Magnésium avant le coucher** : Améliore la VFC nocturne de **+6 à 10 %**.`,
   },
   {
     id: 'session',
-    label: 'Adapte ma séance du jour',
+    label: '🏋️‍♂️ Adapte ma séance du jour',
     answer:
-      'Body Energy à 78 % mais signaux d’alerte immunitaire : je remplace votre séance Pull prévue (intensité 85 %) par une version allégée — 3 séries au lieu de 4, charges −10 %, repos 90 s, aucun travail à l’échec. Tonnage cible ≈ 3,2 t. Si votre température dépasse +0,6 °C, privilégiez 30 min de marche en zone 1.',
-  },
-  {
-    id: 'sleep',
-    label: 'Comment mieux dormir cette nuit ?',
-    answer:
-      'Visez un coucher à 22 h 45 pour 8 h 10 de sommeil. Chambre à 18 °C, écrans coupés 45 min avant, dernier repas 3 h avant le coucher, lumière chaude après 21 h. Objectif : retrouver 1 h 55 de sommeil profond (1 h 52 cette nuit) et une VFC nocturne ≥ 74 ms.',
-  },
-  {
-    id: 'run',
-    label: 'Puis-je courir demain ?',
-    answer:
-      'Probabilité de récupération complète demain : 82 % si vous êtes couché avant 23 h. Footing conseillé : 40 min en zone 2 (allure ≈ 5:45 /km, FC < 145 bpm). Si votre température reste élevée au réveil, optez pour un repos actif (marche, mobilité).',
+      `### Adaptation Force & Surcharge Progressive · Bevel 🏋️‍♂️
+
+Votre **Body Energy est à 78 %** et votre Target Strain se situe entre **11,5 et 14,2**.
+
+• **Séance Haut du Corps** : 4 séries de 6 à 8 reps
+• **Surcharge progressive** : +2,5 % autorisée sur les mouvements polyarticulaires
+• **Temps de repos** : 2 minutes entre les séries
+• **Plafond RPE** : 8,0 (gardez 2 répétitions en réserve)`,
   },
 ];
 
@@ -52,19 +106,42 @@ export const quickQuestionsByDay: Record<number, QuickQuestion[]> = {
       id: 'load_mer',
       label: 'Bilan séance fractionnés',
       answer:
-        'Votre séance de fractionnés a généré 505 kcal pour une FC moyenne de 152 bpm. Votre cœur a récupéré de 38 bpm dans les 2 premières minutes, ce qui indique un excellent état cardiovasculaire.',
+        `### Bilan Séance Fractionnés · Mercredi 14
+
+Votre séance de fractionnés a été très productive :
+
+• **Dépense active** : **505 kcal**
+• **FC moyenne** : **152 bpm**
+• **Récupération post-effort** : **−38 bpm** en 2 min
+
+### Conseil CoVyta
+Votre cœur récupère vite. Prévoyez **500 ml d'eau avec électrolytes** pour reconstituer vos réserves minérales.`,
     },
     {
       id: 'sleep_mer',
       label: 'Sommeil profond 1h46',
       answer:
-        '1h46 de sommeil profond enregistré (22 % du total). Votre système nerveux central a parfaitement éliminé les toxines métaboliques.',
+        `### Qualité du Sommeil Profond
+
+Excellente régénération nocturne enregistrée :
+
+• **Durée en phase N3** : **1h46** (22 % du sommeil total)
+• **Élimination métabolique** : Optimale
+• **Score de sommeil** : **88/100**
+
+Votre système nerveux a parfaitement récupéré de la journée.`,
     },
     {
       id: 'hrv_mer',
       label: 'Stabilité VFC 71 ms',
       answer:
-        'Votre VFC est restée stable à 71 ms (baseline 66 ms). Votre balance sympathique/parasympathique était idéalement équilibrée.',
+        `### Stabilité de la VFC (RMSSD)
+
+Votre VFC est au-dessus de votre baseline de 66 ms :
+
+• **Niveau mesuré** : **71 ms** (+5 ms)
+• **Balance autonome** : Équilibre parasympathique idéal
+• **Résistance au stress** : Maximale`,
     },
   ],
   1: [
@@ -72,13 +149,28 @@ export const quickQuestionsByDay: Record<number, QuickQuestion[]> = {
       id: 'fatigue_mar',
       label: 'Baisse VFC (61 ms)',
       answer:
-        'Le coucher tardif à 23h40 et la charge du lundi ont réduit votre sommeil profond (1h22). Votre système nerveux a compensé par une FC repos légèrement plus haute (54 bpm).',
+        `### Analyse du Fléchissement de VFC
+
+Votre VFC est descendue à **61 ms** (−5 ms sous votre baseline) :
+
+• **Coucher retardé** : **23h40**
+• **Sommeil profond écourté** : **1h22**
+• **FC de repos** : Légère hausse à **54 bpm**
+
+### Conseil CoVyta
+Avancez votre coucher à **22h45** ce soir pour compenser la dette de sommeil.`,
     },
     {
       id: 'recup_mar',
       label: 'Récupération active',
       answer:
-        '30 min de marche et 10 min de mobilité ont réactivé la circulation sanguine sans fatiguer vos réserves de glycogène.',
+        `### Protocole de Récupération Active
+
+Programme recommandé pour votre journée de décharge :
+
+• **30 min de marche** en zone 1 pour relancer le drainage lymphatique
+• **10 min d'étirements doux** ou mobilité
+• **Micro-sieste de 20 min** entre 13h et 14h`,
     },
   ],
   0: [
@@ -86,13 +178,26 @@ export const quickQuestionsByDay: Record<number, QuickQuestion[]> = {
       id: 'kickoff_lun',
       label: 'Bilan début de semaine',
       answer:
-        'Score de 86/100, 10 240 pas et 560 kcal actives. Vos biométries de base sont parfaitement calées pour un cycle d’entraînement progressif.',
+        `### Démarrage de Semaine · Lundi 12
+
+Vos constantes physiologiques sont au vert :
+
+• **Score de vitalité** : **86/100**
+• **Volume d'activité** : **10 240 pas** et **560 kcal**
+• **FC repos & VFC** : **52 bpm** et **69 ms**
+
+Excellentes dispositions pour aborder un nouveau cycle d'entraînement.`,
     },
     {
       id: 'peak_lun',
       label: 'Créneau circadien optimal',
       answer:
-        'Votre pic de force musculaire se produit 8 à 10 heures après le réveil, soit vers 17h30 pour un réveil à 07h00.',
+        `### Fenêtre Circadienne Idéale
+
+Votre pic d'efficacité neuromusculaire se produit 8 à 10 heures après l'éveil :
+
+• **Créneau optimal** : **17h15 à 18h45**
+• **Avantages** : Température corporelle à son pic, réactivité neuromusculaire maximale`,
     },
   ],
 };
@@ -102,25 +207,25 @@ export const insights: Insight[] = [
     id: 'bed',
     title: 'Fenêtre de coucher',
     value: '22 h 45',
-    text: 'Réveil moyen à 06 h 55 : 8 h 10 de sommeil visées pour retrouver 1 h 55 de sommeil profond.',
+    text: 'Cible : 8 h de sommeil',
   },
   {
     id: 'load',
     title: 'Charge vs récupération',
     value: 'Équilibré',
-    text: 'Charge 7 jours : 412 u · Récupération 91 %. Une séance modérée est idéale aujourd’hui.',
+    text: 'Séance modérée recommandée',
   },
   {
     id: 'hrv',
     title: 'Tendance VFC',
     value: '74 → 60 ms',
-    text: 'Baisse diurne de 14 ms : cumul de charge et température +0,4 °C. Surveillance renforcée 48 h.',
+    text: 'Baisse diurne (-14 ms)',
   },
   {
     id: 'temp',
     title: 'Température & immunité',
     value: '+0,4 °C',
-    text: 'Écart au-dessus de votre base : protocole léger activé (hydratation, coucher avancé, intensité réduite).',
+    text: 'Surveillance 48 h',
   },
 ];
 
@@ -131,25 +236,25 @@ export const dailyInsights: Record<number, Insight[]> = {
       id: 'bed',
       title: 'Coucher effectif',
       value: '23 h 05',
-      text: '8h05 de sommeil : 1h46 de sommeil profond et récupération globale à 91 %.',
+      text: '8 h 05 de sommeil',
     },
     {
       id: 'load',
       title: 'Charge d’entraînement',
       value: '505 kcal',
-      text: '9 120 pas. Séance de fractionnés parfaitement assimilée par le myocarde.',
+      text: 'Fractionnés assimilés',
     },
     {
       id: 'hrv',
       title: 'VFC nocturne',
       value: '71 ms',
-      text: 'Rebond parasympathique favorable (+5 ms au-dessus de votre baseline).',
+      text: 'Rebond favorable (+5 ms)',
     },
     {
       id: 'temp',
       title: 'Température cutanée',
       value: '-0,02 °C',
-      text: 'Équilibre thermique stable tout au long de la nuit et de la journée.',
+      text: 'Homéostasie stable',
     },
   ],
   1: [
@@ -157,25 +262,25 @@ export const dailyInsights: Record<number, Insight[]> = {
       id: 'bed',
       title: 'Coucher effectif',
       value: '23 h 40',
-      text: 'Coucher retardé : sommeil profond écourté à 1h22 (score de sommeil 74/100).',
+      text: 'Sommeil écourté (1h22 prof.)',
     },
     {
       id: 'load',
       title: 'Charge d’entraînement',
       value: '390 kcal',
-      text: '6 980 pas. Séance de décharge et récupération active.',
+      text: 'Récupération active',
     },
     {
       id: 'hrv',
       title: 'VFC nocturne',
       value: '61 ms',
-      text: 'Fléchissement de 5 ms sous votre ligne de base : repos compensatoire nécessaire.',
+      text: 'Sous la base (-5 ms)',
     },
     {
       id: 'temp',
       title: 'Température cutanée',
       value: '+0,12 °C',
-      text: 'Légère élévation métabolique consécutive à la fatigue accumulée.',
+      text: 'Légère fatigue',
     },
   ],
   0: [
@@ -183,25 +288,25 @@ export const dailyInsights: Record<number, Insight[]> = {
       id: 'bed',
       title: 'Coucher effectif',
       value: '22 h 55',
-      text: 'Sommeil profond 1h38. Énergie au réveil à 88 % avec un endormissement rapide.',
+      text: 'Sommeil profond : 1 h 38',
     },
     {
       id: 'load',
       title: 'Charge d’entraînement',
       value: '560 kcal',
-      text: '10 240 pas. Reprise dynamique de début de semaine parfaitement menée.',
+      text: '10 240 pas validés',
     },
     {
       id: 'hrv',
       title: 'VFC nocturne',
       value: '69 ms',
-      text: 'Au-dessus de votre ligne de base (66 ms). Réserves nerveuses optimales.',
+      text: 'Réserves optimales',
     },
     {
       id: 'temp',
       title: 'Température cutanée',
       value: '-0,05 °C',
-      text: 'Excellente homéostasie thermique pendant la phase de repos.',
+      text: 'Thermorégulation saine',
     },
   ],
 };
@@ -212,7 +317,16 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day3-msg1',
       sender: 'ai',
       timeStr: '07:42',
-      text: 'Bonjour Alexandre. J’ai analysé vos signaux de la nuit et de la journée : votre vitalité est haute (91/100) mais j’observe une élévation thermique de +0,4 °C combinée à une VFC diurne en baisse (−14 ms). Je vous conseille d’anticiper votre coucher à 22h45 ce soir.',
+      text: `### Analyse Matinale · Jeudi 15 Octobre
+
+Bonjour Alexandre. Vos signaux physiologiques de la nuit et de la journée ont été analysés :
+
+• **Vitalité globale** : **91/100** (niveau optimal)
+• **Température cutanée** : **+0,4 °C** (élévation prodromique)
+• **VFC diurne** : **−14 ms** (système nerveux sous charge)
+
+### Recommandation CoVyta
+Nous vous conseillons d'anticiper votre coucher à **22h45** ce soir pour stopper la charge immunitaire.`,
     },
   ],
   2: [
@@ -220,7 +334,15 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day2-msg1',
       sender: 'ai',
       timeStr: '07:15',
-      text: "Bonjour Alexandre. Votre nuit a été très réparatrice (score 88/100, 1h46 de sommeil profond). Votre VFC nocturne à 71 ms témoigne d'une excellente résilience nerveuse.",
+      text: `### Bilan Nocturne · Mercredi 14 Octobre
+
+Bonjour Alexandre. Votre nuit a été **très réparatrice** :
+
+• **Score de sommeil** : **88/100**
+• **Sommeil profond** : **1h46** (élimination métabolique)
+• **VFC nocturne** : **71 ms** (+5 ms vs baseline)
+
+Votre système nerveux autonome démontre une excellente résilience.`,
     },
     {
       id: 'day2-msg2',
@@ -232,13 +354,24 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day2-msg3',
       sender: 'ai',
       timeStr: '12:36',
-      text: "Oui, votre Body Energy est à 75 % et votre rythme cardiaque au repos à 51 bpm. Vous pouvez maintenir l'intensité prévue, mais prévoyez 15 min de retour au calme et 500 ml d'eau riche en électrolytes après l'effort.",
+      text: `### Validation Séance & Intensité
+
+Oui, vos constantes autorisent l'effort :
+
+• **Body Energy** : **75 %** disponible
+• **Rythme cardiaque repos** : **51 bpm** (très stable)
+• **Protocole conseillé** : Prévoyez **15 min de retour au calme** et **500 ml d'eau** riche en électrolytes après l'effort.`,
     },
     {
       id: 'day2-msg4',
       sender: 'ai',
       timeStr: '20:10',
-      text: "Bilan fin de journée : Vos 9 120 pas et votre séance ont été bien digérés. Pensez à couper les écrans vers 22h15 pour favoriser l'endormissement.",
+      text: `### Synthèse de Fin de Journée
+
+Vos **9 120 pas** et votre séance ont été parfaitement assimilés.
+
+• Coupez les écrans dès **22h15**
+• Cible d'endormissement : **22h50** pour consolider le cycle`,
     },
   ],
   1: [
@@ -246,7 +379,13 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day1-msg1',
       sender: 'ai',
       timeStr: '07:28',
-      text: 'Bonjour Alexandre. Votre sommeil a été écourté cette nuit (coucher à 23h40, score 74/100). Votre VFC est descendue à 61 ms.',
+      text: `### Bilan Nocturne · Mardi 13 Octobre
+
+Bonjour Alexandre. Votre sommeil a été écourté cette nuit :
+
+• **Coucher retardé** : **23h40**
+• **Score de sommeil** : **74/100**
+• **VFC** : **61 ms** (−5 ms sous votre baseline)`,
     },
     {
       id: 'day1-msg2',
@@ -258,7 +397,12 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day1-msg3',
       sender: 'ai',
       timeStr: '08:51',
-      text: "Journée de décharge conseillée : remplacez l'effort violent par une marche de 30 min et de la mobilité douce. Une micro-sieste de 20 minutes entre 13h et 14h aidera votre système parasympathique.",
+      text: `### Protocole Récupération Active
+
+Journée de décharge conseillée :
+
+• Remplacez l'effort violent par **30 min de marche** et **mobilité douce**
+• Une **micro-sieste de 20 minutes** entre 13h et 14h aidera votre système parasympathique.`,
     },
   ],
   0: [
@@ -266,7 +410,15 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day0-msg1',
       sender: 'ai',
       timeStr: '07:12',
-      text: 'Bonjour Alexandre. Excellent redémarrage de semaine : score de vitalité à 86/100, FC repos 52 bpm et VFC à 69 ms. Vos biométries sont au vert pour attaquer le cycle.',
+      text: `### Lancement de Semaine · Lundi 12 Octobre
+
+Bonjour Alexandre. Excellent redémarrage de semaine :
+
+• **Score de vitalité** : **86/100**
+• **FC repos** : **52 bpm**
+• **VFC de base** : **69 ms**
+
+Vos biométries sont au vert pour attaquer le cycle.`,
     },
     {
       id: 'day0-msg2',
@@ -278,7 +430,11 @@ export const seedChatsByDay: Record<number, ChatMessage[]> = {
       id: 'day0-msg3',
       sender: 'ai',
       timeStr: '16:16',
-      text: "Votre pic de force neuromusculaire et de vigilance thermique se situe entre 17h15 et 18h45. C'est le créneau idéal pour votre première séance de musculation ou votre course.",
+      text: `### Fenêtre Circadienne Optimale
+
+Votre pic neuromusculaire et de vigilance se situe entre **17h15 et 18h45** :
+
+• C'est le créneau idéal pour votre première séance de musculation ou votre course.`,
     },
   ],
 };

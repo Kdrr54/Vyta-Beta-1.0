@@ -1,0 +1,726 @@
+/* ==========================================================================
+   VYTA MULTI-THEME SYSTEM (CERAMIC MINERAL & ALPINE LIQUID GLASS & ONYX)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   THEME 1: CÉRAMIQUE MINÉRALE (Inspiré de l'Image 1 - ORYNN / Nordic Wellness)
+   Fond ivoire/sable doux, cartes blanches satinées, typographie noire sobre,
+   touches vert olive/lime et boutons noirs mats sculpturaux.
+   -------------------------------------------------------------------------- */
+
+[data-theme='ceramic'],
+.theme-ceramic,
+.theme-root-ceramic {
+  --bg-deep: #ECEAE5;
+  --bg-canvas: #ECEAE5;
+  --bg-studio: #DFDBD3;
+  --bg-surface: #FAF9F6;
+  --bg-card: #FAF9F6;
+  --bg-card-hover: #FFFFFF;
+  --bg-card-elevated: #FFFFFF;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.16);
+  --border-focus: rgba(0, 0, 0, 0.4);
+
+  --text-primary: #18181A;
+  --text-secondary: #6E6D68;
+  --text-tertiary: #8E8D87;
+  --text-quaternary: #B8B7B2;
+
+  --accent-white: #18181A;
+  --accent-tint: rgba(0, 0, 0, 0.05);
+  --accent-green: #2ECC71;
+  --accent-warn: #D97706;
+
+  --glass-fill: rgba(236, 234, 229, 0.88);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+/* Base Viewport & Chassis in Ceramic */
+.iphone-16-pro.theme-root-ceramic,
+[data-theme='ceramic'].iphone-16-pro {
+  background: #E5E2DC !important;
+  box-shadow: 
+    0 0 0 1px #D6D2CA,
+    0 0 0 3.5px #E2DFD8,
+    0 25px 60px rgba(0, 0, 0, 0.18) !important;
+}
+
+[data-theme='ceramic'] .iphone-button {
+  background: #C8C5BD !important;
+}
+
+/* Background Atmosphere for Ceramic Screen */
+[data-theme='ceramic'],
+[data-theme='ceramic'] .iphone-screen,
+[data-theme='ceramic'] .app-scroll-container,
+[data-theme='ceramic'] .screen-content,
+[data-theme='ceramic'] .app-top {
+  background-color: #ECEAE5 !important;
+  color: #18181A !important;
+}
+
+.ceramic-scenery-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ceramic-ambient-glow {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(236, 234, 229, 0) 70%);
+  filter: blur(40px);
+}
+
+/* Ceramic iOS Status Bar */
+[data-theme='ceramic'] .ios-status-bar {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .status-time {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .status-icons {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .status-icons svg rect {
+  fill: #18181A !important;
+}
+
+[data-theme='ceramic'] .status-icons svg {
+  color: #18181A !important;
+  stroke: #18181A !important;
+}
+
+/* Ceramic Dynamic Island: Real Apple Dynamic Island sits like black hardware pill */
+[data-theme='ceramic'] .dynamic-island {
+  background: #000000 !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+}
+
+[data-theme='ceramic'] .dynamic-island * {
+  color: #FFFFFF !important;
+}
+
+/* Ceramic App Header */
+[data-theme='ceramic'] .app-header {
+  background: rgba(236, 234, 229, 0.88) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='ceramic'] .status-chip,
+[data-theme='ceramic'] .header-date-btn,
+[data-theme='ceramic'] .battery-chip {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .status-chip.bt-dot {
+  background: #18181A !important;
+  box-shadow: none !important;
+}
+
+[data-theme='ceramic'] .covyta-switch-pill {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .covyta-switch-pill.active {
+  background: #18181A !important;
+  color: #FFFFFF !important;
+  border-color: #18181A !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+}
+
+[data-theme='ceramic'] .covyta-switch-pill.active .switch-sparkle {
+  color: #FFFFFF !important;
+}
+
+[data-theme='ceramic'] .ring-header-btn {
+  background: radial-gradient(circle at 35% 30%, #FFFFFF, #E2DFD8) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='ceramic'] .gear-btn {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #18181A !important;
+}
+
+/* Ceramic Headings & Screen Titles */
+[data-theme='ceramic'] .header-title,
+[data-theme='ceramic'] .screen-title,
+[data-theme='ceramic'] h1,
+[data-theme='ceramic'] h2,
+[data-theme='ceramic'] h3 {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .header-subtitle,
+[data-theme='ceramic'] .section-heading {
+  color: #6E6D68 !important;
+}
+
+/* Ceramic Horizontal Week Selector (Nordic Clean Pills) */
+[data-theme='ceramic'] .week-selector {
+  background: transparent !important;
+}
+
+[data-theme='ceramic'] .week-day-btn {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+[data-theme='ceramic'] .week-day-btn:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme='ceramic'] .week-day-letter {
+  color: #8E8D87 !important;
+}
+
+[data-theme='ceramic'] .week-day-num {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .week-day-btn.selected {
+  background: #18181A !important;
+  border-color: #18181A !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16) !important;
+}
+
+[data-theme='ceramic'] .week-day-btn.selected .week-day-letter {
+  color: #ECEAE5 !important;
+}
+
+[data-theme='ceramic'] .week-day-btn.selected .week-day-num {
+  color: #FFFFFF !important;
+}
+
+[data-theme='ceramic'] .week-day-btn.is-today .week-day-num::after {
+  background: #18181A !important;
+}
+
+[data-theme='ceramic'] .week-day-btn.selected.is-today .week-day-num::after {
+  background: #FFFFFF !important;
+}
+
+/* Ceramic Cards Styling (Satin Mineral White with Soft Relief) */
+[data-theme='ceramic'] .metric-card,
+[data-theme='ceramic'] .vitality-hero-card,
+[data-theme='ceramic'] .cycle-card,
+[data-theme='ceramic'] .activity-raw-card,
+[data-theme='ceramic'] .ring-studio-card,
+[data-theme='ceramic'] .body-energy-card,
+[data-theme='ceramic'] .sleep-phases-card,
+[data-theme='ceramic'] .cardio-age-card,
+[data-theme='ceramic'] .immunity-radar-card,
+[data-theme='ceramic'] .coherence-card,
+[data-theme='ceramic'] .hypnogram-container,
+[data-theme='ceramic'] .apple-maps-card-wrapper,
+[data-theme='ceramic'] .modal-sheet {
+  background: #FAF9F6 !important;
+  border: 1px solid rgba(0, 0, 0, 0.07) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .metric-card:hover,
+[data-theme='ceramic'] .cycle-card:hover {
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Ceramic Typography Contrast Inside Cards */
+[data-theme='ceramic'] .score-number,
+[data-theme='ceramic'] .pillar-val,
+[data-theme='ceramic'] .activity-raw-val,
+[data-theme='ceramic'] .metric-large,
+[data-theme='ceramic'] .body-energy-percent,
+[data-theme='ceramic'] .sleep-ring-val,
+[data-theme='ceramic'] .cardio-age-num,
+[data-theme='ceramic'] .stage-pill-name,
+[data-theme='ceramic'] .stage-pill-duration,
+[data-theme='ceramic'] .sleep-card-title,
+[data-theme='ceramic'] .sensor-detail-title,
+[data-theme='ceramic'] .cardio-age-delta,
+[data-theme='ceramic'] .score-val {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .score-total,
+[data-theme='ceramic'] .pillar-label,
+[data-theme='ceramic'] .activity-raw-label,
+[data-theme='ceramic'] .activity-raw-unit,
+[data-theme='ceramic'] .metric-title,
+[data-theme='ceramic'] .metric-unit,
+[data-theme='ceramic'] .stat-label,
+[data-theme='ceramic'] .sleep-ring-sub,
+[data-theme='ceramic'] .stage-pill-pct {
+  color: #6E6D68 !important;
+}
+
+[data-theme='ceramic'] .metric-icon-wrap {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .metric-tag {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #6E6D68 !important;
+}
+
+/* Ceramic Status Badge (Optimal / Good / Attention) */
+[data-theme='ceramic'] .apple-status-badge {
+  background: rgba(46, 204, 113, 0.12) !important;
+  border: 1px solid rgba(46, 204, 113, 0.25) !important;
+  color: #166534 !important;
+}
+
+[data-theme='ceramic'] .apple-status-badge span:first-child {
+  background: #2ECC71 !important;
+}
+
+/* Ceramic Vitality Pillars */
+[data-theme='ceramic'] .pillar-bar {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='ceramic'] .pillar-fill,
+[data-theme='ceramic'] .pillar-fill-sleep {
+  background: #18181A !important;
+}
+
+[data-theme='ceramic'] .pillar-fill-recovery {
+  background: #555450 !important;
+}
+
+[data-theme='ceramic'] .pillar-fill-activity {
+  background: #8E8D87 !important;
+}
+
+/* Ceramic Activity Raw Grid */
+[data-theme='ceramic'] .activity-raw-item:not(:last-child) {
+  border-right-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Ceramic Body Energy Gauge */
+[data-theme='ceramic'] .body-energy-pill {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .stat-val {
+  color: #18181A !important;
+}
+
+/* Ceramic Sleep Phases */
+[data-theme='ceramic'] .sleep-score-badge {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .sleep-icon-chip {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .sleep-stage-pill {
+  background: rgba(0, 0, 0, 0.035) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme='ceramic'] .sleep-stage-pill.active {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.16) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Ceramic Immunity Radar */
+[data-theme='ceramic'] .immunity-shield-badge {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #18181A !important;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+[data-theme='ceramic'] .covyta-diag-container {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='ceramic'] .covyta-diag-title {
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .covyta-diag-subtitle {
+  color: #6E6D68 !important;
+}
+
+[data-theme='ceramic'] .covyta-diag-row {
+  color: #18181A !important;
+}
+
+/* Ceramic Segmented Controls & Pills */
+[data-theme='ceramic'] .segmented-control {
+  background: #E2DFD8 !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme='ceramic'] .segmented-btn {
+  color: #6E6D68 !important;
+}
+
+[data-theme='ceramic'] .segmented-btn.active {
+  background: #FFFFFF !important;
+  color: #18181A !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Ceramic TabBar */
+[data-theme='ceramic'] .apple-tab-bar {
+  background: rgba(250, 249, 246, 0.94) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme='ceramic'] .tab-item {
+  color: #8E8D87 !important;
+}
+
+[data-theme='ceramic'] .tab-item.active {
+  color: #FFFFFF !important;
+  background: #18181A !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme='ceramic'] .ios-home-indicator {
+  background: #18181A !important;
+}
+
+/* Ceramic Modals */
+[data-theme='ceramic'] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.38) !important;
+}
+
+[data-theme='ceramic'] .modal-sheet {
+  background: #FAF9F6 !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] .modal-close-btn,
+[data-theme='ceramic'] .close-pill {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #18181A !important;
+}
+
+[data-theme='ceramic'] input,
+[data-theme='ceramic'] textarea,
+[data-theme='ceramic'] select {
+  background: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  color: #18181A !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   THEME 2: BRUME ALPINE (Inspiré de l'Image 2 - Mountain Fog & Liquid Glass)
+   Atmosphère alpine brumeuse, verre givré translucide, lueur dorée/aube,
+   touches ambrées chaudes (#FF8A3D) et typographie blanche nette.
+   -------------------------------------------------------------------------- */
+
+[data-theme='alpine'],
+.theme-alpine,
+.theme-root-alpine {
+  --bg-deep: #0D1115;
+  --bg-canvas: #0D1115;
+  --bg-studio: #080B0E;
+  --bg-surface: rgba(22, 28, 35, 0.7);
+  --bg-card: rgba(255, 255, 255, 0.075);
+  --bg-card-hover: rgba(255, 255, 255, 0.12);
+  --bg-card-elevated: rgba(26, 34, 42, 0.85);
+
+  --border-subtle: rgba(255, 255, 255, 0.14);
+  --border-medium: rgba(255, 255, 255, 0.26);
+  --border-focus: rgba(255, 138, 61, 0.5);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-tertiary: rgba(255, 255, 255, 0.48);
+  --text-quaternary: rgba(255, 255, 255, 0.28);
+
+  --accent-white: #FFFFFF;
+  --accent-tint: rgba(255, 138, 61, 0.16);
+  --accent-green: #30D158;
+  --accent-warn: #FF8A3D;
+
+  --glass-fill: rgba(18, 24, 30, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme='alpine'] {
+  background: #0D1115 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme='alpine'] .iphone-screen,
+[data-theme='alpine'] .app-scroll-container,
+[data-theme='alpine'] .screen-content {
+  background-color: transparent !important;
+  color: #FFFFFF !important;
+}
+
+.alpine-scenery-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Warm Dawn Sunlight diffusing in fog */
+.alpine-ambient-glow {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  height: 340px;
+  background: radial-gradient(ellipse at 50% 25%, rgba(220, 150, 90, 0.28) 0%, rgba(140, 100, 70, 0.14) 40%, rgba(13, 17, 21, 0) 75%);
+  filter: blur(48px);
+}
+
+/* Mountain Peak Silhouette in Alpine background */
+.alpine-mountain-peak {
+  position: absolute;
+  top: 90px;
+  left: 0;
+  right: 0;
+  height: 220px;
+  background-image: 
+    radial-gradient(ellipse at 50% 80%, rgba(200, 210, 225, 0.12) 0%, transparent 65%),
+    linear-gradient(to bottom, transparent 0%, rgba(13, 17, 21, 0.95) 90%);
+  opacity: 0.85;
+}
+
+/* Morning Mist / Fog Layer */
+.alpine-fog-mist {
+  position: absolute;
+  top: 240px;
+  left: -20px;
+  right: -20px;
+  height: 180px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(180, 195, 210, 0.08) 0%, transparent 70%);
+  filter: blur(28px);
+}
+
+/* Alpine Liquid Glass Cards (Exact match to Photo 2) */
+[data-theme='alpine'] .metric-card,
+[data-theme='alpine'] .vitality-hero-card,
+[data-theme='alpine'] .cycle-card,
+[data-theme='alpine'] .activity-raw-card,
+[data-theme='alpine'] .ring-studio-card,
+[data-theme='alpine'] .body-energy-card,
+[data-theme='alpine'] .sleep-phases-card,
+[data-theme='alpine'] .cardio-age-card,
+[data-theme='alpine'] .immunity-radar-card,
+[data-theme='alpine'] .apple-maps-card-wrapper,
+[data-theme='alpine'] .modal-sheet {
+  background: rgba(255, 255, 255, 0.075) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.38) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  border-radius: 24px !important;
+}
+
+[data-theme='alpine'] .metric-card:hover,
+[data-theme='alpine'] .cycle-card:hover {
+  border-top-color: rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.11) !important;
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Alpine Warm Amber Accents for Readiness & Recovery */
+[data-theme='alpine'] .score-number,
+[data-theme='alpine'] .pillar-val,
+[data-theme='alpine'] .activity-raw-val,
+[data-theme='alpine'] .metric-large,
+[data-theme='alpine'] .cardio-age-num {
+  color: #FFFFFF !important;
+}
+
+[data-theme='alpine'] .apple-status-badge {
+  background: rgba(255, 138, 61, 0.18) !important;
+  border: 1px solid rgba(255, 138, 61, 0.35) !important;
+  color: #FFA94D !important;
+}
+
+[data-theme='alpine'] .apple-status-badge span:first-child {
+  background: #FF8A3D !important;
+}
+
+[data-theme='alpine'] .pillar-fill-recovery,
+[data-theme='alpine'] .pillar-item:nth-child(2) .pillar-fill {
+  background: linear-gradient(90deg, #FF6B00, #FF9F0A) !important;
+}
+
+[data-theme='alpine'] .pillar-fill-sleep,
+[data-theme='alpine'] .pillar-item:nth-child(1) .pillar-fill {
+  background: #FFFFFF !important;
+}
+
+[data-theme='alpine'] .pillar-fill-activity,
+[data-theme='alpine'] .pillar-item:nth-child(3) .pillar-fill {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Alpine TabBar (Liquid Glass Floating Bar) */
+[data-theme='alpine'] .apple-tab-bar {
+  background: rgba(18, 23, 28, 0.78) !important;
+  backdrop-filter: blur(32px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-theme='alpine'] .tab-item.active {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme='alpine'] .ios-home-indicator {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+
+
+/* --------------------------------------------------------------------------
+   THEME 3: ONYX MINIMALISTE (Thème Sombre Apple Original)
+   -------------------------------------------------------------------------- */
+
+[data-theme='dark'] {
+  --bg-deep: #000000;
+  --bg-canvas: #000000;
+  --bg-studio: #000000;
+  --bg-surface: rgba(14, 14, 16, 0.78);
+  --bg-card: rgba(12, 12, 14, 0.74);
+  --text-primary: #FAF7F2;
+  --text-secondary: rgba(242, 234, 225, 0.68);
+  --text-tertiary: rgba(242, 234, 225, 0.45);
+  --border-subtle: rgba(255, 255, 255, 0.13);
+}
+
+[data-theme='dark'] .iphone-screen,
+[data-theme='dark'] .app-scroll-container,
+[data-theme='dark'] .screen-content {
+  background: #000000 !important;
+}
+
+[data-theme='dark'] .app-header {
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+[data-theme='dark'] .apple-tab-bar {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.07) 25%,
+    rgba(18, 20, 28, 0.38) 65%,
+    rgba(10, 11, 16, 0.58) 100%
+  ) !important;
+  backdrop-filter: blur(36px) saturate(220%) contrast(106%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(220%) contrast(106%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.32) !important;
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.75),
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 14px 28px rgba(255, 255, 255, 0.09),
+    inset 0 -6px 14px rgba(0, 0, 0, 0.35),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.35) !important;
+}
+
+
+/* ==========================================================================
+   THEME SWITCHER PILL COMPONENT (Top Header & Studio)
+   ========================================================================== */
+
+.theme-switcher-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-theme='ceramic'] .theme-switcher-pill {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.theme-opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.theme-opt-btn:hover {
+  color: var(--text-primary);
+}
+
+.theme-opt-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-deep);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='ceramic'] .theme-opt-btn.active {
+  background: #18181A !important;
+  color: #FFFFFF !important;
+}

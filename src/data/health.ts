@@ -1,4 +1,5 @@
-import { DayMetrics, FinishOption, HypnogramBlock, RingDevice } from '../types';
+import { DayMetrics, FinishOption, HypnogramBlock, RingDevice, RingFinish, SensorIntervals } from '../types';
+export type { DayMetrics };
 
 export const RING_IMAGE = '/assets/ring/ring-front.png';
 
@@ -17,14 +18,140 @@ export const WEEK = [
 
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
+export const defaultSensorIntervals: SensorIntervals = {
+  heartRate: '20min',
+  hrv: 'continu_nuit',
+  temperature: '30min',
+  spo2: 'nuit',
+  respiratory: 'continu_nuit',
+};
+
+/**
+ * Calcule l'autonomie estimée de la bague (en jours) selon les fréquences d'échantillonnage choisies
+ */
+export function calculateEstimatedBatteryDays(intervals: SensorIntervals): number {
+  let days = 6;
+  if (intervals.heartRate === '10min') days -= 1;
+  else if (intervals.heartRate === '20min') days -= 0;
+  else if (intervals.heartRate === '30min') days += 0.5;
+  else if (intervals.heartRate === '60min') days += 1.5;
+
+  if (intervals.spo2 === '15min') days -= 1;
+  else if (intervals.spo2 === '30min') days -= 0.5;
+  else if (intervals.spo2 === 'nuit') days += 0.5;
+
+  if (intervals.temperature === '15min') days -= 0.3;
+  else if (intervals.temperature === 'nuit') days += 0.3;
+
+  return Math.max(3, Math.min(8, Math.round(days)));
+}
+
+/**
+ * Calcule et formate le temps d'autonomie restant synchronisé avec le pourcentage réel de la batterie
+ * et les intervalles d'échantillonnage des capteurs.
+ * Exemple : à 2% de batterie -> "~3 heures restantes" (et non plusieurs jours).
+ */
+export function formatRemainingBatteryTime(
+  batteryPct: number,
+  intervals: SensorIntervals,
+  isEn = false
+): string {
+  const safePct = Math.max(0, Math.min(100, Math.round(batteryPct)));
+  if (safePct <= 0) {
+    return isEn ? 'Battery depleted · Charge required' : 'Batterie épuisée · Recharge requise';
+  }
+
+  // Autonomie totale à 100% selon les capteurs (3 à 8 jours)
+  const fullDays = calculateEstimatedBatteryDays(intervals);
+  const totalHours = fullDays * 24;
+
+  // Heures restantes réelles selon le pourcentage actuel
+  const remainingHours = (safePct / 100) * totalHours;
+
+  if (remainingHours >= 36) {
+    const days = Math.round(remainingHours / 24);
+    return isEn ? `~${days} days left` : `~${days} jours restants`;
+  }
+
+  if (remainingHours >= 24) {
+    return isEn ? '~1 day left' : '~1 jour restant';
+  }
+
+  if (remainingHours >= 1.5) {
+    const hours = Math.round(remainingHours);
+    return isEn ? `~${hours} hours left` : `~${hours} heures restantes`;
+  }
+
+  if (remainingHours >= 0.8) {
+    return isEn ? '~1 hour left' : '~1 heure restante';
+  }
+
+  return isEn ? '< 1 hour left · Low battery' : '< 1 heure restante · Batterie faible';
+}
+
 export const ringDevice: RingDevice = {
   batteryRing: 87,
   batteryCase: 64,
   bluetooth: '5.4',
   firmware: 'v3.4.12',
-  serial: 'VYTA-R21-99841',
+  serial: 'VYTA-ONE-GM-99841',
+  macAddress: 'C8:2B:96:4A:99:84',
   ringSize: 10,
+  isConnected: true,
+  vytaCareActive: true,
+  vytaCareExpires: 'Octobre 2028',
+  sensorIntervals: defaultSensorIntervals,
 };
+
+
+
+
+/**
+ * Détecte automatiquement la finition matérielle de la bague (champagne, gunmetal, silver, rose)
+ * à partir de l'adresse MAC Bluetooth ou du numéro de série / identifiant matériel.
+ */
+export function detectRingFinish(mac?: string, serial?: string, name?: string): RingFinish {
+  const combined = `${mac || ''} ${serial || ''} ${name || ''}`.toUpperCase();
+
+  // 1. Détection explicite par code de série ou nom BLE
+  if (combined.includes('-GM') || combined.includes('GUNMETAL') || combined.includes('TITANIUM') || combined.includes('BLACK') || combined.includes('DARK')) {
+    return 'gunmetal';
+  }
+  if (combined.includes('-CH') || combined.includes('CHAMPAGNE') || combined.includes('GOLD') || combined.includes('DORE')) {
+    return 'champagne';
+  }
+  if (combined.includes('-SL') || combined.includes('SILVER') || combined.includes('ARGENT') || combined.includes('STEEL')) {
+    return 'silver';
+  }
+  if (combined.includes('-RG') || combined.includes('ROSE') || combined.includes('PINK')) {
+    return 'rose';
+  }
+
+  // 2. Détection déterministe basée sur l'adresse MAC (2 derniers octets matériels)
+  if (mac) {
+    const cleanMac = mac.replace(/[^A-F0-9]/gi, '');
+    if (cleanMac.length >= 2) {
+      const lastByte = parseInt(cleanMac.slice(-2), 16);
+      if (!isNaN(lastByte)) {
+        const finishList: RingFinish[] = ['gunmetal', 'silver', 'champagne', 'rose'];
+        return finishList[lastByte % 4];
+      }
+    }
+  }
+
+  // 3. Hachage déterministe sur le numéro de série
+  if (serial) {
+    let hash = 0;
+    for (let i = 0; i < serial.length; i++) {
+      hash = (hash << 5) - hash + serial.charCodeAt(i);
+      hash |= 0;
+    }
+    const finishList: RingFinish[] = ['gunmetal', 'silver', 'champagne', 'rose'];
+    return finishList[Math.abs(hash) % 4];
+  }
+
+  return 'gunmetal';
+}
 
 export const finishes: FinishOption[] = [
   {
@@ -63,7 +190,7 @@ export const weekMetrics: DayMetrics[] = [
     pillars: { sleep: 84, recovery: 88, activity: 90 },
     steps: 10240, distanceKm: 7.6, activeKcal: 560,
     bodyEnergy: 71, bodyEnergyWake: 88, bodyEnergyBedtime: 29,
-    bpm: 61, restingBpm: 52, hrv: 69, hrvBaseline: 66, tempDelta: -0.05, spo2: 98.2,
+    bpm: 61, restingBpm: 52, minBpm: 48, maxBpm: 138, hrv: 69, hrvBaseline: 66, tempDelta: -0.05, spo2: 98.2,
     anomaly: null,
     sleep: { score: 84, deepMin: 98, remMin: 95, lightMin: 231, awakeMin: 31 },
   },
@@ -72,7 +199,7 @@ export const weekMetrics: DayMetrics[] = [
     pillars: { sleep: 74, recovery: 80, activity: 85 },
     steps: 6980, distanceKm: 5.1, activeKcal: 390,
     bodyEnergy: 64, bodyEnergyWake: 80, bodyEnergyBedtime: 31,
-    bpm: 64, restingBpm: 54, hrv: 61, hrvBaseline: 66, tempDelta: 0.12, spo2: 97.9,
+    bpm: 64, restingBpm: 54, minBpm: 50, maxBpm: 154, hrv: 61, hrvBaseline: 66, tempDelta: 0.12, spo2: 97.9,
     anomaly: null,
     sleep: { score: 74, deepMin: 82, remMin: 86, lightMin: 228, awakeMin: 40 },
   },
@@ -81,7 +208,7 @@ export const weekMetrics: DayMetrics[] = [
     pillars: { sleep: 87, recovery: 91, activity: 82 },
     steps: 9120, distanceKm: 6.7, activeKcal: 505,
     bodyEnergy: 75, bodyEnergyWake: 91, bodyEnergyBedtime: 33,
-    bpm: 62, restingBpm: 51, hrv: 71, hrvBaseline: 66, tempDelta: -0.02, spo2: 98.4,
+    bpm: 62, restingBpm: 51, minBpm: 47, maxBpm: 148, hrv: 71, hrvBaseline: 66, tempDelta: -0.02, spo2: 98.4,
     anomaly: null,
     sleep: { score: 87, deepMin: 106, remMin: 102, lightMin: 224, awakeMin: 27 },
   },
@@ -90,8 +217,8 @@ export const weekMetrics: DayMetrics[] = [
     pillars: { sleep: 89, recovery: 95, activity: 88 },
     steps: 8420, distanceKm: 6.2, activeKcal: 480,
     bodyEnergy: 78, bodyEnergyWake: 92, bodyEnergyBedtime: 34,
-    bpm: 63, restingBpm: 51, hrv: 74, hrvBaseline: 66, tempDelta: -0.08, spo2: 98.6,
-    anomaly: { tempDelta: 0.4, hrvDelta: -14 },
+    bpm: 63, restingBpm: 51, minBpm: 48, maxBpm: 164, hrv: 74, hrvBaseline: 66, tempDelta: -0.08, spo2: 98.6,
+    anomaly: null,
     sleep: { score: 89, deepMin: 112, remMin: 108, lightMin: 222, awakeMin: 24 },
   },
   // Jours à venir : aucune donnée (sélection désactivée dans l'interface)
@@ -105,6 +232,31 @@ export const weekMetrics: DayMetrics[] = [
     sleep: { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 },
   })),
 ];
+
+export const emptyDayMetrics: DayMetrics = {
+  score: 0,
+  pillars: { sleep: 0, recovery: 0, activity: 0 },
+  steps: 0,
+  distanceKm: 0,
+  activeKcal: 0,
+  bodyEnergy: 0,
+  bodyEnergyWake: 0,
+  bodyEnergyBedtime: 0,
+  bpm: 0,
+  restingBpm: 0,
+  minBpm: 0,
+  maxBpm: 0,
+  hrv: 0,
+  hrvBaseline: 0,
+  tempDelta: 0,
+  spo2: 0,
+  anomaly: null,
+  sleep: { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 },
+};
+
+export const createEmptyWeekMetrics = (): DayMetrics[] => {
+  return Array.from({ length: 7 }, () => ({ ...emptyDayMetrics }));
+};
 
 export const statusFor = (score: number): string => {
   if (score >= 90) return 'Optimal';

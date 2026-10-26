@@ -17,3 +17,10 @@ dist-ssr
 .idea
 .DS_Store
 __pycache__
+
+# Scratch & SDK
+scratch/
+sdk_extracted/
+
+# Agent internal directories
+.agents/

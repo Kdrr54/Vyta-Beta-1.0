@@ -1,421 +1,593 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { WEEK, TODAY_INDEX, weekMetrics } from '../data/health';
-import { 
-  dailyInsights, 
-  quickQuestionsByDay, 
-  seedChatsByDay, 
-  ChatMessage, 
-  QuickQuestion 
-} from '../data/covyta';
-import { WeekSelector } from './WeekSelector';
-import { 
-  Sparkles, 
-  Send, 
-  Lock, 
-  ArrowRight, 
-  Bot, 
-  User, 
-  RotateCcw,
-  Calendar,
-  CheckCircle2
-} from 'lucide-react';
+import { TODAY_INDEX, weekMetrics, emptyDayMetrics } from '../data/health';
+import { ChatMessage } from '../data/covyta';
+import { getStoredGeminiKey, queryGeminiBiometricAI } from '../lib/geminiService';
+import { GeminiApiKeyModal } from './GeminiApiKeyModal';
+import { Send, User, Sparkles, Brain, RotateCcw, Mic, Key } from 'lucide-react';
 
-const STORAGE_KEY = 'vyta_covyta_daily_chats_v2';
+const STORAGE_KEY = 'vyta_covyta_live_session_v4';
+
+// Purge automatique des anciens messages enregistrés pour démarrer 100% propre
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('vyta_covyta_chat_clean_v1');
+    localStorage.removeItem('vyta_covyta_chat_v1');
+    localStorage.removeItem('vyta_covyta_chat_history');
+    localStorage.removeItem('vyta_covyta_messages');
+  } catch {}
+}
+
+// Formattage du texte markdown simple (**gras**, listes, titres)
+const renderMessageContent = (text: string, sender: 'user' | 'ai') => {
+  const lines = text.split('\n');
+
+  return (
+    <div className="covyta-formatted-msg">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} style={{ height: '6px' }} />;
+        }
+
+        // En-tête (### Titre)
+        if (trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+          const heading = trimmed.replace(/^#{2,3}\s+/, '');
+          return (
+            <h4
+              key={idx}
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '13px',
+                fontWeight: 700,
+                color: sender === 'user' ? '#000000' : '#FFFFFF',
+                margin: idx === 0 ? '0 0 4px 0' : '8px 0 4px 0',
+                lineHeight: 1.35,
+              }}
+            >
+              {parseBold(heading, sender)}
+            </h4>
+          );
+        }
+
+        // Puce (• ou -)
+        if (trimmed.startsWith('• ') || trimmed.startsWith('- ')) {
+          const bulletText = trimmed.replace(/^[•\-]\s+/, '');
+          return (
+            <div
+              key={idx}
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '7px',
+                margin: '2px 0',
+                fontSize: '12px',
+                lineHeight: 1.45,
+                color: sender === 'user' ? '#111111' : 'rgba(255, 255, 255, 0.9)',
+              }}
+            >
+              <span style={{ color: sender === 'user' ? '#000000' : 'var(--gold)', fontSize: '8px' }}>◆</span>
+              <div style={{ flex: 1 }}>{parseBold(bulletText, sender)}</div>
+            </div>
+          );
+        }
+
+        // Paragraphe standard
+        return (
+          <p
+            key={idx}
+            style={{
+              margin: '2px 0',
+              fontSize: '12.5px',
+              lineHeight: 1.45,
+              color: sender === 'user' ? '#111111' : 'rgba(255, 255, 255, 0.88)',
+            }}
+          >
+            {parseBold(trimmed, sender)}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
+const parseBold = (content: string, sender: 'user' | 'ai') => {
+  const parts = content.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong
+          key={i}
+          style={{
+            fontWeight: 700,
+            color: sender === 'user' ? '#000000' : '#FFFFFF',
+          }}
+        >
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+};
 
 export const CoVytaScreen: React.FC = () => {
-  const { selectedDay, setSelectedDay, covytaActive, openModal } = useApp();
+  const { language, profile, weekData, isFirstLaunch } = useApp();
+  const isEn = language === 'en';
 
-  const dayInfo = WEEK[selectedDay] || WEEK[TODAY_INDEX];
-  const dayData = weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX];
+  const dayData = (weekData && weekData[TODAY_INDEX]) || (isFirstLaunch ? emptyDayMetrics : weekMetrics[TODAY_INDEX]);
+  
+  // Clé API Gemini stockée
+  const [currentApiKey, setCurrentApiKey] = useState<string>(() => getStoredGeminiKey());
+  const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
 
-  // Daily chats storage keyed by day index (0: Lundi 12, 1: Mardi 13, 2: Mercredi 14, 3: Jeudi 15)
-  const [dailyChats, setDailyChats] = useState<Record<number, ChatMessage[]>>(() => {
+  // Liste des messages (démarre 100% vide sans aucun message enregistré)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Ignorer erreur de parsing
-    }
-    return seedChatsByDay;
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
   });
 
   const [inputPrompt, setInputPrompt] = useState<string>('');
-  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [resetSuccess, setResetSuccess] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
 
-  // Sauvegarde automatique à chaque mise à jour des conversations
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Sauvegarde temporaire par session uniquement
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dailyChats));
-    } catch (e) {
-      console.warn('Erreur de sauvegarde locale CoVyta:', e);
-    }
-  }, [dailyChats]);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
 
-  const currentMessages = dailyChats[selectedDay] || [];
-  const currentInsights = dailyInsights[selectedDay] || dailyInsights[TODAY_INDEX];
-  const currentQuickQuestions = quickQuestionsByDay[selectedDay] || quickQuestionsByDay[TODAY_INDEX];
+  // Défilement automatique vers le bas
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isThinking]);
 
-  const formatCurrentTime = () => {
-    return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  // Réinitialiser la discussion (efface tout)
+  const handleResetChat = () => {
+    setMessages([]);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('vyta_covyta_chat_clean_v1');
+      localStorage.removeItem('vyta_covyta_chat_v1');
+      localStorage.removeItem('vyta_covyta_chat_history');
+    } catch {}
+    setIsThinking(false);
+    setResetSuccess(true);
+    setTimeout(() => setResetSuccess(false), 2000);
   };
 
-  const handleSendPrompt = (text: string) => {
-    if (!text.trim()) return;
+  // Streaming progressif du texte (mot à mot pour un effet vivant)
+  const streamResponse = (fullText: string, isRealAI: boolean, thinking?: string) => {
+    const msgId = `ai-${Date.now()}`;
+    const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const words = fullText.split(' ');
+    let wordIndex = 0;
 
-    if (!covytaActive) {
-      openModal('subscribe');
-      return;
-    }
+    const initialMsg: ChatMessage = {
+      id: msgId,
+      sender: 'ai',
+      text: '',
+      timeStr,
+      isRealAI,
+      thinking,
+      isStreaming: true,
+    };
 
-    const timeStr = formatCurrentTime();
+    setMessages((prev) => [...prev, initialMsg]);
+
+    const interval = setInterval(() => {
+      wordIndex += 2;
+      if (wordIndex >= words.length) {
+        clearInterval(interval);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, text: fullText, isStreaming: false } : m))
+        );
+      } else {
+        const partial = words.slice(0, wordIndex).join(' ');
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, text: partial, isStreaming: true } : m))
+        );
+      }
+    }, 28);
+  };
+
+  // Envoi d'une question
+  const handleSendPrompt = async (text: string) => {
+    const cleanText = text.trim();
+    if (!cleanText || isThinking) return;
+
+    const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text,
+      text: cleanText,
       timeStr,
     };
 
-    // Ajout immédiat du message utilisateur à la journée sélectionnée
-    setDailyChats((prev) => ({
-      ...prev,
-      [selectedDay]: [...(prev[selectedDay] || []), userMsg],
-    }));
+    setMessages((prev) => [...prev, userMsg]);
     setInputPrompt('');
-    setIsTyping(true);
+    setIsThinking(true);
 
-    // Recherche de réponse pertinente ou génération contextuelle liée au jour actif
-    const matched = currentQuickQuestions?.find(
-      (q) => q.label.toLowerCase() === text.toLowerCase() || text.toLowerCase().includes(q.label.slice(0, 10).toLowerCase())
-    );
+    try {
+      let responseText = '';
+      let isReal = false;
+      let aiThinking: string | undefined = undefined;
 
-    setTimeout(() => {
-      setIsTyping(false);
-      let aiResponse = '';
+      if (currentApiKey) {
+        const historyForAI = messages.map((m) => ({
+          sender: m.sender,
+          text: m.text,
+        }));
 
-      if (matched) {
-        aiResponse = matched.answer;
-      } else {
-        // Réponse physiologique contextualisée selon la journée sélectionnée
-        if (selectedDay === TODAY_INDEX) {
-          aiResponse = `D'après vos signaux du ${dayInfo.long} 15 (vitalité ${dayData.score}/100, FC repos ${dayData.restingBpm} bpm, Body Energy ${dayData.bodyEnergy} %), votre système est réactif mais votre anomalie thermique (+0,4 °C) conseille 500 ml d'eau fraîche, une charge allégée et un coucher strict à 22h45.`;
-        } else if (selectedDay === 2) {
-          aiResponse = `Pour votre journée du Mercredi 14 : Votre récupération a été notée à 91 % avec 1h46 de sommeil profond et 9 120 pas. Votre VFC nocturne (71 ms) a parfaitement équilibré votre charge sportive.`;
-        } else if (selectedDay === 1) {
-          aiResponse = `Concernant le Mardi 13 : Avec un score de 79/100 et un coucher tardif (23h40), la VFC était descendue à 61 ms. Les 6 980 pas de marche ont constitué la bonne stratégie de récupération active.`;
+        const geminiRes = await queryGeminiBiometricAI({
+          prompt: cleanText,
+          profile,
+          dayData,
+          dayName: "Aujourd'hui",
+          isToday: true,
+          language,
+          persona: 'analyst',
+          conversationHistory: historyForAI,
+        });
+
+        if (geminiRes.error && !geminiRes.text) {
+          responseText = `⚠️ **Erreur IA Gemini** : ${geminiRes.error}\n\nVeuillez vérifier votre clé API ou votre connexion internet.`;
+          isReal = false;
         } else {
-          aiResponse = `Pour le Lundi 12 : Début de semaine vigoureux avec 10 240 pas, un score de 86/100 et une VFC optimale à 69 ms. Votre charge était parfaitement proportionnée.`;
+          responseText = geminiRes.text;
+          isReal = true;
+          aiThinking = geminiRes.thinking;
         }
+      } else {
+        responseText = `### ⚡ Activation requise\n\nAucune clé API Gemini n'est active.\n\nPour converser directement avec l'intelligence artificielle en temps réel, cliquez sur le bouton **Activer Vraie IA** en haut ou dans les Réglages pour renseigner votre clé.`;
+        isReal = false;
       }
 
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: aiResponse,
-        timeStr: formatCurrentTime(),
-      };
+      setIsThinking(false);
 
-      setDailyChats((prev) => ({
-        ...prev,
-        [selectedDay]: [...(prev[selectedDay] || []), aiMsg],
-      }));
-    }, 550);
-  };
-
-  const handleResetDay = () => {
-    if (window.confirm(`Réinitialiser la conversation du ${dayInfo.long} ${dayInfo.date} Octobre ?`)) {
-      const defaultInitial = seedChatsByDay[selectedDay] || [
-        {
-          id: `init-${selectedDay}`,
-          sender: 'ai',
-          timeStr: '08:00',
-          text: `Bonjour Alexandre. Je suis à votre écoute pour analyser vos signaux physiologiques du ${dayInfo.long} ${dayInfo.date} Octobre.`,
-        },
-      ];
-
-      setDailyChats((prev) => ({
-        ...prev,
-        [selectedDay]: defaultInitial,
-      }));
+      // Déroulement fluide mot à mot avec thinking si disponible
+      streamResponse(responseText, isReal, aiThinking);
+    } catch (e) {
+      setIsThinking(false);
+      console.error(e);
     }
   };
 
+  // Dictée vocale simulée
+  const handleMicClick = () => {
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+    setIsListening(true);
+    setInputPrompt(isEn ? 'Listening to your voice...' : 'Écoute vocale active...');
+
+    setTimeout(() => {
+      setIsListening(false);
+      const samplePrompts = [
+        "Comment optimiser ma récupération aujourd'hui ?",
+        'Puis-je forcer à la séance ce soir ?',
+        'Que dit ma VFC sur mon état de forme ?',
+      ];
+      const randomPrompt = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
+      setInputPrompt(randomPrompt);
+    }, 1600);
+  };
+
   return (
-    <div className="screen-content">
-      {/* 1. Titre & Sous-titre Calendaire identique à l'écran Aujourd'hui */}
-      <div style={{ paddingTop: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <span className="header-subtitle">
-              {dayInfo.long.toUpperCase()} {dayInfo.date} OCTOBRE
-            </span>
-            <h1 className="header-title">
-              {selectedDay === TODAY_INDEX ? "Aujourd'hui" : selectedDay === TODAY_INDEX - 1 ? 'Hier' : dayInfo.long}
-            </h1>
-          </div>
-
-          {/* Badge CoVyta IA en haut à droite */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                background: 'linear-gradient(135deg, rgba(77, 11, 32, 0.45), rgba(201, 166, 107, 0.15))',
-                border: '1px solid var(--gold-border)',
-                borderRadius: '8px',
-                padding: '4px 9px',
-              }}
-            >
-              <Sparkles size={12} color="var(--gold)" />
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gold-light)', letterSpacing: '0.04em' }}>
-                CoVyta IA
-              </span>
-            </div>
-
-            {covytaActive ? (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: '#30D158',
-                  background: 'rgba(48, 209, 88, 0.12)',
-                  border: '1px solid rgba(48, 209, 88, 0.25)',
-                  padding: '4px 7px',
-                  borderRadius: '8px',
-                }}
-              >
-                Actif
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => openModal('subscribe')}
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: 'var(--gold-light)',
-                  background: 'rgba(201, 166, 107, 0.12)',
-                  border: '1px solid var(--gold-border)',
-                  padding: '4px 7px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
-              >
-                Découverte
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Barre de Sélection de Semaine (L 12 - M 13 - M 14 - J 15 - V 16 - S 17 - D 18) */}
-      <WeekSelector />
-
-      {/* 3. Carte de Recommandations & Diagnostic Biométrique du Jour */}
-      <div className="covyta-hero-banner">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={16} color="var(--gold)" />
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gold-light)', letterSpacing: '0.04em' }}>
-              {selectedDay === TODAY_INDEX
-                ? 'RECOMMANDATIONS DU JOUR'
-                : `SYNTHÈSE DU ${dayInfo.long.toUpperCase()} ${dayInfo.date}`}
-            </span>
-          </div>
-
-          <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-            {selectedDay === TODAY_INDEX ? "Mis à jour à l'instant" : 'Journée archivée'}
-          </span>
+    <div className="covyta-screen-wrap">
+      {/* 1. Header supérieur simple : CoVyta + Statut IA + Bouton Réinitialiser */}
+      <div className="covyta-header-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h1 className="header-title" style={{ margin: 0 }}>CoVyta</h1>
+          <button
+            type="button"
+            onClick={() => setShowKeyModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              borderRadius: '999px',
+              background: currentApiKey ? 'rgba(48, 209, 88, 0.14)' : 'rgba(217, 249, 112, 0.12)',
+              border: currentApiKey ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(217, 249, 112, 0.4)',
+              cursor: 'pointer',
+              color: currentApiKey ? '#30D158' : '#D9F970',
+              fontSize: '10.5px',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+              transition: 'all 0.15s ease',
+            }}
+            title={currentApiKey ? "IA Gemini 2.0 active · Cliquez pour configurer" : "Cliquez pour activer la vraie IA Gemini"}
+          >
+            <Sparkles size={11} color={currentApiKey ? '#30D158' : '#D9F970'} />
+            <span>{currentApiKey ? '✨ Vraie IA Gemini' : '⚡ Activer Vraie IA'}</span>
+          </button>
         </div>
 
-        <p style={{ fontSize: '13px', color: '#FFFFFF', margin: '4px 0 0 0', lineHeight: 1.5 }}>
-          {selectedDay === TODAY_INDEX
-            ? "Croisement des données : Sommeil Profond 1h52 · VFC 74 ms · Taux d'Oxygène 98,6 %"
-            : `Score de vitalité ${dayData.score}/100 · Sommeil ${dayData.sleep.deepMin}m profond · VFC ${dayData.hrv} ms`}
-        </p>
-
-        {/* Grille de 4 insights du jour */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
-          {currentInsights.map((ins) => (
-            <div
-              key={ins.id}
-              style={{
-                background: 'rgba(0, 0, 0, 0.45)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2px',
-              }}
-            >
-              <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>{ins.title}</span>
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: ins.id === 'bed' ? 'var(--gold-light)' : '#FFFFFF',
-                }}
-              >
-                {ins.value}
-              </span>
-              <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', lineHeight: 1.3, marginTop: '2px' }}>
-                {ins.text}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bannière abonnement si CoVyta est inactif */}
-      {!covytaActive && (
-        <div
-          className="glass-panel"
+        {/* Bouton Réinitialiser la discussion pour vos tests */}
+        <button
+          type="button"
+          onClick={handleResetChat}
           style={{
-            padding: '14px 16px',
-            borderColor: 'var(--gold-border)',
-            background: 'rgba(184, 35, 72, 0.06)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            gap: '5px',
+            background: resetSuccess ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.08)',
+            border: resetSuccess ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(255, 255, 255, 0.18)',
+            borderRadius: '8px',
+            padding: '4px 9px',
+            cursor: 'pointer',
+            color: resetSuccess ? '#30D158' : 'rgba(255, 255, 255, 0.85)',
+            transition: 'all 0.15s ease',
           }}
+          title="Effacer la discussion et recommencer à zéro"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Lock size={16} color="var(--gold)" />
-            <div>
-              <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FFFFFF', display: 'block' }}>
-                Mode Découverte
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Activez CoVyta pour dialoguer en temps réel avec votre santé
-              </span>
-            </div>
-          </div>
+          <RotateCcw size={12} color={resetSuccess ? '#30D158' : 'rgba(255, 255, 255, 0.85)'} />
+          <span style={{ fontSize: '11px', fontWeight: 600 }}>
+            {resetSuccess ? 'Réinitialisé ✓' : 'Réinitialiser'}
+          </span>
+        </button>
+      </div>
 
-          <button
-            type="button"
-            className="covyta-lock-cta"
-            onClick={() => openModal('subscribe')}
-            style={{ padding: '6px 12px', fontSize: '11px' }}
-          >
-            <span>5,99 €</span>
-            <ArrowRight size={11} />
-          </button>
-        </div>
-      )}
-
-      {/* 4. Section Conversation Enregistrée par Jour */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* Barre d'état de l'historique quotidien */}
-        <div className="chat-day-status-bar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={13} color="var(--gold)" />
-            <span style={{ fontWeight: 600, color: '#FFFFFF' }}>
-              Conversation du {dayInfo.long} {dayInfo.date} Octobre
-            </span>
-            <span style={{ fontSize: '9.5px', color: '#30D158', background: 'rgba(48, 209, 88, 0.1)', padding: '1px 6px', borderRadius: '4px' }}>
-              ● Enregistré par jour
-            </span>
-          </div>
-
-          <button
-            type="button"
-            className="chat-reset-btn"
-            onClick={handleResetDay}
-            title="Réinitialiser l'échange de cette journée"
-          >
-            <RotateCcw size={11} />
-            <span>Effacer</span>
-          </button>
-        </div>
-
-        {/* Questions Rapides (1-Clic) adaptées à la journée */}
-        <div className="covyta-quick-chips">
-          {currentQuickQuestions?.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              className="quick-chip-btn"
-              onClick={() => handleSendPrompt(q.label)}
-            >
-              <span>{q.label}</span>
-              <Sparkles size={12} color="var(--gold)" />
-            </button>
-          ))}
-        </div>
-
-        {/* Fil de discussion de la journée sélectionnée */}
-        <div className="chat-thread" style={{ marginTop: '4px' }}>
-          {currentMessages.map((m) => (
+      {/* 2. Fil de discussion qui remplit tout l'espace central */}
+      <div className="covyta-messages-area">
+        {/* Écran d'accueil quand la discussion est vierge (centré verticalement) */}
+        {messages.length === 0 && !isThinking && (
+          <div className="covyta-empty-center">
             <div
-              key={m.id}
-              className={`chat-bubble ${m.sender === 'user' ? 'user' : 'ai gold'}`}
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '16px',
+                background: currentApiKey ? 'rgba(48, 209, 88, 0.15)' : 'rgba(217, 249, 112, 0.14)',
+                border: currentApiKey ? '1px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(217, 249, 112, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: currentApiKey ? '0 0 20px rgba(48, 209, 88, 0.2)' : '0 0 20px rgba(217, 249, 112, 0.15)',
+              }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+              <Sparkles size={24} color={currentApiKey ? '#30D158' : '#D9F970'} />
+            </div>
+
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', marginTop: '2px' }}>
+              {isEn ? 'CoVyta Biometric Intelligence' : 'Intelligence Biométrique CoVyta'}
+            </span>
+
+            <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)', maxWidth: '300px', lineHeight: 1.45, textAlign: 'center' }}>
+              {currentApiKey
+                ? (isEn
+                    ? '⚡ Real Gemini AI is connected. Ask any question freely.'
+                    : '⚡ Vraie IA Gemini connectée. Posez votre question librement.')
+                : (isEn
+                    ? 'Connect Gemini to chat with the AI in real time.'
+                    : 'Activez la vraie IA Gemini pour discuter en temps réel.')}
+            </span>
+
+            {!currentApiKey ? (
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(true)}
+                style={{
+                  marginTop: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, rgba(217, 249, 112, 0.22) 0%, rgba(56, 189, 248, 0.15) 100%)',
+                  border: '1px solid rgba(217, 249, 112, 0.5)',
+                  color: '#D9F970',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(217, 249, 112, 0.2)',
+                  transition: 'transform 0.15s ease',
+                }}
+              >
+                <Sparkles size={13} color="#D9F970" />
+                <span>Activer la Vraie IA Gemini</span>
+              </button>
+            ) : (
+              <div
+                style={{
+                  marginTop: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  background: 'rgba(48, 209, 88, 0.12)',
+                  border: '1px solid rgba(48, 209, 88, 0.35)',
+                  color: '#30D158',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                }}
+              >
+                <span>✓ Prêt à discuter avec l'IA</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bulles de conversation */}
+        {messages.map((m) => (
+          <div key={m.id} className={`chat-bubble ${m.sender === 'user' ? 'user' : 'ai gold'}`}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {m.sender === 'ai' ? (
                   <>
-                    <Sparkles size={11} color="var(--gold)" />
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--gold-light)', letterSpacing: '0.04em' }}>
-                      COVYTA IA
+                    <Sparkles size={11} color={m.isRealAI ? '#30D158' : 'var(--gold)'} />
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: m.isRealAI ? '#30D158' : 'var(--gold-light)', letterSpacing: '0.04em' }}>
+                      COVYTA
                     </span>
+                    {m.isRealAI && (
+                      <span
+                        style={{
+                          fontSize: '8.5px',
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          background: 'rgba(48, 209, 88, 0.2)',
+                          color: '#30D158',
+                          border: '1px solid rgba(48, 209, 88, 0.4)',
+                        }}
+                      >
+                        VRAIE IA GEMINI
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
                     <User size={11} color="#000000" />
                     <span style={{ fontSize: '10px', fontWeight: 700, color: '#000000' }}>
-                      VOUS
+                      {isEn ? 'YOU' : 'VOUS'}
                     </span>
                   </>
                 )}
               </div>
-
-              <div>{m.text}</div>
-
-              <div className="chat-bubble-footer">
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{m.timeStr || '10:00'}</span>
-                <CheckCircle2 size={10} color={m.sender === 'user' ? '#000000' : 'var(--gold)'} />
-              </div>
             </div>
-          ))}
 
-          {/* Indicateur de saisie en temps réel */}
-          {isTyping && (
-            <div className="chat-bubble ai gold" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--gold-light)', marginRight: '4px' }}>CoVyta analyse vos signaux</span>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--gold)', animation: 'pulseWarn 1s infinite' }} />
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--gold)', animation: 'pulseWarn 1s infinite 200ms' }} />
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--gold)', animation: 'pulseWarn 1s infinite 400ms' }} />
+            {renderMessageContent(m.text, m.sender)}
+            {m.isStreaming && <span className="streaming-cursor" />}
+
+            {/* Accordéon du raisonnement biométrique interne s'il existe */}
+            {m.thinking && (
+              <details
+                style={{
+                  marginTop: '10px',
+                  padding: '7px 10px',
+                  borderRadius: '10px',
+                  background: 'rgba(217, 249, 112, 0.08)',
+                  border: '1px solid rgba(217, 249, 112, 0.25)',
+                  fontSize: '11px',
+                }}
+              >
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    color: '#D9F970',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    userSelect: 'none',
+                  }}
+                >
+                  <Brain size={12} color="#D9F970" />
+                  <span>Raisonnement biométrique interne (Gemini 2.0 Flash)</span>
+                </summary>
+                <div
+                  style={{
+                    marginTop: '8px',
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    whiteSpace: 'pre-line',
+                    lineHeight: 1.45,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10.5px',
+                  }}
+                >
+                  {m.thinking}
+                </div>
+              </details>
+            )}
+
+            <div className="chat-bubble-footer" style={{ marginTop: '6px' }}>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>{m.timeStr}</span>
             </div>
-          )}
-        </div>
+          </div>
+        ))}
 
-        {/* Barre de Saisie du Message */}
+        {/* Indicateur discret et épuré "1 task running" */}
+        {isThinking && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              margin: '4px 0 10px 0',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              fontSize: '12px',
+              color: 'rgba(255, 255, 255, 0.55)',
+              fontFamily: 'var(--font-mono, monospace)',
+              animation: 'pulse 1.8s ease-in-out infinite',
+              alignSelf: 'flex-start',
+            }}
+          >
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--gold, #D9F970)',
+                boxShadow: '0 0 8px var(--gold, #D9F970)',
+                display: 'inline-block',
+              }}
+            />
+            <span>1 task running</span>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* 4. Barre de saisie ancrée tout en bas au-dessus de la TabBar */}
+      <div className="covyta-docked-input">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSendPrompt(inputPrompt);
           }}
           className="chat-input-bar"
+          style={{ margin: 0 }}
         >
+          <button
+            type="button"
+            className={`chat-mic-btn ${isListening ? 'listening' : ''}`}
+            onClick={handleMicClick}
+            title={isListening ? 'Écoute en cours...' : 'Dictée vocale'}
+          >
+            <Mic size={16} />
+          </button>
+
           <input
             type="text"
             className="chat-input"
-            placeholder={
-              covytaActive 
-                ? `Poser une question pour le ${dayInfo.long} ${dayInfo.date}...` 
-                : 'Activez CoVyta pour poser une question...'
-            }
+            placeholder={isEn ? 'Ask CoVyta a question...' : 'Posez une question à CoVyta...'}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
+            disabled={isThinking}
           />
-          <button type="submit" className="chat-send-btn" title="Envoyer">
+
+          <button
+            type="submit"
+            className="chat-send-btn"
+            disabled={!inputPrompt.trim() || isThinking}
+            title="Envoyer"
+          >
             <Send size={15} />
           </button>
         </form>
       </div>
+
+      {/* Modal pour saisir et tester la clé API Google Gemini */}
+      <GeminiApiKeyModal
+        isOpen={showKeyModal}
+        onClose={() => setShowKeyModal(false)}
+        onKeySaved={(newKey) => setCurrentApiKey(newKey)}
+      />
     </div>
   );
 };

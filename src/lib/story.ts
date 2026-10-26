@@ -1,5 +1,4 @@
-import { run } from '../data/fit';
-import { fmtClockSec, fmtMMSS, fmtNum } from './format';
+import { Pt } from '../types';
 
 export interface StoryData {
   mode: 'run' | 'gym';
@@ -8,9 +7,164 @@ export interface StoryData {
   stats: { label: string; value: string; unit?: string }[];
   accentText?: string;
   tonnageKg?: number;
+  /** Progression réelle du parcours entre 0 et 1 (1 = boucle complète du Parc Monceau) */
+  routeProgress?: number;
 }
 
-export function generateStoryDataUrl(data: StoryData): Promise<string> {
+export type StoryTemplateVariant = 'transparent' | 'satellite' | 'dark_gold' | 'telemetry';
+
+/**
+ * Coordonnées GPS de référence du parcours Parc Monceau (identiques à AppleWorkoutMap.tsx)
+ */
+export const WORKOUT_ROUTE_WAYPOINTS: Pt[] = [
+  { x: 180, y: 44 },  // Départ Rotonde
+  { x: 135, y: 55 },  // Km 1 Nord-Ouest
+  { x: 88, y: 72 },   // Km 2 Av. Van Dyck
+  { x: 58, y: 104 },  // Km 3 Ouest
+  { x: 54, y: 142 },  // Km 4 Sud-Ouest
+  { x: 82, y: 172 },  // Km 5 Sud (Av. Ruysdaël)
+  { x: 140, y: 190 }, // Km 6 Sud-Est
+  { x: 215, y: 192 }, // Km 7 Est (Rue de Prony)
+  { x: 275, y: 165 }, // Km 8 Nord-Est
+  { x: 295, y: 120 },
+  { x: 285, y: 78 },
+  { x: 240, y: 52 },
+  { x: 196, y: 45 },  // Arrivée Rotonde
+  { x: 180, y: 44 },  // Bouclage complet
+];
+
+/**
+ * Chemin SVG Bézier canonique du Parc Monceau (viewBox 0 0 360 230)
+ * Identique sur AppleWorkoutMap, les vignettes de Trajets et la Story
+ */
+export const PARC_MONCEAU_PATH_D =
+  'M 180 44 Q 180 44, 157.5 49.5 T 135 55 Q 135 55, 111.5 63.5 T 88 72 Q 88 72, 73 88 T 58 104 Q 58 104, 56 123 T 54 142 Q 54 142, 68 157 T 82 172 Q 82 172, 111 181 T 140 190 Q 140 190, 177.5 191 T 215 192 Q 215 192, 245 178.5 T 275 165 Q 275 165, 285 142.5 T 295 120 Q 295 120, 290 99 T 285 78 Q 285 78, 262.5 65 T 240 52 Q 240 52, 218 48.5 T 196 45 Q 196 45, 188 44.5 T 180 44 Z';
+
+/**
+ * Échantillonne de façon lisse (Catmull-Rom) la trajectoire réelle de la course
+ * du départ jusqu'à `progress` (entre 0 et 1).
+ */
+export function getSampledRunTrajectory(progress = 1, totalSamples = 160): Pt[] {
+  const effectiveProg =
+    typeof progress === 'number' && progress > 0.03 ? Math.min(1, progress) : 1;
+
+  const pts = WORKOUT_ROUTE_WAYPOINTS;
+  const n = pts.length - 1;
+  const maxFloatIndex = effectiveProg * n;
+  const sampleCount = Math.max(12, Math.round(totalSamples * effectiveProg));
+
+  const result: Pt[] = [];
+  for (let s = 0; s <= sampleCount; s++) {
+    const pos = (s / sampleCount) * maxFloatIndex;
+    const idx = Math.min(n - 1, Math.floor(pos));
+    const t = pos - idx;
+
+    const p0 = pts[Math.max(0, idx - 1)];
+    const p1 = pts[idx];
+    const p2 = pts[Math.min(n, idx + 1)];
+    const p3 = pts[Math.min(n, idx + 2)];
+
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    const x =
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+
+    const y =
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+
+    result.push({ x, y });
+  }
+  return result;
+}
+
+/**
+ * Calcule la position en pixels (viewBox 0 0 360 230) du coureur
+ * en fonction de la progression de course (entre 0 et 1).
+ */
+export function getRunnerPosition(prog = 1): Pt {
+  const p = Math.max(0, Math.min(1, prog));
+  if (p <= 0 || p >= 0.999) return { x: 180, y: 44 };
+  const totalSegments = WORKOUT_ROUTE_WAYPOINTS.length - 1;
+  const segmentIndex = p * totalSegments;
+  const i = Math.floor(segmentIndex);
+  const t = segmentIndex - i;
+  const p1 = WORKOUT_ROUTE_WAYPOINTS[i];
+  const p2 = WORKOUT_ROUTE_WAYPOINTS[Math.min(i + 1, totalSegments)];
+  return {
+    x: Math.round((p1.x + (p2.x - p1.x) * t) * 10) / 10,
+    y: Math.round((p1.y + (p2.y - p1.y) * t) * 10) / 10,
+  };
+}
+
+/**
+ * Redimensionne et centre les points de la trajectoire dans une boîte (width x height)
+ * en conservant les proportions exactes du parcours.
+ */
+export function fitTrajectoryToBox(
+  rawPoints: Pt[],
+  width: number,
+  height: number,
+  padding: number,
+  boundsPoints: Pt[] = WORKOUT_ROUTE_WAYPOINTS
+): Pt[] {
+  if (rawPoints.length === 0) return [];
+  // On dimensionne par rapport au parcours global pour ne pas déformer une portion partielle
+  const xs = boundsPoints.map((p) => p.x);
+  const ys = boundsPoints.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  const spanX = Math.max(10, maxX - minX);
+  const spanY = Math.max(10, maxY - minY);
+
+  const availW = Math.max(10, width - padding * 2);
+  const availH = Math.max(10, height - padding * 2);
+  const scale = Math.min(availW / spanX, availH / spanY);
+
+  const offsetX = (width - spanX * scale) / 2 - minX * scale;
+  const offsetY = (height - spanY * scale) / 2 - minY * scale;
+
+  return rawPoints.map((p) => ({
+    x: p.x * scale + offsetX,
+    y: p.y * scale + offsetY,
+  }));
+}
+
+/**
+ * Génère le chemin SVG (`d`) de la trajectoire réelle de la course pour l'aperçu dans StoryModal.
+ */
+export function getRunTrajectorySvgPath(
+  width: number,
+  height: number,
+  padding: number,
+  progress = 1
+): string {
+  const raw = getSampledRunTrajectory(progress);
+  const fitted = fitTrajectoryToBox(raw, width, height, padding);
+  if (fitted.length === 0) return '';
+  return fitted
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(' ');
+}
+
+/**
+ * Génère l'image PNG haute définition (1080x1920) en thème Noir & Blanc.
+ */
+export function generateStoryDataUrl(
+  data: StoryData,
+  variant: StoryTemplateVariant = 'transparent'
+): Promise<string> {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
@@ -21,294 +175,237 @@ export function generateStoryDataUrl(data: StoryData): Promise<string> {
       return;
     }
 
-    // 1. Pure dark luxury background
-    ctx.fillStyle = '#050507';
-    ctx.fillRect(0, 0, 1080, 1920);
+    const distStat = data.stats[0] || { label: 'Distance', value: '8.12', unit: 'km' };
+    const paceStat = data.stats[1] || { label: 'Allure', value: '5:09', unit: '/km' };
+    const timeStat = data.stats[2] || { label: 'Temps', value: '41m 52s', unit: '' };
+    const hrStat = data.stats[3] || { label: 'FC Moyenne', value: '156', unit: 'bpm' };
 
-    // Subtle dark radial gradient
-    const radial = ctx.createRadialGradient(540, 700, 50, 540, 700, 700);
-    radial.addColorStop(0, 'rgba(77, 11, 32, 0.25)');
-    radial.addColorStop(1, 'rgba(5, 5, 7, 0)');
-    ctx.fillStyle = radial;
-    ctx.fillRect(0, 0, 1080, 1920);
+    const drawRunTrajectoryOnCanvas = (
+      boxX: number,
+      boxY: number,
+      boxW: number,
+      boxH: number,
+      strokeColor: string,
+      lineWidth: number,
+      glowColor?: string
+    ) => {
+      const prog = typeof data.routeProgress === 'number' && data.routeProgress > 0.02
+        ? Math.min(1, data.routeProgress)
+        : 1;
+      const raw = getSampledRunTrajectory(prog);
+      const fitted = fitTrajectoryToBox(raw, boxW, boxH, 24);
+      if (fitted.length < 2) return;
 
-    // 2. Bordeaux Top Accent Line
-    const bordeauxGrad = ctx.createLinearGradient(140, 0, 940, 0);
-    bordeauxGrad.addColorStop(0, '#4D0B20');
-    bordeauxGrad.addColorStop(0.5, '#EFA0B4');
-    bordeauxGrad.addColorStop(1, '#A31F44');
-
-    ctx.strokeStyle = bordeauxGrad;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(140, 120);
-    ctx.lineTo(940, 120);
-    ctx.stroke();
-
-    // 3. VYTA Brand & Hardware Tag
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 44px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.letterSpacing = '10px';
-    ctx.textAlign = 'left';
-    ctx.fillText('VYTA', 140, 200);
-
-    ctx.fillStyle = '#F096A8';
-    ctx.font = '600 24px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.letterSpacing = '3px';
-    ctx.textAlign = 'right';
-    ctx.fillText('VYTA ONE · R21', 940, 195);
-
-    // 4. Session Title & Subtitle
-    ctx.fillStyle = '#8E8E93';
-    ctx.font = '500 28px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.letterSpacing = '1px';
-    ctx.fillText(data.dateStr.toUpperCase(), 140, 290);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 64px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.letterSpacing = '-1px';
-    ctx.fillText(data.title, 140, 370);
-
-    // 5. Visual Centerpiece (GPS Trace or Heavy Tonnage Medal)
-    if (data.mode === 'run') {
-      // Draw Authentic Apple Maps Parc Monceau in Dark Mode on 1080x1920 Canvas
       ctx.save();
-      ctx.translate(540, 780);
+      ctx.translate(boxX, boxY);
 
-      // 1. Map Card Backdrop with subtle rounded border
-      ctx.fillStyle = '#141417';
-      ctx.beginPath();
-      ctx.roundRect(-420, -320, 840, 640, 36);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      if (glowColor) {
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 24;
+      }
 
-      // Clip inside map card
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(-420, -320, 840, 640, 36);
-      ctx.clip();
-
-      // Roads (Boulevard de Courcelles top arterial)
-      ctx.strokeStyle = '#282830';
-      ctx.lineWidth = 32;
-      ctx.beginPath();
-      ctx.moveTo(-450, -220);
-      ctx.lineTo(450, -220);
-      ctx.stroke();
-
-      // Dashed lane divider
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([12, 16]);
-      ctx.beginPath();
-      ctx.moveTo(-450, -220);
-      ctx.lineTo(450, -220);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Parc Monceau Lush Green Polygon
-      ctx.fillStyle = '#122515';
-      ctx.strokeStyle = '#1A381F';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      const pPoly = [
-        [-300, -190], [0, -190], [300, -190],
-        [340, -60], [320, 100], [240, 230],
-        [80, 260], [-120, 250], [-260, 210],
-        [-320, 80], [-330, -60]
-      ];
-      pPoly.forEach(([px, py], idx) => {
-        if (idx === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Water Basin: La Naumachie
-      ctx.fillStyle = '#0F2133';
-      ctx.strokeStyle = '#1E3B57';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.ellipse(-120, -20, 75, 45, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Internal gravel paths
-      ctx.strokeStyle = '#1D3522';
-      ctx.lineWidth = 12;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.ellipse(0, 30, 290, 190, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Apple Maps Text: PARC MONCEAU
-      ctx.fillStyle = 'rgba(229, 229, 234, 0.85)';
-      ctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-      ctx.letterSpacing = '4px';
-      ctx.textAlign = 'center';
-      ctx.fillText('PARC MONCEAU', 30, 40);
-
-      // Apple Fitness Glowing Route
-      const paceGradient = ctx.createLinearGradient(-300, -200, 300, 200);
-      paceGradient.addColorStop(0, '#FF9F0A');
-      paceGradient.addColorStop(0.3, '#FFD60A');
-      paceGradient.addColorStop(0.7, '#30D158');
-      paceGradient.addColorStop(1, '#20E670');
-
-      ctx.strokeStyle = paceGradient;
-      ctx.lineWidth = 14;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = lineWidth;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.shadowColor = '#30D158';
-      ctx.shadowBlur = 30;
 
-      // Draw perimeter running route
       ctx.beginPath();
-      const numPts = 120;
-      for (let i = 0; i <= numPts; i++) {
-        const a = (i / numPts) * Math.PI * 1.94;
-        const rx = 280 + 20 * Math.sin(3 * a);
-        const ry = 180 + 15 * Math.cos(2 * a);
-        const px = rx * Math.cos(a - Math.PI / 2);
-        const py = ry * Math.sin(a - Math.PI / 2) + 20;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      fitted.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      // Pin de départ (Rotonde)
+      const startPt = fitted[0];
+      if (startPt) {
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(startPt.x, startPt.y, lineWidth * 0.85, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.stroke();
 
-      // Start & Finish points
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#30D158';
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(0, -170, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#FF453A';
-      ctx.beginPath();
-      ctx.arc(45, -165, 12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Apple Maps Logo in bottom-right of map
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-      ctx.textAlign = 'right';
-      ctx.letterSpacing = '1px';
-      ctx.fillText(' Plans', 390, 290);
+      // Pin d'arrivée si parcours partiel
+      if (prog < 0.98) {
+        const endPt = fitted[fitted.length - 1];
+        if (endPt) {
+          ctx.fillStyle = strokeColor;
+          ctx.beginPath();
+          ctx.arc(endPt.x, endPt.y, lineWidth * 0.85, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       ctx.restore();
-      ctx.restore();
-    } else {
-      // Musculation: Golden Heavy Trophy / Ring graphic
-      ctx.save();
-      ctx.translate(540, 800);
+    };
 
-      // Concentric metallic bordeaux rings
-      ctx.strokeStyle = 'rgba(77, 11, 32, 0.4)';
+    // ==================== VARIANT 1: TRANSPARENT STICKER (NOIR & BLANC) ====================
+    if (variant === 'transparent') {
+      ctx.clearRect(0, 0, 1080, 1920);
+      ctx.textAlign = 'center';
+
+      // 1. Distance
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.font = '600 38px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(distStat.label, 540, 460);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 104px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(
+        `${distStat.value}${distStat.unit ? ' ' + distStat.unit : ''}`,
+        540,
+        568
+      );
+
+      // 2. Allure / Pace
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.font = '600 38px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(paceStat.label, 540, 720);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 104px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(
+        `${paceStat.value}${paceStat.unit ? ' ' + paceStat.unit : ''}`,
+        540,
+        828
+      );
+
+      // 3. Temps / Time
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.font = '600 38px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(timeStat.label, 540, 980);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 104px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(
+        `${timeStat.value}${timeStat.unit ? ' ' + timeStat.unit : ''}`,
+        540,
+        1088
+      );
+
+      // 4. Trajectoire réelle de la course en Blanc pur (Course uniquement)
+      if (data.mode === 'run') {
+        drawRunTrajectoryOnCanvas(270, 1150, 540, 350, '#FFFFFF', 16);
+      }
+
+      // 5. Logo VYTA en bas
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 72px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.letterSpacing = '8px';
+      ctx.fillText('VYTA', 540, 1620);
+
+      resolve(canvas.toDataURL('image/png'));
+      return;
+    }
+
+    // ==================== VARIANT 2: CARTE MONOCHROME ====================
+    if (variant === 'satellite') {
+      const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1920);
+      bgGrad.addColorStop(0, '#0E0E11');
+      bgGrad.addColorStop(0.5, '#18181C');
+      bgGrad.addColorStop(1, '#09090B');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, 1080, 1920);
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
       ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, 320, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = bordeauxGrad;
-      ctx.lineWidth = 8;
-      ctx.shadowColor = '#A31F44';
-      ctx.shadowBlur = 30;
-      ctx.beginPath();
-      ctx.arc(0, 0, 220, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Center tonnage callout
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 110px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-      ctx.textAlign = 'center';
-      const tonnageStr = data.tonnageKg ? (data.tonnageKg / 1000).toFixed(1) : '5.8';
-      ctx.fillText(`${tonnageStr} t`, 0, 25);
-
-      ctx.fillStyle = '#EFA0B4';
-      ctx.font = '600 30px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-      ctx.letterSpacing = '4px';
-      ctx.fillText('CHARGE TOTALE', 0, 90);
-      ctx.restore();
-    }
-
-    // 6. Highlight Badge (e.g. Nouveau Record / Session Validée)
-    if (data.accentText) {
-      const badgeY = 1200;
-      ctx.save();
-      ctx.fillStyle = 'rgba(77, 11, 32, 0.35)';
-      ctx.strokeStyle = '#A31F44';
-      ctx.lineWidth = 2;
-      const bw = 460;
-      const bh = 64;
-      const bx = 540 - bw / 2;
-      ctx.beginPath();
-      ctx.roundRect(bx, badgeY, bw, bh, 32);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#EFA0B4';
-      ctx.font = '600 26px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`✨ ${data.accentText}`, 540, badgeY + 42);
-      ctx.restore();
-    }
-
-    // 7. 4 Key Metric Cards (2x2 Grid)
-    const startY = 1320;
-    const cardW = 380;
-    const cardH = 160;
-    const positions = [
-      { x: 140, y: startY },
-      { x: 560, y: startY },
-      { x: 140, y: startY + 190 },
-      { x: 560, y: startY + 190 },
-    ];
-
-    data.stats.slice(0, 4).forEach((stat, i) => {
-      const pos = positions[i];
-      // Card background
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(pos.x, pos.y, cardW, cardH, 24);
-      ctx.fill();
-      ctx.stroke();
-
-      // Label
-      ctx.fillStyle = '#8E8E93';
-      ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(stat.label.toUpperCase(), pos.x + 30, pos.y + 50);
-
-      // Value
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 54px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-      ctx.fillText(stat.value, pos.x + 30, pos.y + 118);
-
-      if (stat.unit) {
-        ctx.fillStyle = '#F096A8';
-        ctx.font = '600 26px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
-        const valWidth = ctx.measureText(stat.value).width;
-        ctx.fillText(stat.unit, pos.x + 35 + valWidth, pos.y + 118);
+      for (let i = -200; i < 1920; i += 110) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(1080, i + 180);
+        ctx.stroke();
       }
-    });
+      for (let x = 80; x < 1080; x += 140) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x - 120, 1920);
+        ctx.stroke();
+      }
 
-    // 8. Footer Watermark & Ring Sensor Authenticity
-    ctx.fillStyle = '#636366';
-    ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+      const topVig = ctx.createLinearGradient(0, 0, 0, 550);
+      topVig.addColorStop(0, 'rgba(0,0,0,0.8)');
+      topVig.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = topVig;
+      ctx.fillRect(0, 0, 1080, 550);
+
+      const botVig = ctx.createLinearGradient(0, 1250, 0, 1920);
+      botVig.addColorStop(0, 'rgba(0,0,0,0)');
+      botVig.addColorStop(1, 'rgba(0,0,0,0.92)');
+      ctx.fillStyle = botVig;
+      ctx.fillRect(0, 1250, 1080, 670);
+
+      if (data.mode === 'run') {
+        drawRunTrajectoryOnCanvas(180, 560, 720, 560, '#FFFFFF', 20, 'rgba(255, 255, 255, 0.45)');
+      }
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '600 32px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(distStat.label, 110, 1520);
+      ctx.fillText(paceStat.label, 440, 1520);
+      ctx.fillText(timeStat.label, 760, 1520);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 64px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.fillText(`${distStat.value} ${distStat.unit || ''}`, 110, 1595);
+      ctx.fillText(`${paceStat.value} ${paceStat.unit || ''}`, 440, 1595);
+      ctx.fillText(`${timeStat.value}`, 760, 1595);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 58px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.letterSpacing = '8px';
+      ctx.fillText('VYTA', 540, 1775);
+
+      resolve(canvas.toDataURL('image/png'));
+      return;
+    }
+
+    // ==================== VARIANT 3 & 4: NOIR PROFOND / CONTRASTE BLANC ====================
+    const isLightCard = variant === 'telemetry';
+    ctx.fillStyle = isLightCard ? '#F5F5F7' : '#050507';
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    const fgPrimary = isLightCard ? '#000000' : '#FFFFFF';
+    const fgSecondary = isLightCard ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)';
+
     ctx.textAlign = 'center';
-    ctx.letterSpacing = '2px';
-    ctx.fillText('ENREGISTRÉ PAR CAPTEURS OPTIQUES ET ACCÉLÉROMÈTRE VYTA ONE', 540, 1820);
+
+    ctx.fillStyle = fgSecondary;
+    ctx.font = '600 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(distStat.label, 540, 430);
+    ctx.fillStyle = fgPrimary;
+    ctx.font = '800 100px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(`${distStat.value} ${distStat.unit || ''}`, 540, 535);
+
+    ctx.fillStyle = fgSecondary;
+    ctx.font = '600 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(paceStat.label, 540, 685);
+    ctx.fillStyle = fgPrimary;
+    ctx.font = '800 100px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(`${paceStat.value} ${paceStat.unit || ''}`, 540, 790);
+
+    ctx.fillStyle = fgSecondary;
+    ctx.font = '600 36px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(isLightCard ? hrStat.label : timeStat.label, 540, 940);
+    ctx.fillStyle = fgPrimary;
+    ctx.font = '800 100px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillText(
+      isLightCard
+        ? `${hrStat.value} ${hrStat.unit || ''}`
+        : `${timeStat.value}`,
+      540,
+      1045
+    );
+
+    if (data.mode === 'run') {
+      drawRunTrajectoryOnCanvas(270, 1140, 540, 350, fgPrimary, 16);
+    }
+
+    ctx.fillStyle = fgPrimary;
+    ctx.font = '900 68px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.letterSpacing = '8px';
+    ctx.fillText('VYTA', 540, 1620);
 
     resolve(canvas.toDataURL('image/png'));
   });

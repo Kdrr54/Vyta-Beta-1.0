@@ -1,37 +1,75 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { HeartHandshake } from 'lucide-react';
+import { Heart } from 'lucide-react';
 
 interface CardioAgeProps {
   score: number;
 }
 
 export const CardioAge: React.FC<CardioAgeProps> = ({ score }) => {
-  const { profile } = useApp();
+  const { profile, t, isFirstLaunch } = useApp();
+  const isZeroState = isFirstLaunch || score === 0;
 
-  // Cardio age estimation based on vitality score
-  // High vitality (91) -> ~ 4 years younger
   const delta = score >= 90 ? -4 : score >= 80 ? -2 : 0;
   const estimatedAge = Math.max(18, profile.age + delta);
 
   return (
-    <div className="cardio-age-card">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Santé Artérielle
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        padding: '16px 18px',
+        borderRadius: '26px',
+        overflow: 'hidden',
+        background:
+          'radial-gradient(ellipse at 50% 115%, rgba(217, 249, 112, 0.28) 0%, rgba(163, 204, 62, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+        backdropFilter: 'blur(26px)',
+        WebkitBackdropFilter: 'blur(26px)',
+        borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+        borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+        borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+        borderBottom: '1.5px solid rgba(217, 249, 112, 0.65)',
+        boxShadow: '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 249, 112, 0.14)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13.5px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.9)' }}>
+            {t('cardio.title')}
+          </span>
+        </div>
+        <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>
+          {isZeroState ? 'En attente de données cardio' : 'Indice basé sur la VRC et le cardio au repos'}
         </span>
-        <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-          Âge Cardiovasculaire
-        </h3>
-        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
-          Basé sur la rigidité artérielle optique & la VFC
-        </p>
       </div>
 
-      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-        <div className="cardio-age-num-group">
-          <span className="cardio-age-num">{estimatedAge}</span>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>ans</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span style={{ fontSize: '38px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
+            {isZeroState ? '--' : estimatedAge}
+          </span>
+          <span style={{ fontSize: '15px', fontWeight: 300, color: 'rgba(250, 247, 242, 0.75)', marginLeft: '2px' }}>
+            {t('cardio.years')}
+          </span>
+        </div>
+
+        <div
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Heart size={14} color="#D9F970" strokeWidth={1.8} />
         </div>
       </div>
     </div>

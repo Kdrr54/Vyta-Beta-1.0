@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
-import { StoryData } from '../lib/story';
+import { StoryData, PARC_MONCEAU_PATH_D } from '../lib/story';
 import { AppleWorkoutMap } from './AppleWorkoutMap';
+import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { 
@@ -30,8 +31,74 @@ import {
   Square,
   Navigation,
   Sliders,
-  Settings2
+  Settings2,
+  Route,
+  Bookmark
 } from 'lucide-react';
+
+export interface StoredRoute {
+  id: string;
+  title: string;
+  location: string;
+  distanceKm: number;
+  durationSec: number;
+  elevationM: number;
+  avgHr: number;
+  dateStr: string;
+  pointsSvgPath: string;
+  progress?: number;
+}
+
+const initialStoredRoutes: StoredRoute[] = [
+  {
+    id: 'route-monceau',
+    title: 'Boucle Parc Monceau (Record)',
+    location: 'Paris 8e · Rotonde de Chartres',
+    distanceKm: 8.12,
+    durationSec: 2512,
+    elevationM: 64,
+    avgHr: 156,
+    dateStr: '15 oct. 2026 · 07:10',
+    pointsSvgPath: PARC_MONCEAU_PATH_D,
+    progress: 1,
+  },
+  {
+    id: 'route-seine',
+    title: 'Quais de Seine · Tour Eiffel',
+    location: 'Paris 7e · Pont d\'Iéna',
+    distanceKm: 5.40,
+    durationSec: 1605,
+    elevationM: 28,
+    avgHr: 162,
+    dateStr: '12 oct. 2026 · 18:30',
+    pointsSvgPath: 'M 50 180 Q 120 160, 180 115 T 310 50',
+    progress: 0.66,
+  },
+  {
+    id: 'route-boulogne',
+    title: 'Bois de Boulogne · Tour du Lac',
+    location: 'Paris 16e · Lac Inférieur',
+    distanceKm: 10.25,
+    durationSec: 3198,
+    elevationM: 45,
+    avgHr: 150,
+    dateStr: '8 oct. 2026 · 09:15',
+    pointsSvgPath: 'M 180 45 Q 100 65, 75 125 T 140 190 Q 220 195, 285 135 T 240 55 Z',
+    progress: 1,
+  },
+  {
+    id: 'route-montmartre',
+    title: 'Montmartre · Dénivelé Sacré-Cœur',
+    location: 'Paris 18e · Place du Tertre',
+    distanceKm: 4.60,
+    durationSec: 1630,
+    elevationM: 120,
+    avgHr: 168,
+    dateStr: '3 oct. 2026 · 11:00',
+    pointsSvgPath: 'M 70 190 L 130 150 L 110 120 L 200 90 L 250 45',
+    progress: 0.57,
+  },
+];
 
 export interface GymSet {
   id: string;
@@ -79,8 +146,31 @@ const initialWorkoutExercises: GymExercise[] = [
 export const FitScreen: React.FC = () => {
   const { openStory } = useApp();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialSubTab = (params?.get('fit') as 'run' | 'gym' | 'feed') || 'run';
-  const [subTab, setSubTab] = useState<'run' | 'gym' | 'feed'>(initialSubTab);
+  const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
+  const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
+
+  const [storedRoutes, setStoredRoutes] = useState<StoredRoute[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_stored_routes');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return initialStoredRoutes;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('vyta_stored_routes', JSON.stringify(storedRoutes));
+      } catch (e) {}
+    }
+  }, [storedRoutes]);
+
+  const [showNewRouteModal, setShowNewRouteModal] = useState<boolean>(false);
+  const [newRouteTitle, setNewRouteTitle] = useState<string>('');
+  const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
+  const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
 
   // ------------------ COURSE & CARDIO (SESSION GPS VYTA LIVE) ------------------
   const initialRunState = (params?.get('run_state') as 'idle' | 'running' | 'paused' | 'finished') || 'idle';
@@ -91,6 +181,7 @@ export const FitScreen: React.FC = () => {
   const [runDurationSec, setRunDurationSec] = useState<number>(initialRunDur);
   const [runDistanceKm, setRunDistanceKm] = useState<number>(initialRunDist);
   const [isFastDemo, setIsFastDemo] = useState<boolean>(false);
+  const [isLiveRunningViewOpen, setIsLiveRunningViewOpen] = useState<boolean>(initialRunState === 'running');
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(() => {
     if (initialRunDur > 0 && initialRunDist > 0) {
@@ -182,6 +273,7 @@ export const FitScreen: React.FC = () => {
       setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
     }
     setRunState('running');
+    setIsLiveRunningViewOpen(true);
   };
 
   const pauseRun = () => {
@@ -190,6 +282,7 @@ export const FitScreen: React.FC = () => {
 
   const resumeRun = () => {
     setRunState('running');
+    setIsLiveRunningViewOpen(true);
   };
 
   const stopRun = () => {
@@ -201,6 +294,77 @@ export const FitScreen: React.FC = () => {
     setRunDurationSec(0);
     setRunDistanceKm(0);
     setTelemetryHistory([]);
+  };
+
+  const saveCurrentRunToTrajets = () => {
+    const finalDist = runDistanceKm > 0.05 ? runDistanceKm : 8.12;
+    const finalDur = runDurationSec > 5 ? runDurationSec : 2512;
+    const finalHr = liveHr > 60 ? liveHr : 156;
+
+    const newRoute: StoredRoute = {
+      id: `route-${Date.now()}`,
+      title: `Course Vyta · ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
+      location: 'Paris · Parcours libre',
+      distanceKm: Math.round(finalDist * 100) / 100,
+      durationSec: finalDur,
+      elevationM: Math.round(finalDist * 8),
+      avgHr: finalHr,
+      dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      pointsSvgPath: PARC_MONCEAU_PATH_D,
+      progress: 1,
+    };
+    setStoredRoutes((prev) => [newRoute, ...prev]);
+    setSubTab('trajets');
+  };
+
+  const handleCreateRoute = () => {
+    const cleanTitle = newRouteTitle.trim() || 'Mon Nouveau Parcours';
+    const distNum = parseFloat(newRouteDist) || 5.0;
+    const estSec = Math.round(distNum * 315);
+
+    const newRoute: StoredRoute = {
+      id: `route-${Date.now()}`,
+      title: cleanTitle,
+      location: newRouteLoc.trim() || 'Paris',
+      distanceKm: distNum,
+      durationSec: estSec,
+      elevationM: Math.round(distNum * 8),
+      avgHr: 154,
+      dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      pointsSvgPath: 'M 10 65 Q 35 50 50 35 T 90 20',
+      progress: 1,
+    };
+
+    setStoredRoutes((prev) => [newRoute, ...prev]);
+    setShowNewRouteModal(false);
+    setNewRouteTitle('');
+    setNewRouteDist('5.0');
+    setNewRouteLoc('Paris');
+  };
+
+  const deleteRoute = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setStoredRoutes((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const loadAndStartRoute = (route: StoredRoute) => {
+    resetRun();
+    setSubTab('run');
+  };
+
+  const shareStoredRoute = (route: StoredRoute, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    openStory({
+      title: route.title,
+      date: route.dateStr,
+      stats: [
+        { label: 'Distance', value: route.distanceKm.toFixed(2), unit: 'km' },
+        { label: 'Allure', value: fmtMMSS(Math.round(route.durationSec / route.distanceKm)), unit: '/km' },
+        { label: 'Temps', value: fmtClockSec(route.durationSec), unit: '' },
+        { label: 'FC Moyenne', value: `${route.avgHr}`, unit: 'bpm' },
+      ],
+      routeProgress: route.progress ?? 1,
+    });
   };
 
   // Live computed metrics (strictement 0 à l'arrêt)
@@ -564,14 +728,21 @@ export const FitScreen: React.FC = () => {
         <h1 className="header-title">Fit</h1>
       </div>
 
-      {/* 3-Section Segmented Control */}
+      {/* 4-Section Segmented Control (Course, Trajets, Musculation, Cercle) */}
       <div className="segmented-control" role="tablist">
         <button
           type="button"
           className={`segmented-btn ${subTab === 'run' ? 'active' : ''}`}
           onClick={() => setSubTab('run')}
         >
-          Course & Cardio
+          Course
+        </button>
+        <button
+          type="button"
+          className={`segmented-btn ${subTab === 'trajets' ? 'active' : ''}`}
+          onClick={() => setSubTab('trajets')}
+        >
+          Trajets ({storedRoutes.length})
         </button>
         <button
           type="button"
@@ -585,13 +756,44 @@ export const FitScreen: React.FC = () => {
           className={`segmented-btn ${subTab === 'feed' ? 'active' : ''}`}
           onClick={() => setSubTab('feed')}
         >
-          Cercle Vyta
+          Cercle
         </button>
       </div>
 
       {/* ==================== 1. MODE COURSE & CARDIO ==================== */}
+      <div key={subTab} className="subtab-view">
       {subTab === 'run' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Running in progress banner if minimized */}
+          {!isLiveRunningViewOpen && (runState === 'running' || runState === 'paused') && (
+            <div
+              onClick={() => setIsLiveRunningViewOpen(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                background: 'linear-gradient(135deg, rgba(252, 82, 0, 0.22), rgba(0, 122, 255, 0.22))',
+                border: '1.5px solid #FC5200',
+                borderRadius: '16px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 18px rgba(252, 82, 0, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FC5200', boxShadow: '0 0 10px #FC5200' }} />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#FFFFFF' }}>Course à pied active (Live)</div>
+                  <div style={{ fontSize: '11px', color: '#8E8E93', fontFamily: 'monospace' }}>
+                    {fmtClockSec(runDurationSec)} • {runDistanceKm.toFixed(2)} km
+                  </div>
+                </div>
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: '#FC5200', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                AFFICHER ↗
+              </span>
+            </div>
+          )}
           {/* Bandeau de Contrôle de la Course GPS Vyta */}
           <div className="run-control-card">
             <div className="run-control-header">
@@ -768,10 +970,10 @@ export const FitScreen: React.FC = () => {
             type="button"
             className="apple-pay-btn"
             style={{
-              background: 'var(--gold-gradient)',
-              color: '#FFFFFF',
+              background: '#FFFFFF',
+              color: '#000000',
               fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(184, 35, 72, 0.25)',
+              boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
             }}
             onClick={openRunStory}
           >
@@ -781,7 +983,350 @@ export const FitScreen: React.FC = () => {
         </div>
       )}
 
-      {/* ==================== 2. MODE MUSCULATION (GYM LOGGER) ==================== */}
+      {/* ==================== 2. MODE MES TRAJETS ENREGISTRÉS ==================== */}
+      {subTab === 'trajets' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* En-tête Trajets */}
+          <div className="session-header-card">
+            <div className="session-title-row">
+              <div>
+                <span className="session-title-text" style={{ fontSize: '17px' }}>
+                  Mes Trajets ({storedRoutes.length})
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="add-exercise-btn-main"
+                style={{ flex: '0 0 auto', padding: '8px 13px', background: '#FFFFFF', color: '#000000' }}
+                onClick={() => setShowNewRouteModal(true)}
+              >
+                <Plus size={14} />
+                <span>Nouveau trajet</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Résumé global des trajets */}
+          <div className="activity-raw-card">
+            <div className="activity-raw-item">
+              <span className="activity-raw-label">
+                <Route size={11} />
+                <span>Parcours</span>
+              </span>
+              <div>
+                <span className="activity-raw-val">{storedRoutes.length}</span>
+              </div>
+            </div>
+
+            <div className="activity-raw-item">
+              <span className="activity-raw-label">
+                <Navigation size={11} />
+                <span>Distance cumulée</span>
+              </span>
+              <div>
+                <span className="activity-raw-val">
+                  {storedRoutes.reduce((acc, r) => acc + r.distanceKm, 0).toFixed(1)}
+                </span>
+                <span className="activity-raw-unit">km</span>
+              </div>
+            </div>
+
+            <div className="activity-raw-item">
+              <span className="activity-raw-label">
+                <TrendingUp size={11} />
+                <span>Dénivelé total</span>
+              </span>
+              <div>
+                <span className="activity-raw-val">
+                  +{storedRoutes.reduce((acc, r) => acc + r.elevationM, 0)}
+                </span>
+                <span className="activity-raw-unit">m</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Liste de tous les trajets stockés */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {storedRoutes.map((route) => (
+              <div
+                key={route.id}
+                className="session-card"
+                style={{
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  borderRadius: '18px',
+                  background: 'rgba(20, 20, 24, 0.75)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  {/* Mini SVG Trajectory Preview */}
+                  <div
+                    style={{
+                      width: '68px',
+                      height: '68px',
+                      borderRadius: '14px',
+                      background: '#151518',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: 'inset 0 0 12px rgba(0,0,0,0.8)',
+                    }}
+                  >
+                    <svg viewBox="0 0 100 100" style={{ width: '56px', height: '56px' }}>
+                      <path
+                        d={route.pointsSvgPath}
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        filter="drop-shadow(0 0 4px rgba(255,255,255,0.5))"
+                      />
+                      <circle cx="15" cy="20" r="3" fill="#FFFFFF" stroke="#000000" strokeWidth="1" />
+                    </svg>
+                  </div>
+
+                  {/* Details */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {route.title}
+                    </span>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      {route.location} · {route.dateStr}
+                    </div>
+
+                    {/* Specs row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
+                        {route.distanceKm.toFixed(2)} km
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                        ⏱ {fmtClockSec(route.durationSec)}
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                        ⚡ {fmtMMSS(Math.round(route.durationSec / route.distanceKm))} /km
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions: Lancer, Partager, Supprimer */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <button
+                    type="button"
+                    onClick={() => loadAndStartRoute(route)}
+                    style={{
+                      flex: 1,
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      background: '#FFFFFF',
+                      color: '#000000',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Play size={13} fill="#000000" />
+                    <span>Lancer ce trajet</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => shareStoredRoute(route, e)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      color: '#FFFFFF',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                    title="Partager ce trajet"
+                  >
+                    <Share2 size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => deleteRoute(route.id, e)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                    title="Supprimer ce trajet"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nouveau Trajet Manuel */}
+      {showNewRouteModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setShowNewRouteModal(false)}
+        >
+          <div
+            style={{
+              background: '#151518',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '20px',
+              padding: '22px',
+              width: '100%',
+              maxWidth: '380px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '17px', fontWeight: 700, color: '#FFFFFF' }}>Nouveau Trajet</span>
+              <button
+                type="button"
+                onClick={() => setShowNewRouteModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Nom du parcours</label>
+              <input
+                type="text"
+                value={newRouteTitle}
+                onChange={(e) => setNewRouteTitle(e.target.value)}
+                placeholder="ex: Tour du Canal Saint-Martin"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Lieu / Départ</label>
+              <input
+                type="text"
+                value={newRouteLoc}
+                onChange={(e) => setNewRouteLoc(e.target.value)}
+                placeholder="ex: Paris 10e · Quai de Valmy"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Distance estimée (km)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={newRouteDist}
+                onChange={(e) => setNewRouteDist(e.target.value)}
+                placeholder="5.0"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setShowNewRouteModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '11px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRoute}
+                style={{
+                  flex: 1.5,
+                  padding: '11px',
+                  borderRadius: '12px',
+                  background: '#FFFFFF',
+                  border: 'none',
+                  color: '#000000',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== 3. MODE MUSCULATION (GYM LOGGER) ==================== */}
       {subTab === 'gym' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Header de la Séance Personnalisée */}
@@ -1091,10 +1636,10 @@ export const FitScreen: React.FC = () => {
             type="button"
             className="apple-pay-btn"
             style={{
-              background: 'var(--gold-gradient)',
-              color: '#FFFFFF',
+              background: '#FFFFFF',
+              color: '#000000',
               fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(184, 35, 72, 0.25)',
+              boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
               marginTop: '4px',
             }}
             onClick={openGymStory}
@@ -1164,6 +1709,7 @@ export const FitScreen: React.FC = () => {
           })}
         </div>
       )}
+      </div>
 
       {/* ==================== MODAL AJOUTER UN EXERCICE ==================== */}
       {showAddModal && (
@@ -1465,6 +2011,8 @@ export const FitScreen: React.FC = () => {
               onClose={() => setManagingExId(null)}
               onRename={(newName) => renameExercise(curEx.id, newName)}
               onApplyWeightDeltaAll={(delta) => applyWeightDeltaAll(curEx.id, delta)}
+              onAdjustWeight={(setId, delta) => adjustWeight(curEx.id, setId, delta)}
+              onAdjustReps={(setId, delta) => adjustReps(curEx.id, setId, delta)}
               onDeleteSet={(setId) => deleteSet(curEx.id, setId)}
               onAddSet={() => addSetToExercise(curEx.id)}
               onDeleteExercise={() => {
@@ -1474,6 +2022,22 @@ export const FitScreen: React.FC = () => {
             />
           );
         })()
+      )}
+
+      {/* Live Running Screen (Strava / Apple Fitness Native Experience) */}
+      {isLiveRunningViewOpen && (runState === 'running' || runState === 'paused' || runState === 'finished') && (
+        <LiveRunningView
+          runState={runState}
+          runDurationSec={runDurationSec}
+          runDistanceKm={runDistanceKm}
+          liveSpeedKmh={parseFloat(liveSpeedKmh)}
+          onPause={pauseRun}
+          onResume={resumeRun}
+          onStop={stopRun}
+          onClose={() => setIsLiveRunningViewOpen(false)}
+          isFastDemo={isFastDemo}
+          onToggleFastDemo={() => setIsFastDemo(!isFastDemo)}
+        />
       )}
     </div>
   );

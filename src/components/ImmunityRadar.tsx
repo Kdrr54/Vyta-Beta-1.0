@@ -1,114 +1,163 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { AlertTriangle, Sparkles, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Sparkles, ShieldCheck } from 'lucide-react';
 
 interface ImmunityRadarProps {
   anomaly: { tempDelta: number; hrvDelta: number } | null;
 }
 
 export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
-  const { covytaActive, openModal } = useApp();
+  const { covytaActive, openModal, t, isFirstLaunch } = useApp();
 
-  const hasAnomaly = !!anomaly;
+  // Une anomalie n'existe QUE si la bague a transmis des données et qu'un écart réel a été détecté
+  const hasAnomaly = !isFirstLaunch && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
 
   return (
-    <div className={`immunity-radar-card ${hasAnomaly ? 'anomaly-active' : ''}`}>
+    <div
+      className={`immunity-radar-card ${hasAnomaly ? 'anomaly-active' : ''}`}
+      style={{
+        position: 'relative',
+        width: '100%',
+        padding: '16px 18px',
+        borderRadius: '26px',
+        overflow: 'hidden',
+        background: hasAnomaly
+          ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 69, 58, 0.28) 0%, rgba(255, 45, 85, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)'
+          : 'radial-gradient(ellipse at 50% 115%, rgba(52, 211, 153, 0.25) 0%, rgba(16, 185, 129, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+        backdropFilter: 'blur(26px)',
+        WebkitBackdropFilter: 'blur(26px)',
+        borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+        borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+        borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+        borderBottom: hasAnomaly
+          ? '1.5px solid rgba(255, 69, 58, 0.65)'
+          : '1.5px solid rgba(52, 211, 153, 0.65)',
+        boxShadow: hasAnomaly
+          ? '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(255, 69, 58, 0.14)'
+          : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(52, 211, 153, 0.14)',
+        userSelect: 'none',
+      }}
+    >
       <div className="immunity-header">
         <div className="immunity-title-wrap">
           {hasAnomaly ? (
-            <div className="immunity-dot" />
+            <div
+              className="immunity-dot"
+              style={{
+                backgroundColor: '#FF453A',
+                boxShadow: '0 0 10px rgba(255, 69, 58, 0.9)',
+                flexShrink: 0,
+              }}
+            />
           ) : (
-            <ShieldCheck size={18} color="var(--accent-green)" />
+            <ShieldCheck size={18} color="var(--text-primary)" />
           )}
           <div>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Système Immunitaire
-            </span>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-              Radar d'Immunité R21
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              {t('immunity.title')}
             </h3>
           </div>
         </div>
 
         {hasAnomaly ? (
-          <span className="immunity-badge-alert">Anomalie Détectée</span>
+          <span className="immunity-badge-alert">{t('immunity.anomaly_detected')}</span>
         ) : (
-          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent-green)', background: 'rgba(48,209,88,0.1)', padding: '3px 8px', borderRadius: '6px' }}>
-            Bouclier Actif
+          <span className="immunity-shield-badge">
+            {isFirstLaunch ? 'Calibrage initial' : t('immunity.shield_active')}
           </span>
         )}
       </div>
 
-      {/* Free Anomaly Preview Metrics */}
-      {hasAnomaly ? (
-        <div className="immunity-metrics-row">
-          <div className="immunity-metric-box">
-            <span className="metric-name">Température Cutanée</span>
-            <span className="metric-val-alert">+{anomaly.tempDelta} °C</span>
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>au-dessus de la ligne basale</span>
+      {/* Affichage d'un diagnostic et protocole d'action UNIQUEMENT en cas de VRAIE anomalie détectée */}
+      {hasAnomaly && anomaly ? (
+        <>
+          <div className="immunity-metrics-row">
+            <div className="immunity-metric-box">
+              <span className="metric-name">{t('health.temp')}</span>
+              <span className="metric-val-alert">+{anomaly.tempDelta} °C</span>
+            </div>
+
+            <div className="immunity-metric-box">
+              <span className="metric-name">{t('health.hrv')}</span>
+              <span className="metric-val-alert">{anomaly.hrvDelta} ms</span>
+            </div>
           </div>
 
-          <div className="immunity-metric-box">
-            <span className="metric-name">Variabilité Cardiaque (VFC)</span>
-            <span className="metric-val-alert">{anomaly.hrvDelta} ms</span>
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>baisse soudaine diurne</span>
+          <div className="covyta-diag-container gold-active" style={{ marginTop: '10px' }}>
+            <div className="covyta-diag-content">
+              <div className="covyta-diag-badge">
+                <Sparkles size={13} color="var(--gold)" />
+                <span>{t('immunity.diag_badge')}</span>
+              </div>
+
+              <div className="covyta-diag-title">
+                {t('immunity.diag_title')}
+              </div>
+
+              <div className="covyta-diag-block">
+                <span className="covyta-diag-subtitle">{t('immunity.diag_factors')}</span>
+                <div className="covyta-diag-list">
+                  <div className="covyta-diag-row">
+                    <span className="diag-num red">1.</span>
+                    <span>{t('immunity.diag_factor_temp')} (<strong>+{anomaly.tempDelta} °C</strong>)</span>
+                  </div>
+                  <div className="covyta-diag-row">
+                    <span className="diag-num red">2.</span>
+                    <span>{t('immunity.diag_factor_hrv')} (<strong>{anomaly.hrvDelta} ms</strong>)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="covyta-diag-block" style={{ marginTop: '8px' }}>
+                <span className="covyta-diag-subtitle">{t('immunity.diag_advice_title')}</span>
+                <div className="covyta-diag-protocol-list">
+                  <div className="diag-step">
+                    <span className="diag-step-num" style={{ color: '#30D158', fontWeight: 800 }}>1.</span>
+                    <span><strong>{t('immunity.diag_step1_title')}</strong> {t('immunity.diag_step1_desc')}</span>
+                  </div>
+                  <div className="diag-step">
+                    <span className="diag-step-num" style={{ color: '#30D158', fontWeight: 800 }}>2.</span>
+                    <span><strong>{t('immunity.diag_step2_title')}</strong> {t('immunity.diag_step2_desc')}</span>
+                  </div>
+                  <div className="diag-step">
+                    <span className="diag-step-num" style={{ color: '#30D158', fontWeight: 800 }}>3.</span>
+                    <span><strong>{t('immunity.diag_step3_title')}</strong> {t('immunity.diag_step3_desc')}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
-        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-          Aucune anomalie thermique ni cardiaque détectée sur les dernières 24h. Votre système immunitaire opère dans sa plage optimale.
-        </p>
-      )}
-
-      {/* CoVyta Diagnostic & Action Protocol (Hook / Blurred when OFF) */}
-      <div className={`covyta-diag-container ${covytaActive ? 'gold-active' : ''}`}>
-        <div className={`covyta-diag-content ${!covytaActive ? 'blurred' : ''}`}>
-          <div className="covyta-diag-badge">
-            <Sparkles size={13} color="var(--gold)" />
-            <span>DIAGNOSTIC & PROTOCOLE COVYTA</span>
-          </div>
-
-          <p className="covyta-diag-text">
-            <strong>Suspicion de réponse inflammatoire précoce (phase prodromique J0).</strong> Le croisement de l'élévation thermique (+0,4 °C) et du plongeon de VFC indique une lutte immunitaire active.
-          </p>
-
-          <div className="covyta-diag-protocol-list">
-            <div className="diag-step">
-              <span className="diag-step-num">1.</span>
-              <span><strong>Hydratation cellulaire :</strong> 500 ml d'eau à température ambiante avec électrolytes.</span>
-            </div>
-            <div className="diag-step">
-              <span className="diag-step-num">2.</span>
-              <span><strong>Coupure d'effort :</strong> Remplacement de la séance d'intensité par 20 min de respiration guidée.</span>
-            </div>
-            <div className="diag-step">
-              <span className="diag-step-num">3.</span>
-              <span><strong>Coucher anticipé :</strong> Fenêtre de sommeil impérative à 22h45 pour stimuler les cytokines.</span>
-            </div>
+        /* État sain ou premier lancement : AUCUN faux diagnostic affiché */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+            {isFirstLaunch ? 'Calibrage de référence en cours' : t('immunity.no_anomaly')}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px', color: '#D1D1D6' }}>
+            {isFirstLaunch ? (
+              <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.65)', lineHeight: 1.45 }}>
+                Portez votre bague pendant 24h pour établir votre profil immunitaire de référence. Aucun diagnostic n'est émis tant que vos données réelles ne sont pas transmises.
+              </span>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span>{t('immunity.temp_normal')}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span>{t('immunity.hrv_stable')}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span>{t('immunity.immune_optimal')}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
-
-        {/* Lock overlay if CoVyta is not active */}
-        {!covytaActive && (
-          <div className="covyta-lock-overlay">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#FFFFFF', fontSize: '12.5px', fontWeight: 600 }}>
-              <Lock size={14} color="var(--gold)" />
-              <span>Diagnostic réservé aux membres CoVyta</span>
-            </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', maxWidth: '280px', margin: 0 }}>
-              Accédez au protocole d'anticipation médicale et aux actions recommandées pour stopper la charge virale.
-            </p>
-            <button
-              type="button"
-              className="covyta-lock-cta"
-              onClick={() => openModal('subscribe')}
-            >
-              <span>Débloquer avec CoVyta IA</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

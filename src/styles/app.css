@@ -2,6 +2,7 @@
 @import './iphone.css';
 @import './glass.css';
 @import './features.css';
+@import './motion-blur.css';
 
 /* Global Resets */
 * {

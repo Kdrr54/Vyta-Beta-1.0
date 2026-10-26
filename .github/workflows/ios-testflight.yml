@@ -1,0 +1,83 @@
+name: Build & Deploy iOS App (TestFlight & IPA)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS IPA & TestFlight
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: 📥 Récupération du code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configuration Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Installation des dépendances
+        run: npm install
+
+      - name: 🔨 Compilation des assets web
+        run: npm run build
+
+      - name: 🍏 Synchronisation du projet iOS natif
+        run: npx cap sync ios
+
+      - name: 🔍 Vérification de la version Xcode
+        run: xcodebuild -version
+
+      - name: 🔑 Configuration des certificats et profils (si secrets fournis)
+        if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+
+      - name: 📦 Compilation de l'archive iOS (xcodebuild)
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: 📲 Génération du fichier Vyta.ipa
+        run: |
+          cd ios/App
+          mkdir -p Payload
+          cp -r build/App.xcarchive/Products/Applications/App.app Payload/Vyta.app
+          zip -r Vyta.ipa Payload
+          mv Vyta.ipa ../../Vyta.ipa
+
+      - name: 🚀 Téléversement de l'IPA en artefact téléchargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vyta-iOS-App
+          path: Vyta.ipa
+          retention-days: 14
+
+      - name: ✈️ Envoi vers TestFlight (si clé API App Store Connect présente)
+        if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app \
+            -f Vyta.ipa \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"

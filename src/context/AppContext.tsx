@@ -1,21 +1,27 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { TabType, RingFinish, BiologicalSex, UserProfile, RingDevice } from '../types';
-import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing } from '../data/health';
+import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals } from '../types';
+import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays } from '../data/health';
+import { DayMetrics } from '../types';
+import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
+import { qringBle, BleRingData } from '../lib/qringBleService';
 
 interface AppContextType {
   tab: TabType;
   setTab: (tab: TabType) => void;
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: TranslationKey) => string;
   covytaActive: boolean;
   setCovytaActive: (active: boolean) => void;
   profile: UserProfile;
   updateProfile: (partial: Partial<UserProfile>) => void;
   finish: RingFinish;
   setFinish: (finish: RingFinish) => void;
-  modal: 'settings' | 'subscribe' | null;
-  openModal: (modal: 'settings' | 'subscribe') => void;
+  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null;
+  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state') => void;
   closeModal: () => void;
-  metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | null;
-  openMetricDetail: (metric: 'bpm' | 'hrv' | 'temp' | 'spo2') => void;
+  metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null;
+  openMetricDetail: (metric: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp') => void;
   closeMetricDetail: () => void;
   storyData: any | null;
   openStory: (data: any) => void;
@@ -23,8 +29,26 @@ interface AppContextType {
   selectedDay: number;
   setSelectedDay: (day: number) => void;
   liveBpm: number;
+  setLiveBpm: (bpm: number | ((prev: number) => number)) => void;
   ring: RingDevice;
   updateRing: (partial: Partial<RingDevice>) => void;
+  theme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
+  simulatedDate: Date;
+  setSimulatedDate: (d: Date) => void;
+  resetSimulatedDate: () => void;
+  isDateModalOpen: boolean;
+  setIsDateModalOpen: (open: boolean) => void;
+  sensorIntervals: SensorIntervals;
+  updateSensorIntervals: (partial: Partial<SensorIntervals>) => void;
+  isSimulating: boolean;
+  toggleSimulation: () => void;
+  simulationHoursElapsed: number;
+  isFirstLaunch: boolean;
+  resetToFactory: () => void;
+  loadDemoData: () => void;
+  weekData: DayMetrics[];
+  setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -34,9 +58,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialTab = (params?.get('tab') as TabType) || 'health';
   const initialCovyta = params?.get('covyta') === '1';
-  const initialSex = (params?.get('sex') as BiologicalSex) || 'homme';
-  const initialModal = (params?.get('modal') as 'settings' | 'subscribe' | null) || null;
-  const initialMetric = (params?.get('metric') as 'bpm' | 'hrv' | 'temp' | 'spo2' | null) || null;
+  const initialSex = (params?.get('sex') as BiologicalSex) || (typeof window !== 'undefined' && localStorage.getItem('vyta_sex') === 'homme' ? 'homme' : 'femme');
+  const initialModal = (params?.get('modal') as 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null) || null;
+  const initialMetric = (params?.get('metric') as 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null) || null;
   const initialStory = params?.get('story') === '1' ? {
     mode: 'run',
     title: 'Course Matinale · Parc',
@@ -55,11 +79,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tab, setTab] = useState<TabType>(initialTab);
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
-  const [finish, setFinish] = useState<RingFinish>('gunmetal');
-  const [modal, setModal] = useState<'settings' | 'subscribe' | null>(initialModal);
-  const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | null>(initialMetric);
+  const [finish, setFinish] = useState<RingFinish>(() => detectRingFinish(defaultRing.macAddress, defaultRing.serial));
+  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null>(initialModal as any);
+  const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null>(initialMetric);
   const [storyData, setStoryData] = useState<any | null>(initialStory);
-  const [ring, setRing] = useState<RingDevice>(defaultRing);
+  const [ring, setRing] = useState<RingDevice>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_ring_device');
+        if (saved) return { ...defaultRing, ...JSON.parse(saved) };
+      } catch (e) {}
+    }
+    return defaultRing;
+  });
+
+  // Auto-adapt ring finish based on ring hardware identifiers (MAC Address & Serial)
+  useEffect(() => {
+    const autoFinish = detectRingFinish(ring.macAddress, ring.serial);
+    setFinish(autoFinish);
+  }, [ring.macAddress, ring.serial]);
+
+
+  // Simulated system date (for test mode)
+  const [simulatedDate, setSimulatedDateState] = useState<Date>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vyta_simulated_date');
+      if (saved) {
+        const d = new Date(saved);
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
+    return new Date(2026, 9, 17, 15, 47); // Default: Samedi 17 octobre 2026
+  });
+
+  const setSimulatedDate = (d: Date) => {
+    setSimulatedDateState(d);
+    try {
+      localStorage.setItem('vyta_simulated_date', d.toISOString());
+    } catch (e) {}
+  };
+
+  const resetSimulatedDate = () => {
+    const d = new Date(2026, 9, 17, 15, 47);
+    setSimulatedDateState(d);
+    try {
+      localStorage.removeItem('vyta_simulated_date');
+    } catch (e) {}
+  };
+
+  const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
+  // Biometric sensor sampling intervals
+  const [sensorIntervals, setSensorIntervals] = useState<SensorIntervals>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_sensor_intervals');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.heartRate === 'continu') parsed.heartRate = '20min';
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    return defaultSensorIntervals;
+  });
+
+  const updateSensorIntervals = (partial: Partial<SensorIntervals>) => {
+    setSensorIntervals(prev => {
+      const next = { ...prev, ...partial };
+      try {
+        localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
+
+  // App Visual Theme ('dark')
+  const [theme, setThemeState] = useState<AppTheme>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('vyta_theme', 'dark');
+      } catch (e) {}
+    }
+    return 'dark';
+  });
+
+  const setTheme = (t: AppTheme) => {
+    setThemeState(t);
+    try {
+      localStorage.setItem('vyta_theme', t);
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
+
+  // Language management with localStorage and device auto-detection
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vyta_language');
+      if (saved === 'fr' || saved === 'en') return saved;
+      return detectDefaultLanguage();
+    }
+    return 'fr';
+  });
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem('vyta_language', lang);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const t = (key: TranslationKey): string => {
+    return getTranslation(language, key);
+  };
+
+
+  // État premier lancement (usine, sans données) vs données de démo
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('vyta_first_launch') === 'true';
+    }
+    return false;
+  });
 
   const [profile, setProfile] = useState<UserProfile>({
     firstName: 'Alexandre',
@@ -69,30 +220,226 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sex: initialSex,
   });
 
-  const [liveBpm, setLiveBpm] = useState<number>(weekMetrics[TODAY_INDEX].bpm);
+  const [liveBpm, setLiveBpm] = useState<number>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('vyta_first_launch') === 'true') {
+      return 0;
+    }
+    return weekMetrics[TODAY_INDEX].bpm;
+  });
 
-  // Micro-fluctuation simulation of PPG optical sensor
+  // Micro-fluctuation simulation of PPG optical sensor around current BPM
   useEffect(() => {
     const interval = setInterval(() => {
       setLiveBpm(prev => {
+        if (prev <= 0) return 0;
         const delta = (Math.random() > 0.5 ? 1 : -1) * (Math.random() > 0.7 ? 1 : 0);
-        return Math.min(68, Math.max(59, prev + delta));
+        return Math.min(220, Math.max(40, prev + delta));
       });
     }, 2800);
     return () => clearInterval(interval);
   }, []);
 
   const updateProfile = (partial: Partial<UserProfile>) => {
-    setProfile(prev => ({ ...prev, ...partial }));
+    setProfile(prev => {
+      const next = { ...prev, ...partial };
+      if (partial.sex) {
+        try {
+          localStorage.setItem('vyta_sex', partial.sex);
+        } catch (e) {}
+      }
+      if (next.sex === 'homme' && tab === 'cycle') {
+        setTab('health');
+      }
+      return next;
+    });
   };
 
   const updateRing = (partial: Partial<RingDevice>) => {
-    setRing(prev => ({ ...prev, ...partial }));
+    setRing(prev => {
+      const next = { ...prev, ...partial };
+      try {
+        localStorage.setItem('vyta_ring_device', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
   };
 
-  const openModal = (m: 'settings' | 'subscribe') => setModal(m);
+  // Synchronisation globale télémétrie BLE de la bague
+  useEffect(() => {
+    const unsubscribe = qringBle.subscribe((data: BleRingData) => {
+      if (data.batteryPct !== undefined) {
+        updateRing({ batteryRing: data.batteryPct });
+      }
+      if (data.isConnected !== undefined) {
+        updateRing({ isConnected: data.isConnected });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+
+  // Données de la semaine dynamiques (accumulées en direct lors de la simulation)
+  const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_week_data');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return isFirstLaunch ? createEmptyWeekMetrics() : weekMetrics;
+  });
+
+  // Moteur de simulation accélérée (1 seconde réelle = 1 heure de vie de bague)
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [simulationHoursElapsed, setSimulationHoursElapsed] = useState<number>(0);
+
+  const toggleSimulation = () => {
+    setIsSimulating(prev => !prev);
+  };
+
+  // Remise à zéro d'usine (état premier lancement : 0 données, bague à appairer)
+  const resetToFactory = () => {
+    setIsSimulating(false);
+    setSimulationHoursElapsed(0);
+    setIsFirstLaunch(true);
+    const empty = createEmptyWeekMetrics();
+    setWeekData(empty);
+    updateRing({
+      isConnected: false,
+      batteryRing: 100,
+      sensorIntervals: defaultSensorIntervals,
+    });
+    setLiveBpm(0);
+    const startCleanDate = new Date(2026, 9, 15, 8, 0); // Jeudi 15 Octobre 08:00
+    setSimulatedDate(startCleanDate);
+    setSelectedDay(3);
+    try {
+      localStorage.setItem('vyta_first_launch', 'true');
+      localStorage.setItem('vyta_week_data', JSON.stringify(empty));
+      localStorage.setItem('vyta_sensor_intervals', JSON.stringify(defaultSensorIntervals));
+    } catch (e) {}
+  };
+
+  // Recharger les données de démonstration complètes
+  const loadDemoData = () => {
+    setIsSimulating(false);
+    setSimulationHoursElapsed(0);
+    setIsFirstLaunch(false);
+    setWeekData(weekMetrics);
+    updateRing({
+      isConnected: true,
+      batteryRing: 87,
+      sensorIntervals: defaultSensorIntervals,
+    });
+    setLiveBpm(62);
+    const defaultDate = new Date(2026, 9, 15, 15, 47);
+    setSimulatedDate(defaultDate);
+    setSelectedDay(3);
+    try {
+      localStorage.removeItem('vyta_first_launch');
+      localStorage.setItem('vyta_week_data', JSON.stringify(weekMetrics));
+    } catch (e) {}
+  };
+
+  // Effet d'horloge de simulation accélérée : 1 seconde = 1 heure
+  useEffect(() => {
+    if (!isSimulating) return;
+
+    const timer = setInterval(() => {
+      setSimulationHoursElapsed(prev => prev + 1);
+
+      // 1. Avancer la date simulée de 1 heure
+      setSimulatedDateState(prevDate => {
+        const nextDate = new Date(prevDate.getTime() + 60 * 60 * 1000);
+        try {
+          localStorage.setItem('vyta_simulated_date', nextDate.toISOString());
+        } catch (e) {}
+        return nextDate;
+      });
+
+      // 2. Décharge de la batterie selon les fréquences d'échantillonnage réelles
+      const fullDays = calculateEstimatedBatteryDays(sensorIntervals);
+      const totalHours = fullDays * 24;
+      const hourlyDrain = 100 / totalHours;
+
+      setRing(prevRing => {
+        const curBattery = prevRing.batteryRing ?? 87;
+        const newBattery = Math.max(0, curBattery - hourlyDrain);
+        const rounded = Math.round(newBattery * 10) / 10;
+        const updated = {
+          ...prevRing,
+          isConnected: rounded > 0,
+          batteryRing: rounded,
+        };
+        try {
+          localStorage.setItem('vyta_ring_device', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
+      // 3. Accumuler l'activité biométrique sur le jour en cours
+      setWeekData(prevData => {
+        const next = [...prevData];
+        const dayIdx = Math.min(6, Math.max(0, selectedDay));
+        const cur = { ...(next[dayIdx] || weekMetrics[dayIdx]) };
+
+        const curDate = new Date();
+        const curHour = curDate.getHours();
+        const isDaytime = curHour >= 7 && curHour < 22;
+
+        if (isDaytime) {
+          const stepDelta = Math.floor(250 + Math.random() * 350);
+          cur.steps = (cur.steps || 0) + stepDelta;
+          cur.activeKcal = (cur.activeKcal || 0) + Math.round(stepDelta * 0.045);
+          cur.distanceKm = Math.round(((cur.distanceKm || 0) + (stepDelta * 0.00075)) * 10) / 10;
+          cur.bpm = Math.floor(66 + Math.random() * 20);
+          cur.restingBpm = cur.restingBpm || 51;
+          cur.hrv = Math.floor(58 + Math.random() * 16);
+          cur.spo2 = Number((98 + Math.random() * 1.5).toFixed(1));
+          cur.score = Math.min(96, Math.max(45, Math.round((cur.steps / 10000) * 45 + 45)));
+          cur.pillars = {
+            activity: Math.min(100, Math.round((cur.steps / 10000) * 100)),
+            recovery: Math.min(95, Math.max(60, cur.hrv + 15)),
+            sleep: cur.sleep?.score || 80,
+          };
+          setLiveBpm(cur.bpm);
+        } else {
+          cur.bpm = Math.floor(48 + Math.random() * 6);
+          cur.hrv = Math.floor(68 + Math.random() * 14);
+          const deepAdd = Math.floor(8 + Math.random() * 6);
+          const remAdd = Math.floor(7 + Math.random() * 6);
+          const lightAdd = Math.floor(15 + Math.random() * 10);
+          const prevSleep = cur.sleep || { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
+          cur.sleep = {
+            deepMin: prevSleep.deepMin + deepAdd,
+            remMin: prevSleep.remMin + remAdd,
+            lightMin: prevSleep.lightMin + lightAdd,
+            awakeMin: prevSleep.awakeMin + 2,
+            score: Math.min(95, Math.max(40, Math.round(((prevSleep.deepMin + deepAdd + prevSleep.remMin + remAdd) / 180) * 100))),
+          };
+          cur.pillars = {
+            ...cur.pillars,
+            sleep: cur.sleep.score,
+            recovery: Math.min(98, cur.hrv + 18),
+          };
+          setLiveBpm(cur.bpm);
+        }
+
+        next[dayIdx] = cur;
+        try {
+          localStorage.setItem('vyta_week_data', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isSimulating, sensorIntervals, selectedDay]);
+
+  const openModal = (m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state') => setModal(m);
   const closeModal = () => setModal(null);
-  const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2') => setMetricDetail(m);
+  const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp') => setMetricDetail(m);
   const closeMetricDetail = () => setMetricDetail(null);
   const openStory = (data: any) => setStoryData(data);
   const closeStory = () => setStoryData(null);
@@ -102,6 +449,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         tab,
         setTab,
+        language,
+        setLanguage,
+        t,
         covytaActive,
         setCovytaActive,
         profile,
@@ -120,8 +470,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedDay,
         setSelectedDay,
         liveBpm,
+        setLiveBpm,
         ring,
         updateRing,
+        theme,
+        setTheme,
+        simulatedDate,
+        setSimulatedDate,
+        resetSimulatedDate,
+        isDateModalOpen,
+        setIsDateModalOpen,
+        sensorIntervals,
+        updateSensorIntervals,
+        isSimulating,
+        toggleSimulation,
+        simulationHoursElapsed,
+        isFirstLaunch,
+        resetToFactory,
+        loadDemoData,
+        weekData,
+        setWeekData,
       }}
     >
       {children}

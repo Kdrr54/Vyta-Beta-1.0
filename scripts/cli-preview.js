@@ -13,7 +13,7 @@ const dim = (txt) => `\x1b[2m${txt}\x1b[0m`;
 console.clear();
 console.log('');
 console.log(bordeaux(`  ╭──────────────────────────────────────────────────────────╮`));
-console.log(bordeaux(`  │ `) + bold(`✦ VYTA ONE (R21) · SMART RING COMPANION APP`) + bordeaux(`             │`));
+console.log(bordeaux(`  │ `) + bold(`✦ VYTA ONE · SMART RING COMPANION APP`) + bordeaux(`                   │`));
 console.log(bordeaux(`  │ `) + dim(`  Châssis Titane · Finition Bordeaux Impérial (#4D0B20)`) + bordeaux(`   │`));
 console.log(bordeaux(`  ╰──────────────────────────────────────────────────────────╯`));
 console.log('');

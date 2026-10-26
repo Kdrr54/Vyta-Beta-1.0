@@ -1,314 +1,516 @@
-export interface HourlyMetricPoint {
-  hour: string; // e.g. "00h", "01h", ... "23h"
+export interface MetricDataPoint {
+  label: string; // e.g. "02h", "Mar", "J-5"
   value: number;
-  label?: string;
-  isSleep?: boolean;
-  isWorkout?: boolean;
+  info?: string; // Short context e.g. "Sommeil profond", "Effort"
 }
 
-export interface MetricStatItem {
+export interface EssentialStat {
   label: string;
   value: string;
   sub: string;
-  status?: 'good' | 'optimal' | 'warning';
 }
 
-export interface MetricMomentItem {
+export interface KeyMoment {
   time: string;
   title: string;
   value: string;
   tag: string;
-  desc: string;
+  pointIndex: number; // Index to highlight on 24h chart
 }
 
-export interface MetricBreakdownItem {
-  label: string;
-  timeStr: string;
-  percentage: number;
-  color: string;
-  detail: string;
+export interface ZoneDistribution {
+  name: string;
+  percent: number;
+  duration: string;
 }
 
-export interface Metric24hDetail {
-  id: 'bpm' | 'hrv' | 'temp' | 'spo2';
+export interface MetricDetailItem {
+  id: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp';
   title: string;
-  subtitle: string;
-  iconName: 'heart' | 'activity' | 'thermometer' | 'droplets';
-  accentColor: string;
+  titleEn: string;
   unit: string;
   currentValue: string;
   badge: string;
+  badgeEn: string;
   periodText: string;
+  periodTextEn: string;
+  summary: string;
+  summaryEn: string;
+  advice: string;
+  adviceEn: string;
+  accentColor: string;
+  iconName: 'heart' | 'activity' | 'thermometer' | 'droplets' | 'wind';
   minVal: number;
   maxVal: number;
-  hourly: HourlyMetricPoint[];
-  stats: MetricStatItem[];
-  breakdownTitle: string;
-  breakdownItems: MetricBreakdownItem[];
-  moments: MetricMomentItem[];
-  aiInsight: {
-    title: string;
-    summary: string;
-    recommendation: string;
-  };
+  points24h: MetricDataPoint[];
+  points7d: MetricDataPoint[];
+  points30d: MetricDataPoint[];
+  stats: EssentialStat[];
+  statsEn: EssentialStat[];
+  moments: KeyMoment[];
+  momentsEn: KeyMoment[];
+  distribution: ZoneDistribution[];
+  distributionEn: ZoneDistribution[];
 }
 
-export const METRIC_DETAILS_24H: Record<'bpm' | 'hrv' | 'temp' | 'spo2', Metric24hDetail> = {
+export const METRIC_DETAILS: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp', MetricDetailItem> = {
   bpm: {
     id: 'bpm',
     title: 'Fréquence Cardiaque',
-    subtitle: 'Capteur PPG Infrarouge & Vert · Bague Vyta One',
-    iconName: 'heart',
-    accentColor: '#FF3B30',
+    titleEn: 'Heart Rate',
     unit: 'BPM',
     currentValue: '59',
-    badge: 'Direct (Repos)',
-    periodText: 'Aujourd\'hui · 24 heures en continu',
-    minVal: 48,
-    maxVal: 165,
-    hourly: [
-      { hour: '00h', value: 52, label: 'Sommeil léger', isSleep: true },
-      { hour: '01h', value: 50, label: 'Sommeil profond', isSleep: true },
-      { hour: '02h', value: 48, label: 'Creux FC nocturne (Nadir)', isSleep: true },
-      { hour: '03h', value: 49, label: 'Sommeil paradoxal', isSleep: true },
-      { hour: '04h', value: 50, label: 'Sommeil profond', isSleep: true },
-      { hour: '05h', value: 53, label: 'Sommeil léger', isSleep: true },
-      { hour: '06h', value: 56, label: 'Pré-réveil circadien', isSleep: true },
-      { hour: '07h', value: 65, label: 'Réveil & hydratation' },
-      { hour: '08h', value: 72, label: 'Déplacement actif' },
-      { hour: '09h', value: 66, label: 'Travail au calme' },
-      { hour: '10h', value: 64, label: 'Concentration' },
-      { hour: '11h', value: 68, label: 'Activité cérébrale' },
-      { hour: '12h', value: 76, label: 'Déjeuner' },
-      { hour: '13h', value: 71, label: 'Digestion' },
-      { hour: '14h', value: 65, label: 'Session de travail' },
-      { hour: '15h', value: 63, label: 'Pause détente' },
-      { hour: '16h', value: 69, label: 'Marche active' },
-      { hour: '17h', value: 66, label: 'Fin de journée' },
-      { hour: '18h', value: 142, label: 'Course Parc Monceau (Échauffement)', isWorkout: true },
-      { hour: '19h', value: 164, label: 'Pic d\'effort 4:48/km (Allure max)', isWorkout: true },
-      { hour: '20h', value: 85, label: 'Récupération post-séance' },
-      { hour: '21h', value: 66, label: 'Dîner équilibré' },
-      { hour: '22h', value: 60, label: 'Détente du soir' },
-      { hour: '23h', value: 54, label: 'Préparation au sommeil', isSleep: true },
+    badge: 'Repos optimal',
+    badgeEn: 'Optimal Resting',
+    periodText: "Aujourd'hui",
+    periodTextEn: 'Today',
+    summary: 'Rythme cardiaque régulier et repos nocturne idéal.',
+    summaryEn: 'Steady heart rhythm and optimal nightly recovery.',
+    advice: "Excellente réserve cardiaque. Votre corps est prêt pour un effort soutenu aujourd'hui.",
+    adviceEn: 'Excellent cardiac reserve. Your body is ready for sustained performance today.',
+    accentColor: '#FF3B30',
+    iconName: 'heart',
+    minVal: 45,
+    maxVal: 170,
+    points24h: [
+      { label: '00h', value: 52, info: 'Sommeil' },
+      { label: '01h', value: 50, info: 'Sommeil profond' },
+      { label: '02h', value: 48, info: 'Creux nocturne' },
+      { label: '03h', value: 49, info: 'Sommeil' },
+      { label: '04h', value: 50, info: 'Sommeil profond' },
+      { label: '05h', value: 53, info: 'Fin de nuit' },
+      { label: '06h', value: 56, info: 'Transition' },
+      { label: '07h', value: 65, info: 'Réveil' },
+      { label: '08h', value: 72, info: 'Matinée' },
+      { label: '09h', value: 66, info: 'Activité calme' },
+      { label: '10h', value: 64, info: 'Repos' },
+      { label: '11h', value: 68, info: 'Calme' },
+      { label: '12h', value: 76, info: 'Déjeuner' },
+      { label: '13h', value: 71, info: 'Digestion' },
+      { label: '14h', value: 65, info: 'Travail' },
+      { label: '15h', value: 63, info: 'Calme' },
+      { label: '16h', value: 69, info: 'Marche' },
+      { label: '17h', value: 66, info: 'Fin de journée' },
+      { label: '18h', value: 142, info: 'Course' },
+      { label: '19h', value: 164, info: 'Pic effort' },
+      { label: '20h', value: 85, info: 'Récupération' },
+      { label: '21h', value: 66, info: 'Dîner' },
+      { label: '22h', value: 60, info: 'Repos du soir' },
+      { label: '23h', value: 54, info: 'Endormissement' },
+    ],
+    points7d: [
+      { label: 'Lun', value: 62, info: 'Moyenne 62 bpm' },
+      { label: 'Mar', value: 60, info: 'Moyenne 60 bpm' },
+      { label: 'Mer', value: 65, info: 'Moyenne 65 bpm' },
+      { label: 'Jeu', value: 59, info: 'Moyenne 59 bpm' },
+      { label: 'Ven', value: 61, info: 'Moyenne 61 bpm' },
+      { label: 'Sam', value: 64, info: 'Moyenne 64 bpm' },
+      { label: 'Dim', value: 58, info: 'Moyenne 58 bpm' },
+    ],
+    points30d: [
+      { label: '1', value: 63 }, { label: '3', value: 62 }, { label: '5', value: 60 },
+      { label: '7', value: 61 }, { label: '9', value: 64 }, { label: '11', value: 62 },
+      { label: '13', value: 59 }, { label: '15', value: 60 }, { label: '17', value: 58 },
+      { label: '19', value: 62 }, { label: '21', value: 61 }, { label: '23', value: 59 },
+      { label: '25', value: 60 }, { label: '27', value: 58 }, { label: '30', value: 59 },
     ],
     stats: [
-      { label: 'FC Repos (Nuit)', value: '51 bpm', sub: '-3 bpm vs normale', status: 'optimal' },
-      { label: 'Minimum 24h', value: '48 bpm', sub: 'à 02h15 (sommeil profond)', status: 'good' },
-      { label: 'Moyenne 24h', value: '68 bpm', sub: 'Rythme optimal', status: 'good' },
-      { label: 'Pic Max Cardio', value: '164 bpm', sub: 'à 18h42 (Course à pied)', status: 'optimal' },
+      { label: 'Minimum', value: '48 bpm', sub: 'à 02:15 (Nuit)' },
+      { label: 'Moyenne', value: '68 bpm', sub: 'Normale : 60-80' },
+      { label: 'Maximum', value: '164 bpm', sub: 'à 18:42 (Course)' },
     ],
-    breakdownTitle: 'Répartition des Zones Cardiaques (24h)',
-    breakdownItems: [
-      { label: 'Zone 1 · Récupération', timeStr: '19 h 12 min', percentage: 80, color: '#30D158', detail: '< 115 bpm (Sommeil & sédentarité)' },
-      { label: 'Zone 2 · Endurance Fondamentale', timeStr: '2 h 45 min', percentage: 11, color: '#0A84FF', detail: '115 - 132 bpm (Marche & mobilité)' },
-      { label: 'Zone 3 · Aérobie & Tempo', timeStr: '28 min', percentage: 5, color: '#FFD60A', detail: '133 - 152 bpm (Allure de course stable)' },
-      { label: 'Zone 4 · Seuil Lactique', timeStr: '18 min', percentage: 3, color: '#FF9F0A', detail: '153 - 162 bpm (Accélération Parc Monceau)' },
-      { label: 'Zone 5 · Anaérobie / Puissance', timeStr: '3 min', percentage: 1, color: '#FF453A', detail: '> 162 bpm (Sprint final 1 km)' },
+    statsEn: [
+      { label: 'Minimum', value: '48 bpm', sub: 'at 02:15 (Night)' },
+      { label: 'Average', value: '68 bpm', sub: 'Normal: 60-80' },
+      { label: 'Maximum', value: '164 bpm', sub: 'at 18:42 (Running)' },
     ],
     moments: [
-      { time: '02h15', title: 'Creux FC Nocturne (Nadir)', value: '48 bpm', tag: 'Récupération Profonde', desc: 'Le myocarde ralentit au maximum durant le cycle de sommeil profond N3.' },
-      { time: '07h10', title: 'Éveil & Montée Cardiaque', value: '65 bpm', tag: 'Rythme Circadien', desc: 'Montée naturelle du cortisol pour dynamiser le corps dès le lever.' },
-      { time: '13h15', title: 'Pic Post-Prandial', value: '76 bpm', tag: 'Digestion', desc: 'Léger surcroît métabolique classique après le déjeuner.' },
-      { time: '18h42', title: 'Course à Pied Parc Monceau', value: '164 bpm', tag: 'Effort Maximal', desc: 'Séance aérobie intense de 8,12 km avec maintien d\'une excellente cinétique.' },
-      { time: '20h30', title: 'Retour au Calme Végétatif', value: '62 bpm', tag: 'Baisse Rapide', desc: 'Baisse rapide de la FC sous 65 bpm, signe d\'une excellente condition physique.' },
+      { time: '02:15', title: 'Repos profond', value: '48 bpm', tag: 'Nuit', pointIndex: 2 },
+      { time: '18:42', title: 'Course à pied', value: '164 bpm', tag: 'Effort', pointIndex: 19 },
+      { time: '20:30', title: 'Retour au calme', value: '62 bpm', tag: 'Récup', pointIndex: 20 },
     ],
-    aiInsight: {
-      title: 'Diagnostic Cardio CoVyta IA',
-      summary: 'Votre fréquence cardiaque de repos à 51 bpm témoigne d\'une excellente réserve cardiaque. Votre pic d\'effort à 164 bpm lors de la course a été parfaitement soutenu sans arythmie.',
-      recommendation: 'Prévoyez une hydratation riche en électrolytes ce soir pour maintenir la baisse de votre FC avant l\'endormissement.',
-    },
+    momentsEn: [
+      { time: '02:15', title: 'Deep Rest', value: '48 bpm', tag: 'Night', pointIndex: 2 },
+      { time: '18:42', title: 'Running Session', value: '164 bpm', tag: 'Workout', pointIndex: 19 },
+      { time: '20:30', title: 'Heart Recovery', value: '62 bpm', tag: 'Cooldown', pointIndex: 20 },
+    ],
+    distribution: [
+      { name: 'Repos & Sommeil', percent: 79, duration: '19h' },
+      { name: 'Activité modérée', percent: 16, duration: '4h' },
+      { name: 'Effort cardio', percent: 5, duration: '1h' },
+    ],
+    distributionEn: [
+      { name: 'Rest & Sleep', percent: 79, duration: '19h' },
+      { name: 'Moderate Activity', percent: 16, duration: '4h' },
+      { name: 'Cardio Effort', percent: 5, duration: '1h' },
+    ],
   },
 
   hrv: {
     id: 'hrv',
-    title: 'Variabilité de la Fréquence Cardiaque',
-    subtitle: 'Métrique RMSSD · Équilibre du Système Nerveux Autonome',
-    iconName: 'activity',
-    accentColor: '#30D158',
+    title: 'Équilibre Nerveux & VRC',
+    titleEn: 'HRV (RMSSD)',
     unit: 'ms',
     currentValue: '74',
     badge: '+8 ms vs Base',
-    periodText: 'Aujourd\'hui · Suivi nocturne & diurne',
-    minVal: 35,
-    maxVal: 92,
-    hourly: [
-      { hour: '00h', value: 64, label: 'Endormissement', isSleep: true },
-      { hour: '01h', value: 72, label: 'Sommeil profond', isSleep: true },
-      { hour: '02h', value: 79, label: 'Régénération nerveuse', isSleep: true },
-      { hour: '03h', value: 85, label: 'Pic parasympathique', isSleep: true },
-      { hour: '04h', value: 88, label: 'Pic VRC nocturne (Nadir FC)', isSleep: true },
-      { hour: '05h', value: 81, label: 'Sommeil paradoxal', isSleep: true },
-      { hour: '06h', value: 74, label: 'Transition d\'éveil', isSleep: true },
-      { hour: '07h', value: 68, label: 'Matinée équilibrée' },
-      { hour: '08h', value: 58, label: 'Activation matinale' },
-      { hour: '09h', value: 65, label: 'Focus & sérénité' },
-      { hour: '10h', value: 67, label: 'Calme nerveux' },
-      { hour: '11h', value: 61, label: 'Charge cognitive' },
-      { hour: '12h', value: 56, label: 'Pause médiane' },
-      { hour: '13h', value: 53, label: 'Sollicitation digestive' },
-      { hour: '14h', value: 62, label: 'Reprise progressive' },
-      { hour: '15h', value: 66, label: 'Stabilité nerveuse' },
-      { hour: '16h', value: 63, label: 'Activité continue' },
-      { hour: '17h', value: 65, label: 'Fin de journée zen' },
-      { hour: '18h', value: 41, label: 'Effort physique (Sympathique activé)', isWorkout: true },
-      { hour: '19h', value: 38, label: 'Pic d\'intensité running', isWorkout: true },
-      { hour: '20h', value: 52, label: 'Récupération débutante' },
-      { hour: '21h', value: 68, label: 'Relâchement du soir' },
-      { hour: '22h', value: 74, label: 'Apaisement parasympathique' },
-      { hour: '23h', value: 71, label: 'Entrée en nuit', isSleep: true },
+    badgeEn: '+8 ms vs Base',
+    periodText: "Aujourd'hui",
+    periodTextEn: 'Today',
+    summary: "Système nerveux équilibré et excellente capacité d'adaptation.",
+    summaryEn: 'Autonomic nervous balance and high stress resilience.',
+    advice: 'Votre organisme est pleinement régénéré. Niveau de fatigue minimale.',
+    adviceEn: 'Your body is fully recovered. Low physiological strain.',
+    accentColor: '#D9F970',
+    iconName: 'activity',
+    minVal: 30,
+    maxVal: 95,
+    points24h: [
+      { label: '00h', value: 64, info: 'Nuit' },
+      { label: '01h', value: 72, info: 'Sommeil' },
+      { label: '02h', value: 79, info: 'Régénération' },
+      { label: '03h', value: 85, info: 'Pic VRC' },
+      { label: '04h', value: 88, info: 'Pic nuit' },
+      { label: '05h', value: 81, info: 'Sommeil' },
+      { label: '06h', value: 74, info: 'Éveil' },
+      { label: '07h', value: 68, info: 'Matin' },
+      { label: '08h', value: 58, info: 'Déplacement' },
+      { label: '09h', value: 65, info: 'Calme' },
+      { label: '10h', value: 67, info: 'Focus' },
+      { label: '11h', value: 61, info: 'Activité' },
+      { label: '12h', value: 56, info: 'Repas' },
+      { label: '13h', value: 53, info: 'Digestion' },
+      { label: '14h', value: 62, info: 'Reprise' },
+      { label: '15h', value: 66, info: 'Stabilité' },
+      { label: '16h', value: 63, info: 'Normal' },
+      { label: '17h', value: 65, info: 'Détente' },
+      { label: '18h', value: 41, info: 'Effort running' },
+      { label: '19h', value: 38, info: 'Effort max' },
+      { label: '20h', value: 52, info: 'Récupération' },
+      { label: '21h', value: 68, info: 'Soirée' },
+      { label: '22h', value: 74, info: 'Détente' },
+      { label: '23h', value: 71, info: 'Coucher' },
+    ],
+    points7d: [
+      { label: 'Lun', value: 68, info: 'Moyenne 68 ms' },
+      { label: 'Mar', value: 71, info: 'Moyenne 71 ms' },
+      { label: 'Mer', value: 66, info: 'Moyenne 66 ms' },
+      { label: 'Jeu', value: 73, info: 'Moyenne 73 ms' },
+      { label: 'Ven', value: 70, info: 'Moyenne 70 ms' },
+      { label: 'Sam', value: 75, info: 'Moyenne 75 ms' },
+      { label: 'Dim', value: 74, info: 'Moyenne 74 ms' },
+    ],
+    points30d: [
+      { label: '1', value: 66 }, { label: '3', value: 68 }, { label: '5', value: 70 },
+      { label: '7', value: 69 }, { label: '9', value: 67 }, { label: '11', value: 71 },
+      { label: '13', value: 73 }, { label: '15', value: 72 }, { label: '17', value: 70 },
+      { label: '19', value: 74 }, { label: '21', value: 72 }, { label: '23', value: 75 },
+      { label: '25', value: 73 }, { label: '27', value: 74 }, { label: '30', value: 74 },
     ],
     stats: [
-      { label: 'VRC Moyenne Nuit', value: '74 ms', sub: 'Baseline : 66 ms (+12%)', status: 'optimal' },
-      { label: 'Pic de Régénération', value: '88 ms', sub: 'à 04h10 (Sommeil profond)', status: 'optimal' },
-      { label: 'Équilibre Nerveux', value: '95 / 100', sub: 'Parasympathique dominant', status: 'optimal' },
-      { label: 'Score de Stress 24h', value: '18 / 100', sub: 'Très faible tension', status: 'good' },
+      { label: 'Minimum', value: '38 ms', sub: 'à 18:50 (Effort)' },
+      { label: 'Moyenne', value: '74 ms', sub: 'Baseline : 66 ms' },
+      { label: 'Pic Nuit', value: '88 ms', sub: 'à 04:10 (Sommeil)' },
     ],
-    breakdownTitle: 'Balance Système Nerveux Autonome (SNA)',
-    breakdownItems: [
-      { label: 'Parasympathique (Régénération & Récupération)', timeStr: '18 h 40 min', percentage: 78, color: '#30D158', detail: 'Prédomine durant le sommeil et les phases de détente' },
-      { label: 'Sympathique Modéré (Activité & Éveil)', timeStr: '4 h 15 min', percentage: 18, color: '#0A84FF', detail: 'Gestion des tâches professionnelles et déplacements' },
-      { label: 'Sympathique Intense (Effort Sportif & Stress)', timeStr: '1 h 05 min', percentage: 4, color: '#FF9F0A', detail: 'Séance de course à pied et accélération motrice' },
+    statsEn: [
+      { label: 'Minimum', value: '38 ms', sub: 'at 18:50 (Workout)' },
+      { label: 'Average', value: '74 ms', sub: 'Baseline: 66 ms' },
+      { label: 'Night Peak', value: '88 ms', sub: 'at 04:10 (Deep Sleep)' },
     ],
     moments: [
-      { time: '04h10', title: 'Apogée Parasympathique', value: '88 ms', tag: 'Réparation Cellulaire', desc: 'Le tonus vagal est à son maximum, favorisant la réparation musculaire et neuronale.' },
-      { time: '09h30', title: 'Sérénité Cognitive', value: '67 ms', tag: 'Focus Zen', desc: 'Indice de relaxation élevé malgré le début de la session de travail intellectuelle.' },
-      { time: '13h20', title: 'Creux Digestif Diurne', value: '53 ms', tag: 'Adaptation', desc: 'L\'afflux sanguin vers le tractus digestif diminue temporairement la variabilité.' },
-      { time: '18h50', title: 'Suppression Sportive VRC', value: '38 ms', tag: 'Adaptation Cardiaque', desc: 'Baisse physiologique normale sous l\'effet de l\'adrénaline et de la tachycardie d\'effort.' },
-      { time: '22h15', title: 'Rétablissement Parasympathique', value: '74 ms', tag: 'Pré-Sommeil Idéal', desc: 'Votre système nerveux est réinitialisé et prêt pour une nouvelle nuit réparatrice.' },
+      { time: '04:10', title: 'Régénération maximale', value: '88 ms', tag: 'Sommeil', pointIndex: 4 },
+      { time: '13:20', title: 'Pause médiane', value: '53 ms', tag: 'Digestion', pointIndex: 13 },
+      { time: '22:15', title: 'Retour au calme', value: '74 ms', tag: 'Détente', pointIndex: 22 },
     ],
-    aiInsight: {
-      title: 'Analyse VRC CoVyta IA',
-      summary: 'Votre VRC nocturne de 74 ms est en hausse de +8 ms par rapport à votre base. C\'est le marqueur objectif d\'une excellente faculté d\'adaptation nerveuse et de résilience face au stress.',
-      recommendation: 'Profitez de cet état de forme optimal : votre système nerveux est prêt pour des charges d\'entraînement élevées.',
-    },
+    momentsEn: [
+      { time: '04:10', title: 'Peak Regeneration', value: '88 ms', tag: 'Sleep', pointIndex: 4 },
+      { time: '13:20', title: 'Midday Dip', value: '53 ms', tag: 'Digestion', pointIndex: 13 },
+      { time: '22:15', title: 'Parasympathetic Recovery', value: '74 ms', tag: 'Rest', pointIndex: 22 },
+    ],
+    distribution: [
+      { name: 'Système apaisé', percent: 78, duration: '18h 40' },
+      { name: 'Activité normale', percent: 18, duration: '4h 15' },
+      { name: 'Effort intense', percent: 4, duration: '1h 05' },
+    ],
+    distributionEn: [
+      { name: 'Parasympathetic (Rest)', percent: 78, duration: '18h 40' },
+      { name: 'Daily Activity', percent: 18, duration: '4h 15' },
+      { name: 'Intense Effort', percent: 4, duration: '1h 05' },
+    ],
   },
 
   temp: {
     id: 'temp',
     title: 'Température Cutanée',
-    subtitle: 'Capteur Thermique Infrarouge Médical · Précision ±0,02 °C',
-    iconName: 'thermometer',
-    accentColor: '#FF9F0A',
+    titleEn: 'Skin Temperature',
     unit: '°C',
     currentValue: '-0,08',
-    badge: 'Stable (Idéal)',
-    periodText: 'Aujourd\'hui · Variations circadiennes 24h',
+    badge: 'Parfaitement stable',
+    badgeEn: 'Optimal Stability',
+    periodText: "Aujourd'hui",
+    periodTextEn: 'Today',
+    summary: 'Thermorégulation optimale et aucun signe inflammatoire.',
+    summaryEn: 'Optimal thermoregulation and no inflammatory indicators.',
+    advice: 'Chute thermique nocturne idéale. Aucun symptôme de fièvre ou de fatigue.',
+    adviceEn: 'Ideal circadian nocturnal drop. No signs of fever or strain.',
+    accentColor: '#FB923C',
+    iconName: 'thermometer',
     minVal: -0.35,
     maxVal: 0.45,
-    hourly: [
-      { hour: '00h', value: -0.10, label: 'Endormissement régulé', isSleep: true },
-      { hour: '01h', value: -0.16, label: 'Chute thermique nocturne', isSleep: true },
-      { hour: '02h', value: -0.22, label: 'Baisse métabolique', isSleep: true },
-      { hour: '03h', value: -0.26, label: 'Nadir circadien (Creux thermique)', isSleep: true },
-      { hour: '04h', value: -0.19, label: 'Sommeil profond continu', isSleep: true },
-      { hour: '05h', value: -0.12, label: 'Remontée basale', isSleep: true },
-      { hour: '06h', value: -0.04, label: 'Préparation au réveil', isSleep: true },
-      { hour: '07h', value: 0.05, label: 'Éveil thermique' },
-      { hour: '08h', value: 0.08, label: 'Stabilité active' },
-      { hour: '09h', value: 0.02, label: 'Température normale' },
-      { hour: '10h', value: -0.01, label: 'Équilibre' },
-      { hour: '11h', value: 0.04, label: 'Homéostasie' },
-      { hour: '12h', value: 0.09, label: 'Post-déjeuner' },
-      { hour: '13h', value: 0.12, label: 'Thermogenèse digestive' },
-      { hour: '14h', value: 0.05, label: 'Stabilité' },
-      { hour: '15h', value: 0.02, label: 'Homéostasie diurne' },
-      { hour: '16h', value: 0.06, label: 'Activité normale' },
-      { hour: '17h', value: 0.03, label: 'Fin d\'après-midi' },
-      { hour: '18h', value: 0.32, label: 'Thermogenèse d\'effort (Running)', isWorkout: true },
-      { hour: '19h', value: 0.22, label: 'Refroidissement post-sport' },
-      { hour: '20h', value: 0.04, label: 'Retour à la ligne de base' },
-      { hour: '21h', value: -0.02, label: 'Début de baisse vespérale' },
-      { hour: '22h', value: -0.06, label: 'Vasodilatation distale' },
-      { hour: '23h', value: -0.08, label: 'Baisse pré-nocturne', isSleep: true },
+    points24h: [
+      { label: '00h', value: -0.10, info: 'Nuit' },
+      { label: '01h', value: -0.16, info: 'Sommeil' },
+      { label: '02h', value: -0.22, info: 'Nadir' },
+      { label: '03h', value: -0.26, info: 'Creux thermique' },
+      { label: '04h', value: -0.19, info: 'Sommeil profond' },
+      { label: '05h', value: -0.12, info: 'Fin de nuit' },
+      { label: '06h', value: -0.04, info: 'Réveil' },
+      { label: '07h', value: 0.05, info: 'Lever' },
+      { label: '08h', value: 0.08, info: 'Matin' },
+      { label: '09h', value: 0.02, info: 'Stable' },
+      { label: '10h', value: -0.01, info: 'Stable' },
+      { label: '11h', value: 0.04, info: 'Normal' },
+      { label: '12h', value: 0.09, info: 'Repas' },
+      { label: '13h', value: 0.12, info: 'Digestion' },
+      { label: '14h', value: 0.05, info: 'Stable' },
+      { label: '15h', value: 0.02, info: 'Normal' },
+      { label: '16h', value: 0.06, info: 'Activité' },
+      { label: '17h', value: 0.03, info: 'Normal' },
+      { label: '18h', value: 0.32, info: 'Effort course' },
+      { label: '19h', value: 0.22, info: 'Fin sport' },
+      { label: '20h', value: 0.04, info: 'Retour base' },
+      { label: '21h', value: -0.02, info: 'Soir' },
+      { label: '22h', value: -0.06, info: 'Détente' },
+      { label: '23h', value: -0.08, info: 'Coucher' },
+    ],
+    points7d: [
+      { label: 'Lun', value: -0.05, info: 'Écart -0.05°C' },
+      { label: 'Mar', value: -0.08, info: 'Écart -0.08°C' },
+      { label: 'Mer', value: -0.02, info: 'Écart -0.02°C' },
+      { label: 'Jeu', value: -0.11, info: 'Écart -0.11°C' },
+      { label: 'Ven', value: -0.06, info: 'Écart -0.06°C' },
+      { label: 'Sam', value: 0.02, info: 'Écart +0.02°C' },
+      { label: 'Dim', value: -0.08, info: 'Écart -0.08°C' },
+    ],
+    points30d: [
+      { label: '1', value: -0.04 }, { label: '3', value: -0.06 }, { label: '5', value: -0.08 },
+      { label: '7', value: -0.05 }, { label: '9', value: -0.02 }, { label: '11', value: -0.09 },
+      { label: '13', value: -0.07 }, { label: '15', value: -0.05 }, { label: '17', value: -0.03 },
+      { label: '19', value: -0.10 }, { label: '21', value: -0.08 }, { label: '23', value: -0.06 },
+      { label: '25', value: -0.04 }, { label: '27', value: -0.07 }, { label: '30', value: -0.08 },
     ],
     stats: [
-      { label: 'Écart Moyen Nuit', value: '-0,08 °C', sub: 'Baseline : 36,45 °C', status: 'optimal' },
-      { label: 'Nadir Nocturne', value: '-0,26 °C', sub: 'à 03h12 (Baisse réparatrice)', status: 'optimal' },
-      { label: 'Stabilité Circadienne', value: '98 %', sub: 'Aucune déviation anormale', status: 'optimal' },
-      { label: 'Alerte Fébrile', value: '0 / 5', sub: 'Système immunitaire stable', status: 'good' },
+      { label: 'Creux Nuit', value: '-0,26 °C', sub: 'à 03:12 (Idéal)' },
+      { label: 'Écart Moyen', value: '-0,08 °C', sub: 'Normal : ± 0,3°C' },
+      { label: "Pic d'Effort", value: '+0,32 °C', sub: 'à 18:35 (Course)' },
     ],
-    breakdownTitle: 'Cycle Circadien & Stabilité Thermique',
-    breakdownItems: [
-      { label: 'Baisse Nocturne Réparatrice (-0,10°C à -0,26°C)', timeStr: '7 h 45 min', percentage: 70, color: '#0A84FF', detail: 'Permet la synthèse d\'hormone de croissance et l\'endormissement' },
-      { label: 'Stabilité Diurne Neutre (± 0,08°C)', timeStr: '15 h 25 min', percentage: 26, color: '#30D158', detail: 'Homéostasie métabolique parfaite tout au long de la journée' },
-      { label: 'Thermogenèse d\'Effort (+0,32°C)', timeStr: '50 min', percentage: 4, color: '#FF9F0A', detail: 'Élévation de température attendue lors de la séance de cardio' },
+    statsEn: [
+      { label: 'Night Nadir', value: '-0.26 °C', sub: 'at 03:12 (Optimal)' },
+      { label: 'Average Delta', value: '-0.08 °C', sub: 'Normal: ± 0.3°C' },
+      { label: 'Workout Peak', value: '+0.32 °C', sub: 'at 18:35 (Run)' },
     ],
     moments: [
-      { time: '03h12', title: 'Creux Circadien (Nadir)', value: '-0,26 °C', tag: 'Sommeil Profond', desc: 'La température centrale baisse, signal biologique d\'une récupération métabolique optimale.' },
-      { time: '07h05', title: 'Signal Thermique de Réveil', value: '+0,05 °C', tag: 'Horloge Biologique', desc: 'La vasodilatation cutanée remonte naturellement pour faciliter l\'alerte matinale.' },
-      { time: '13h30', title: 'Thermogenèse Post-Prandiale', value: '+0,12 °C', tag: 'Métabolisme', desc: 'Chaleur produite par la dégradation des nutriments après le déjeuner.' },
-      { time: '18h35', title: 'Thermogenèse Musculaire d\'Effort', value: '+0,32 °C', tag: 'Course 8,12 km', desc: 'Production thermique musculaire intense, compensée par la sudation cutanée.' },
-      { time: '22h45', title: 'Vasodilatation Périphérique', value: '-0,08 °C', tag: 'Préparation Nuit', desc: 'La bague détecte la dispersion de chaleur annonçant l\'entrée en sommeil.' },
+      { time: '03:12', title: 'Creux réparateur', value: '-0,26 °C', tag: 'Sommeil', pointIndex: 3 },
+      { time: '13:30', title: 'Digestion déjeuner', value: '+0,12 °C', tag: 'Midi', pointIndex: 13 },
+      { time: '18:35', title: 'Séance course', value: '+0,32 °C', tag: 'Effort', pointIndex: 18 },
     ],
-    aiInsight: {
-      title: 'Bilan Thermique CoVyta IA',
-      summary: 'Votre variation thermique cutanée de -0,08 °C reflète une thermorégulation saine. Le creux nocturne régulier (-0,26 °C) est la preuve d\'une excellente architecture de sommeil.',
-      recommendation: 'Maintenez votre chambre entre 18°C et 19°C pour amplifier cette baisse thermique protectrice.',
-    },
+    momentsEn: [
+      { time: '03:12', title: 'Deep Circadian Nadir', value: '-0.26 °C', tag: 'Sleep', pointIndex: 3 },
+      { time: '13:30', title: 'Digestive Thermogenesis', value: '+0.12 °C', tag: 'Midday', pointIndex: 13 },
+      { time: '18:35', title: 'Muscular Workout Heat', value: '+0.32 °C', tag: 'Run', pointIndex: 18 },
+    ],
+    distribution: [
+      { name: 'Fraîcheur nocturne', percent: 70, duration: '7h 45' },
+      { name: 'Stabilité diurne', percent: 26, duration: '15h 25' },
+      { name: 'Élévation sportive', percent: 4, duration: '50 min' },
+    ],
+    distributionEn: [
+      { name: 'Nocturnal Cool', percent: 70, duration: '7h 45' },
+      { name: 'Daytime Baseline', percent: 26, duration: '15h 25' },
+      { name: 'Workout Heat', percent: 4, duration: '50 min' },
+    ],
   },
 
   spo2: {
     id: 'spo2',
     title: 'Oxygénation SpO2',
-    subtitle: 'Oxymétrie Pulsée Continue · Diodes Rouges & Infrarouges R21',
-    iconName: 'droplets',
-    accentColor: '#0A84FF',
+    titleEn: 'Oxygenation SpO2',
     unit: '%',
     currentValue: '98.6',
-    badge: 'Optimal (98 - 99%)',
-    periodText: 'Aujourd\'hui · Saturation continue & respiration',
-    minVal: 95.5,
-    maxVal: 99.8,
-    hourly: [
-      { hour: '00h', value: 98.4, label: 'Saturation nocturne', isSleep: true },
-      { hour: '01h', value: 98.2, label: 'Respiration régulière', isSleep: true },
-      { hour: '02h', value: 98.6, label: 'Sommeil profond', isSleep: true },
-      { hour: '03h', value: 98.8, label: 'Excellente hématose', isSleep: true },
-      { hour: '04h', value: 98.5, label: 'Respiration calme', isSleep: true },
-      { hour: '05h', value: 98.7, label: 'Sommeil continu', isSleep: true },
-      { hour: '06h', value: 98.9, label: 'Oxygénation matinale', isSleep: true },
-      { hour: '07h', value: 99.1, label: 'Lever & grande inspiration' },
-      { hour: '08h', value: 98.8, label: 'Marche matinale' },
-      { hour: '09h', value: 98.7, label: 'Travail' },
-      { hour: '10h', value: 98.9, label: 'Respiration fluide' },
-      { hour: '11h', value: 98.6, label: 'Stabilité' },
-      { hour: '12h', value: 98.5, label: 'Déjeuner' },
-      { hour: '13h', value: 98.7, label: 'Après-midi' },
-      { hour: '14h', value: 98.8, label: 'Saturation optimale' },
-      { hour: '15h', value: 99.0, label: 'Air frais' },
-      { hour: '16h', value: 98.6, label: 'Stabilité' },
-      { hour: '17h', value: 98.7, label: 'Fin de journée' },
-      { hour: '18h', value: 97.9, label: 'Forte demande d\'O2 (Running)', isWorkout: true },
-      { hour: '19h', value: 98.8, label: 'Récupération respiratoire' },
-      { hour: '20h', value: 98.6, label: 'Dîner' },
-      { hour: '21h', value: 98.9, label: 'Détente' },
-      { hour: '22h', value: 98.7, label: 'Pré-nuit' },
-      { hour: '23h', value: 98.6, label: 'Oxygénation nocturne', isSleep: true },
+    badge: 'Optimal',
+    badgeEn: 'Optimal',
+    periodText: "Aujourd'hui",
+    periodTextEn: 'Today',
+    summary: 'Excellente saturation en oxygène et respiration continue sans interruption.',
+    summaryEn: 'Excellent blood oxygen saturation with smooth, uninterrupted breathing.',
+    advice: "Oxygénation parfaite jour et nuit. Zéro épisode de désaturation ou d'apnée.",
+    adviceEn: 'Flawless oxygenation day and night. Zero desaturation or apnea events.',
+    accentColor: '#E879F9',
+    iconName: 'droplets',
+    minVal: 95.0,
+    maxVal: 100.0,
+    points24h: [
+      { label: '00h', value: 98.4, info: 'Nuit' },
+      { label: '01h', value: 98.2, info: 'Régulier' },
+      { label: '02h', value: 98.6, info: 'Sommeil' },
+      { label: '03h', value: 98.8, info: 'Optimal' },
+      { label: '04h', value: 98.5, info: 'Calme' },
+      { label: '05h', value: 98.7, info: 'Régulier' },
+      { label: '06h', value: 98.9, info: 'Réveil' },
+      { label: '07h', value: 99.1, info: 'Lever' },
+      { label: '08h', value: 98.8, info: 'Matin' },
+      { label: '09h', value: 98.7, info: 'Travail' },
+      { label: '10h', value: 98.9, info: 'Optimal' },
+      { label: '11h', value: 98.6, info: 'Calme' },
+      { label: '12h', value: 98.5, info: 'Repas' },
+      { label: '13h', value: 98.7, info: 'Après-midi' },
+      { label: '14h', value: 98.8, info: 'Optimal' },
+      { label: '15h', value: 99.0, info: 'Air frais' },
+      { label: '16h', value: 98.6, info: 'Stable' },
+      { label: '17h', value: 98.7, info: 'Calme' },
+      { label: '18h', value: 97.9, info: 'Effort running' },
+      { label: '19h', value: 98.8, info: 'Récupération' },
+      { label: '20h', value: 98.6, info: 'Dîner' },
+      { label: '21h', value: 98.9, info: 'Détente' },
+      { label: '22h', value: 98.7, info: 'Calme' },
+      { label: '23h', value: 98.6, info: 'Nuit' },
+    ],
+    points7d: [
+      { label: 'Lun', value: 98.5, info: 'Moyenne 98.5%' },
+      { label: 'Mar', value: 98.8, info: 'Moyenne 98.8%' },
+      { label: 'Mer', value: 98.4, info: 'Moyenne 98.4%' },
+      { label: 'Jeu', value: 98.7, info: 'Moyenne 98.7%' },
+      { label: 'Ven', value: 98.6, info: 'Moyenne 98.6%' },
+      { label: 'Sam', value: 98.9, info: 'Moyenne 98.9%' },
+      { label: 'Dim', value: 98.6, info: 'Moyenne 98.6%' },
+    ],
+    points30d: [
+      { label: '1', value: 98.4 }, { label: '3', value: 98.6 }, { label: '5', value: 98.5 },
+      { label: '7', value: 98.7 }, { label: '9', value: 98.6 }, { label: '11', value: 98.8 },
+      { label: '13', value: 98.5 }, { label: '15', value: 98.7 }, { label: '17', value: 98.6 },
+      { label: '19', value: 98.8 }, { label: '21', value: 98.7 }, { label: '23', value: 98.9 },
+      { label: '25', value: 98.6 }, { label: '27', value: 98.7 }, { label: '30', value: 98.6 },
     ],
     stats: [
-      { label: 'Saturation Moyenne', value: '98,6 %', sub: 'Norme médicale > 95%', status: 'optimal' },
-      { label: 'Minimum 24h', value: '97,2 %', sub: 'Aucun passage sous 95%', status: 'optimal' },
-      { label: 'Perturbations Resp.', value: '0 événement', sub: 'Indice IDE < 1 / heure', status: 'optimal' },
-      { label: 'Rythme Respiratoire', value: '14,2 rpm', sub: 'Respiration calme et profonde', status: 'good' },
+      { label: 'Minimum', value: '97,2 %', sub: 'Seuil sécurité > 95%' },
+      { label: 'Moyenne', value: '98,6 %', sub: 'Saturation optimale' },
+      { label: 'Apnées', value: '0 événement', sub: 'Respiration fluide' },
     ],
-    breakdownTitle: 'Qualité Respiratoire & Paliers d\'Oxygénation',
-    breakdownItems: [
-      { label: 'Saturation Optimale (98 % - 100 %)', timeStr: '22 h 10 min', percentage: 92, color: '#0A84FF', detail: 'Hémoglobine saturée à plein rendement pour l\'ensemble des tissus' },
-      { label: 'Saturation Normale Haute (96 % - 97 %)', timeStr: '1 h 50 min', percentage: 8, color: '#30D158', detail: 'Légères variations observées pendant l\'effort cardio soutenu' },
-      { label: 'Désaturation Légère (< 95 %)', timeStr: '0 min', percentage: 0, color: '#FF453A', detail: 'Aucun épisode hypoxique ou apnéique détecté sur 24h' },
+    statsEn: [
+      { label: 'Minimum', value: '97.2 %', sub: 'Safety threshold > 95%' },
+      { label: 'Average', value: '98.6 %', sub: 'Optimal saturation' },
+      { label: 'Apneas', value: '0 events', sub: 'Continuous airflow' },
     ],
     moments: [
-      { time: '02h40', title: 'Surveillance Apnées Nocturnes', value: '98.6 %', tag: '0 Apnée', desc: 'Le flux d\'air est continu et régulier, sans aucune pause respiratoire obstructive.' },
-      { time: '07h15', title: 'Oxygénation de Réveil', value: '99.1 %', tag: 'Capacité Vitale', desc: 'Ample inspiration matinale assurant une ré-oxygénation cérébrale immédiate.' },
-      { time: '14h30', title: 'Stabilité Respiratoire Diurne', value: '98.8 %', tag: 'Homéostasie', desc: 'Rythme respiratoire régulier à 14 respirations par minute pendant le travail.' },
-      { time: '18h40', title: 'Échange Gazeux en Course', value: '97.9 %', tag: 'Effort Aérobie', desc: 'Excellente capacité de transport d\'oxygène face à la consommation musculaire maximale.' },
-      { time: '22h50', title: 'Transition Ventilatoire Nocturne', value: '98.7 %', tag: 'Calme Pré-Sommeil', desc: 'Respiration diaphragmatique lente préparant un sommeil profond sans ronflement.' },
+      { time: '02:40', title: 'Nuit sans apnée', value: '98.6 %', tag: 'Sommeil', pointIndex: 2 },
+      { time: '07:15', title: 'Oxygénation matinale', value: '99.1 %', tag: 'Réveil', pointIndex: 7 },
+      { time: '18:40', title: 'Maintien sous effort', value: '97.9 %', tag: 'Course', pointIndex: 18 },
     ],
-    aiInsight: {
-      title: 'Bilan Respiratoire CoVyta IA',
-      summary: 'Votre SpO2 moyenne de 98,6% est irréprochable. La détection optique de la bague confirme l\'absence totale de perturbations respiratoires ou d\'épisodes d\'apnée du sommeil cette nuit.',
-      recommendation: 'Votre oxygénation cellulaire est optimale pour une régénération physique et cognitive complète.',
-    },
+    momentsEn: [
+      { time: '02:40', title: 'Clear Night Airflow', value: '98.6 %', tag: 'Sleep', pointIndex: 2 },
+      { time: '07:15', title: 'Wake Oxygen Intake', value: '99.1 %', tag: 'Morning', pointIndex: 7 },
+      { time: '18:40', title: 'Endurance Saturation', value: '97.9 %', tag: 'Run', pointIndex: 18 },
+    ],
+    distribution: [
+      { name: 'Optimal (98 - 100%)', percent: 92, duration: '22h' },
+      { name: 'Normal (96 - 97%)', percent: 8, duration: '2h' },
+      { name: 'Basse (< 95%)', percent: 0, duration: '0 min' },
+    ],
+    distributionEn: [
+      { name: 'Optimal (98 - 100%)', percent: 92, duration: '22h' },
+      { name: 'Normal (96 - 97%)', percent: 8, duration: '2h' },
+      { name: 'Low (< 95%)', percent: 0, duration: '0 min' },
+    ],
+  },
+
+  resp: {
+    id: 'resp',
+    title: 'Fréquence Respiratoire',
+    titleEn: 'Respiratory Rate',
+    unit: 'rpm',
+    currentValue: '14.2',
+    badge: 'Optimale',
+    badgeEn: 'Optimal',
+    periodText: "Aujourd'hui",
+    periodTextEn: 'Today',
+    summary: 'Rythme respiratoire régulier et apaisé pendant la phase de repos.',
+    summaryEn: 'Smooth, steady respiratory rate throughout resting and recovery periods.',
+    advice: 'Fréquence optimale entre 12 et 16 rpm. Zéro signe d’hyperventilation nocturne.',
+    adviceEn: 'Optimal rate between 12 and 16 rpm. Zero signs of nocturnal hyperventilation.',
+    accentColor: '#38BDF8',
+    iconName: 'wind',
+    minVal: 11.0,
+    maxVal: 18.0,
+    points24h: [
+      { label: '00h', value: 13.8, info: 'Nuit calme' },
+      { label: '01h', value: 13.5, info: 'Sommeil lent' },
+      { label: '02h', value: 13.2, info: 'Profond' },
+      { label: '03h', value: 12.9, info: 'Nadir' },
+      { label: '04h', value: 13.1, info: 'Profond' },
+      { label: '05h', value: 13.6, info: 'REM' },
+      { label: '06h', value: 14.1, info: 'Réveil' },
+      { label: '07h', value: 14.8, info: 'Lever' },
+      { label: '08h', value: 14.4, info: 'Matin' },
+      { label: '09h', value: 14.2, info: 'Focus travail' },
+      { label: '10h', value: 14.0, info: 'Calme' },
+      { label: '11h', value: 14.3, info: 'Stable' },
+      { label: '12h', value: 14.5, info: 'Repas' },
+      { label: '13h', value: 14.2, info: 'Pause' },
+      { label: '14h', value: 13.9, info: 'Calme' },
+      { label: '15h', value: 14.2, info: 'Focus' },
+      { label: '16h', value: 14.4, info: 'Stable' },
+      { label: '17h', value: 14.7, info: 'Fin journée' },
+      { label: '18h', value: 16.8, info: 'Effort running' },
+      { label: '19h', value: 14.9, info: 'Récupération' },
+      { label: '20h', value: 14.4, info: 'Dîner' },
+      { label: '21h', value: 14.1, info: 'Détente' },
+      { label: '22h', value: 13.8, info: 'Coucher' },
+      { label: '23h', value: 13.6, info: 'Endormissement' },
+    ],
+    points7d: [
+      { label: 'Lun', value: 14.1, info: 'Moyenne 14.1 rpm' },
+      { label: 'Mar', value: 14.3, info: 'Moyenne 14.3 rpm' },
+      { label: 'Mer', value: 13.9, info: 'Moyenne 13.9 rpm' },
+      { label: 'Jeu', value: 14.2, info: 'Moyenne 14.2 rpm' },
+      { label: 'Ven', value: 14.0, info: 'Moyenne 14.0 rpm' },
+      { label: 'Sam', value: 13.8, info: 'Moyenne 13.8 rpm' },
+      { label: 'Dim', value: 14.1, info: 'Moyenne 14.1 rpm' },
+    ],
+    points30d: [
+      { label: '1', value: 14.0 }, { label: '3', value: 14.2 }, { label: '5', value: 13.9 },
+      { label: '7', value: 14.1 }, { label: '9', value: 14.3 }, { label: '11', value: 14.0 },
+      { label: '13', value: 14.2 }, { label: '15', value: 13.8 }, { label: '17', value: 14.1 },
+      { label: '19', value: 14.4 }, { label: '21', value: 14.2 }, { label: '23', value: 14.0 },
+      { label: '25', value: 14.3 }, { label: '27', value: 14.1 }, { label: '30', value: 14.2 },
+    ],
+    stats: [
+      { label: 'Creux Sommeil', value: '12,9 rpm', sub: 'à 03:20 (Idéal)' },
+      { label: 'Moyenne Repos', value: '14,2 rpm', sub: 'Norme : 12-16 rpm' },
+      { label: 'Stabilité RSA', value: '98 %', sub: 'Rythme sinusal sain' },
+    ],
+    statsEn: [
+      { label: 'Sleep Nadir', value: '12.9 rpm', sub: 'at 03:20 (Optimal)' },
+      { label: 'Resting Average', value: '14.2 rpm', sub: 'Normal: 12-16 rpm' },
+      { label: 'RSA Stability', value: '98 %', sub: 'Healthy sinus rhythm' },
+    ],
+    moments: [
+      { time: '03:20', title: 'Apaisement profond', value: '12.9 rpm', tag: 'Sommeil', pointIndex: 3 },
+      { time: '08:00', title: 'Rythme matinal calme', value: '14.4 rpm', tag: 'Matin', pointIndex: 8 },
+      { time: '18:30', title: 'Ventilation running', value: '16.8 rpm', tag: 'Effort', pointIndex: 18 },
+    ],
+    momentsEn: [
+      { time: '03:20', title: 'Deep Respiration Nadir', value: '12.9 rpm', tag: 'Sleep', pointIndex: 3 },
+      { time: '08:00', title: 'Calm Wake Flow', value: '14.4 rpm', tag: 'Morning', pointIndex: 8 },
+      { time: '18:30', title: 'Aerobic Ventilation', value: '16.8 rpm', tag: 'Run', pointIndex: 18 },
+    ],
+    distribution: [
+      { name: 'Optimal (12 - 16 rpm)', percent: 94, duration: '22h 30' },
+      { name: 'Modéré (16 - 18 rpm)', percent: 6, duration: '1h 30' },
+      { name: 'Élevé (> 18 rpm)', percent: 0, duration: '0 min' },
+    ],
+    distributionEn: [
+      { name: 'Optimal (12 - 16 rpm)', percent: 94, duration: '22h 30' },
+      { name: 'Moderate (16 - 18 rpm)', percent: 6, duration: '1h 30' },
+      { name: 'Elevated (> 18 rpm)', percent: 0, duration: '0 min' },
+    ],
   },
 };

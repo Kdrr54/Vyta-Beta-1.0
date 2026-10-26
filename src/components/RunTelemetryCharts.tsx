@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Navigation, Gauge, Heart, Layers, Clock, TrendingUp, Info } from 'lucide-react';
+import { Navigation, Gauge, Heart } from 'lucide-react';
 import { fmtClockSec } from '../lib/format';
 
 export interface TelemetryPoint {
@@ -18,7 +18,7 @@ export interface RunTelemetryChartsProps {
   telemetryHistory: TelemetryPoint[];
 }
 
-export type MetricType = 'distance' | 'speed' | 'bpm' | 'all';
+export type MetricType = 'distance' | 'speed' | 'bpm';
 
 // Interpolation d'un chemin lisse Catmull-Rom vers Bezier
 function getSmoothPath(points: { x: number; y: number }[]): string {
@@ -204,6 +204,17 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
     { val: 60, label: '60' },
   ];
 
+  // Moyennes télémetriques pour le trait moyen
+  const avgSpeed = useMemo(() => {
+    if (telemetryHistory.length === 0) return liveSpeedKmh > 0 ? liveSpeedKmh : 11.4;
+    return telemetryHistory.reduce((s, p) => s + p.speedKmh, 0) / telemetryHistory.length;
+  }, [telemetryHistory, liveSpeedKmh]);
+
+  const avgBpm = useMemo(() => {
+    if (telemetryHistory.length === 0) return liveHr > 0 ? liveHr : 154;
+    return Math.round(telemetryHistory.reduce((s, p) => s + p.hrBpm, 0) / telemetryHistory.length);
+  }, [telemetryHistory, liveHr]);
+
   // Scrub tactile interactif
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (telemetryHistory.length === 0) return;
@@ -258,14 +269,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
           right: '-25px',
           width: '180px',
           height: '160px',
-          background:
-            activeMetric === 'distance'
-              ? 'radial-gradient(circle, rgba(163, 31, 68, 0.18) 0%, rgba(77, 11, 32, 0) 70%)'
-              : activeMetric === 'speed'
-              ? 'radial-gradient(circle, rgba(48, 209, 88, 0.18) 0%, rgba(0, 0, 0, 0) 70%)'
-              : activeMetric === 'bpm'
-              ? 'radial-gradient(circle, rgba(255, 69, 58, 0.18) 0%, rgba(0, 0, 0, 0) 70%)'
-              : 'radial-gradient(circle, rgba(163, 31, 68, 0.15) 0%, rgba(0, 0, 0, 0) 70%)',
+          background: 'radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0) 70%)',
           pointerEvents: 'none',
           borderRadius: '50%',
           transition: 'all 300ms ease',
@@ -276,23 +280,10 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                display: 'block',
-              }}
-            >
-              Télémetrie GPS en Direct
-            </span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
               {activeMetric === 'distance' && 'Distance parcourue'}
               {activeMetric === 'speed' && 'Vitesse (km/h)'}
               {activeMetric === 'bpm' && 'Fréquence Cardiaque (BPM)'}
-              {activeMetric === 'all' && 'Vue Complète (3 Métriques)'}
             </span>
           </div>
 
@@ -303,7 +294,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 style={{
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: 'var(--bordeaux-light)',
+                  color: '#FFFFFF',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
@@ -316,7 +307,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 style={{
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: '#30D158',
+                  color: '#FFFFFF',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
@@ -329,7 +320,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 style={{
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: '#FF453A',
+                  color: '#FFFFFF',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
@@ -337,26 +328,14 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>bpm</span>
               </span>
             )}
-            {activeMetric === 'all' && (
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#FFFFFF',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {fmtClockSec(runDurationSec)}
-              </span>
-            )}
           </div>
         </div>
 
-        {/* Sélecteur segmented 1 / 2 / 3 courbes */}
+        {/* Sélecteur segmented 3 courbes */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateColumns: 'repeat(3, 1fr)',
             gap: '4px',
             background: 'rgba(255, 255, 255, 0.05)',
             padding: '3px',
@@ -369,12 +348,12 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             onClick={() => setActiveMetric('distance')}
             style={{
               padding: '6px 4px',
-              fontSize: '10.5px',
+              fontSize: '11px',
               fontWeight: 600,
               borderRadius: '7px',
               border: 'none',
-              background: activeMetric === 'distance' ? 'var(--bordeaux)' : 'transparent',
-              color: activeMetric === 'distance' ? '#FFFFFF' : 'var(--text-secondary)',
+              background: activeMetric === 'distance' ? '#FFFFFF' : 'transparent',
+              color: activeMetric === 'distance' ? '#000000' : 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -392,11 +371,11 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             onClick={() => setActiveMetric('speed')}
             style={{
               padding: '6px 4px',
-              fontSize: '10.5px',
+              fontSize: '11px',
               fontWeight: 600,
               borderRadius: '7px',
               border: 'none',
-              background: activeMetric === 'speed' ? '#30D158' : 'transparent',
+              background: activeMetric === 'speed' ? '#FFFFFF' : 'transparent',
               color: activeMetric === 'speed' ? '#000000' : 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
@@ -415,12 +394,12 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             onClick={() => setActiveMetric('bpm')}
             style={{
               padding: '6px 4px',
-              fontSize: '10.5px',
+              fontSize: '11px',
               fontWeight: 600,
               borderRadius: '7px',
               border: 'none',
-              background: activeMetric === 'bpm' ? '#FF453A' : 'transparent',
-              color: activeMetric === 'bpm' ? '#FFFFFF' : 'var(--text-secondary)',
+              background: activeMetric === 'bpm' ? '#FFFFFF' : 'transparent',
+              color: activeMetric === 'bpm' ? '#000000' : 'var(--text-secondary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -431,29 +410,6 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
           >
             <Heart size={11} />
             <span>BPM</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveMetric('all')}
-            style={{
-              padding: '6px 4px',
-              fontSize: '10.5px',
-              fontWeight: 600,
-              borderRadius: '7px',
-              border: 'none',
-              background: activeMetric === 'all' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
-              color: activeMetric === 'all' ? '#FFFFFF' : 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              transition: 'all 160ms ease',
-            }}
-          >
-            <Layers size={11} />
-            <span>Toutes</span>
           </button>
         </div>
       </div>
@@ -473,20 +429,20 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
           onPointerLeave={handlePointerLeave}
         >
           <defs>
-            {/* Dégradés Remplissages */}
+            {/* Dégradés Remplissages Monochrome */}
             <linearGradient id="distFill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#A31F44" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#4D0B20" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.0" />
             </linearGradient>
 
             <linearGradient id="spdFill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#30D158" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#30D158" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#D1D1D6" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#D1D1D6" stopOpacity="0.0" />
             </linearGradient>
 
             <linearGradient id="bpmFill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#FF453A" stopOpacity="0.38" />
-              <stop offset="100%" stopColor="#FF453A" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#8E8E93" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#8E8E93" stopOpacity="0.0" />
             </linearGradient>
 
             {/* Filtre Lueur */}
@@ -498,6 +454,20 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
               </feMerge>
             </filter>
           </defs>
+
+          {/* Vertical Y-Axis Unit Header */}
+          <text
+            x={chartX - 6}
+            y={chartY - 6}
+            textAnchor="end"
+            fill="rgba(255, 255, 255, 0.7)"
+            fontSize="9"
+            fontFamily="var(--font-mono)"
+            fontWeight="700"
+            letterSpacing="0.04em"
+          >
+            {activeMetric === 'distance' ? 'KM' : activeMetric === 'speed' ? 'KM/H' : 'BPM'}
+          </text>
 
           {/* Lignes de repère horizontales (Y) */}
           {(activeMetric === 'distance' ? distanceTicks : activeMetric === 'speed' ? speedTicks : bpmTicks).map(
@@ -533,6 +503,31 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 </g>
               );
             }
+          )}
+
+          {/* Trait Moyen (Vitesse ou BPM moyen : ligne grise en pointillés sans texte) */}
+          {activeMetric === 'speed' && avgSpeed > 0 && (
+            <line
+              x1={chartX}
+              y1={getYVitesse(avgSpeed)}
+              x2={chartX + chartWidth}
+              y2={getYVitesse(avgSpeed)}
+              stroke="rgba(255, 255, 255, 0.32)"
+              strokeDasharray="4 3"
+              strokeWidth="1.2"
+            />
+          )}
+
+          {activeMetric === 'bpm' && avgBpm > 0 && (
+            <line
+              x1={chartX}
+              y1={getYBpm(avgBpm)}
+              x2={chartX + chartWidth}
+              y2={getYBpm(avgBpm)}
+              stroke="rgba(255, 255, 255, 0.32)"
+              strokeDasharray="4 3"
+              strokeWidth="1.2"
+            />
           )}
 
           {/* Lignes de repère verticales du temps (X horizontal) : démarre à 00:00 */}
@@ -574,77 +569,59 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             strokeWidth="1"
           />
 
-          {/* Si à l'arrêt (idle) et 0 km : affichage propre de départ à zéro */}
-          {isIdle && telemetryHistory.length === 0 && (
-            <g>
-              {/* Point de départ à 0 */}
-              <circle cx={chartX} cy={bottomY} r="4" fill="var(--bordeaux-light)" />
-              <text
-                x={chartX + chartWidth / 2}
-                y={chartY + chartHeight / 2}
-                textAnchor="middle"
-                fill="rgba(255, 255, 255, 0.38)"
-                fontSize="11"
-                fontWeight="500"
-              >
-                Départ à 0 · Appuyez sur « Démarrer »
-              </text>
-            </g>
-          )}
-
           {/* ================= 1. COURBE DE DISTANCE ================= */}
-          {(activeMetric === 'distance' || activeMetric === 'all') && pathDistance && (
+          {activeMetric === 'distance' && pathDistance && (
             <g>
-              {activeMetric === 'distance' && areaDistance && <path d={areaDistance} fill="url(#distFill)" />}
+              {areaDistance && <path d={areaDistance} fill="url(#distFill)" />}
               <path
                 d={pathDistance}
                 fill="none"
-                stroke="#EFA0B4"
-                strokeWidth={activeMetric === 'all' ? '1.8' : '2.5'}
+                stroke="#FFFFFF"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 filter="url(#telemetryGlow)"
               />
               {headDist && (
-                <circle cx={headDist.x} cy={headDist.y} r="3.8" fill="#FFFFFF" stroke="#A31F44" strokeWidth="2" />
+                <circle cx={headDist.x} cy={headDist.y} r="3.8" fill="#000000" stroke="#FFFFFF" strokeWidth="2" />
               )}
             </g>
           )}
 
           {/* ================= 2. COURBE DE VITESSE ================= */}
-          {(activeMetric === 'speed' || activeMetric === 'all') && pathVitesse && (
+          {activeMetric === 'speed' && pathVitesse && (
             <g>
-              {activeMetric === 'speed' && areaVitesse && <path d={areaVitesse} fill="url(#spdFill)" />}
+              {areaVitesse && <path d={areaVitesse} fill="url(#spdFill)" />}
               <path
                 d={pathVitesse}
                 fill="none"
-                stroke="#30D158"
-                strokeWidth={activeMetric === 'all' ? '1.8' : '2.5'}
+                stroke="#D1D1D6"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 filter="url(#telemetryGlow)"
               />
               {headSpd && (
-                <circle cx={headSpd.x} cy={headSpd.y} r="3.8" fill="#FFFFFF" stroke="#30D158" strokeWidth="2" />
+                <circle cx={headSpd.x} cy={headSpd.y} r="3.8" fill="#000000" stroke="#D1D1D6" strokeWidth="2" />
               )}
             </g>
           )}
 
           {/* ================= 3. COURBE CARDIAQUE (BPM) ================= */}
-          {(activeMetric === 'bpm' || activeMetric === 'all') && pathBpm && (
+          {activeMetric === 'bpm' && pathBpm && (
             <g>
-              {activeMetric === 'bpm' && areaBpm && <path d={areaBpm} fill="url(#bpmFill)" />}
+              {areaBpm && <path d={areaBpm} fill="url(#bpmFill)" />}
               <path
                 d={pathBpm}
                 fill="none"
-                stroke="#FF453A"
-                strokeWidth={activeMetric === 'all' ? '1.8' : '2.5'}
+                stroke="#8E8E93"
+                strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 filter="url(#telemetryGlow)"
               />
               {headBpm && (
-                <circle cx={headBpm.x} cy={headBpm.y} r="3.8" fill="#FFFFFF" stroke="#FF453A" strokeWidth="2" />
+                <circle cx={headBpm.x} cy={headBpm.y} r="3.8" fill="#000000" stroke="#8E8E93" strokeWidth="2" />
               )}
             </g>
           )}
@@ -666,8 +643,8 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                   cx={getX(scrubSample.timeSec)}
                   cy={getYDistance(scrubSample.distanceKm)}
                   r="4.5"
-                  fill="#FFFFFF"
-                  stroke="#A31F44"
+                  fill="#000000"
+                  stroke="#FFFFFF"
                   strokeWidth="2"
                 />
               )}
@@ -676,8 +653,8 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                   cx={getX(scrubSample.timeSec)}
                   cy={getYVitesse(scrubSample.speedKmh)}
                   r="4.5"
-                  fill="#FFFFFF"
-                  stroke="#30D158"
+                  fill="#000000"
+                  stroke="#D1D1D6"
                   strokeWidth="2"
                 />
               )}
@@ -686,8 +663,8 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                   cx={getX(scrubSample.timeSec)}
                   cy={getYBpm(scrubSample.hrBpm)}
                   r="4.5"
-                  fill="#FFFFFF"
-                  stroke="#FF453A"
+                  fill="#000000"
+                  stroke="#8E8E93"
                   strokeWidth="2"
                 />
               )}
@@ -715,23 +692,18 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
               ⏱ {fmtClockSec(scrubSample.timeSec)}
             </span>
             {activeMetric === 'distance' && (
-              <span style={{ fontWeight: 700, color: '#EFA0B4' }}>
+              <span style={{ fontWeight: 700, color: '#FFFFFF' }}>
                 Distance : {scrubSample.distanceKm.toFixed(2)} km
               </span>
             )}
             {activeMetric === 'speed' && (
-              <span style={{ fontWeight: 700, color: '#30D158' }}>
+              <span style={{ fontWeight: 700, color: '#D1D1D6' }}>
                 Vitesse : {scrubSample.speedKmh.toFixed(1)} km/h
               </span>
             )}
             {activeMetric === 'bpm' && (
-              <span style={{ fontWeight: 700, color: '#FF453A' }}>
+              <span style={{ fontWeight: 700, color: '#8E8E93' }}>
                 Cardio : {scrubSample.hrBpm} bpm
-              </span>
-            )}
-            {activeMetric === 'all' && (
-              <span style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '10.5px' }}>
-                {scrubSample.distanceKm.toFixed(2)} km · {scrubSample.speedKmh.toFixed(1)} km/h · {scrubSample.hrBpm} bpm
               </span>
             )}
           </div>
@@ -744,10 +716,10 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                     width: '7px',
                     height: '7px',
                     borderRadius: '50%',
-                    background: '#EFA0B4',
+                    background: '#FFFFFF',
                   }}
                 />
-                <span style={{ color: activeMetric === 'distance' || activeMetric === 'all' ? '#fff' : 'var(--text-secondary)' }}>
+                <span style={{ color: activeMetric === 'distance' ? '#fff' : 'var(--text-secondary)' }}>
                   Distance (km)
                 </span>
               </div>
@@ -758,10 +730,10 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                     width: '7px',
                     height: '7px',
                     borderRadius: '50%',
-                    background: '#30D158',
+                    background: '#D1D1D6',
                   }}
                 />
-                <span style={{ color: activeMetric === 'speed' || activeMetric === 'all' ? '#fff' : 'var(--text-secondary)' }}>
+                <span style={{ color: activeMetric === 'speed' ? '#fff' : 'var(--text-secondary)' }}>
                   Vitesse (km/h)
                 </span>
               </div>
@@ -772,10 +744,10 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                     width: '7px',
                     height: '7px',
                     borderRadius: '50%',
-                    background: '#FF453A',
+                    background: '#8E8E93',
                   }}
                 />
-                <span style={{ color: activeMetric === 'bpm' || activeMetric === 'all' ? '#fff' : 'var(--text-secondary)' }}>
+                <span style={{ color: activeMetric === 'bpm' ? '#fff' : 'var(--text-secondary)' }}>
                   BPM
                 </span>
               </div>

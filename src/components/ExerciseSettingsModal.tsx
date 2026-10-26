@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useModalAnimation } from '../hooks/useModalAnimation';
 import { GymExercise } from './FitScreen';
 import {
   Settings2,
@@ -19,6 +20,8 @@ interface ExerciseSettingsModalProps {
   onClose: () => void;
   onRename: (newName: string) => void;
   onApplyWeightDeltaAll: (deltaKg: number) => void;
+  onAdjustWeight: (setId: string, delta: number) => void;
+  onAdjustReps: (setId: string, delta: number) => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
   onDeleteExercise: () => void;
@@ -29,10 +32,13 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   onClose,
   onRename,
   onApplyWeightDeltaAll,
+  onAdjustWeight,
+  onAdjustReps,
   onDeleteSet,
   onAddSet,
   onDeleteExercise,
 }) => {
+  const { isClosing, handleClose } = useModalAnimation(onClose);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(exercise.name);
   const [confirmDeleteEx, setConfirmDeleteEx] = useState(false);
@@ -46,8 +52,8 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="exercise-settings-sheet" onClick={(e) => e.stopPropagation()}>
+    <div className={`modal-backdrop ${isClosing ? "is-closing" : ""}`} onClick={handleClose} role="dialog" aria-modal="true">
+      <div className={`exercise-settings-sheet modal-sheet ${isClosing ? "is-closing" : ""}`} onClick={(e) => e.stopPropagation()}>
         {/* Grabber bar */}
         <div className="metric-sheet-grabber" />
 
@@ -58,7 +64,6 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               <Sliders size={16} color="var(--gold)" />
             </div>
             <div>
-              <span className="ex-settings-sub">Paramètres d'exercice</span>
               <h3 className="ex-settings-title">{exercise.name}</h3>
             </div>
           </div>
@@ -66,7 +71,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           <button
             type="button"
             className="modal-close-btn"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Fermer"
           >
             <X size={16} />
@@ -122,9 +127,6 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
         <div className="ex-settings-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span className="ex-settings-section-label">Ajustement rapide de charge</span>
-            <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-              Appliquer à toutes les séries
-            </span>
           </div>
 
           <div className="ex-weight-quick-grid">
@@ -159,13 +161,13 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* 3. GESTION DES SÉRIES (Supprimer ou ajouter des séries en toute sécurité) */}
+        {/* 3. GESTION DES SÉRIES (Poids, répétitions, ajout & suppression) */}
         <div className="ex-settings-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Layers size={13} color="var(--gold)" />
               <span className="ex-settings-section-label">
-                Gestion des séries ({exercise.sets.length})
+                Poids & Répétitions ({exercise.sets.length})
               </span>
             </div>
             <button
@@ -180,48 +182,89 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
 
           <div className="ex-sets-manage-list">
             {exercise.sets.map((s, idx) => (
-              <div key={s.id} className="ex-set-manage-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="ex-set-num-badge">S{idx + 1}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#fff' }}>
-                      {s.weightKg} kg · {s.reps} réps
-                    </span>
-                    <span style={{ fontSize: '10px', color: s.done ? 'var(--gold)' : 'var(--text-secondary)' }}>
-                      {s.done ? '✓ Validée' : 'En attente'}
-                    </span>
-                  </div>
+              <div key={s.id} className="ex-set-manage-row" style={{ gap: '8px' }}>
+                <span className="ex-set-num-badge" style={{ minWidth: '24px', textAlign: 'center' }}>
+                  {idx + 1}
+                </span>
+
+                {/* Stepper Poids (kg) */}
+                <div className="set-mini-control" style={{ flex: 1 }}>
+                  <button
+                    type="button"
+                    className="mini-step-btn"
+                    onClick={() => onAdjustWeight(s.id, -2.5)}
+                    title="-2.5 kg"
+                  >
+                    -
+                  </button>
+                  <span className="mini-step-val">{s.weightKg} kg</span>
+                  <button
+                    type="button"
+                    className="mini-step-btn"
+                    onClick={() => onAdjustWeight(s.id, 2.5)}
+                    title="+2.5 kg"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {/* Stepper Répétitions */}
+                <div className="set-mini-control" style={{ flex: 1 }}>
+                  <button
+                    type="button"
+                    className="mini-step-btn"
+                    onClick={() => onAdjustReps(s.id, -1)}
+                    title="-1 rép"
+                  >
+                    -
+                  </button>
+                  <span className="mini-step-val">{s.reps} réps</span>
+                  <button
+                    type="button"
+                    className="mini-step-btn"
+                    onClick={() => onAdjustReps(s.id, 1)}
+                    title="+1 rép"
+                  >
+                    +
+                  </button>
                 </div>
 
                 {exercise.sets.length > 1 ? (
                   <button
                     type="button"
                     className="ex-delete-set-btn"
+                    style={{ padding: '5px 7px' }}
                     onClick={() => onDeleteSet(s.id)}
-                    title={`Supprimer la série S${idx + 1}`}
+                    title={`Supprimer la série ${idx + 1}`}
                   >
                     <Trash2 size={13} />
-                    <span>Supprimer</span>
                   </button>
                 ) : (
-                  <span style={{ fontSize: '10.5px', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                    Série unique
+                  <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', width: '28px', textAlign: 'center' }}>
+                    —
                   </span>
                 )}
               </div>
             ))}
           </div>
+
+          <button
+            type="button"
+            className="add-set-link-btn"
+            style={{ marginTop: '2px' }}
+            onClick={onAddSet}
+          >
+            <Plus size={13} />
+            <span>Ajouter une série</span>
+          </button>
         </div>
 
         {/* 4. SUPPRESSION SÉCURISÉE DE L'EXERCICE */}
         <div className="ex-settings-card danger">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertTriangle size={14} color="#FF453A" />
+            <AlertTriangle size={14} color="#FFFFFF" />
             <span className="ex-settings-section-label danger">Zone de suppression</span>
           </div>
-          <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
-            Retire cet exercice de votre séance d'entraînement.
-          </p>
 
           {!confirmDeleteEx ? (
             <button
@@ -234,7 +277,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
             </button>
           ) : (
             <div className="ex-delete-confirm-box">
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#FF453A' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#FFFFFF' }}>
                 Confirmer la suppression de cet exercice ?
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>

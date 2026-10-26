@@ -1,0 +1,23 @@
+{
+  "appId": "com.vyta.app",
+  "appName": "Vyta",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "ios": {
+    "scheme": "Vyta",
+    "teamId": "ZCU3WN2ZW4",
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "Keyboard": {
+      "resize": "native",
+      "style": "DARK"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#000000"
+    }
+  }
+}

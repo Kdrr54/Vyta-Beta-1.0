@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { DynamicIsland } from './DynamicIsland';
 import { Wifi, Battery } from 'lucide-react';
 
+import { useApp } from '../context/AppContext';
+
 interface IPhoneFrameProps {
   header?: React.ReactNode;
   overlay?: React.ReactNode;
@@ -17,25 +19,17 @@ export const IPhoneFrame: React.FC<IPhoneFrameProps> = ({
   scale = 1,
   isChassisEnabled = true,
 }) => {
-  const [timeString, setTimeString] = useState('09:41');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      setTimeString(`${hours}:${minutes}`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 30000);
-    return () => clearInterval(timer);
-  }, []);
+  const { simulatedDate, setIsDateModalOpen, theme } = useApp();
+  const hours = String(simulatedDate.getHours()).padStart(2, '0');
+  const minutes = String(simulatedDate.getMinutes()).padStart(2, '0');
+  const timeString = `${hours}:${minutes}`;
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 500;
 
   return (
     <div
-      className={`iphone-16-pro ${!isChassisEnabled ? 'chassis-disabled' : ''}`}
+      className={`iphone-16-pro ${!isChassisEnabled ? 'chassis-disabled' : ''} theme-root-${theme}`}
+      data-theme={theme}
       style={{
         transform: !isMobile && isChassisEnabled && scale !== 1 ? `scale(${scale})` : undefined,
         transformOrigin: 'top center',
@@ -53,10 +47,17 @@ export const IPhoneFrame: React.FC<IPhoneFrameProps> = ({
       )}
 
       {/* Internal iOS Screen */}
-      <div className="iphone-screen">
+      <div className={`iphone-screen theme-${theme}`} data-theme={theme}>
         {/* iOS Status Bar */}
         <div className="ios-status-bar">
-          <span className="status-time">{timeString}</span>
+          <span
+            className="status-time"
+            onClick={() => setIsDateModalOpen(true)}
+            title="Appuyez pour changer la date du jour (Mode Test)"
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+          >
+            {timeString}
+          </span>
           <div className="status-icons">
             {/* 5G Signal bars */}
             <svg width="17" height="11" viewBox="0 0 17 11" fill="none">
