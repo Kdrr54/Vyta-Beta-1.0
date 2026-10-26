@@ -5,9 +5,16 @@
     <key>method</key>
     <string>app-store</string>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
     <key>teamID</key>
     <string>ZCU3WN2ZW4</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>lt.manodrabuziai.fr.ZCU3WN2ZW4</key>
+        <string>Vyta TestFlight AppStore Profile</string>
+    </dict>
     <key>manageAppVersionAndBuildNumber</key>
     <true/>
     <key>uploadSymbols</key>
