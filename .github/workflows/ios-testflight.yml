@@ -73,8 +73,7 @@ jobs:
             -inkey $RUNNER_TEMP/key.pem \
             -in $RUNNER_TEMP/cert.pem \
             -out $RUNNER_TEMP/dist.p12 \
-            -passout pass:"$P12_PASSWORD" \
-            -legacy
+            -passout pass:"$P12_PASSWORD"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
