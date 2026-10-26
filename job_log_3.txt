@@ -1,0 +1,596 @@
+﻿2026-10-26T17:26:01.4245770Z Current runner version: '2.338.0'
+2026-10-26T17:26:01.4270630Z ##[group]Runner Image Provisioner
+2026-10-26T17:26:01.4271240Z Hosted Compute Agent
+2026-10-26T17:26:01.4271610Z Version: 20260828.587
+2026-10-26T17:26:01.4272070Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-26T17:26:01.4272660Z Build Date: 2026-08-28T16:44:25Z
+2026-10-26T17:26:01.4273280Z Worker ID: {f885aba5-5c3b-4b2c-bff0-19168906729d}
+2026-10-26T17:26:01.4273810Z Azure Region: westus
+2026-10-26T17:26:01.4274240Z ##[endgroup]
+2026-10-26T17:26:01.4275400Z ##[group]Operating System
+2026-10-26T17:26:01.4275880Z macOS
+2026-10-26T17:26:01.4276230Z 14.8.9
+2026-10-26T17:26:01.4276820Z 23J631
+2026-10-26T17:26:01.4277230Z ##[endgroup]
+2026-10-26T17:26:01.4277810Z ##[group]Runner Image
+2026-10-26T17:26:01.4278420Z Image: macos-14-arm64
+2026-10-26T17:26:01.4279050Z Version: 20260831.0302.1
+2026-10-26T17:26:01.4280100Z Included Software: https://github.com/actions/runner-images/blob/macos-14-arm64/20260831.0302/images/macos/macos-14-arm64-Readme.md
+2026-10-26T17:26:01.4281310Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-14-arm64%2F20260831.0302
+2026-10-26T17:26:01.4281980Z ##[endgroup]
+2026-10-26T17:26:01.4282860Z ##[group]GITHUB_TOKEN Permissions
+2026-10-26T17:26:01.4284440Z Contents: read
+2026-10-26T17:26:01.4284830Z Metadata: read
+2026-10-26T17:26:01.4285180Z Packages: read
+2026-10-26T17:26:01.4285550Z ##[endgroup]
+2026-10-26T17:26:01.4287090Z Secret source: Actions
+2026-10-26T17:26:01.4287680Z Cache mode: write
+2026-10-26T17:26:01.4288190Z Prepare workflow directory
+2026-10-26T17:26:01.4887330Z Prepare all required actions
+2026-10-26T17:26:01.4987830Z Getting action download info
+2026-10-26T17:26:01.7049270Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-26T17:26:02.1891490Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-10-26T17:26:02.3596400Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-26T17:26:02.6082500Z Complete job name: Build iOS IPA & TestFlight
+2026-10-26T17:26:02.6780730Z ##[group]Run actions/checkout@v4
+2026-10-26T17:26:02.6781650Z with:
+2026-10-26T17:26:02.6782030Z   repository: Kdrr54/Vyta-Beta-1.0
+2026-10-26T17:26:02.6786110Z   token: ***
+2026-10-26T17:26:02.6786480Z   ssh-strict: true
+2026-10-26T17:26:02.6786830Z   ssh-user: git
+2026-10-26T17:26:02.6787220Z   persist-credentials: true
+2026-10-26T17:26:02.6788230Z   clean: true
+2026-10-26T17:26:02.6788720Z   sparse-checkout-cone-mode: true
+2026-10-26T17:26:02.6789200Z   fetch-depth: 1
+2026-10-26T17:26:02.6789550Z   fetch-tags: false
+2026-10-26T17:26:02.6790620Z   show-progress: true
+2026-10-26T17:26:02.6792010Z   lfs: false
+2026-10-26T17:26:02.6792400Z   submodules: false
+2026-10-26T17:26:02.6792810Z   set-safe-directory: true
+2026-10-26T17:26:02.6793230Z   allow-unsafe-pr-checkout: false
+2026-10-26T17:26:02.6793920Z env:
+2026-10-26T17:26:02.6794460Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:02.6794970Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:02.6795430Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:02.6795840Z ##[endgroup]
+2026-10-26T17:26:02.8709000Z Syncing repository: Kdrr54/Vyta-Beta-1.0
+2026-10-26T17:26:02.8710820Z ##[group]Getting Git version info
+2026-10-26T17:26:02.8711550Z Working directory is '/Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0'
+2026-10-26T17:26:02.8712480Z [command]/opt/homebrew/bin/git version
+2026-10-26T17:26:02.9035720Z git version 2.55.0
+2026-10-26T17:26:02.9084620Z ##[endgroup]
+2026-10-26T17:26:02.9099510Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/f0454d8d-82bc-49cd-b00c-68db14959912/.gitconfig'
+2026-10-26T17:26:02.9110280Z Temporarily overriding HOME='/Users/runner/work/_temp/f0454d8d-82bc-49cd-b00c-68db14959912' before making global git config changes
+2026-10-26T17:26:02.9111540Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-26T17:26:02.9115410Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0
+2026-10-26T17:26:02.9213700Z Deleting the contents of '/Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0'
+2026-10-26T17:26:02.9218800Z ##[group]Initializing the repository
+2026-10-26T17:26:02.9220900Z [command]/opt/homebrew/bin/git init /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0
+2026-10-26T17:26:02.9452020Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-26T17:26:02.9455800Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-26T17:26:02.9458210Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-26T17:26:02.9460090Z hint: call:
+2026-10-26T17:26:02.9461330Z hint:
+2026-10-26T17:26:02.9464240Z hint: 	git config --global init.defaultBranch <name>
+2026-10-26T17:26:02.9465980Z hint:
+2026-10-26T17:26:02.9467490Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-26T17:26:02.9469780Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-26T17:26:02.9471690Z hint:
+2026-10-26T17:26:02.9473210Z hint: 	git branch -m <name>
+2026-10-26T17:26:02.9474540Z hint:
+2026-10-26T17:26:02.9476380Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-26T17:26:02.9479150Z Initialized empty Git repository in /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/.git/
+2026-10-26T17:26:02.9483850Z [command]/opt/homebrew/bin/git remote add origin https://github.com/Kdrr54/Vyta-Beta-1.0
+2026-10-26T17:26:02.9562420Z ##[endgroup]
+2026-10-26T17:26:02.9564610Z ##[group]Disabling automatic garbage collection
+2026-10-26T17:26:02.9569280Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-26T17:26:02.9661800Z ##[endgroup]
+2026-10-26T17:26:02.9664550Z ##[group]Setting up auth
+2026-10-26T17:26:02.9672250Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-26T17:26:02.9728900Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-26T17:26:03.1053130Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-26T17:26:03.1138550Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-26T17:26:03.2021250Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-26T17:26:03.2077510Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-26T17:26:03.3293130Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-26T17:26:03.3371080Z ##[endgroup]
+2026-10-26T17:26:03.3373340Z ##[group]Fetching the repository
+2026-10-26T17:26:03.3384470Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +2b3e75ed8c4baf5caf9a89bdd978456d7f2c94c4:refs/remotes/origin/main
+2026-10-26T17:26:04.3683430Z From https://github.com/Kdrr54/Vyta-Beta-1.0
+2026-10-26T17:26:04.3685140Z  * [new ref]         2b3e75ed8c4baf5caf9a89bdd978456d7f2c94c4 -> origin/main
+2026-10-26T17:26:04.3688320Z ##[endgroup]
+2026-10-26T17:26:04.3689420Z ##[group]Determining the checkout info
+2026-10-26T17:26:04.3690530Z ##[endgroup]
+2026-10-26T17:26:04.3694690Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-26T17:26:04.3778060Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-26T17:26:04.3887540Z ##[group]Checking out the ref
+2026-10-26T17:26:04.3905390Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-26T17:26:04.5105330Z Switched to a new branch 'main'
+2026-10-26T17:26:04.5111390Z branch 'main' set up to track 'origin/main'.
+2026-10-26T17:26:04.5117040Z ##[endgroup]
+2026-10-26T17:26:04.5270420Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-26T17:26:04.5339990Z 2b3e75ed8c4baf5caf9a89bdd978456d7f2c94c4
+2026-10-26T17:26:04.5851650Z ##[group]Run actions/setup-node@v4
+2026-10-26T17:26:04.5852630Z with:
+2026-10-26T17:26:04.5853300Z   node-version: 22
+2026-10-26T17:26:04.5853970Z   cache: npm
+2026-10-26T17:26:04.5854650Z   always-auth: false
+2026-10-26T17:26:04.5855490Z   check-latest: false
+2026-10-26T17:26:04.5863250Z   token: ***
+2026-10-26T17:26:04.5863860Z env:
+2026-10-26T17:26:04.5864480Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:04.5865300Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:04.5866090Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:04.5866920Z ##[endgroup]
+2026-10-26T17:26:04.7752050Z Found in cache @ /Users/runner/hostedtoolcache/node/22.23.2/arm64
+2026-10-26T17:26:04.7757160Z (node:1070) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-26T17:26:04.7762120Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-26T17:26:04.7765860Z ##[group]Environment details
+2026-10-26T17:26:05.5501660Z node: v22.23.2
+2026-10-26T17:26:05.5503800Z npm: 10.9.8
+2026-10-26T17:26:05.5504160Z yarn: 1.22.22
+2026-10-26T17:26:05.5507200Z ##[endgroup]
+2026-10-26T17:26:05.5539830Z [command]/Users/runner/hostedtoolcache/node/22.23.2/arm64/bin/npm config get cache
+2026-10-26T17:26:05.8666730Z /Users/runner/.npm
+2026-10-26T17:26:06.0001900Z npm cache is not found
+2026-10-26T17:26:06.0186010Z ##[group]Run npm install
+2026-10-26T17:26:06.0188840Z [36;1mnpm install[0m
+2026-10-26T17:26:06.0329630Z shell: /bin/bash -e {0}
+2026-10-26T17:26:06.0330290Z env:
+2026-10-26T17:26:06.0330960Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:06.0331530Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:06.0332330Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:06.0333020Z ##[endgroup]
+2026-10-26T17:26:08.4152450Z npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+2026-10-26T17:26:12.1232760Z 
+2026-10-26T17:26:12.1303650Z added 171 packages, and audited 172 packages in 6s
+2026-10-26T17:26:12.1338330Z 
+2026-10-26T17:26:12.1440300Z 20 packages are looking for funding
+2026-10-26T17:26:12.1565660Z   run `npm fund` for details
+2026-10-26T17:26:12.1730040Z 
+2026-10-26T17:26:12.1736970Z 3 moderate severity vulnerabilities
+2026-10-26T17:26:12.1739040Z 
+2026-10-26T17:26:12.1747300Z To address all issues (including breaking changes), run:
+2026-10-26T17:26:12.1747790Z   npm audit fix --force
+2026-10-26T17:26:12.1747990Z 
+2026-10-26T17:26:12.1748220Z Run `npm audit` for details.
+2026-10-26T17:26:12.3539810Z ##[group]Run npm run build
+2026-10-26T17:26:12.3541440Z [36;1mnpm run build[0m
+2026-10-26T17:26:12.3799270Z shell: /bin/bash -e {0}
+2026-10-26T17:26:12.3800000Z env:
+2026-10-26T17:26:12.3800670Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:12.3801340Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:12.3802240Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:12.3803520Z ##[endgroup]
+2026-10-26T17:26:12.6801570Z 
+2026-10-26T17:26:12.6802370Z > vyta-app@1.0.0 build
+2026-10-26T17:26:12.6802940Z > tsc && vite build
+2026-10-26T17:26:12.6803150Z 
+2026-10-26T17:26:19.0792540Z [36mvite v6.4.4 [32mbuilding for production...[36m[39m
+2026-10-26T17:26:19.1458380Z transforming...
+2026-10-26T17:26:22.0748960Z [32m✓[39m 1992 modules transformed.
+2026-10-26T17:26:22.3572530Z rendering chunks...
+2026-10-26T17:26:22.7487680Z computing gzip size...
+2026-10-26T17:26:22.7919780Z [33m
+2026-10-26T17:26:22.7922540Z [2mdist/[22m[32mindex.html                 [39m[1m[2m  1.59 kB[22m[1m[22m[2m │ gzip:   0.73 kB[22m
+2026-10-26T17:26:22.7968610Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-10-26T17:26:22.7980520Z [2mdist/[22m[2massets/[22m[35mindex-lLrsyVt-.css  [39m[1m[2m102.98 kB[22m[1m[22m[2m │ gzip:  22.11 kB[22m
+2026-10-26T17:26:22.7996010Z - Using dynamic import() to code-split the application
+2026-10-26T17:26:22.7997080Z [2mdist/[22m[2massets/[22m[36mweb-sB1aY6WX.js     [39m[1m[2m  8.62 kB[22m[1m[22m[2m │ gzip:   2.42 kB[22m
+2026-10-26T17:26:22.8028300Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-10-26T17:26:22.8029900Z [2mdist/[22m[2massets/[22m[36mindex-D1gD2chu.js   [39m[1m[33m844.95 kB[39m[22m[2m │ gzip: 226.36 kB[22m
+2026-10-26T17:26:22.8051340Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+2026-10-26T17:26:22.8052820Z [32m✓ built in 3.68s[39m
+2026-10-26T17:26:22.9437750Z ##[group]Run npx cap sync ios
+2026-10-26T17:26:22.9446180Z [36;1mnpx cap sync ios[0m
+2026-10-26T17:26:23.0339340Z shell: /bin/bash -e {0}
+2026-10-26T17:26:23.0340180Z env:
+2026-10-26T17:26:23.0340970Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:23.0341810Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:23.0342480Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:23.0343220Z ##[endgroup]
+2026-10-26T17:26:24.4016540Z ✔ Copying web assets from dist to ios/App/App/public in 18.52ms
+2026-10-26T17:26:24.4025070Z ✔ Creating capacitor.config.json in ios/App/App in 809.83μs
+2026-10-26T17:26:24.4150710Z ✔ copy ios in 38.37ms
+2026-10-26T17:26:24.4206240Z ✔ Updating iOS plugins in 1.29ms
+2026-10-26T17:26:24.4315030Z [info] All Capacitor plugins have a Package.swift file and will be included in Package.swift
+2026-10-26T17:26:24.4330290Z [info] Writing Package.swift
+2026-10-26T17:26:24.4360840Z [info] Found 1 Capacitor plugin for ios:
+2026-10-26T17:26:24.4362150Z        @capacitor-community/bluetooth-le@8.3.0
+2026-10-26T17:26:24.4429080Z ✔ update ios in 25.53ms
+2026-10-26T17:26:24.4465920Z [info] Sync finished in 0.084s
+2026-10-26T17:26:24.4903360Z ##[group]Run xcodebuild -version
+2026-10-26T17:26:24.4903830Z [36;1mxcodebuild -version[0m
+2026-10-26T17:26:24.4985600Z shell: /bin/bash -e {0}
+2026-10-26T17:26:24.4985940Z env:
+2026-10-26T17:26:24.4986650Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:24.4987060Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:24.4987450Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:24.4988250Z ##[endgroup]
+2026-10-26T17:26:24.8713950Z Xcode 15.4
+2026-10-26T17:26:24.8722130Z Build version 15F31d
+2026-10-26T17:26:24.8855220Z ##[group]Run cd ios/App
+2026-10-26T17:26:24.8855580Z [36;1mcd ios/App[0m
+2026-10-26T17:26:24.8855940Z [36;1mxcodebuild -project App.xcodeproj \[0m
+2026-10-26T17:26:24.8856280Z [36;1m  -scheme App \[0m
+2026-10-26T17:26:24.8856630Z [36;1m  -configuration Release \[0m
+2026-10-26T17:26:24.8857020Z [36;1m  -archivePath build/App.xcarchive \[0m
+2026-10-26T17:26:24.8857440Z [36;1m  -destination 'generic/platform=iOS' \[0m
+2026-10-26T17:26:24.8857870Z [36;1m  CODE_SIGNING_ALLOWED=NO \[0m
+2026-10-26T17:26:24.8858340Z [36;1m  CODE_SIGNING_REQUIRED=NO \[0m
+2026-10-26T17:26:24.8858700Z [36;1m  CODE_SIGN_IDENTITY="" \[0m
+2026-10-26T17:26:24.8858990Z [36;1m  archive[0m
+2026-10-26T17:26:24.8969760Z shell: /bin/bash -e {0}
+2026-10-26T17:26:24.8970490Z env:
+2026-10-26T17:26:24.8971040Z   APP_STORE_CONNECT_API_KEY: 
+2026-10-26T17:26:24.8971830Z   APP_STORE_CONNECT_KEY_ID: 
+2026-10-26T17:26:24.8972470Z   APP_STORE_CONNECT_ISSUER_ID: 
+2026-10-26T17:26:24.8973160Z ##[endgroup]
+2026-10-26T17:26:26.7086200Z Command line invocation:
+2026-10-26T17:26:26.7089790Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/xcodebuild -project App.xcodeproj -scheme App -configuration Release -archivePath build/App.xcarchive -destination generic/platform=iOS CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= archive
+2026-10-26T17:26:26.7093140Z 
+2026-10-26T17:26:26.7093920Z User defaults from command line:
+2026-10-26T17:26:26.7095700Z     IDEArchivePathOverride = /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/build/App.xcarchive
+2026-10-26T17:26:26.7099390Z     IDEPackageSupportUseBuiltinSCM = YES
+2026-10-26T17:26:26.7099690Z 
+2026-10-26T17:26:26.7099950Z Build settings from command line:
+2026-10-26T17:26:26.7100300Z     CODE_SIGN_IDENTITY = 
+2026-10-26T17:26:26.7100870Z     CODE_SIGNING_ALLOWED = NO
+2026-10-26T17:26:26.7101290Z     CODE_SIGNING_REQUIRED = NO
+2026-10-26T17:26:26.7101640Z 
+2026-10-26T17:26:36.3427650Z Resolve Package Graph
+2026-10-26T17:26:47.2431860Z 
+2026-10-26T17:26:47.2433360Z Fetching from https://github.com/ionic-team/capacitor-swift-pm.git
+2026-10-26T17:26:48.1379500Z 
+2026-10-26T17:26:48.6381570Z Creating working copy of package ‘capacitor-swift-pm’
+2026-10-26T17:26:48.7171470Z 
+2026-10-26T17:26:48.7272880Z Checking out 8.5.3 of package ‘capacitor-swift-pm’
+2026-10-26T17:26:48.7578550Z 
+2026-10-26T17:26:50.2374080Z 
+2026-10-26T17:26:50.2376840Z Resolved source packages:
+2026-10-26T17:26:50.2379320Z   CapacitorCommunityBluetoothLe: /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le @ local
+2026-10-26T17:26:50.2382030Z   capacitor-swift-pm: https://github.com/ionic-team/capacitor-swift-pm.git @ 8.5.3
+2026-10-26T17:26:50.2383910Z   CapApp-SPM: /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/CapApp-SPM @ local
+2026-10-26T17:26:50.2385710Z 
+2026-10-26T17:26:50.4496580Z Prepare packages
+2026-10-26T17:26:50.4505480Z 
+2026-10-26T17:26:50.5230230Z note: Using codesigning identity override: 
+2026-10-26T17:26:51.1504540Z ComputeTargetDependencyGraph
+2026-10-26T17:26:51.2718740Z note: Building targets in dependency order
+2026-10-26T17:26:51.2748510Z note: Target dependency graph (7 targets)
+2026-10-26T17:26:51.2751190Z     Target 'App' in project 'App'
+2026-10-26T17:26:51.2756700Z         ➜ Explicit dependency on target 'CapApp-SPM' in project 'CapApp-SPM'
+2026-10-26T17:26:51.2758250Z     Target 'CapApp-SPM' in project 'CapApp-SPM'
+2026-10-26T17:26:51.2758900Z         ➜ Explicit dependency on target 'CapApp-SPM' in project 'CapApp-SPM'
+2026-10-26T17:26:51.2760860Z         ➜ Explicit dependency on target 'Capacitor' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2762090Z         ➜ Explicit dependency on target 'Cordova' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2762870Z         ➜ Explicit dependency on target 'CapacitorCommunityBluetoothLe' in project 'CapacitorCommunityBluetoothLe'
+2026-10-26T17:26:51.2769590Z     Target 'CapApp-SPM' in project 'CapApp-SPM'
+2026-10-26T17:26:51.2789600Z         ➜ Explicit dependency on target 'Capacitor' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2792110Z         ➜ Explicit dependency on target 'Cordova' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2794250Z         ➜ Explicit dependency on target 'CapacitorCommunityBluetoothLe' in project 'CapacitorCommunityBluetoothLe'
+2026-10-26T17:26:51.2797250Z     Target 'CapacitorCommunityBluetoothLe' in project 'CapacitorCommunityBluetoothLe'
+2026-10-26T17:26:51.2799250Z         ➜ Explicit dependency on target 'BluetoothLe' in project 'CapacitorCommunityBluetoothLe'
+2026-10-26T17:26:51.2801350Z         ➜ Explicit dependency on target 'Capacitor' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2802910Z         ➜ Explicit dependency on target 'Cordova' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2804380Z     Target 'BluetoothLe' in project 'CapacitorCommunityBluetoothLe'
+2026-10-26T17:26:51.2806190Z         ➜ Explicit dependency on target 'Capacitor' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2808090Z         ➜ Explicit dependency on target 'Cordova' in project 'capacitor-swift-pm'
+2026-10-26T17:26:51.2809580Z     Target 'Cordova' in project 'capacitor-swift-pm' (no dependencies)
+2026-10-26T17:26:51.2810850Z     Target 'Capacitor' in project 'capacitor-swift-pm' (no dependencies)
+2026-10-26T17:26:51.2811690Z 
+2026-10-26T17:26:51.2812080Z GatherProvisioningInputs
+2026-10-26T17:26:51.2812510Z 
+2026-10-26T17:26:51.2983920Z CreateBuildDescription
+2026-10-26T17:26:51.5104720Z 
+2026-10-26T17:26:51.5207840Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -v
+2026-10-26T17:26:52.3295380Z 
+2026-10-26T17:26:52.3419050Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App/Assets.xcassets
+2026-10-26T17:26:55.7330220Z 
+2026-10-26T17:26:55.7435420Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -x c -c /dev/null
+2026-10-26T17:26:55.7533100Z 
+2026-10-26T17:26:55.7638730Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+2026-10-26T17:26:55.7738800Z 
+2026-10-26T17:26:55.7841930Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+2026-10-26T17:26:55.7949310Z 
+2026-10-26T17:26:55.8053590Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+2026-10-26T17:26:55.8155180Z 
+2026-10-26T17:26:55.8767880Z Build description signature: 2c0afa9c3b2d8b6ec7981db39c6a321d
+2026-10-26T17:26:55.8869720Z Build description path: /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/XCBuildData/2c0afa9c3b2d8b6ec7981db39c6a321d.xcbuilddata
+2026-10-26T17:26:55.9083000Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath
+2026-10-26T17:26:55.9190050Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:55.9293120Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath
+2026-10-26T17:26:55.9397830Z 
+2026-10-26T17:26:55.9859890Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation
+2026-10-26T17:26:55.9978960Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:56.0153990Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation
+2026-10-26T17:26:56.0155190Z 
+2026-10-26T17:26:56.0253470Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath
+2026-10-26T17:26:56.0357580Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:56.0459930Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath
+2026-10-26T17:26:56.0572140Z 
+2026-10-26T17:26:56.0699740Z SignatureCollection /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Cordova.xcframework-ios.signature
+2026-10-26T17:26:56.0825000Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:56.0929300Z     builtin-collectSignature --input /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Cordova/Cordova.xcframework --output /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Cordova.xcframework-ios.signature --info platform ios --info library Cordova.framework
+2026-10-26T17:26:56.4753050Z 
+2026-10-26T17:26:56.4861140Z SignatureCollection /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Capacitor.xcframework-ios.signature
+2026-10-26T17:26:56.4968250Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:56.5075320Z     builtin-collectSignature --input /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Capacitor/Capacitor.xcframework --output /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Capacitor.xcframework-ios.signature --info platform ios --info library Capacitor.framework
+2026-10-26T17:26:56.5209180Z 
+2026-10-26T17:26:56.5315020Z ClangStatCache /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-10-26T17:26:56.5319450Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:56.5428290Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -o /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-10-26T17:26:58.7736810Z 
+2026-10-26T17:26:58.7741410Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/EagerLinkingTBDs/Release-iphoneos
+2026-10-26T17:26:58.7742700Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:58.7744880Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/EagerLinkingTBDs/Release-iphoneos
+2026-10-26T17:26:58.7745770Z 
+2026-10-26T17:26:58.7747380Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos
+2026-10-26T17:26:58.7748500Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:58.7749650Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos
+2026-10-26T17:26:58.7750350Z 
+2026-10-26T17:26:58.7752210Z ProcessXCFramework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Cordova/Cordova.xcframework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Cordova.framework ios
+2026-10-26T17:26:58.7753820Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:58.7755730Z     builtin-process-xcframework --xcframework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Cordova/Cordova.xcframework --platform ios --target-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos
+2026-10-26T17:26:58.7772320Z /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Cordova/Cordova.xcframework:1:1: note: The identity of “Cordova.xcframework” is not recorded in your project.
+2026-10-26T17:26:58.7774580Z 
+2026-10-26T17:26:58.7779220Z ProcessXCFramework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Capacitor/Capacitor.xcframework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/Capacitor.framework ios
+2026-10-26T17:26:58.7783330Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:58.7788350Z     builtin-process-xcframework --xcframework /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Capacitor/Capacitor.xcframework --platform ios --target-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos
+2026-10-26T17:26:58.7795550Z /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/SourcePackages/artifacts/capacitor-swift-pm/Capacitor/Capacitor.xcframework:1:1: note: The identity of “Capacitor.xcframework” is not recorded in your project.
+2026-10-26T17:26:58.7797850Z 
+2026-10-26T17:26:58.7800550Z CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/PackageFrameworks
+2026-10-26T17:26:58.7803330Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/App.xcodeproj
+2026-10-26T17:26:58.7806840Z     builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/PackageFrameworks
+2026-10-26T17:26:58.7809010Z 
+2026-10-26T17:26:58.7813660Z SymLink /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/CapApp-SPM.o ../../IntermediateBuildFilesPath/UninstalledProducts/iphoneos/CapApp-SPM.o (in target 'CapApp-SPM' from project 'CapApp-SPM')
+2026-10-26T17:26:58.7818130Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App/CapApp-SPM
+2026-10-26T17:26:58.7821960Z     /bin/ln -sfh ../../IntermediateBuildFilesPath/UninstalledProducts/iphoneos/CapApp-SPM.o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/CapApp-SPM.o
+2026-10-26T17:26:58.7826010Z 
+2026-10-26T17:26:58.7828120Z SymLink /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/BluetoothLe.o ../../IntermediateBuildFilesPath/UninstalledProducts/iphoneos/BluetoothLe.o (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7836520Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7838420Z     /bin/ln -sfh ../../IntermediateBuildFilesPath/UninstalledProducts/iphoneos/BluetoothLe.o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/BluetoothLe.o
+2026-10-26T17:26:58.7840100Z 
+2026-10-26T17:26:58.7841830Z SymLink /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/App.app ../../InstallationBuildProductsLocation/Applications/App.app (in target 'App' from project 'App')
+2026-10-26T17:26:58.7847540Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App
+2026-10-26T17:26:58.7850220Z     /bin/ln -sfh ../../InstallationBuildProductsLocation/Applications/App.app /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/App.app
+2026-10-26T17:26:58.7851200Z 
+2026-10-26T17:26:58.7853800Z MkDir /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation/Applications/App.app/Frameworks (in target 'App' from project 'App')
+2026-10-26T17:26:58.7855070Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App
+2026-10-26T17:26:58.7857880Z     /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation/Applications/App.app/Frameworks
+2026-10-26T17:26:58.7860070Z 
+2026-10-26T17:26:58.7862900Z MkDir /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation/Applications/App.app (in target 'App' from project 'App')
+2026-10-26T17:26:58.7866400Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/ios/App
+2026-10-26T17:26:58.7870050Z     /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/InstallationBuildProductsLocation/Applications/App.app
+2026-10-26T17:26:58.7871980Z 
+2026-10-26T17:26:58.7876160Z WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/BluetoothLe.modulemap (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7880340Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7884020Z     write-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/BluetoothLe.modulemap
+2026-10-26T17:26:58.7886400Z 
+2026-10-26T17:26:58.7894680Z Copy /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/GeneratedModuleMaps-iphoneos/BluetoothLe.modulemap /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/BluetoothLe.modulemap (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7900650Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7909240Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/BluetoothLe.modulemap /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/GeneratedModuleMaps-iphoneos
+2026-10-26T17:26:58.7915690Z 
+2026-10-26T17:26:58.7926270Z WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7931610Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7933260Z     write-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json
+2026-10-26T17:26:58.7934380Z 
+2026-10-26T17:26:58.7936100Z WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.LinkFileList (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7937720Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7939110Z     write-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.LinkFileList
+2026-10-26T17:26:58.7940060Z 
+2026-10-26T17:26:58.7941680Z WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.SwiftFileList (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7943260Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7945390Z     write-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.SwiftFileList
+2026-10-26T17:26:58.7946390Z 
+2026-10-26T17:26:58.7948240Z WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-OutputFileMap.json (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7949830Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7951410Z     write-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-OutputFileMap.json
+2026-10-26T17:26:58.7952470Z 
+2026-10-26T17:26:58.7954110Z SwiftDriver BluetoothLe normal arm64 com.apple.xcode.tools.swift.compiler (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.7955120Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.7982440Z     builtin-SwiftDriver -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name BluetoothLe -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.SwiftFileList -DSWIFT_PACKAGE -DXcode -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -suppress-warnings -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -I /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/Developer/Library/Frameworks -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xfrontend -package-name -Xfrontend bluetooth_le -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources -Xcc -DSWIFT_PACKAGE -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-Swift.h -working-directory /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le -no-emit-module-separately-wmo
+2026-10-26T17:26:58.8715750Z 
+2026-10-26T17:26:58.8753160Z SwiftCompile normal arm64 Compiling\ Conversion.swift,\ Device.swift,\ DeviceListView.swift,\ DeviceManager.swift,\ Logging.swift,\ Plugin.swift,\ ScanFilters.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Conversion.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Device.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceListView.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceManager.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Logging.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/ScanFilters.swift (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.8757590Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.8796340Z     builtin-swiftTaskExecution -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Conversion.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Device.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceListView.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceManager.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Logging.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/ScanFilters.swift -supplementary-output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/supplementaryOutputs-1 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -I /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/Developer/Library/Frameworks -no-color-diagnostics -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -suppress-warnings -swift-version 5 -enforce-exclusivity\=checked -O -D SWIFT_PACKAGE -D Xcode -serialize-debugging-options -package-name bluetooth_le -const-gather-protocols-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/swift-overrides.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources -Xcc -DSWIFT_PACKAGE -module-name BluetoothLe -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Conversion.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Device.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceListView.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceManager.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Logging.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Plugin.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/ScanFilters.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Conversion.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Device.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceListView.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceManager.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Logging.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Plugin.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/ScanFilters.o
+2026-10-26T17:26:58.9396520Z 
+2026-10-26T17:26:58.9399100Z CompileSwift normal arm64 (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:26:58.9401020Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:26:58.9479700Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -c /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Conversion.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Device.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceListView.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceManager.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Logging.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/ScanFilters.swift -supplementary-output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/supplementaryOutputs-1 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -I /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/Developer/Library/Frameworks -no-color-diagnostics -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -suppress-warnings -swift-version 5 -enforce-exclusivity\=checked -O -D SWIFT_PACKAGE -D Xcode -serialize-debugging-options -package-name bluetooth_le -const-gather-protocols-file /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/swift-overrides.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources -Xcc -DSWIFT_PACKAGE -module-name BluetoothLe -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Conversion.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Device.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceListView.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceManager.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Logging.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Plugin.o -o /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/ScanFilters.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Conversion.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Device.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceListView.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/DeviceManager.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Logging.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/Plugin.o -index-unit-output-path /CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/ScanFilters.o
+2026-10-26T17:27:10.0835450Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:64:61: error: value of type 'any CAPBridgeProtocol' has no member 'viewController'
+2026-10-26T17:27:10.0837160Z             self.deviceManager = DeviceManager(self.bridge?.viewController, self.displayStrings, {(success, message) in
+2026-10-26T17:27:10.0839790Z                                                ~~~~~~~~~~~~ ^~~~~~~~~~~~~~
+2026-10-26T17:27:10.0850490Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:68:26: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0851330Z                     call.reject(message)
+2026-10-26T17:27:10.0851740Z                     ~~~~ ^~~~~~
+2026-10-26T17:27:10.0852910Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:126:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0853880Z             call.reject("Cannot open app settings.")
+2026-10-26T17:27:10.0854300Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.0856170Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:138:22: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0857080Z                 call.reject("Cannot open app settings.")
+2026-10-26T17:27:10.0857460Z                 ~~~~ ^~~~~~
+2026-10-26T17:27:10.0859010Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:146:50: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0860110Z                 if let value = call.getString(key) {
+2026-10-26T17:27:10.0860580Z                                                  ^
+2026-10-26T17:27:10.0860940Z                                                  , <#String#>
+2026-10-26T17:27:10.0861500Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.0862100Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.0862700Z                 ^
+2026-10-26T17:27:10.0863740Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:160:45: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0864520Z             let name = call.getString("name")
+2026-10-26T17:27:10.0865550Z                                             ^
+2026-10-26T17:27:10.0865940Z                                             , <#String#>
+2026-10-26T17:27:10.0866570Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.0867290Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.0868600Z                 ^
+2026-10-26T17:27:10.0869660Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:204:45: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0871060Z             let name = call.getString("name")
+2026-10-26T17:27:10.0872320Z                                             ^
+2026-10-26T17:27:10.0872810Z                                             , <#String#>
+2026-10-26T17:27:10.0873330Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.0874020Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.0874600Z                 ^
+2026-10-26T17:27:10.0875880Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:245:62: error: cannot convert value of type 'String.Type' to expected argument type 'JSArray' (aka 'Array<any JSValue>')
+2026-10-26T17:27:10.0877510Z             guard let deviceIds = call.getArray("deviceIds", String.self) else {
+2026-10-26T17:27:10.0878470Z                                                              ^
+2026-10-26T17:27:10.0880080Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:264:60: error: cannot convert value of type 'String.Type' to expected argument type 'JSArray' (aka 'Array<any JSValue>')
+2026-10-26T17:27:10.0881780Z             guard let services = call.getArray("services", String.self) else {
+2026-10-26T17:27:10.0882920Z                                                            ^
+2026-10-26T17:27:10.0884100Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:285:81: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0885170Z             let skipDescriptorDiscovery = call.getBool("skipDescriptorDiscovery") ?? false
+2026-10-26T17:27:10.0886060Z                                                                                 ^
+2026-10-26T17:27:10.0886560Z                                                                                 , <#Bool#>
+2026-10-26T17:27:10.0887170Z Capacitor.JSBoolContainer:2:17: note: 'getBool' declared here
+2026-10-26T17:27:10.0887810Z     public func getBool(_ key: String, _ defaultValue: Bool) -> Bool
+2026-10-26T17:27:10.0888230Z                 ^
+2026-10-26T17:27:10.0889360Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:330:26: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0890230Z                     call.reject(message)
+2026-10-26T17:27:10.0890610Z                     ~~~~ ^~~~~~
+2026-10-26T17:27:10.0892720Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:390:26: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0894720Z                     call.reject(value)
+2026-10-26T17:27:10.0895510Z                     ~~~~ ^~~~~~
+2026-10-26T17:27:10.0900410Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:421:26: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0904300Z                     call.reject(value)
+2026-10-26T17:27:10.0905310Z                     ~~~~ ^~~~~~
+2026-10-26T17:27:10.0906770Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:439:26: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.0908100Z                     call.reject(value)
+2026-10-26T17:27:10.0910620Z                     ~~~~ ^~~~~~
+2026-10-26T17:27:10.0917450Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:450:53: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0918940Z             guard let value = call.getString("value") else {
+2026-10-26T17:27:10.0919870Z                                                     ^
+2026-10-26T17:27:10.0920490Z                                                     , <#String#>
+2026-10-26T17:27:10.0923480Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.0926490Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.0929160Z                 ^
+2026-10-26T17:27:10.0976950Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:476:53: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.0992730Z             guard let value = call.getString("value") else {
+2026-10-26T17:27:10.0993210Z                                                     ^
+2026-10-26T17:27:10.0994100Z                                                     , <#String#>
+2026-10-26T17:27:10.0995980Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.0999280Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.0999700Z                 ^
+2026-10-26T17:27:10.1001400Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:513:30: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1006350Z                         call.reject(value)
+2026-10-26T17:27:10.1009050Z                         ~~~~ ^~~~~~
+2026-10-26T17:27:10.1011580Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:524:53: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1012570Z             guard let value = call.getString("value") else {
+2026-10-26T17:27:10.1013100Z                                                     ^
+2026-10-26T17:27:10.1013590Z                                                     , <#String#>
+2026-10-26T17:27:10.1014250Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.1026380Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.1027720Z                 ^
+2026-10-26T17:27:10.1030520Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:561:30: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1032750Z                         call.reject(value)
+2026-10-26T17:27:10.1033720Z                         ~~~~ ^~~~~~
+2026-10-26T17:27:10.1036820Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:582:30: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1039170Z                         call.reject(value)
+2026-10-26T17:27:10.1040850Z                         ~~~~ ^~~~~~
+2026-10-26T17:27:10.1043900Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:589:48: error: value of type 'PluginConfig' has no member 'getObject'
+2026-10-26T17:27:10.1046710Z         let configDisplayStrings = getConfig().getObject("displayStrings") as? [String: String] ?? [String: String]()
+2026-10-26T17:27:10.1048250Z                                    ~~~~~~~~~~~ ^~~~~~~~~
+2026-10-26T17:27:10.1054400Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:600:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1056940Z             call.reject("Bluetooth LE not initialized.")
+2026-10-26T17:27:10.1058410Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1064560Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:607:50: error: cannot convert value of type 'String.Type' to expected argument type 'JSArray' (aka 'Array<any JSValue>')
+2026-10-26T17:27:10.1067790Z         let services = call.getArray("services", String.self) ?? []
+2026-10-26T17:27:10.1068920Z                                                  ^
+2026-10-26T17:27:10.1071650Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:615:75: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1074330Z         guard let manufacturerDataArray = call.getArray("manufacturerData") else {
+2026-10-26T17:27:10.1075880Z                                                                           ^
+2026-10-26T17:27:10.1077010Z                                                                           , <#JSArray#>
+2026-10-26T17:27:10.1078430Z Capacitor.JSArrayContainer:2:17: note: 'getArray' declared here
+2026-10-26T17:27:10.1079980Z     public func getArray(_ key: String, _ defaultValue: Capacitor.JSArray) -> Capacitor.JSArray
+2026-10-26T17:27:10.1081200Z                 ^
+2026-10-26T17:27:10.1083720Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:650:65: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1085970Z         guard let serviceDataArray = call.getArray("serviceData") else {
+2026-10-26T17:27:10.1087260Z                                                                 ^
+2026-10-26T17:27:10.1088270Z                                                                 , <#JSArray#>
+2026-10-26T17:27:10.1090670Z Capacitor.JSArrayContainer:2:17: note: 'getArray' declared here
+2026-10-26T17:27:10.1092330Z     public func getArray(_ key: String, _ defaultValue: Capacitor.JSArray) -> Capacitor.JSArray
+2026-10-26T17:27:10.1093460Z                 ^
+2026-10-26T17:27:10.1096300Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:687:55: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1098600Z         guard let deviceId = call.getString("deviceId") else {
+2026-10-26T17:27:10.1099820Z                                                       ^
+2026-10-26T17:27:10.1100940Z                                                       , <#String#>
+2026-10-26T17:27:10.1102300Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.1103760Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.1107260Z                 ^
+2026-10-26T17:27:10.1110090Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:688:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1112470Z             call.reject("deviceId required.")
+2026-10-26T17:27:10.1113400Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1116320Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:692:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1118990Z             call.reject("Device not found. Call 'requestDevice', 'requestLEScan' or 'getDevices' first.")
+2026-10-26T17:27:10.1120150Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1170230Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:697:22: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1171450Z                 call.reject("Not connected to device.")
+2026-10-26T17:27:10.1171780Z                 ~~~~ ^~~~~~
+2026-10-26T17:27:10.1173040Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:705:53: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1173980Z         guard let timeout = call.getDouble("timeout") else {
+2026-10-26T17:27:10.1174800Z                                                     ^
+2026-10-26T17:27:10.1175740Z                                                     , <#Double#>
+2026-10-26T17:27:10.1176230Z Capacitor.JSDoubleContainer:2:17: note: 'getDouble' declared here
+2026-10-26T17:27:10.1176780Z     public func getDouble(_ key: String, _ defaultValue: Double) -> Double
+2026-10-26T17:27:10.1177150Z                 ^
+2026-10-26T17:27:10.1178280Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:712:53: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1179160Z         guard let service = call.getString("service") else {
+2026-10-26T17:27:10.1179520Z                                                     ^
+2026-10-26T17:27:10.1179860Z                                                     , <#String#>
+2026-10-26T17:27:10.1180280Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.1180860Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.1181270Z                 ^
+2026-10-26T17:27:10.1182220Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:713:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1183040Z             call.reject("Service UUID required.")
+2026-10-26T17:27:10.1183330Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1184270Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:718:67: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1185380Z         guard let characteristic = call.getString("characteristic") else {
+2026-10-26T17:27:10.1185920Z                                                                   ^
+2026-10-26T17:27:10.1186390Z                                                                   , <#String#>
+2026-10-26T17:27:10.1186830Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.1187380Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.1187820Z                 ^
+2026-10-26T17:27:10.1188880Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:719:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1190130Z             call.reject("Characteristic UUID required.")
+2026-10-26T17:27:10.1190430Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1191660Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:730:59: error: missing argument for parameter #2 in call
+2026-10-26T17:27:10.1192870Z         guard let descriptor = call.getString("descriptor") else {
+2026-10-26T17:27:10.1193620Z                                                           ^
+2026-10-26T17:27:10.1194110Z                                                           , <#String#>
+2026-10-26T17:27:10.1194640Z Capacitor.JSStringContainer:2:17: note: 'getString' declared here
+2026-10-26T17:27:10.1195310Z     public func getString(_ key: String, _ defaultValue: String) -> String
+2026-10-26T17:27:10.1195890Z                 ^
+2026-10-26T17:27:10.1197080Z /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift:731:18: error: value of type 'CAPPluginCall' has no member 'reject'
+2026-10-26T17:27:10.1197960Z             call.reject("Descriptor UUID required.")
+2026-10-26T17:27:10.1198240Z             ~~~~ ^~~~~~
+2026-10-26T17:27:10.1198410Z 
+2026-10-26T17:27:10.1199130Z SwiftDriver\ Compilation BluetoothLe normal arm64 com.apple.xcode.tools.swift.compiler (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:27:10.1200410Z     cd /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le
+2026-10-26T17:27:10.1221860Z     builtin-Swift-Compilation -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name BluetoothLe -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.SwiftFileList -DSWIFT_PACKAGE -DXcode -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -suppress-warnings -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -I /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks -F /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/Developer/Library/Frameworks -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xfrontend -package-name -Xfrontend bluetooth_le -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe_const_extract_protocols.json -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/BuildProductsPath/Release-iphoneos/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/DerivedSources -Xcc -DSWIFT_PACKAGE -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/App-brbjzvdyghpkuyfupuuhodejzimq/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/CapacitorCommunityBluetoothLe.build/Release-iphoneos/BluetoothLe.build/Objects-normal/arm64/BluetoothLe-Swift.h -working-directory /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le -no-emit-module-separately-wmo
+2026-10-26T17:27:10.1237850Z 
+2026-10-26T17:27:10.1265620Z ** ARCHIVE FAILED **
+2026-10-26T17:27:10.1266180Z 
+2026-10-26T17:27:10.1275340Z 
+2026-10-26T17:27:10.1275690Z The following build commands failed:
+2026-10-26T17:27:10.1276330Z 	CompileSwift normal arm64 (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:27:10.1282810Z 	SwiftCompile normal arm64 Compiling\ Conversion.swift,\ Device.swift,\ DeviceListView.swift,\ DeviceManager.swift,\ Logging.swift,\ Plugin.swift,\ ScanFilters.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Conversion.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Device.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceListView.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/DeviceManager.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Logging.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/Plugin.swift /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0/node_modules/@capacitor-community/bluetooth-le/ios/Sources/BluetoothLe/ScanFilters.swift (in target 'BluetoothLe' from project 'CapacitorCommunityBluetoothLe')
+2026-10-26T17:27:10.1290580Z (2 failures)
+2026-10-26T17:27:10.1940420Z ##[error]Process completed with exit code 65.
+2026-10-26T17:27:10.2277960Z Post job cleanup.
+2026-10-26T17:27:10.7020840Z [command]/opt/homebrew/bin/git version
+2026-10-26T17:27:10.7437320Z git version 2.55.0
+2026-10-26T17:27:10.7496530Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/ce3bd2af-c72c-4db4-8a36-5b45f85d38d8/.gitconfig'
+2026-10-26T17:27:10.7507090Z Temporarily overriding HOME='/Users/runner/work/_temp/ce3bd2af-c72c-4db4-8a36-5b45f85d38d8' before making global git config changes
+2026-10-26T17:27:10.7508260Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-26T17:27:10.7527310Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/Vyta-Beta-1.0/Vyta-Beta-1.0
+2026-10-26T17:27:10.7686170Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-26T17:27:10.7765410Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-26T17:27:10.9156980Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-26T17:27:10.9206560Z http.https://github.com/.extraheader
+2026-10-26T17:27:10.9224870Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-26T17:27:10.9306230Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-26T17:27:11.0278320Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-26T17:27:11.0354170Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-26T17:27:11.1382840Z Cleaning up orphan processes
+2026-10-26T17:27:11.5837720Z Terminate orphan process: pid (1885) (ibtoold)
+2026-10-26T17:27:11.6217380Z Terminate orphan process: pid (1876) (ibtoold)
+2026-10-26T17:27:11.9045910Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
