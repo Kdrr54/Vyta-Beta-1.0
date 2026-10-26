@@ -45,6 +45,8 @@ interface AppContextType {
   toggleSimulation: () => void;
   simulationHoursElapsed: number;
   isFirstLaunch: boolean;
+  isPaired: boolean;
+  setIsPaired: (paired: boolean) => void;
   resetToFactory: () => void;
   loadDemoData: () => void;
   weekData: DayMetrics[];
@@ -212,6 +214,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   });
 
+  // État appairage de la bague (Premier lancement / Usine)
+  const [isPaired, setIsPairedState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vyta_ring_paired');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+      return false; // Premier lancement : non appairé par défaut
+    }
+    return true;
+  });
+
+  const setIsPaired = (paired: boolean) => {
+    setIsPairedState(paired);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vyta_ring_paired', paired ? 'true' : 'false');
+    }
+  };
+
   const [profile, setProfile] = useState<UserProfile>({
     firstName: 'Alexandre',
     age: 28,
@@ -302,6 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsSimulating(false);
     setSimulationHoursElapsed(0);
     setIsFirstLaunch(true);
+    setIsPaired(false);
     const empty = createEmptyWeekMetrics();
     setWeekData(empty);
     updateRing({
@@ -315,6 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.setItem('vyta_first_launch', 'true');
+      localStorage.setItem('vyta_ring_paired', 'false');
       localStorage.setItem('vyta_week_data', JSON.stringify(empty));
       localStorage.setItem('vyta_sensor_intervals', JSON.stringify(defaultSensorIntervals));
     } catch (e) {}
@@ -325,6 +348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsSimulating(false);
     setSimulationHoursElapsed(0);
     setIsFirstLaunch(false);
+    setIsPaired(true);
     setWeekData(weekMetrics);
     updateRing({
       isConnected: true,
@@ -337,6 +361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.removeItem('vyta_first_launch');
+      localStorage.setItem('vyta_ring_paired', 'true');
       localStorage.setItem('vyta_week_data', JSON.stringify(weekMetrics));
     } catch (e) {}
   };
@@ -486,6 +511,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleSimulation,
         simulationHoursElapsed,
         isFirstLaunch,
+        isPaired,
+        setIsPaired,
         resetToFactory,
         loadDemoData,
         weekData,

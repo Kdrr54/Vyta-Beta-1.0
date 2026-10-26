@@ -41,6 +41,8 @@ const AppInner: React.FC = () => {
     toggleSimulation,
     simulationHoursElapsed,
     isFirstLaunch,
+    isPaired,
+    setIsPaired,
     resetToFactory,
     loadDemoData,
   } = useApp();
@@ -503,7 +505,13 @@ const AppInner: React.FC = () => {
             {modal === 'subscribe' && <SubscribeModal onClose={closeModal} />}
             {modal === 'healthkit' && <HealthKitSyncModal onClose={closeModal} />}
             {modal === 'notifications' && <NotificationCenterModal onClose={closeModal} />}
-            {modal === 'pairing' && <PairingModal onClose={closeModal} />}
+            {(!isPaired || modal === 'pairing') && (
+              <PairingModal
+                onClose={() => {
+                  if (modal === 'pairing') closeModal();
+                }}
+              />
+            )}
             {modal === 'general_state' && <GeneralStateModal onClose={closeModal} />}
             {storyData && <StoryModal data={storyData} onClose={closeStory} />}
             {metricDetail && <MetricDetailModal metricId={metricDetail} onClose={closeMetricDetail} />}
