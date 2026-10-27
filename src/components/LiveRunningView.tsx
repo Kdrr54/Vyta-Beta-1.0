@@ -15,6 +15,8 @@ interface LiveRunningViewProps {
   onClose: () => void;
   isFastDemo?: boolean;
   onToggleFastDemo?: () => void;
+  realGpsPoints?: [number, number][];
+  userPosition?: [number, number] | null;
 }
 
 const MONCEAU_CENTER: [number, number] = [48.8796, 2.3089];
@@ -48,10 +50,21 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   onClose,
   isFastDemo = false,
   onToggleFastDemo,
+  realGpsPoints: propRealGpsPoints,
+  userPosition: propUserPosition,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>([]);
-  const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+  const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
+  const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
+    if (propUserPosition) return propUserPosition;
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_last_user_location');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
   const [mapType, setMapType] = useState<'dark' | 'satellite'>('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
@@ -73,57 +86,76 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   // Progress computation (total 8.12 km loop or dynamic)
   const currentProg = Math.max(0, Math.min(1, runDistanceKm / 8.12));
 
-  // Compute live runner location
-  const getRunnerLatLng = (prog: number): [number, number] => {
-    if (realGpsPoints.length > 0) {
-      return realGpsPoints[realGpsPoints.length - 1];
+  // Sync with props
+  useEffect(() => {
+    if (propUserPosition) {
+      setUserPosition(propUserPosition);
+      if (leafletRunnerRef.current) {
+        leafletRunnerRef.current.setLatLng(propUserPosition);
+      }
+      if (leafletMapRef.current && runState === 'running') {
+        leafletMapRef.current.panTo(propUserPosition, { animate: true, duration: 0.5 });
+      }
     }
-    if (userPosition && (prog <= 0 || runState === 'idle')) {
-      return userPosition;
+  }, [propUserPosition, runState]);
+
+  useEffect(() => {
+    if (propRealGpsPoints && propRealGpsPoints.length > 0) {
+      setRealGpsPoints(propRealGpsPoints);
+      if (leafletPolylineRef.current && leafletGlowPolyRef.current && leafletOuterGlowRef.current) {
+        leafletOuterGlowRef.current.setLatLngs(propRealGpsPoints);
+        leafletGlowPolyRef.current.setLatLngs(propRealGpsPoints);
+        leafletPolylineRef.current.setLatLngs(propRealGpsPoints);
+      }
     }
-    if (prog <= 0) return userPosition || [REAL_ROUTE_POINTS[0].lat, REAL_ROUTE_POINTS[0].lng];
-    if (prog >= 1) {
-      const last = REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1];
-      return [last.lat, last.lng];
+  }, [propRealGpsPoints]);
+
+  // Compute live runner location (ALWAYS real GPS location, never Paris unless in fast demo)
+  const getRunnerLatLng = (_prog?: number): [number, number] => {
+    if (isFastDemo && realGpsPoints.length === 0) {
+      const totalSegments = REAL_ROUTE_POINTS.length - 1;
+      const segmentIndex = currentProg * totalSegments;
+      const i = Math.floor(segmentIndex);
+      const t = segmentIndex - i;
+      const p1 = REAL_ROUTE_POINTS[i];
+      const p2 = REAL_ROUTE_POINTS[Math.min(i + 1, totalSegments)];
+      return [p1.lat + (p2.lat - p1.lat) * t, p1.lng + (p2.lng - p1.lng) * t];
     }
-    const totalSegments = REAL_ROUTE_POINTS.length - 1;
-    const segmentIndex = prog * totalSegments;
-    const i = Math.floor(segmentIndex);
-    const t = segmentIndex - i;
-    const p1 = REAL_ROUTE_POINTS[i];
-    const p2 = REAL_ROUTE_POINTS[Math.min(i + 1, totalSegments)];
-    return [
-      p1.lat + (p2.lat - p1.lat) * t,
-      p1.lng + (p2.lng - p1.lng) * t,
-    ];
+    if (userPosition) return userPosition;
+    if (realGpsPoints.length > 0) return realGpsPoints[realGpsPoints.length - 1];
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_last_user_location');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [48.8566, 2.3522];
   };
 
-  // Compute active trail points
+  // Compute active trail points (ALWAYS real GPS trail, never Paris unless in fast demo)
   const getActiveTrailPoints = (): [number, number][] => {
-    if (realGpsPoints.length > 1) {
-      return realGpsPoints;
-    }
-    if (currentProg <= 0) return [];
-    if (currentProg >= 1) return REAL_ROUTE_POINTS.map(p => [p.lat, p.lng]);
+    if (isFastDemo && realGpsPoints.length === 0) {
+      if (currentProg <= 0) return [];
+      const totalSegments = REAL_ROUTE_POINTS.length - 1;
+      const segmentIndex = currentProg * totalSegments;
+      const i = Math.floor(segmentIndex);
+      const t = segmentIndex - i;
 
-    const totalSegments = REAL_ROUTE_POINTS.length - 1;
-    const segmentIndex = currentProg * totalSegments;
-    const i = Math.floor(segmentIndex);
-    const t = segmentIndex - i;
-
-    const trail: [number, number][] = [];
-    for (let idx = 0; idx <= i; idx++) {
-      trail.push([REAL_ROUTE_POINTS[idx].lat, REAL_ROUTE_POINTS[idx].lng]);
+      const trail: [number, number][] = [];
+      for (let idx = 0; idx <= i; idx++) {
+        trail.push([REAL_ROUTE_POINTS[idx].lat, REAL_ROUTE_POINTS[idx].lng]);
+      }
+      if (t > 0 && i < totalSegments) {
+        const p1 = REAL_ROUTE_POINTS[i];
+        const p2 = REAL_ROUTE_POINTS[i + 1];
+        trail.push([
+          p1.lat + (p2.lat - p1.lat) * t,
+          p1.lng + (p2.lng - p1.lng) * t,
+        ]);
+      }
+      return trail;
     }
-    if (t > 0 && i < totalSegments) {
-      const p1 = REAL_ROUTE_POINTS[i];
-      const p2 = REAL_ROUTE_POINTS[i + 1];
-      trail.push([
-        p1.lat + (p2.lat - p1.lat) * t,
-        p1.lng + (p2.lng - p1.lng) * t,
-      ]);
-    }
-    return trail;
+    return realGpsPoints;
   };
 
   // Real GPS Geolocation Watcher outdoors & Immediate User Location Fix
@@ -183,7 +215,13 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     const stopCleaner = cleanMapAttributions(containerRef.current);
 
     const setupMap = async () => {
-      const initialCenter: [number, number] = userPosition || MONCEAU_CENTER;
+      let initialCenter: [number, number] = userPosition || [48.8566, 2.3522];
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('vyta_last_user_location');
+          if (saved) initialCenter = JSON.parse(saved);
+        } catch (e) {}
+      }
       const mapkit = (window as any).mapkit;
       if (mapkit) {
         const ok = await initAppleMapKit();
@@ -331,7 +369,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
 
   // Live dynamic route tracing and continuous camera follow
   useEffect(() => {
-    const runnerPos = getRunnerLatLng(currentProg);
+    const runnerPos = getRunnerLatLng();
     const trailPoints = getActiveTrailPoints();
 
     // 1. Update Apple MapKit
@@ -383,13 +421,29 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     }
   }, [currentProg, runState, realGpsPoints]);
 
-  // Center on Runner
+  // Center on Runner (Always user's real location)
   const handleCenterOnRunner = () => {
-    const runnerPos = getRunnerLatLng(currentProg);
-    if (appleMapInstanceRef.current && (window as any).mapkit) {
-      const mapkit = (window as any).mapkit;
-      appleMapInstanceRef.current.setCenterAnimated(new mapkit.Coordinate(runnerPos[0], runnerPos[1]));
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setUserPosition(coords);
+          try {
+            localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
+          } catch (e) {}
+          if (leafletMapRef.current) {
+            leafletMapRef.current.flyTo(coords, 17, { duration: 0.8 });
+          }
+          if (appleMapInstanceRef.current && (window as any).mapkit) {
+            const mapkit = (window as any).mapkit;
+            appleMapInstanceRef.current.setCenterAnimated(new mapkit.Coordinate(coords[0], coords[1]));
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
     }
+    const runnerPos = getRunnerLatLng();
     if (leafletMapRef.current) {
       leafletMapRef.current.flyTo(runnerPos, 17, { duration: 0.8 });
     }
@@ -421,12 +475,10 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
 
   // Calculate live speed in km/h
   const formatSpeed = () => {
-    if (typeof liveSpeedKmh === 'number' && liveSpeedKmh > 0) {
+    if (typeof liveSpeedKmh === 'number') {
       return liveSpeedKmh.toFixed(1).replace('.', ',');
     }
-    if (runDistanceKm < 0.005 || runDurationSec < 1) return '0,0';
-    const spd = (runDistanceKm / runDurationSec) * 3600;
-    return spd.toFixed(1).replace('.', ',');
+    return '0,0';
   };
 
   return (

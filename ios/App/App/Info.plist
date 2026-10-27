@@ -49,6 +49,8 @@
 	<string>Vyta a besoin du Bluetooth pour se synchroniser avec votre bague connectée Vyta One.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Vyta utilise le Bluetooth pour communiquer avec la bague connectée.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Vyta enregistre votre parcours et vitesse d'entraînement GPS avec précision pendant vos séances de course.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Vyta utilise votre géolocalisation pour mesurer vos distances et tracer votre itinéraire d'entraînement.</string>
 	<key>UILaunchStoryboardName</key>

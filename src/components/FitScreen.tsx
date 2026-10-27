@@ -1,4 +1,19 @@
-import React, { useState, useEffect } from 'react';
+// Calculateur de distance Haversine en mètres pour le suivi GPS réel
+function calculateGpsDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
@@ -181,6 +196,18 @@ export const FitScreen: React.FC = () => {
   const [runDurationSec, setRunDurationSec] = useState<number>(initialRunDur);
   const [runDistanceKm, setRunDistanceKm] = useState<number>(initialRunDist);
   const [isFastDemo, setIsFastDemo] = useState<boolean>(false);
+  const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_last_user_location');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>([]);
+  const [instantSpeedKmh, setInstantSpeedKmh] = useState<number>(0);
+  const lastGpsFixRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   // isLiveRunningViewOpen hoisted to AppContext
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(() => {
@@ -199,7 +226,7 @@ export const FitScreen: React.FC = () => {
     return [];
   });
 
-  // Auto-ticking GPS workout timer
+    // Minuteur d'entraînement & télémétrie réelle (pas de vitesse factice hardcodée)
   useEffect(() => {
     if (runState !== 'running') return;
 
@@ -207,44 +234,114 @@ export const FitScreen: React.FC = () => {
       setRunDurationSec((prevDur) => {
         const nextDur = prevDur + 1;
 
-        setRunDistanceKm((prevDist) => {
-          // Vitesse ~11.5 km/h ou démo rapide
-          const speedDelta = isFastDemo ? 0.045 : 0.0032;
-          const nextDist = Math.min(8.12, Math.round((prevDist + speedDelta) * 1000) / 1000);
+        if (isFastDemo) {
+          // Démo rapide uniquement si activée manuellement
+          setRunDistanceKm((prevDist) => Math.round((prevDist + 0.045) * 1000) / 1000);
+        }
 
-          if (nextDist >= 8.12) {
-            setRunState('finished');
-          }
+        const curSpeed = isFastDemo ? 12.4 : instantSpeedKmh;
+        const curHr = Math.min(176, Math.round(112 + Math.min(1, runDistanceKm / 6) * 48 + Math.sin(nextDur / 6) * 3));
 
-          // Enregistre les points télémétriques pour les 3 courbes (Distance, Vitesse, BPM)
-          const curSpeed = nextDur > 0 ? (nextDist / nextDur) * 3600 : 0;
-          const curHr = Math.min(176, Math.round(112 + (nextDist / 8.12) * 52 + Math.sin(nextDur / 6) * 3));
-
-          setTelemetryHistory((prevHistory) => {
-            const lastTime = prevHistory.length > 0 ? prevHistory[prevHistory.length - 1].timeSec : -1;
-            if (nextDur - lastTime >= 1 || nextDist >= 8.12) {
-              return [
-                ...prevHistory,
-                {
-                  timeSec: nextDur,
-                  distanceKm: nextDist,
-                  speedKmh: Math.round(curSpeed * 10) / 10,
-                  hrBpm: curHr,
-                },
-              ];
-            }
-            return prevHistory;
-          });
-
-          return nextDist;
-        });
+        setTelemetryHistory((prevHistory) => [
+          ...prevHistory,
+          {
+            timeSec: nextDur,
+            distanceKm: runDistanceKm,
+            speedKmh: Math.round(curSpeed * 10) / 10,
+            hrBpm: curHr,
+          },
+        ]);
 
         return nextDur;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [runState, isFastDemo]);
+  }, [runState, isFastDemo, instantSpeedKmh, runDistanceKm]);
+
+  // Surveillance GPS temps réel haute précision (Distance & Vitesse réelles du coureur)
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    // Localisation initiale pour centrer immédiatement
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setUserPosition(coords);
+        try {
+          localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
+        } catch (e) {}
+      },
+      (err) => console.log('Init GPS error:', err),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+
+    if (runState !== 'running') {
+      if (runState === 'idle') {
+        setInstantSpeedKmh(0);
+        lastGpsFixRef.current = null;
+      }
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, speed, accuracy } = pos.coords;
+        const coords: [number, number] = [latitude, longitude];
+        const now = Date.now();
+
+        setUserPosition(coords);
+        try {
+          localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
+        } catch (e) {}
+
+        // Accepter les points GPS avec précision réaliste (< 70m)
+        if (accuracy <= 70) {
+          if (!lastGpsFixRef.current) {
+            lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+            setRealGpsPoints([coords]);
+            return;
+          }
+
+          const distMeters = calculateGpsDistanceMeters(
+            lastGpsFixRef.current.lat,
+            lastGpsFixRef.current.lng,
+            latitude,
+            longitude
+          );
+          const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
+
+          // Si déplacement réel (au moins 1.8 mètre et moins de 120m)
+          if (distMeters >= 1.8 && distMeters < 120) {
+            const distKm = distMeters / 1000;
+            setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
+
+            let calculatedSpeed = 0;
+            if (speed !== null && speed >= 0) {
+              calculatedSpeed = speed * 3.6; // Vitesse réelle en km/h calculée directement par le capteur GPS iPhone
+            } else {
+              calculatedSpeed = (distMeters / dtSec) * 3.6;
+            }
+
+            // Filtrer vitesses humaines plausibles
+            calculatedSpeed = Math.min(35, Math.max(0, calculatedSpeed));
+            if (calculatedSpeed < 0.9) calculatedSpeed = 0;
+
+            setInstantSpeedKmh(Math.round(calculatedSpeed * 10) / 10);
+            lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+            setRealGpsPoints((prev) => [...prev, coords]);
+          } else if (distMeters < 1.8 && dtSec > 2.5) {
+            // Utilisateur à l'arrêt ou marchant très lentement
+            setInstantSpeedKmh(0);
+          }
+        }
+      },
+      (err) => console.log('GPS watch error:', err.message),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [runState]);
 
   // Support du scroll direct vers la section cardio/télémétrie
   useEffect(() => {
@@ -270,6 +367,9 @@ export const FitScreen: React.FC = () => {
     if (runState === 'idle' || runState === 'finished') {
       setRunDurationSec(0);
       setRunDistanceKm(0);
+      setInstantSpeedKmh(0);
+      setRealGpsPoints([]);
+      lastGpsFixRef.current = null;
       setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
     }
     setRunState('running');
@@ -293,6 +393,9 @@ export const FitScreen: React.FC = () => {
     setRunState('idle');
     setRunDurationSec(0);
     setRunDistanceKm(0);
+    setInstantSpeedKmh(0);
+    setRealGpsPoints([]);
+    lastGpsFixRef.current = null;
     setTelemetryHistory([]);
   };
 
@@ -375,7 +478,9 @@ export const FitScreen: React.FC = () => {
       ? Math.round(runDurationSec / runDistanceKm)
       : 0;
   const liveSpeedKmh =
-    runDurationSec > 0 && runDistanceKm > 0
+    runState === 'running'
+      ? (isFastDemo ? '12.4' : instantSpeedKmh.toFixed(1))
+      : runDurationSec > 0 && runDistanceKm > 0
       ? ((runDistanceKm / runDurationSec) * 3600).toFixed(1)
       : '0.0';
   const liveHr = isIdle
@@ -2037,6 +2142,8 @@ export const FitScreen: React.FC = () => {
           onClose={() => setIsLiveRunningViewOpen(false)}
           isFastDemo={isFastDemo}
           onToggleFastDemo={() => setIsFastDemo(!isFastDemo)}
+          realGpsPoints={realGpsPoints}
+          userPosition={userPosition}
         />
       )}
     </div>
