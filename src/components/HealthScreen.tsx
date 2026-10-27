@@ -377,14 +377,14 @@ export const HealthScreen: React.FC = () => {
             </div>
             <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#D9F970', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
               <span style={{ fontSize: '8px' }}>▲</span>
-              <span>+12% ({dayData.hrv} ms VRC)</span>
+              <span>{dayData.hrv && dayData.hrv > 0 ? `+12% (${dayData.hrv} ms VRC)` : '-- ms VRC'}</span>
             </span>
           </div>
 
           <svg width="100%" height="26" viewBox="0 0 150 26" fill="none" style={{ overflow: 'visible', marginTop: '2px' }}>
-            <path d="M 0 13 Q 22 3, 45 13 T 90 13 T 135 13 T 150 9" stroke={isMono ? "rgba(250, 247, 242, 0.3)" : "rgba(217, 249, 112, 0.25)"} strokeWidth="1.2" fill="none" />
+            <path d={!dayData.hrv || dayData.hrv === 0 ? "M 0 13 L 150 13" : "M 0 13 Q 22 3, 45 13 T 90 13 T 135 13 T 150 9"} stroke={isMono ? "rgba(250, 247, 242, 0.3)" : "rgba(217, 249, 112, 0.25)"} strokeWidth="1.2" fill="none" />
             <path
-              d="M 0 13 Q 22 23, 45 13 T 90 13 T 135 13 T 150 17"
+              d={!dayData.hrv || dayData.hrv === 0 ? "M 0 13 L 150 13" : "M 0 13 Q 22 23, 45 13 T 90 13 T 135 13 T 150 17"}
               stroke={isMono ? '#FAF7F2' : '#D9F970'}
               strokeWidth="1.6"
               fill="none"
@@ -553,7 +553,7 @@ export const HealthScreen: React.FC = () => {
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <span style={{ fontSize: '9.5px', color: isMono ? '#FAF7F2' : '#F0ABFC', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}>
-                <span style={{ fontSize: '7px' }}>▲</span> 0.7%
+                {dayData.spo2 && dayData.spo2 > 0 ? <><span style={{ fontSize: '7px' }}>▲</span> 0.7%</> : '--'}
               </span>
               <svg width="68" height="36" viewBox="0 0 78 42" style={{ overflow: 'visible' }}>
                 <path d="M 10 38 A 29 29 0 0 1 68 38" fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(232, 121, 249, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
@@ -634,9 +634,9 @@ export const HealthScreen: React.FC = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             <svg width="100%" height="20" viewBox="0 0 140 22" style={{ overflow: 'visible' }}>
-              <path d="M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12" fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(251, 191, 36, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
+              <path d={dayData?.tempDelta === undefined || dayData.tempDelta === 0 ? "M 4 11 L 136 11" : "M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12"} fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(251, 191, 36, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
               <path
-                d="M 4 18 C 35 18, 52 10, 74 10 C 96 10, 115 16, 136 16"
+                d={dayData?.tempDelta === undefined || dayData.tempDelta === 0 ? "M 4 11 L 136 11" : "M 4 18 C 35 18, 52 10, 74 10 C 96 10, 115 16, 136 16"}
                 fill="none"
                 stroke={isMono ? '#FAF7F2' : '#FBBF24'}
                 strokeWidth="1.8"
@@ -646,7 +646,7 @@ export const HealthScreen: React.FC = () => {
               <circle cx="74" cy="10" r="1.8" fill="#FFFFFF" />
             </svg>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: isMono ? 'rgba(250, 247, 242, 0.58)' : '#FCD34D', fontWeight: 600 }}>
-              <span>{language === 'fr' ? 'Écart -0.08°C' : 'Delta -0.08°C'}</span>
+              <span>{dayData?.tempDelta !== undefined && dayData.tempDelta !== 0 ? (language === 'fr' ? `Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C` : `Delta ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C`) : (language === 'fr' ? 'Écart --' : 'Delta --')}</span>
               <span>{language === 'fr' ? 'Stable' : 'Stable'}</span>
             </div>
           </div>
@@ -709,19 +709,19 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
-                {isFirstLaunch || !dayData.stress ? (isFirstLaunch ? '--' : 24) : dayData.stress}
+                {dayData.stress && dayData.stress > 0 ? dayData.stress : '--'}
               </span>
               <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span>
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
-              {isFirstLaunch ? '--' : (dayData.stressLevel || (language === 'fr' ? 'Zone Repos · Serein' : 'Rest Zone · Serene'))}
+              {dayData.stress && dayData.stress > 0 ? dayData.stressLevel : '--'}
             </span>
           </div>
 
           <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
-            <path d="M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11" stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
+            <path d={!dayData.stress || dayData.stress === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
             <path
-              d="M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"
+              d={!dayData.stress || dayData.stress === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
               stroke={isMono ? '#FAF7F2' : '#34D399'}
               strokeWidth="1.8"
               fill="none"
@@ -787,18 +787,18 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                {isFirstLaunch ? '--/--' : (dayData.bloodPressure ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '118/76')}
+                {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--'}
               </span>
               <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span>
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
-              {isFirstLaunch ? '--' : (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)')}
+              {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--'}
             </span>
           </div>
 
           <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
             <path
-              d="M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"
+              d={!dayData.bloodPressure || dayData.bloodPressure.sbp === 0 ? "M 0 12 L 140 12" : "M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"}
               stroke={isMono ? '#FAF7F2' : '#F43F5E'}
               strokeWidth="1.8"
               fill="none"
@@ -864,18 +864,18 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                {isFirstLaunch ? '--' : (dayData.glucose ? dayData.glucose.valueMmol : '5.1')}
+                {dayData.glucose && dayData.glucose.valueMmol > 0 ? dayData.glucose.valueMmol : '--'}
               </span>
               <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span>
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
-              {isFirstLaunch ? '--' : (dayData.glucose ? `${dayData.glucose.stabilityScore}% stable` : '94% stable · Idéale')}
+              {dayData.glucose && dayData.glucose.valueMmol > 0 ? `${dayData.glucose.stabilityScore}% stable` : '--'}
             </span>
           </div>
 
           <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
             <path
-              d="M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"
+              d={!dayData.glucose || dayData.glucose.valueMmol === 0 ? "M 4 12 L 136 12" : "M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"}
               stroke={isMono ? '#FAF7F2' : '#818CF8'}
               strokeWidth="1.8"
               fill="none"
@@ -941,18 +941,18 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                14,2
+                {dayData.resp && dayData.resp > 0 ? dayData.resp : '--'}
               </span>
               <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span>
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#7DD3FC', marginTop: '2px', fontWeight: 600 }}>
-              {language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady'}
+              {dayData.resp && dayData.resp > 0 ? (language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady') : '--'}
             </span>
           </div>
 
           <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
             <path
-              d="M 0 11 Q 25 3, 50 11 T 100 11 T 140 11"
+              d={!dayData.resp || dayData.resp === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 25 3, 50 11 T 100 11 T 140 11"}
               stroke={isMono ? '#FAF7F2' : '#38BDF8'}
               strokeWidth="1.8"
               fill="none"

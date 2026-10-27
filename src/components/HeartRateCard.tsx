@@ -179,15 +179,30 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       const centerY = h * 0.54;
 
       if (displayBpm <= 0) {
-        // Tracé en attente de mesure : ligne de repos en pointillé subtil
+        // Tracé en attente de mesure : ligne continue épurée et élégante (100% synchronisée)
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(8, centerY);
-        ctx.lineTo(w - 8, centerY);
-        ctx.strokeStyle = 'rgba(255, 90, 82, 0.35)';
-        ctx.lineWidth = 1.6;
-        ctx.setLineDash([4, 6]);
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(w, centerY);
+        ctx.strokeStyle = '#FF453A';
+        ctx.lineWidth = 2.0;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = 'rgba(255, 69, 58, 0.45)';
+        ctx.shadowBlur = 6;
+        ctx.globalAlpha = 0.8;
         ctx.stroke();
-        ctx.setLineDash([]);
+
+        // Edge fade mask
+        ctx.globalCompositeOperation = 'destination-in';
+        const fadeGrad = ctx.createLinearGradient(0, 0, w, 0);
+        fadeGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        fadeGrad.addColorStop(0.06, 'rgba(0, 0, 0, 1)');
+        fadeGrad.addColorStop(0.94, 'rgba(0, 0, 0, 1)');
+        fadeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = fadeGrad;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+
         ctx.restore();
         return;
       }
@@ -311,7 +326,54 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       const dt = Math.min((now - lastTimeRef.current) / 1000, 0.05);
       lastTimeRef.current = now;
 
-      const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
+      const dpr = Math.min(window.devicePixelRatio || 2, 3);
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      const centerY = h * 0.54;
+
+      if (displayBpm <= 0) {
+        // Pendant la mesure, tant qu'aucun BPM n'a encore été reçu : ligne continue avec balayage subtil
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(w, centerY);
+        ctx.strokeStyle = '#FF453A';
+        ctx.lineWidth = 2.0;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = 'rgba(255, 69, 58, 0.45)';
+        ctx.shadowBlur = 6;
+        ctx.globalAlpha = 0.8;
+        ctx.stroke();
+
+        // Balayage lumineux délicat qui parcourt la ligne continue pour indiquer la synchronisation active
+        const sweepX = ((now * 0.12) % (w + 60)) - 30;
+        const sweepGrad = ctx.createRadialGradient(sweepX, centerY, 0, sweepX, centerY, 28);
+        sweepGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        sweepGrad.addColorStop(0.35, 'rgba(255, 69, 58, 0.7)');
+        sweepGrad.addColorStop(1, 'rgba(255, 69, 58, 0)');
+        ctx.fillStyle = sweepGrad;
+        ctx.beginPath();
+        ctx.arc(sweepX, centerY, 28, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Soft Edge Fade Mask
+        ctx.globalCompositeOperation = 'destination-in';
+        const fadeGrad = ctx.createLinearGradient(0, 0, w, 0);
+        fadeGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        fadeGrad.addColorStop(0.06, 'rgba(0, 0, 0, 1)');
+        fadeGrad.addColorStop(0.94, 'rgba(0, 0, 0, 1)');
+        fadeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = fadeGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.restore();
+        animFrameRef.current = requestAnimationFrame(render);
+        return;
+      }
+const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
       phaseRef.current = (phaseRef.current + dt * beatsPerSec) % 1.0;
 
       const rawVal = getEcgValue(phaseRef.current);
@@ -323,10 +385,6 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       while (bufferRef.current.length > targetPoints) {
         bufferRef.current.shift();
       }
-
-      const dpr = Math.min(window.devicePixelRatio || 2, 3);
-      const w = canvas.width / dpr;
-      const h = canvas.height / dpr;
 
       ctx.save();
       ctx.scale(dpr, dpr);

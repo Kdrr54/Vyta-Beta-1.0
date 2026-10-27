@@ -223,6 +223,7 @@ export const weekMetrics: DayMetrics[] = Array.from({ length: 7 }, (): DayMetric
   stressLevel: '--',
   bloodPressure: { sbp: 0, dbp: 0 },
   glucose: { valueMmol: 0, stabilityScore: 0 },
+  resp: 0,
 }));
 
 export const emptyDayMetrics: DayMetrics = {

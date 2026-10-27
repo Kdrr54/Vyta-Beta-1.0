@@ -822,7 +822,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   />
                   {/* Primary parasympathetic glowing lime wave */}
                   <path
-                    d="M 0 20 Q 21 34, 43 20 T 86 20"
+                    d={isZeroState ? "M 0 21 L 86 21" : "M 0 20 Q 21 34, 43 20 T 86 20"}
                     stroke={theme.primary}
                     strokeWidth="2"
                     fill="none"
@@ -890,7 +890,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
                 <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
                   <path
-                    d="M 0 21 C 14 7, 28 35, 43 21 C 57 7, 71 35, 86 21"
+                    d={isZeroState ? "M 0 21 L 86 21" : "M 0 21 C 14 7, 28 35, 43 21 C 57 7, 71 35, 86 21"}
                     stroke={theme.primary}
                     strokeWidth="2.2"
                     strokeLinecap="round"
@@ -934,27 +934,52 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       </feMerge>
                     </filter>
                   </defs>
-                  <path
-                    d="M 0 30 C 15 30, 25 30, 35 30 C 39 30, 42 27, 45 27 C 48 27, 51 32, 54 32 C 58 32, 61 24, 65 24 C 69 24, 72 38, 75 38 C 79 38, 80 5, 83 5 C 86 5, 88 53, 91 53 C 94 53, 96 18, 99 18 C 102 18, 105 38, 108 38 C 112 38, 114 18, 117 18 C 121 18, 124 35, 128 35 C 131 35, 134 26, 137 26 C 141 26, 144 32, 147 32 C 153 32, 165 30, 200 30"
-                    fill="none"
-                    stroke="#FF3B30"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity="0.3"
-                    filter="url(#modalEcgGlow)"
-                    mask="url(#modalEcgMask)"
-                  />
-                  <path
-                    d="M 0 30 C 15 30, 25 30, 35 30 C 39 30, 42 27, 45 27 C 48 27, 51 32, 54 32 C 58 32, 61 24, 65 24 C 69 24, 72 38, 75 38 C 79 38, 80 5, 83 5 C 86 5, 88 53, 91 53 C 94 53, 96 18, 99 18 C 102 18, 105 38, 108 38 C 112 38, 114 18, 117 18 C 121 18, 124 35, 128 35 C 131 35, 134 26, 137 26 C 141 26, 144 32, 147 32 C 153 32, 165 30, 200 30"
-                    fill="none"
-                    stroke="url(#modalEcgGrad)"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    mask="url(#modalEcgMask)"
-                    className="ecg-pulse-line"
-                  />
+                  {isZeroState ? (
+                    <>
+                      <path
+                        d="M 0 30 L 200 30"
+                        fill="none"
+                        stroke="#FF3B30"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        opacity="0.3"
+                        filter="url(#modalEcgGlow)"
+                        mask="url(#modalEcgMask)"
+                      />
+                      <path
+                        d="M 0 30 L 200 30"
+                        fill="none"
+                        stroke="url(#modalEcgGrad)"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        mask="url(#modalEcgMask)"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <path
+                        d="M 0 30 C 15 30, 25 30, 35 30 C 39 30, 42 27, 45 27 C 48 27, 51 32, 54 32 C 58 32, 61 24, 65 24 C 69 24, 72 38, 75 38 C 79 38, 80 5, 83 5 C 86 5, 88 53, 91 53 C 94 53, 96 18, 99 18 C 102 18, 105 38, 108 38 C 112 38, 114 18, 117 18 C 121 18, 124 35, 128 35 C 131 35, 134 26, 137 26 C 141 26, 144 32, 147 32 C 153 32, 165 30, 200 30"
+                        fill="none"
+                        stroke="#FF3B30"
+                        strokeWidth="5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity="0.3"
+                        filter="url(#modalEcgGlow)"
+                        mask="url(#modalEcgMask)"
+                      />
+                      <path
+                        d="M 0 30 C 15 30, 25 30, 35 30 C 39 30, 42 27, 45 27 C 48 27, 51 32, 54 32 C 58 32, 61 24, 65 24 C 69 24, 72 38, 75 38 C 79 38, 80 5, 83 5 C 86 5, 88 53, 91 53 C 94 53, 96 18, 99 18 C 102 18, 105 38, 108 38 C 112 38, 114 18, 117 18 C 121 18, 124 35, 128 35 C 131 35, 134 26, 137 26 C 141 26, 144 32, 147 32 C 153 32, 165 30, 200 30"
+                        fill="none"
+                        stroke="url(#modalEcgGrad)"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        mask="url(#modalEcgMask)"
+                        className="ecg-pulse-line"
+                      />
+                    </>
+                  )}
                 </svg>
               </div>
 

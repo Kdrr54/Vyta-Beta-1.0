@@ -55,6 +55,7 @@ export interface DayMetrics {
   stressLevel?: string;
   bloodPressure?: { sbp: number; dbp: number };
   glucose?: { valueMmol: number; stabilityScore: number };
+  resp?: number;
 }
 
 export type SensorIntervalOption = '15min' | '30min' | '1h' | '2h';
