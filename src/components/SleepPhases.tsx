@@ -208,7 +208,7 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
               {t('sleep.title')}
             </span>
             <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
-              {isFr ? '23:15 – 06:52 · 7 h 37 au lit' : '11:15 PM – 06:52 AM · 7h 37 in bed'}
+              {totalMin > 0 ? (isFr ? '23:15 – 06:52 · 7 h 37 au lit' : '11:15 PM – 06:52 AM · 7h 37 in bed') : '--'}
             </span>
           </div>
         </div>
@@ -228,13 +228,11 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                 fontFamily: 'var(--font-display, -apple-system, sans-serif)',
               }}
             >
-              {activeStage ? fmtDuration(activeStage.minutes) : fmtDuration(effectiveMin)}
+              {totalMin > 0 ? (activeStage ? fmtDuration(activeStage.minutes) : fmtDuration(effectiveMin)) : '--'}
             </span>
           </div>
           <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '3px' }}>
-            {activeStage
-              ? `${activeStage.name} (${activeStage.pct}%)`
-              : (isFr ? `Sommeil effectif · ${efficiencyPct}% d'efficacité` : `Effective sleep · ${efficiencyPct}% efficiency`)}
+            {totalMin > 0 ? (activeStage ? `${activeStage.name} (${activeStage.pct}%)` : (isFr ? `Sommeil effectif · ${efficiencyPct}% d'efficacité` : `Effective sleep · ${efficiencyPct}% efficiency`)) : '--'}
           </span>
         </div>
 
@@ -253,10 +251,10 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Sparkles size={11} color={isMono ? "#FAF7F2" : "#A78BFA"} />
             <span style={{ fontSize: '12px', fontWeight: 500, color: '#FAF7F2' }}>
-              {fmtDuration(restorativeMin)}
+              {totalMin > 0 ? fmtDuration(restorativeMin) : '--'}
             </span>
             <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#C084FC', fontFamily: 'var(--font-mono)' }}>
-              ({restorativePct}%)
+              {totalMin > 0 ? `(${restorativePct}%)` : ''}
             </span>
           </div>
           <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.52)' }}>

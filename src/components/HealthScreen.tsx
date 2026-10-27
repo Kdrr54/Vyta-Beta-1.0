@@ -373,11 +373,17 @@ export const HealthScreen: React.FC = () => {
               <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
                 {neuralPct > 0 ? neuralPct : '--'}
               </span>
-              <span style={{ fontSize: '16px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#D9F970', marginLeft: '1px' }}>%</span>
+              {neuralPct > 0 && <span style={{ fontSize: '16px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#D9F970', marginLeft: '1px' }}>%</span>}
             </div>
             <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#D9F970', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
-              <span style={{ fontSize: '8px' }}>▲</span>
-              <span>{dayData.hrv && dayData.hrv > 0 ? `+12% (${dayData.hrv} ms VRC)` : '-- ms VRC'}</span>
+              {dayData.hrv && dayData.hrv > 0 ? (
+                <>
+                  <span style={{ fontSize: '8px' }}>▲</span>
+                  <span>{dayData.hrv} ms VRC</span>
+                </>
+              ) : (
+                <span>--</span>
+              )}
             </span>
           </div>
 
@@ -449,10 +455,10 @@ export const HealthScreen: React.FC = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 2px 0' }}>
             <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
-              {isFirstLaunch && dayData.steps === 0 ? '--' : fmtNum(dayData.steps)}
+              {dayData.steps > 0 ? fmtNum(dayData.steps) : '--'}
             </span>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.72)' : '#FDBA74', marginTop: '4px', fontWeight: 600 }}>
-              {isFirstLaunch && dayData.steps === 0 ? (language === 'fr' ? '0 kcal brûlée' : '0 kcal burned') : `${dayData.activeKcal} ${language === 'fr' ? 'kcal brûlées' : 'kcal burned'} · 84%`}
+              {dayData.steps > 0 ? `${dayData.activeKcal} ${language === 'fr' ? 'kcal brûlées' : 'kcal burned'}` : (language === 'fr' ? '0 kcal brûlée' : '0 kcal burned')}
             </span>
           </div>
 
@@ -544,10 +550,10 @@ export const HealthScreen: React.FC = () => {
                 <span style={{ fontSize: '30px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                   {isFirstLaunch || !dayData.spo2 ? '--' : Math.round(dayData.spo2)}
                 </span>
-                <span style={{ fontSize: '14px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#E879F9', marginLeft: '1px' }}>%</span>
+                {dayData.spo2 && dayData.spo2 > 0 ? <span style={{ fontSize: '14px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#E879F9', marginLeft: '1px' }}>%</span> : null}
               </div>
               <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#F0ABFC', marginTop: '2px', display: 'block', fontWeight: 600 }}>
-                {language === 'fr' ? 'Normal (95-100%)' : 'Optimal (95-100%)'}
+                {dayData.spo2 && dayData.spo2 > 0 ? (language === 'fr' ? 'Normal (95-100%)' : 'Optimal (95-100%)') : '--'}
               </span>
             </div>
 
@@ -629,7 +635,7 @@ export const HealthScreen: React.FC = () => {
             <span style={{ fontSize: '30px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
               {skinTempAbs}
             </span>
-            <span style={{ fontSize: '15px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#FBBF24', marginLeft: '1px' }}>°c</span>
+            {skinTempAbs !== '--' && <span style={{ fontSize: '15px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#FBBF24', marginLeft: '1px' }}>°c</span>}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -711,7 +717,7 @@ export const HealthScreen: React.FC = () => {
               <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
                 {dayData.stress && dayData.stress > 0 ? dayData.stress : '--'}
               </span>
-              <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span>
+              {dayData.stress && dayData.stress > 0 ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
               {dayData.stress && dayData.stress > 0 ? dayData.stressLevel : '--'}
@@ -789,7 +795,7 @@ export const HealthScreen: React.FC = () => {
               <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                 {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--'}
               </span>
-              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span>
+              {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span> : null}
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
               {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--'}
@@ -866,7 +872,7 @@ export const HealthScreen: React.FC = () => {
               <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                 {dayData.glucose && dayData.glucose.valueMmol > 0 ? dayData.glucose.valueMmol : '--'}
               </span>
-              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span>
+              {dayData.glucose && dayData.glucose.valueMmol > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span> : null}
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
               {dayData.glucose && dayData.glucose.valueMmol > 0 ? `${dayData.glucose.stabilityScore}% stable` : '--'}
@@ -943,7 +949,7 @@ export const HealthScreen: React.FC = () => {
               <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                 {dayData.resp && dayData.resp > 0 ? dayData.resp : '--'}
               </span>
-              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span>
+              {dayData.resp && dayData.resp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span> : null}
             </div>
             <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#7DD3FC', marginTop: '2px', fontWeight: 600 }}>
               {dayData.resp && dayData.resp > 0 ? (language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady') : '--'}
@@ -1007,7 +1013,7 @@ export const HealthScreen: React.FC = () => {
               {language === "fr" ? "État général" : "General State"}
             </span>
           </div>
-          {selectedDay > 0 && (
+          {selectedDay > 0 && dayData.score > 0 && (
             <span
               style={{
                 fontSize: '11px',

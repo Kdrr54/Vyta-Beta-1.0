@@ -110,9 +110,7 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
             <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
               {isZeroState ? '--' : energy}
             </span>
-            <span style={{ fontSize: '15px', fontWeight: 300, color: 'rgba(250, 247, 242, 0.75)', marginLeft: '1px' }}>
-              %
-            </span>
+            {!isZeroState && <span style={{ fontSize: '15px', fontWeight: 300, color: 'rgba(250, 247, 242, 0.75)', marginLeft: '1px' }}>%</span>}
           </div>
         </div>
 
@@ -124,7 +122,7 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.current')}</span>
-            <span style={{ fontSize: '12.5px', fontWeight: 500, color: isMono ? '#FAF7F2' : '#38BDF8', whiteSpace: 'nowrap' }}>{energy}%</span>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: isMono ? '#FAF7F2' : '#38BDF8', whiteSpace: 'nowrap' }}>{isZeroState ? '--' : `${energy}%`}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.bedtime')}</span>

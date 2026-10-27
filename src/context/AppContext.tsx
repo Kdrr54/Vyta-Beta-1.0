@@ -61,7 +61,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Version de build de production avec réinitialisation usine garantie
-  const PROD_RELEASE_KEY = 'vyta_release_1.0.0_final';
+  const PROD_RELEASE_KEY = 'vyta_zero_state_v1_0';
   if (typeof window !== 'undefined') {
     try {
       const currentVersion = localStorage.getItem('vyta_app_version');

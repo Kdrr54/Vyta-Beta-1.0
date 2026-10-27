@@ -809,7 +809,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontWeight: 600,
                   }}
                 >
-                  <span style={{ fontSize: '7.5px' }}>▲</span> +12% {isEn ? 'Recovered' : 'Récupéré'}
+                  {dayMetricValue > 0 ? <><span style={{ fontSize: '7.5px' }}>▲</span> {dayMetricValue} ms</> : '--'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
