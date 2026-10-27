@@ -15,6 +15,7 @@ import { TestDateModal } from './components/TestDateModal';
 import { HealthKitSyncModal } from './components/HealthKitSyncModal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { PairingModal } from './components/PairingModal';
+import { OnboardingFlow } from './components/OnboardingFlow';
 import { GeneralStateModal } from './components/GeneralStateModal';
 import { FindMyRingModal } from './components/FindMyRingModal';
 import { PrismModal } from './components/PrismModal';
@@ -61,7 +62,7 @@ const AppInner: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          <PairingModal onClose={() => setIsPaired(true)} />
+          <OnboardingFlow onComplete={() => setIsPaired(true)} />
         </div>
       </div>
     );

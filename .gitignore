@@ -24,3 +24,7 @@ sdk_extracted/
 
 # Agent internal directories
 .agents/
+
+.env
+*.png
+*.txt

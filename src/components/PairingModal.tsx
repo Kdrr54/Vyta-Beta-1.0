@@ -8,15 +8,17 @@ import {
   Radio,
   X,
   Zap,
+  ChevronLeft,
 } from 'lucide-react';
 
 interface PairingModalProps {
+  onBack?: () => void;
   onClose?: () => void;
 }
 
 type PairingStatus = 'idle' | 'searching' | 'found';
 
-export const PairingModal: React.FC<PairingModalProps> = ({ onClose }) => {
+export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) => {
   const { updateRing, ring, finish, setIsPaired, isPaired } = useApp();
   const [status, setStatus] = useState<PairingStatus>('idle');
   const [statusMessage, setStatusMessage] = useState<string>(
@@ -138,6 +140,36 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose }) => {
       />
 
       {/* Bouton fermeture (uniquement si déjà appairé et réouvert via réglages) */}
+      {!isPaired && onBack && status === 'idle' && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Retour au profil"
+          title="Retour au profil"
+          style={{
+            position: 'absolute',
+            top: 'calc(max(20px, env(safe-area-inset-top)) + 12px)',
+            left: '20px',
+            height: '32px',
+            padding: '0 12px',
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            color: 'rgba(255, 255, 255, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            cursor: 'pointer',
+            zIndex: 100,
+            backdropFilter: 'blur(10px)',
+            fontSize: '12px',
+            fontWeight: 600,
+          }}
+        >
+          <ChevronLeft size={15} />
+          <span>Profil</span>
+        </button>
+      )}
       {isPaired && onClose && status === 'idle' && (
         <button
           type="button"

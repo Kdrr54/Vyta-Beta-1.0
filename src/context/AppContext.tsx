@@ -248,16 +248,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true; // Valeurs à 0 par défaut
   });
 
-  // État appairage de la bague (Actif par défaut pour afficher le dashboard à 0)
+  // État appairage de la bague (Faux par défaut si premier lancement pour démarrer l'onboarding)
   const [isPaired, setIsPairedState] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('vyta_ring_paired_v2');
       if (saved !== null) {
         return saved === 'true';
       }
-      return true; // Prêt à l'emploi sur iPhone
+      return false; // Premier lancement : non appairé -> lance le flux onboarding !
     }
-    return true;
+    return false;
   });
 
   const setIsPaired = (paired: boolean) => {
@@ -270,12 +270,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // État affichage plein écran de la carte de course GPS en direct
   const [isLiveRunningViewOpen, setIsLiveRunningViewOpen] = useState<boolean>(false);
 
-  const [profile, setProfile] = useState<UserProfile>({
-    firstName: 'Alexandre',
-    age: 28,
-    heightCm: 182,
-    weightKg: 76,
-    sex: initialSex,
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_user_profile');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      firstName: '',
+      age: 28,
+      heightCm: 180,
+      weightKg: 75,
+      sex: initialSex,
+    };
   });
 
   const [liveBpm, setLiveBpm] = useState<number>(() => 0);
@@ -300,6 +308,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('vyta_sex', partial.sex);
         } catch (e) {}
       }
+      try {
+        localStorage.setItem('vyta_user_profile', JSON.stringify(next));
+      } catch (e) {}
       if (next.sex === 'homme' && tab === 'cycle') {
         setTab('health');
       }
