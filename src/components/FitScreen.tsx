@@ -793,15 +793,16 @@ export const FitScreen: React.FC = () => {
 
     openStory({
       mode: 'run',
-      title: 'Course Matinale · Parc Monceau',
+      title: 'Course GPS Vyta',
       dateStr: run.date,
-      accentText: finalDist >= 8 ? 'Nouveau Record 1 km (4:48)' : 'Séance GPS Enregistrée',
+      accentText: 'Séance GPS Enregistrée',
       stats: [
         { label: 'Distance', value: `${finalDist}`, unit: 'km' },
         { label: 'Allure', value: fmtMMSS(finalPace), unit: '/km' },
         { label: 'Temps', value: fmtClockSec(finalDur) },
         { label: 'FC Moyenne', value: `${finalHr}`, unit: 'bpm' },
       ],
+      realGpsPoints: realGpsPoints && realGpsPoints.length >= 2 ? realGpsPoints : undefined,
     });
   };
 

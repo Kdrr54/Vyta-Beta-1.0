@@ -7,8 +7,72 @@ export interface StoryData {
   stats: { label: string; value: string; unit?: string }[];
   accentText?: string;
   tonnageKg?: number;
-  /** Progression réelle du parcours entre 0 et 1 (1 = boucle complète du Parc Monceau) */
+  /** Progression réelle du parcours entre 0 et 1 */
   routeProgress?: number;
+  /** Points GPS réels de la course pour tracer l'itinéraire exact (ligne droite, virages, etc.) */
+  realGpsPoints?: [number, number][];
+}
+
+/**
+ * Convertit un tableau de coordonnées GPS réelles [latitude, longitude]
+ * en un tracé SVG vectoriel proportionnel centré dans le cadre viewBox.
+ */
+export function convertGpsPointsToSvgPath(
+  points: [number, number][],
+  viewWidth = 360,
+  viewHeight = 230,
+  padding = 32
+): { pathD: string; startPoint: Pt; endPoint: Pt } {
+  if (!points || points.length < 2) {
+    return {
+      pathD: PARC_MONCEAU_PATH_D,
+      startPoint: { x: 180, y: 44 },
+      endPoint: { x: 180, y: 44 },
+    };
+  }
+
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLng = Infinity, maxLng = -Infinity;
+  for (const [lat, lng] of points) {
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+  }
+
+  const midLat = (minLat + maxLat) / 2;
+  const latToMeters = 111320;
+  const lngToMeters = 111320 * Math.cos((midLat * Math.PI) / 180);
+
+  // Éviter la division par zéro sur ligne droite pure (minimum 10m de span virtuel pour centrage)
+  const dLatMeters = Math.max(10, (maxLat - minLat) * latToMeters);
+  const dLngMeters = Math.max(10, (maxLng - minLng) * lngToMeters);
+
+  const innerW = viewWidth - padding * 2;
+  const innerH = viewHeight - padding * 2;
+  const scale = Math.min(innerW / dLngMeters, innerH / dLatMeters);
+
+  const pathW = dLngMeters * scale;
+  const pathH = dLatMeters * scale;
+  const offsetX = (viewWidth - pathW) / 2;
+  const offsetY = (viewHeight - pathH) / 2;
+
+  const svgCoords: Pt[] = points.map(([lat, lng]) => {
+    const rx = (lng - minLng) * lngToMeters * scale;
+    const ry = (maxLat - lat) * latToMeters * scale;
+    return {
+      x: Math.round((offsetX + rx) * 10) / 10,
+      y: Math.round((offsetY + ry) * 10) / 10,
+    };
+  });
+
+  const pathD = svgCoords.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
+
+  return {
+    pathD,
+    startPoint: svgCoords[0],
+    endPoint: svgCoords[svgCoords.length - 1],
+  };
 }
 
 export type StoryTemplateVariant = 'transparent' | 'satellite' | 'dark_gold' | 'telemetry';
@@ -189,11 +253,44 @@ export function generateStoryDataUrl(
       lineWidth: number,
       glowColor?: string
     ) => {
-      const prog = typeof data.routeProgress === 'number' && data.routeProgress > 0.02
-        ? Math.min(1, data.routeProgress)
-        : 1;
-      const raw = getSampledRunTrajectory(prog);
-      const fitted = fitTrajectoryToBox(raw, boxW, boxH, 24);
+      let fitted: Pt[] = [];
+      let startPt: Pt | undefined;
+      let endPt: Pt | undefined;
+
+      if (data.realGpsPoints && data.realGpsPoints.length >= 2) {
+        let minLat = Infinity, maxLat = -Infinity;
+        let minLng = Infinity, maxLng = -Infinity;
+        for (const [lat, lng] of data.realGpsPoints) {
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+        }
+        const midLat = (minLat + maxLat) / 2;
+        const latToM = 111320;
+        const lngToM = 111320 * Math.cos((midLat * Math.PI) / 180);
+        const dLatM = Math.max(10, (maxLat - minLat) * latToM);
+        const dLngM = Math.max(10, (maxLng - minLng) * lngToM);
+        const pad = 36;
+        const sc = Math.min((boxW - pad * 2) / dLngM, (boxH - pad * 2) / dLatM);
+        const offX = (boxW - dLngM * sc) / 2;
+        const offY = (boxH - dLatM * sc) / 2;
+        fitted = data.realGpsPoints.map(([lat, lng]) => ({
+          x: offX + (lng - minLng) * lngToM * sc,
+          y: offY + (maxLat - lat) * latToM * sc,
+        }));
+        startPt = fitted[0];
+        endPt = fitted[fitted.length - 1];
+      } else {
+        const prog = typeof data.routeProgress === 'number' && data.routeProgress > 0.02
+          ? Math.min(1, data.routeProgress)
+          : 1;
+        const raw = getSampledRunTrajectory(prog);
+        fitted = fitTrajectoryToBox(raw, boxW, boxH, 24);
+        startPt = fitted[0];
+        endPt = prog < 0.98 ? fitted[fitted.length - 1] : undefined;
+      }
+
       if (fitted.length < 2) return;
 
       ctx.save();
@@ -216,8 +313,6 @@ export function generateStoryDataUrl(
       });
       ctx.stroke();
 
-      // Pin de départ (Rotonde)
-      const startPt = fitted[0];
       if (startPt) {
         ctx.fillStyle = strokeColor;
         ctx.beginPath();
@@ -225,15 +320,11 @@ export function generateStoryDataUrl(
         ctx.fill();
       }
 
-      // Pin d'arrivée si parcours partiel
-      if (prog < 0.98) {
-        const endPt = fitted[fitted.length - 1];
-        if (endPt) {
-          ctx.fillStyle = strokeColor;
-          ctx.beginPath();
-          ctx.arc(endPt.x, endPt.y, lineWidth * 0.85, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      if (endPt) {
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(endPt.x, endPt.y, lineWidth * 0.85, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       ctx.restore();

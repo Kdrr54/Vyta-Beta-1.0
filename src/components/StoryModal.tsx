@@ -6,6 +6,7 @@ import {
   StoryData,
   StoryTemplateVariant,
   PARC_MONCEAU_PATH_D,
+  convertGpsPointsToSvgPath,
   getRunnerPosition,
 } from '../lib/story';
 import { Copy, ArrowDownCircle, Link2, Share, Check } from 'lucide-react';
@@ -38,6 +39,23 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
     () => getRunTrajectorySvgPath(120, 80, 6, data.routeProgress ?? 1),
     [data.routeProgress]
   );
+
+  const currentProg =
+    typeof data.routeProgress === 'number' && data.routeProgress > 0.02
+      ? Math.min(1, data.routeProgress)
+      : 1;
+  const runnerPos = getRunnerPosition(currentProg);
+
+  const trajectoryInfo = useMemo(() => {
+    if (data.realGpsPoints && data.realGpsPoints.length >= 2) {
+      return convertGpsPointsToSvgPath(data.realGpsPoints, 360, 230, 36);
+    }
+    return {
+      pathD: PARC_MONCEAU_PATH_D,
+      startPoint: { x: 180, y: 44 },
+      endPoint: runnerPos,
+    };
+  }, [data.realGpsPoints, runnerPos]);
 
   useEffect(() => {
     const variant = SLIDE_VARIANTS[activeSlide] || 'transparent';
@@ -255,12 +273,12 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
             </div>
           </div>
 
-          {/* Trajectoire réelle de la course en Blanc (Course uniquement) */}
+          {/* Trajectoire réelle synchronisée de la course (Course uniquement) */}
           {data.mode === 'run' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0' }}>
               <svg width="130" height="85" viewBox="0 0 360 230" fill="none">
                 <path
-                  d={PARC_MONCEAU_PATH_D}
+                  d={trajectoryInfo.pathD}
                   pathLength={100}
                   strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
                   strokeDashoffset={0}
@@ -270,14 +288,10 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
                   strokeLinejoin="round"
                   style={{ filter: 'drop-shadow(0 2px 8px rgba(255,255,255,0.6))' }}
                 />
-                <circle cx="180" cy="44" r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                <circle cx="180" cy="44" r="3" fill="#000000" />
-                {currentProg < 0.98 && (
-                  <>
-                    <circle cx={runnerPos.x} cy={runnerPos.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                    <circle cx={runnerPos.x} cy={runnerPos.y} r="3" fill="#000000" />
-                  </>
-                )}
+                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
+                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
+                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
+                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
               </svg>
             </div>
           )}
@@ -353,7 +367,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
             <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'center' }}>
               <svg width="140" height="90" viewBox="0 0 360 230" fill="none">
                 <path
-                  d={PARC_MONCEAU_PATH_D}
+                  d={trajectoryInfo.pathD}
                   pathLength={100}
                   strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
                   strokeDashoffset={0}
@@ -363,14 +377,10 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
                   strokeLinejoin="round"
                   style={{ filter: 'drop-shadow(0 2px 10px rgba(255,255,255,0.6))' }}
                 />
-                <circle cx="180" cy="44" r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                <circle cx="180" cy="44" r="3" fill="#000000" />
-                {currentProg < 0.98 && (
-                  <>
-                    <circle cx={runnerPos.x} cy={runnerPos.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                    <circle cx={runnerPos.x} cy={runnerPos.y} r="3" fill="#000000" />
-                  </>
-                )}
+                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
+                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
+                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
+                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
               </svg>
             </div>
           )}
@@ -485,7 +495,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         {data.mode === 'run' && (
           <svg width="125" height="85" viewBox="0 0 360 230" fill="none">
             <path
-              d={PARC_MONCEAU_PATH_D}
+              d={trajectoryInfo.pathD}
               pathLength={100}
               strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
               strokeDashoffset={0}
@@ -494,14 +504,10 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <circle cx="180" cy="44" r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
-            <circle cx="180" cy="44" r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
-            {currentProg < 0.98 && (
-              <>
-                <circle cx={runnerPos.x} cy={runnerPos.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
-                <circle cx={runnerPos.x} cy={runnerPos.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
-              </>
-            )}
+            <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
+            <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
+            <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
+            <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
           </svg>
         )}
 
