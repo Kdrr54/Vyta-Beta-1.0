@@ -334,6 +334,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Synchronisation globale télémétrie BLE de la bague physique
   useEffect(() => {
+    // Reconnexion automatique silencieuse en arrière-plan
+    qringBle.autoConnectSavedDevice();
+
     const unsubscribe = qringBle.subscribe((data: BleRingData) => {
       if (data.batteryPct !== undefined) {
         updateRing({ batteryRing: data.batteryPct, isConnected: true });
@@ -417,6 +420,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Remise à zéro d'usine (état premier lancement : 0 données, bague à appairer)
   const resetToFactory = () => {
+    qringBle.disconnect(true);
     setIsSimulating(false);
     setSimulationHoursElapsed(0);
     setIsFirstLaunch(true);

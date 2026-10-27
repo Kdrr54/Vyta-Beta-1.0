@@ -8,6 +8,12 @@
  * - QRing (R20, R02, R06, R10)
  * - Colmi R02 / QCWireless
  * - Nordic UART Service (NUS)
+ * 
+ * Features:
+ * - Automatic background reconnection engine (CoreBluetooth OS-bonded peripheral hooking)
+ * - 20-second keep-alive heartbeat (battery query 0x03) preventing ring dormant sleep
+ * - Dual-byte battery frame decoding (charging byte vs battery %)
+ * - Auto-connect on app boot & visibility/focus resume
  */
 
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
@@ -70,10 +76,62 @@ class QRingBleService {
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
   private isConnecting = false;
 
+  // Keep-alive heartbeat & resilient background auto-reconnect
+  private heartbeatInterval: any = null;
+  private isAutoReconnecting = false;
+  private reconnectTimer: any = null;
+  private userExplicitlyDisconnected = false;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          if (!this.isConnected() && !this.userExplicitlyDisconnected) {
+            console.log('[QRing BLE] App resumed to foreground, verifying ring connection...');
+            this.autoConnectSavedDevice();
+          }
+        }
+      });
+
+      window.addEventListener('focus', () => {
+        if (!this.isConnected() && !this.userExplicitlyDisconnected) {
+          console.log('[QRing BLE] Window focus regained, checking ring connection...');
+          this.autoConnectSavedDevice();
+        }
+      });
+    }
+  }
+
   public isSupported(): boolean {
     if (typeof window === 'undefined') return false;
     if (Capacitor.isNativePlatform()) return true;
     return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
+  }
+
+  public isConnected(): boolean {
+    return Boolean(this.connectedDeviceId || this.server?.connected);
+  }
+
+  public getConnectedDeviceId(): string | null {
+    return this.connectedDeviceId;
+  }
+
+  public getSavedDeviceId(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem('vyta_ble_saved_device_id');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  public getSavedDeviceName(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem('vyta_ble_saved_device_name');
+    } catch (_) {
+      return null;
+    }
   }
 
   public subscribe(listener: RingListener): () => void {
@@ -107,6 +165,217 @@ class QRingBleService {
   }
 
   /**
+   * Starts a 20-second keep-alive heartbeat:
+   * Sends Opcode 0x03 (Battery status request)
+   * 1. Resets the ring firmware's low-power dormant timer (prevents ring BLE sleep)
+   * 2. Continually keeps battery percentage updated in real time
+   */
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    console.log('[QRing BLE] Starting periodic keep-alive heartbeat (every 20s)...');
+    this.heartbeatInterval = setInterval(async () => {
+      if (this.isConnected()) {
+        try {
+          await this.sendBatteryRequest();
+        } catch (e) {
+          console.warn('[QRing BLE] Keep-alive ping error:', e);
+        }
+      } else {
+        this.stopHeartbeat();
+      }
+    }, 20000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  /**
+   * Schedules automatic silent background reconnection
+   */
+  public scheduleAutoReconnect() {
+    if (this.isAutoReconnecting || this.userExplicitlyDisconnected || this.isConnected()) {
+      return;
+    }
+    const savedId = this.getSavedDeviceId();
+    if (!savedId) return;
+
+    this.isAutoReconnecting = true;
+    console.log('[QRing BLE AutoReconnect] Starting silent background auto-reconnect engine...');
+
+    const runAttempt = async () => {
+      if (!this.isAutoReconnecting || this.isConnected() || this.userExplicitlyDisconnected) {
+        this.stopAutoReconnect();
+        return;
+      }
+
+      const success = await this.attemptSilentReconnect();
+      if (success) {
+        console.log('[QRing BLE AutoReconnect] Auto-reconnect successful!');
+        this.stopAutoReconnect();
+        return;
+      }
+
+      if (this.isAutoReconnecting && !this.userExplicitlyDisconnected) {
+        this.reconnectTimer = setTimeout(runAttempt, 4000);
+      }
+    };
+
+    runAttempt();
+  }
+
+  public stopAutoReconnect() {
+    this.isAutoReconnecting = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /**
+   * Attempts automatic connection to previously bonded/saved smart ring
+   */
+  public async autoConnectSavedDevice(): Promise<boolean> {
+    if (this.isConnected() || this.userExplicitlyDisconnected) {
+      return false;
+    }
+    const savedId = this.getSavedDeviceId();
+    if (!savedId) return false;
+    this.scheduleAutoReconnect();
+    return true;
+  }
+
+  /**
+   * Performs a single silent reconnection attempt:
+   * 1. Inspects iOS CoreBluetooth connected peripherals (devices already connected to the OS)
+   * 2. Direct connect to saved CoreBluetooth UUID
+   * 3. Fast 3.5s LE scan fallback
+   */
+  private async attemptSilentReconnect(): Promise<boolean> {
+    const savedId = this.getSavedDeviceId();
+    const savedName = this.getSavedDeviceName() || 'Vyta One';
+    if (!savedId) return false;
+
+    if (!Capacitor.isNativePlatform()) {
+      return false;
+    }
+
+    try {
+      if (!this.isNativeInitialized) {
+        await BleClient.initialize();
+        this.isNativeInitialized = true;
+      }
+
+      // Step 1: Hook into already-connected iOS CoreBluetooth peripherals
+      try {
+        const connectedPeripherals = await BleClient.getConnectedDevices([
+          NORDIC_UART_SERVICE_UUID,
+          QRING_ALT_SERVICE_UUID,
+          STANDARD_BATTERY_SERVICE_UUID,
+          STANDARD_HEART_RATE_SERVICE_UUID,
+        ]);
+
+        if (connectedPeripherals && connectedPeripherals.length > 0) {
+          const match = connectedPeripherals.find(
+            (d) => d.deviceId.toLowerCase() === savedId.toLowerCase()
+          ) || connectedPeripherals[0];
+
+          if (match) {
+            console.log('[QRing BLE AutoReconnect] Ring is already connected to iOS! Attaching GATT:', match.deviceId);
+            const res = await this.connectDirectly(match.deviceId, match.name || savedName);
+            if (res.success) return true;
+          }
+        }
+      } catch (e) {
+        console.warn('[QRing BLE AutoReconnect] getConnectedDevices note:', e);
+      }
+
+      // Step 2: Direct connect using saved device UUID without scanning
+      try {
+        console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
+        const res = await this.connectDirectly(savedId, savedName);
+        if (res.success) return true;
+      } catch (e) {
+        console.warn('[QRing BLE AutoReconnect] Direct connect note:', e);
+      }
+
+      // Step 3: Fast 3.5s scan in case peripheral changed address or was power-cycled
+      try {
+        const scannedDevice = await this.scanQuickForSavedDevice(savedId, savedName, 3500);
+        if (scannedDevice) {
+          console.log('[QRing BLE AutoReconnect] Found ring via scan, connecting:', scannedDevice.deviceId);
+          const res = await this.connectDirectly(scannedDevice.deviceId, scannedDevice.name || savedName);
+          if (res.success) return true;
+        }
+      } catch (e) {
+        console.warn('[QRing BLE AutoReconnect] Quick scan note:', e);
+      }
+    } catch (err) {
+      console.warn('[QRing BLE AutoReconnect] Attempt error:', err);
+    }
+
+    return false;
+  }
+
+  /**
+   * Fast background scan for a known device
+   */
+  private scanQuickForSavedDevice(
+    savedId: string,
+    savedName: string,
+    durationMs: number = 3500
+  ): Promise<DiscoveredBleDevice | null> {
+    return new Promise(async (resolve) => {
+      let resolved = false;
+
+      const finish = async (device: DiscoveredBleDevice | null) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        try {
+          await BleClient.stopLEScan();
+        } catch (_) {}
+        resolve(device);
+      };
+
+      const timer = setTimeout(() => {
+        finish(null);
+      }, durationMs);
+
+      try {
+        await BleClient.requestLEScan({ allowDuplicates: false }, (result) => {
+          const rawName = (result.localName || result.device?.name || '').trim();
+          const devId = result.device.deviceId;
+
+          const isMatchId = devId.toLowerCase() === savedId.toLowerCase();
+          const isMatchName =
+            rawName &&
+            savedName &&
+            (rawName.toLowerCase() === savedName.toLowerCase() ||
+              rawName.toLowerCase().includes('vyta') ||
+              rawName.toLowerCase().includes('ring') ||
+              rawName.toLowerCase().includes('qring') ||
+              rawName.toLowerCase().includes('r0'));
+
+          if (isMatchId || isMatchName) {
+            finish({
+              deviceId: devId,
+              name: rawName || savedName,
+              rssi: result.rssi,
+              isRing: true,
+            });
+          }
+        });
+      } catch (e) {
+        finish(null);
+      }
+    });
+  }
+
+  /**
    * Builds a strict 16-byte packet with checksum at index 15:
    * checksum = sum(bytes[0..14]) & 0xFF
    */
@@ -132,7 +401,7 @@ class QRingBleService {
       return {
         success: false,
         deviceName: '',
-        error: 'Bluetooth non supporté sur ce navigateur. Activez le Bluetooth ou utilisez l\'app iOS.',
+        error: "Bluetooth non supporté sur ce navigateur. Activez le Bluetooth ou utilisez l'app iOS.",
       };
     }
 
@@ -183,7 +452,7 @@ class QRingBleService {
           resolve({
             success: false,
             deviceName: '',
-            error: 'Aucune bague détectée. Assurez-vous que la bague est chargée (posez-la sur son chargeur pour l\'activer) et à proximité.',
+            error: "Aucune bague détectée. Assurez-vous que la bague est chargée (posez-la sur son chargeur pour l'activer) et à proximité.",
           });
         }
       }, 25000);
@@ -300,13 +569,36 @@ class QRingBleService {
   ): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     try {
       console.log('[QRing BLE Native] Connecting to GATT server for:', deviceName, deviceId);
-      await BleClient.connect(deviceId, () => {
-        console.warn('[QRing BLE Native] Peripheral disconnected');
-        this.connectedDeviceId = null;
-        this.notify({ isConnected: false, deviceName });
-      });
+      this.userExplicitlyDisconnected = false;
+
+      await BleClient.connect(
+        deviceId,
+        (disconnectedId) => {
+          console.warn('[QRing BLE Native] Peripheral disconnected:', disconnectedId || deviceId);
+          this.connectedDeviceId = null;
+          this.stopHeartbeat();
+          this.notify({ isConnected: false, deviceName });
+
+          // Silently trigger background auto-reconnect if not explicitly unlinked by user
+          if (!this.userExplicitlyDisconnected) {
+            console.log('[QRing BLE Native] Disconnection detected, launching auto-reconnect engine...');
+            this.scheduleAutoReconnect();
+          }
+        },
+        { timeout: 8000, skipDescriptorDiscovery: true }
+      );
 
       this.connectedDeviceId = deviceId;
+      this.stopAutoReconnect();
+
+      // Persist in localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('vyta_ble_saved_device_id', deviceId);
+          localStorage.setItem('vyta_ble_saved_device_name', deviceName);
+        } catch (_) {}
+      }
+
       let batteryLevel: number | undefined;
 
       // 1. Dynamic GATT Discovery: locate active write and notify characteristics
@@ -317,20 +609,28 @@ class QRingBleService {
         for (const s of services) {
           const sUuid = s.uuid.toLowerCase();
           for (const c of s.characteristics) {
-            const cUuid = c.uuid.toLowerCase();
-
-            // Look for Nordic UART or vendor write characteristic
+            // Look for Nordic UART, QRing, or vendor write characteristic
             if (c.properties.write || c.properties.writeWithoutResponse) {
-              if (sUuid.includes('6e40') || sUuid.includes('fff0') || sUuid.includes('7905')) {
+              if (
+                sUuid.includes('6e40') ||
+                sUuid.includes('fff0') ||
+                sUuid.includes('7905') ||
+                sUuid.includes('fee7')
+              ) {
                 this.activeServiceUuid = s.uuid;
                 this.activeRxUuid = c.uuid;
                 console.log('[QRing BLE Native] Matched RX char:', c.uuid, 'in service:', s.uuid);
               }
             }
 
-            // Look for Nordic UART or vendor notify characteristic
+            // Look for Nordic UART, QRing, or vendor notify characteristic
             if (c.properties.notify || c.properties.indicate) {
-              if (sUuid.includes('6e40') || sUuid.includes('fff0') || sUuid.includes('7905')) {
+              if (
+                sUuid.includes('6e40') ||
+                sUuid.includes('fff0') ||
+                sUuid.includes('7905') ||
+                sUuid.includes('fee7')
+              ) {
                 this.activeServiceUuid = s.uuid;
                 this.activeTxUuid = c.uuid;
                 console.log('[QRing BLE Native] Matched TX char:', c.uuid, 'in service:', s.uuid);
@@ -376,6 +676,9 @@ class QRingBleService {
       // 4. Send Hardware Protocol Handshakes: Time Sync then Battery Request
       await this.sendTimeSync();
       await this.sendBatteryRequest();
+
+      // 5. Start Keep-Alive Heartbeat (every 20s to prevent ring dormant sleep)
+      this.startHeartbeat();
 
       this.notify({
         isConnected: true,
@@ -431,6 +734,7 @@ class QRingBleService {
 
     device.addEventListener('gattserverdisconnected', () => {
       console.warn('[QRing BLE Web] Device disconnected');
+      this.stopHeartbeat();
       this.notify({ isConnected: false, deviceName });
     });
 
@@ -459,6 +763,7 @@ class QRingBleService {
 
       await this.sendTimeSync();
       await this.sendBatteryRequest();
+      this.startHeartbeat();
     } catch (e) {
       console.warn('[QRing BLE Web] Vendor service setup notice:', e);
     }
@@ -508,6 +813,16 @@ class QRingBleService {
   public async startRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring LEDs)...');
     
+    // If not currently connected, attempt quick silent auto-reconnect before failing
+    if (!this.isConnected()) {
+      console.warn('[QRing BLE] Ring not connected on live measure request. Running silent reconnect...');
+      const reconnected = await this.attemptSilentReconnect();
+      if (!reconnected) {
+        console.warn('[QRing BLE] Auto-reconnect failed. Ring cannot illuminate LEDs.');
+        return false;
+      }
+    }
+
     // 1. Primary QRing measurement command (69 06 01 ... 70)
     const p1 = this.makePacket(0x69, [0x06, 0x01]);
     const ok = await this.writeBytes(p1);
@@ -519,6 +834,10 @@ class QRingBleService {
     // 3. Alternative standard pulse command (01 01 ... 02)
     const p3 = this.makePacket(0x01, [0x01]);
     await this.writeBytes(p3);
+
+    // 4. Optical SpO2 command (illuminates red & green optical sensors)
+    const p4 = this.makePacket(0x69, [0x02, 0x01]);
+    await this.writeBytes(p4);
 
     return ok;
   }
@@ -601,12 +920,27 @@ class QRingBleService {
     console.log('[QRing BLE RECV]', hex);
 
     // 1. Battery Response packet (header 0x03)
-    // Response layout: 03 <batPct> 00 ... <checksum>
+    // Response layout can be:
+    // Format A: 03 <batPct: 1..100> <chargingState: 0..2> ...
+    // Format B: 03 <chargingState: 0..2> <batPct: 1..100> ...
     if (header === 0x03 && len >= 2) {
-      const batVal = dataView.getUint8(1);
-      if (batVal > 0 && batVal <= 100) {
-        console.log('[QRing BLE] Real Battery Level Received from Ring:', batVal, '%');
-        this.notify({ batteryPct: batVal, isConnected: true });
+      const b1 = dataView.getUint8(1);
+      const b2 = len >= 3 ? dataView.getUint8(2) : 0;
+      let realBat: number | null = null;
+
+      if ((b1 === 0 || b1 === 1 || b1 === 2) && b2 >= 1 && b2 <= 100) {
+        realBat = b2;
+      } else if (b1 >= 1 && b1 <= 100 && (b2 === 0 || b2 === 1 || b2 === 2)) {
+        realBat = b1;
+      } else if (b1 >= 1 && b1 <= 100) {
+        realBat = b1;
+      } else if (b2 >= 1 && b2 <= 100) {
+        realBat = b2;
+      }
+
+      if (realBat !== null) {
+        console.log('[QRing BLE] Real Battery Level Received from Ring:', realBat, '% (b1:', b1, 'b2:', b2, ')');
+        this.notify({ batteryPct: realBat, isConnected: true });
         return;
       }
     }
@@ -641,7 +975,7 @@ class QRingBleService {
       }
     }
 
-    // 4. Multi-metric frame battery (header 0xFC or 0x0F)
+    // 4. Multi-metric frame battery (header 0xFC, 0x0F, or 0x08)
     if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
       const batIndex = header === 0xFC ? 8 : 7;
       const b = dataView.getUint8(batIndex);
@@ -692,7 +1026,20 @@ class QRingBleService {
     return await this.writeBytes(cmd);
   }
 
-  public async disconnect() {
+  public async disconnect(manual: boolean = true) {
+    if (manual) {
+      this.userExplicitlyDisconnected = true;
+      this.stopAutoReconnect();
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('vyta_ble_saved_device_id');
+          localStorage.removeItem('vyta_ble_saved_device_name');
+        } catch (_) {}
+      }
+    }
+
+    this.stopHeartbeat();
+
     try {
       if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
         await BleClient.disconnect(this.connectedDeviceId);
@@ -702,11 +1049,13 @@ class QRingBleService {
     } catch (e) {
       console.warn('[QRing BLE] Disconnect notice:', e);
     }
+
     this.device = null;
     this.server = null;
     this.rxChar = null;
     this.txChar = null;
     this.connectedDeviceId = null;
+    this.notify({ isConnected: false });
   }
 }
 
