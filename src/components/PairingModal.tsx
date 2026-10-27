@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { finishes } from '../data/health';
-import { qringBle } from '../lib/qringBleService';
+import { qringBle, DiscoveredBleDevice } from '../lib/qringBleService';
+import { useEffect } from 'react';
 import {
   Bluetooth,
   CheckCircle2,
@@ -26,6 +27,48 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
   );
   const [isExiting, setIsExiting] = useState<boolean>(false);
   const [batteryPct, setBatteryPct] = useState<number>(ring.batteryRing || 98);
+  const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredBleDevice[]>([]);
+
+  useEffect(() => {
+    const unsub = qringBle.onDeviceDiscovered((dev) => {
+      setDiscoveredDevices((prev) => {
+        if (prev.some((p) => p.deviceId === dev.deviceId)) return prev;
+        return [...prev, dev];
+      });
+    });
+    return () => unsub();
+  }, []);
+
+  const handleConnectSpecific = async (dev: DiscoveredBleDevice) => {
+    setStatus('searching');
+    setStatusMessage(`Connexion à ${dev.name}...`);
+    try {
+      await qringBle.stopScan();
+      const res = await qringBle.connectDirectly(dev.deviceId, dev.name);
+      if (res.success) {
+        setStatus('found');
+        setStatusMessage(`Bague ${res.deviceName || dev.name} connectée`);
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(35); } catch (_) {}
+        }
+        updateRing({
+          isConnected: true,
+          batteryRing: res.battery ?? 0,
+        });
+        setIsExiting(true);
+        setTimeout(() => {
+          setIsPaired(true);
+          if (onClose) onClose();
+        }, 750);
+      } else {
+        setStatus('idle');
+        setStatusMessage(res.error || 'Échec de connexion à la bague.');
+      }
+    } catch (_) {
+      setStatus('idle');
+      setStatusMessage('Erreur de connexion Bluetooth.');
+    }
+  };
 
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
 
@@ -473,6 +516,70 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
         }}
       >
         {/* Bouton d'action principal : Blanc pur luxueux sur fond noir */}
+        {status === 'searching' && discoveredDevices.length > 0 && (
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              marginBottom: '8px',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'rgba(255, 255, 255, 0.65)',
+                textAlign: 'center',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Appareils détectés à proximité
+            </span>
+            {discoveredDevices.map((dev) => (
+              <button
+                key={dev.deviceId}
+                type="button"
+                onClick={() => handleConnectSpecific(dev)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '16px',
+                  background: dev.isRing ? 'rgba(217, 249, 112, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                  border: dev.isRing ? '1.5px solid #D9F970' : '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  boxShadow: dev.isRing ? '0 0 14px rgba(217, 249, 112, 0.25)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>💍</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: dev.isRing ? '#D9F970' : '#FFFFFF' }}>
+                    {dev.name}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: dev.isRing ? '#000000' : '#FFFFFF',
+                    background: dev.isRing ? '#D9F970' : 'rgba(255,255,255,0.2)',
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                  }}
+                >
+                  Connecter
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {status === 'idle' && (
           <button
             type="button"

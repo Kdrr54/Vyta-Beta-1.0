@@ -3,7 +3,7 @@
  * Supports both:
  * 1. Native iOS / Android via @capacitor-community/bluetooth-le (CoreBluetooth)
  * 2. Web Bluetooth API in supported desktop/mobile browsers
- * Handles device discovery, connection, battery reading, and real-time biometric telemetry.
+ * Handles background device discovery, connection, battery reading, and real-time biometric telemetry.
  */
 
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
@@ -33,7 +33,15 @@ export interface BleRingData {
   wearCalibrationScore?: number;
 }
 
+export interface DiscoveredBleDevice {
+  deviceId: string;
+  name: string;
+  rssi?: number;
+  isRing?: boolean;
+}
+
 type RingListener = (data: BleRingData) => void;
+type DeviceDiscoveryListener = (device: DiscoveredBleDevice) => void;
 
 class QRingBleService {
   // Web Bluetooth handles
@@ -47,6 +55,7 @@ class QRingBleService {
   private isNativeInitialized = false;
 
   private listeners: Set<RingListener> = new Set();
+  private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
   private isConnecting = false;
 
   public isSupported(): boolean {
@@ -60,12 +69,27 @@ class QRingBleService {
     return () => this.listeners.delete(listener);
   }
 
+  public onDeviceDiscovered(listener: DeviceDiscoveryListener): () => void {
+    this.discoveryListeners.add(listener);
+    return () => this.discoveryListeners.delete(listener);
+  }
+
   private notify(data: BleRingData) {
     this.listeners.forEach((cb) => {
       try {
         cb(data);
       } catch (e) {
         console.error('[QRing BLE] Listener callback error:', e);
+      }
+    });
+  }
+
+  private notifyDiscoveredDevice(device: DiscoveredBleDevice) {
+    this.discoveryListeners.forEach((cb) => {
+      try {
+        cb(device);
+      } catch (e) {
+        console.error('[QRing BLE] Discovery listener callback error:', e);
       }
     });
   }
@@ -90,7 +114,7 @@ class QRingBleService {
 
     try {
       if (Capacitor.isNativePlatform()) {
-        return await this.connectNative();
+        return await this.scanAndConnectNative();
       } else {
         return await this.connectWeb();
       }
@@ -106,100 +130,229 @@ class QRingBleService {
   }
 
   /**
-   * Native iOS / Android Bluetooth connection using CoreBluetooth / BleClient
+   * Native iOS / Android Bluetooth connection using requestLEScan
+   * Discards "Unknown" raw packets and non-ring peripherals (LED strips, TVs...)
    */
-  private async connectNative(): Promise<{ success: boolean; deviceName: string; battery?: number }> {
+  private async scanAndConnectNative(): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     console.log('[QRing BLE Native] Initializing CoreBluetooth...');
     if (!this.isNativeInitialized) {
       await BleClient.initialize();
       this.isNativeInitialized = true;
     }
 
-    console.log('[QRing BLE Native] Requesting peripheral device...');
-    const device = await BleClient.requestDevice({
-      optionalServices: [
-        QRING_SERVICE_UUID,
-        QRING_ALT_SERVICE_UUID,
-        STANDARD_BATTERY_SERVICE_UUID,
-        STANDARD_HEART_RATE_SERVICE_UUID,
-      ],
+    console.log('[QRing BLE Native] Starting background LE scan (no native modal dialog)...');
+    return new Promise((resolve) => {
+      let isResolved = false;
+
+      // 25 second timeout if no device is found
+      const timeout = setTimeout(async () => {
+        if (!isResolved) {
+          isResolved = true;
+          try {
+            await BleClient.stopLEScan();
+          } catch (_) {}
+          this.isConnecting = false;
+          resolve({
+            success: false,
+            deviceName: '',
+            error: 'Aucune bague détectée. Assurez-vous que la bague est chargée (posez-la sur son chargeur pour l\'activer) et à proximité.',
+          });
+        }
+      }, 25000);
+
+      const seenIds = new Set<string>();
+
+      BleClient.requestLEScan(
+        { allowDuplicates: true },
+        async (result) => {
+          const rawName = (result.localName || result.device?.name || '').trim();
+
+          // 1. STRIKE OUT ALL "Unknown" OR EMPTY NAMES (Prevents system modal spam)
+          if (!rawName || rawName.toLowerCase() === 'unknown') return;
+
+          const upper = rawName.toUpperCase();
+
+          // 2. BLACKLIST NON-WEARABLE DEVICES (LED strips, TVs, Audio...)
+          const isBlacklisted = [
+            'ELK-BLEDOM',
+            'OLED',
+            'TV',
+            'SAMSUNG',
+            'LG',
+            'SONY',
+            'APPLE',
+            'MACBOOK',
+            'IPAD',
+            'WATCH',
+            'AIRPOD',
+            'BEATS',
+            'BOSE',
+            'JBL',
+            'DESKTOP',
+            'SPEAKER',
+          ].some((b) => upper.includes(b));
+
+          if (isBlacklisted) return;
+
+          const deviceId = result.device.deviceId;
+
+          // 3. IDENTIFY SMART RING HARDWARE
+          const isRing = [
+            'RING',
+            'QRING',
+            'VYTA',
+            'QC',
+            'R0',
+            'R1',
+            'R2',
+            'R3',
+            'R4',
+            'R5',
+            'R6',
+            'R7',
+            'R8',
+            'NOVA',
+            'COLMI',
+            'SMART',
+            'SOX',
+            'HEALTH',
+            'WEAR',
+            'JSTYLE',
+            'BAND',
+          ].some((k) => upper.includes(k));
+
+          // Notify UI about discovered candidate if newly found
+          if (!seenIds.has(deviceId)) {
+            seenIds.add(deviceId);
+            console.log('[QRing BLE Scanner] Discovered named peripheral:', rawName, deviceId, 'isRing:', isRing);
+            this.notifyDiscoveredDevice({
+              deviceId,
+              name: rawName,
+              rssi: result.rssi,
+              isRing,
+            });
+          }
+
+          // 4. AUTO-CONNECT WHEN A SMART RING IS FOUND
+          if (isRing && !isResolved) {
+            isResolved = true;
+            clearTimeout(timeout);
+            console.log('[QRing BLE Scanner] Smart ring detected! Stopping scan & connecting to:', rawName);
+            try {
+              await BleClient.stopLEScan();
+            } catch (_) {}
+
+            const connRes = await this.connectDirectly(deviceId, rawName);
+            this.isConnecting = false;
+            resolve(connRes);
+          }
+        }
+      ).catch((err) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeout);
+          this.isConnecting = false;
+          console.error('[QRing BLE Native] Scan error:', err);
+          resolve({
+            success: false,
+            deviceName: '',
+            error: err?.message || 'Erreur lors du démarrage du scan Bluetooth.',
+          });
+        }
+      });
     });
+  }
 
-    if (!device || !device.deviceId) {
-      this.isConnecting = false;
-      return { success: false, deviceName: '' };
-    }
-
-    const deviceName = device.name || 'Vyta One';
-    console.log('[QRing BLE Native] Selected device:', deviceName, device.deviceId);
-
-    console.log('[QRing BLE Native] Connecting to GATT server...');
-    await BleClient.connect(device.deviceId, () => {
-      console.warn('[QRing BLE Native] Peripheral disconnected');
-      this.connectedDeviceId = null;
-      this.notify({ isConnected: false, deviceName });
-    });
-
-    this.connectedDeviceId = device.deviceId;
-    let batteryLevel: number | undefined;
-
-    // 1. Read Standard Battery
+  /**
+   * Connect to a specific BLE device by ID
+   */
+  public async connectDirectly(
+    deviceId: string,
+    deviceName: string
+  ): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     try {
-      const batVal = await BleClient.read(
-        device.deviceId,
-        STANDARD_BATTERY_SERVICE_UUID,
-        STANDARD_BATTERY_LEVEL_UUID
-      );
-      if (batVal && batVal.byteLength > 0) {
-        batteryLevel = batVal.getUint8(0);
-        console.log('[QRing BLE Native] Read Standard Battery:', batteryLevel);
+      console.log('[QRing BLE Native] Connecting to GATT server for:', deviceName, deviceId);
+      await BleClient.connect(deviceId, () => {
+        console.warn('[QRing BLE Native] Peripheral disconnected');
+        this.connectedDeviceId = null;
+        this.notify({ isConnected: false, deviceName });
+      });
+
+      this.connectedDeviceId = deviceId;
+      let batteryLevel: number | undefined;
+
+      // 1. Read Standard Battery
+      try {
+        const batVal = await BleClient.read(
+          deviceId,
+          STANDARD_BATTERY_SERVICE_UUID,
+          STANDARD_BATTERY_LEVEL_UUID
+        );
+        if (batVal && batVal.byteLength > 0) {
+          batteryLevel = batVal.getUint8(0);
+          console.log('[QRing BLE Native] Read Standard Battery:', batteryLevel, '%');
+        }
+      } catch (e) {
+        console.log('[QRing BLE Native] Standard battery service not present on ring');
       }
-    } catch (e) {
-      console.log('[QRing BLE Native] Standard battery service not present on ring');
-    }
 
-    // 2. Start Vendor UART Notifications
+      // 2. Start Vendor UART Notifications
+      try {
+        await BleClient.startNotifications(
+          deviceId,
+          QRING_SERVICE_UUID,
+          QRING_TX_CHAR_UUID,
+          (val) => {
+            this.handleVendorNotification(val);
+          }
+        );
+        console.log('[QRing BLE Native] Vendor TX notifications active');
+
+        // Request battery and start real-time heart rate via vendor protocol
+        await this.sendBatteryRequest();
+        await this.startRealTimeHeartRate();
+      } catch (e) {
+        console.log('[QRing BLE Native] Vendor service setup notice:', e);
+      }
+
+      // 3. Start Standard Heart Rate Notifications (if ring advertises 0x180D)
+      try {
+        await BleClient.startNotifications(
+          deviceId,
+          STANDARD_HEART_RATE_SERVICE_UUID,
+          STANDARD_HEART_RATE_MEASUREMENT_UUID,
+          (val) => {
+            this.handleStandardHeartRateNotification(val);
+          }
+        );
+        console.log('[QRing BLE Native] Standard Heart Rate notifications active');
+      } catch (e) {
+        // standard HR not available
+      }
+
+      this.notify({
+        isConnected: true,
+        deviceName,
+        batteryPct: batteryLevel,
+      });
+
+      return { success: true, deviceName, battery: batteryLevel };
+    } catch (err: any) {
+      console.error('[QRing BLE Native] Connect directly error:', err);
+      return { success: false, deviceName, error: err?.message || 'Échec de connexion au périphérique.' };
+    }
+  }
+
+  /**
+   * Stop active LE scan if in progress
+   */
+  public async stopScan() {
     try {
-      await BleClient.startNotifications(
-        device.deviceId,
-        QRING_SERVICE_UUID,
-        QRING_TX_CHAR_UUID,
-        (val) => {
-          this.handleVendorNotification(val);
-        }
-      );
-      console.log('[QRing BLE Native] Vendor TX notifications active');
-
-      // Request battery and start real-time heart rate via vendor protocol
-      await this.sendBatteryRequest();
-      await this.startRealTimeHeartRate();
-    } catch (e) {
-      console.log('[QRing BLE Native] Vendor service setup notice:', e);
-    }
-
-    // 3. Start Standard Heart Rate Notifications (if ring advertises 0x180D)
-    try {
-      await BleClient.startNotifications(
-        device.deviceId,
-        STANDARD_HEART_RATE_SERVICE_UUID,
-        STANDARD_HEART_RATE_MEASUREMENT_UUID,
-        (val) => {
-          this.handleStandardHeartRateNotification(val);
-        }
-      );
-      console.log('[QRing BLE Native] Standard Heart Rate notifications active');
-    } catch (e) {
-      // standard HR not available
-    }
-
-    this.notify({
-      isConnected: true,
-      deviceName,
-      batteryPct: batteryLevel,
-    });
-
+      if (Capacitor.isNativePlatform()) {
+        await BleClient.stopLEScan();
+      }
+    } catch (_) {}
     this.isConnecting = false;
-    return { success: true, deviceName, battery: batteryLevel };
   }
 
   /**
