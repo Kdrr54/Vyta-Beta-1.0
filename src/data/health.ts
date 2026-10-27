@@ -104,19 +104,19 @@ export function formatRemainingBatteryTime(
 }
 
 export const ringDevice: RingDevice = {
-  batteryRing: 87,
-  batteryCase: 64,
+  batteryRing: 0,
+  batteryCase: 0,
   bluetooth: '5.4',
   firmware: 'v3.4.12',
   serial: 'VYTA-ONE-GM-99841',
   macAddress: 'C8:2B:96:4A:99:84',
   ringSize: 10,
-  isConnected: true,
+  isConnected: false,
   vytaCareActive: true,
   vytaCareExpires: 'Octobre 2028',
   sensorIntervals: defaultSensorIntervals,
-  wearCalibrationScore: 99,
-  wearCalibrationDate: 'Aujourd\'hui à 08:30',
+  wearCalibrationScore: 0,
+  wearCalibrationDate: 'En attente d\'appairage',
 };
 
 

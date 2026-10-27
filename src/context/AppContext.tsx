@@ -60,6 +60,21 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Version de build de production avec réinitialisation usine garantie
+  const PROD_RELEASE_KEY = 'vyta_release_1.0.0_final';
+  if (typeof window !== 'undefined') {
+    try {
+      const currentVersion = localStorage.getItem('vyta_app_version');
+      if (currentVersion !== PROD_RELEASE_KEY) {
+        // Nettoyage usine complet des anciennes données de test
+        localStorage.clear();
+        localStorage.setItem('vyta_app_version', PROD_RELEASE_KEY);
+        localStorage.setItem('vyta_ring_paired_final', 'false');
+        localStorage.setItem('vyta_first_launch', 'true');
+      }
+    } catch (_) {}
+  }
+
   // Read initial query params if present for quick testing (?tab=fit, ?covyta=1, ?sex=femme, ?modal=settings)
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialTab = (params?.get('tab') as TabType) || 'health';
@@ -251,7 +266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // État appairage de la bague (Faux par défaut si premier lancement pour démarrer l'onboarding)
   const [isPaired, setIsPairedState] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vyta_ring_paired_v2');
+      const saved = localStorage.getItem('vyta_ring_paired_final');
       if (saved !== null) {
         return saved === 'true';
       }
@@ -263,7 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setIsPaired = (paired: boolean) => {
     setIsPairedState(paired);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('vyta_ring_paired_v2', paired ? 'true' : 'false');
+      localStorage.setItem('vyta_ring_paired_final', paired ? 'true' : 'false');
     }
   };
 
@@ -286,19 +301,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
+  // BPM en direct transmis par la bague (strictement 0 tant qu'aucune mesure n'est reçue)
   const [liveBpm, setLiveBpm] = useState<number>(() => 0);
-
-  // Micro-fluctuation simulation of PPG optical sensor around current BPM
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveBpm(prev => {
-        if (prev <= 0) return 0;
-        const delta = (Math.random() > 0.5 ? 1 : -1) * (Math.random() > 0.7 ? 1 : 0);
-        return Math.min(220, Math.max(40, prev + delta));
-      });
-    }, 2800);
-    return () => clearInterval(interval);
-  }, []);
 
   const updateProfile = (partial: Partial<UserProfile>) => {
     setProfile(prev => {
@@ -328,19 +332,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Synchronisation globale télémétrie BLE de la bague
+  // Synchronisation globale télémétrie BLE de la bague physique
   useEffect(() => {
     const unsubscribe = qringBle.subscribe((data: BleRingData) => {
       if (data.batteryPct !== undefined) {
-        updateRing({ batteryRing: data.batteryPct });
+        updateRing({ batteryRing: data.batteryPct, isConnected: true });
       }
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
       }
+      if (data.heartRate !== undefined && data.heartRate > 0) {
+        setLiveBpm(data.heartRate);
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.bpm = data.heartRate!;
+          if (!cur.minBpm || cur.minBpm === 0 || data.heartRate! < cur.minBpm) {
+            cur.minBpm = data.heartRate!;
+          }
+          if (!cur.maxBpm || data.heartRate! > cur.maxBpm) {
+            cur.maxBpm = data.heartRate!;
+          }
+          if (!cur.restingBpm || cur.restingBpm === 0) {
+            cur.restingBpm = data.heartRate!;
+          }
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.stress !== undefined) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.stress = data.stress!;
+          cur.stressLevel = data.stress! < 30 ? 'Bas' : data.stress! < 60 ? 'Modéré' : 'Élevé';
+          next[idx] = cur;
+          return next;
+        });
+      }
+      if (data.bloodPressure !== undefined) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.bloodPressure = data.bloodPressure!;
+          next[idx] = cur;
+          return next;
+        });
+      }
+      if (data.glucose !== undefined) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.glucose = { valueMmol: data.glucose!, stabilityScore: 92 };
+          next[idx] = cur;
+          return next;
+        });
+      }
+      if (data.wearCalibrationScore !== undefined) {
+        updateRing({ wearCalibrationScore: data.wearCalibrationScore, wearCalibrationDate: "Aujourd'hui" });
+      }
     });
     return () => unsubscribe();
-  }, []);
-
+  }, [selectedDay]);
 
   // Données de la semaine dynamiques (Toutes les valeurs à 0 par défaut)
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
@@ -365,8 +425,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setWeekData(empty);
     updateRing({
       isConnected: false,
-      batteryRing: 100,
+      batteryRing: 0,
       sensorIntervals: defaultSensorIntervals,
+      wearCalibrationScore: 0,
+      wearCalibrationDate: "En attente d'appairage",
     });
     setLiveBpm(0);
     const startCleanDate = new Date(2026, 9, 15, 8, 0); // Jeudi 15 Octobre 08:00
@@ -374,7 +436,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.setItem('vyta_first_launch', 'true');
-      localStorage.setItem('vyta_ring_paired_v2', 'false');
+      localStorage.setItem('vyta_ring_paired_final', 'false');
       localStorage.setItem('vyta_week_data', JSON.stringify(empty));
       localStorage.setItem('vyta_sensor_intervals', JSON.stringify(defaultSensorIntervals));
     } catch (e) {}
@@ -398,7 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.removeItem('vyta_first_launch');
-      localStorage.setItem('vyta_ring_paired_v2', 'true');
+      localStorage.setItem('vyta_ring_paired_final', 'true');
       localStorage.setItem('vyta_week_data', JSON.stringify(weekMetrics));
     } catch (e) {}
   };

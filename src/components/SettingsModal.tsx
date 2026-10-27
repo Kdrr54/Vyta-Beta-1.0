@@ -91,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setIsCalibrating(false);
     }, 1200);
   };
-  const isConnected = ring.isConnected !== false;
+  const isConnected = Boolean(ring.isConnected);
   const isVytaCareActive = ring.vytaCareActive !== false;
   const [isSyncingRing, setIsSyncingRing] = useState(false);
   const handleSyncRing = () => {
@@ -104,7 +104,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
   const estimatedDays = calculateEstimatedBatteryDays(sensorIntervals);
   const remainingBatteryTime = formatRemainingBatteryTime(
-    ring.batteryRing ?? 87,
+    ring.batteryRing || 0,
     sensorIntervals,
     isEn
   );
@@ -402,13 +402,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   style={{
                     fontSize: '42px',
                     fontWeight: 300,
-                    color: (ring.batteryRing ?? 87) <= 15 ? '#FF453A' : '#FAF7F2',
+                    color: (ring.batteryRing || 0) <= 15 ? '#FF453A' : '#FAF7F2',
                     lineHeight: 1,
                     letterSpacing: '-1.5px',
                     transition: 'color 0.2s ease',
                   }}
                 >
-                  {ring.batteryRing}%
+                  {isConnected && ring.batteryRing > 0 ? `${ring.batteryRing}%` : (isConnected ? '0%' : '--')}
                 </span>
               </div>
 
@@ -446,7 +446,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 style={{
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: (ring.batteryRing ?? 87) <= 15 ? '#FF453A' : '#D9F970',
+                  color: (ring.batteryRing || 0) <= 15 ? '#FF453A' : '#D9F970',
                   marginTop: '4px',
                   letterSpacing: '0.01em',
                 }}

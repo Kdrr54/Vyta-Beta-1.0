@@ -17,7 +17,7 @@ export const HealthScreen: React.FC = () => {
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
 
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[3]));
-  const batteryPct = ring.batteryRing ?? 88;
+  const batteryPct = ring.batteryRing || 0;
   const isLowBattery = batteryPct <= 20;
   const batteryAccent = isMono ? '#FAF7F2' : (isLowBattery ? '#FF5A52' : '#D9F970');
   const batteryAccentSoft = isMono ? 'rgba(255, 255, 255, 0.78)' : (isLowBattery ? 'rgba(255, 90, 82, 0.78)' : 'rgba(228, 255, 142, 0.78)');
@@ -137,7 +137,7 @@ export const HealthScreen: React.FC = () => {
                 fontFamily: 'var(--font-display, -apple-system, sans-serif)',
               }}
             >
-              {batteryPct}
+              {ring.isConnected && batteryPct > 0 ? batteryPct : '--'}
             </span>
             <span
               style={{

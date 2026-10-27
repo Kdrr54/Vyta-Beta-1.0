@@ -29,8 +29,8 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
 
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
 
-  // Déroulement de l'appairage : recherche puis fondu direct vers le menu
-  const handleStartPairing = () => {
+  // Déroulement de l'appairage : recherche réelle via Bluetooth LE
+  const handleStartPairing = async () => {
     if (status !== 'idle') return;
 
     // Vibration haptique discrète
@@ -41,56 +41,43 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
     }
 
     setStatus('searching');
-    setStatusMessage('Émission du signal Bluetooth 5.4...');
+    setStatusMessage('Recherche et détection Bluetooth de la bague...');
 
-    // Lancer la détection réelle en arrière-plan si Web Bluetooth dispo
-    if (qringBle.isSupported()) {
-      qringBle
-        .requestAndConnect()
-        .then((res) => {
-          if (res.success && res.battery !== undefined) {
-            setBatteryPct(res.battery);
-          }
-        })
-        .catch((e) => console.log('[BLE] Background discovery note:', e));
-    }
+    try {
+      const res = await qringBle.requestAndConnect();
+      if (res.success) {
+        setStatus('found');
+        setStatusMessage(`Bague ${res.deviceName || 'Vyta One'} connectée`);
 
-    // Étape 1 : Balayage fréquences
-    const t1 = setTimeout(() => {
-      setStatusMessage('Balayage des fréquences BLE à proximité...');
-    }, 1000);
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate(35);
+          } catch (e) {}
+        }
 
-    // Étape 2 : Signal détecté et connexion -> Déclenchement immédiat du fondu direct
-    const t2 = setTimeout(() => {
-      setStatus('found');
-      setStatusMessage('Bague Vyta One connectée');
+        updateRing({
+          isConnected: true,
+          batteryRing: res.battery ?? 0,
+        });
 
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try {
-          navigator.vibrate(35);
-        } catch (e) {}
+        // Lancement immédiat du fondu direct
+        setIsExiting(true);
+
+        setTimeout(() => {
+          setIsPaired(true);
+          if (onClose) onClose();
+        }, 750);
+      } else {
+        setStatus('idle');
+        setStatusMessage(
+          res.error || "Aucune bague détectée. Assurez-vous que le Bluetooth est activé et que la bague est à proximité."
+        );
       }
-
-      updateRing({
-        isConnected: true,
-        batteryRing: batteryPct,
-      });
-
-      // Lancement immédiat du fondu pur (sans rotation ni surcharges)
-      setIsExiting(true);
-
-      const t3 = setTimeout(() => {
-        setIsPaired(true);
-        if (onClose) onClose();
-      }, 650);
-
-      return () => clearTimeout(t3);
-    }, 2200);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    } catch (err: any) {
+      console.error('[BLE Pairing] Error:', err);
+      setStatus('idle');
+      setStatusMessage("Erreur de détection Bluetooth. Veuillez réessayer.");
+    }
   };
 
   return (
@@ -580,6 +567,28 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           <Zap size={10} color="#FFFFFF" />
           <span>Appairage instantané sécurisé AES-128</span>
         </div>
+
+        {status === 'idle' && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsPaired(true);
+              if (onClose) onClose();
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.45)',
+              fontSize: '12px',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              textDecoration: 'underline',
+              marginTop: '2px',
+            }}
+          >
+            Continuer sans bague pour l'instant
+          </button>
+        )}
       </div>
 
       {/* ========================================================

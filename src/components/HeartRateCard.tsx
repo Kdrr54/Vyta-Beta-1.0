@@ -57,7 +57,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         const next = [...prev];
         const idx = Math.min(6, Math.max(0, selectedDay));
         const cur = { ...(next[idx] || {}) };
-        const finalBpm = liveBpm > 0 ? liveBpm : 68;
+        const finalBpm = liveBpm;
         cur.bpm = finalBpm;
         cur.minBpm = Math.max(42, finalBpm - 12);
         cur.maxBpm = Math.min(185, finalBpm + 48);
@@ -77,9 +77,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }
     setJustCompleted(false);
     setCountdown(30);
-    if (liveBpm <= 0) {
-      setLiveBpm(68);
-    }
+    qringBle.startRealTimeHeartRate();
     setIsMeasuring(true);
   };
 
