@@ -15,7 +15,8 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
   className = '',
   style = {},
 }) => {
-  const { liveBpm, setLiveBpm, selectedDay, language, weekData, isFirstLaunch, setWeekData } = useApp();
+  const { liveBpm, setLiveBpm, selectedDay, language, weekData, isFirstLaunch, setWeekData, cardThemeMode } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
 
   const isToday = selectedDay === TODAY_INDEX;
@@ -383,15 +384,22 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
 
         const strokeGrad = ctx.createLinearGradient(0, 0, w, 0);
-        strokeGrad.addColorStop(0, '#FF453A');
-        strokeGrad.addColorStop(0.5, '#FF3B30');
-        strokeGrad.addColorStop(1, '#FF5A52');
+        if (isMono) {
+          strokeGrad.addColorStop(0, '#FFFFFF');
+          strokeGrad.addColorStop(0.5, '#FAF7F2');
+          strokeGrad.addColorStop(1, '#E4E4E7');
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.85)';
+        } else {
+          strokeGrad.addColorStop(0, '#FF453A');
+          strokeGrad.addColorStop(0.5, '#FF3B30');
+          strokeGrad.addColorStop(1, '#FF5A52');
+          ctx.shadowColor = 'rgba(255, 59, 48, 0.85)';
+        }
 
         ctx.strokeStyle = strokeGrad;
         ctx.lineWidth = 2.2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(255, 59, 48, 0.85)';
         ctx.shadowBlur = 8;
         ctx.stroke();
         ctx.restore();

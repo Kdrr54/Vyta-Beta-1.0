@@ -1,4 +1,7 @@
-/* iPhone 16 Pro Chassis — Apple Minimalist Theme */
+/* ==========================================================================
+   VYTA NATIVE MOBILE CONTAINER
+   Plein écran 100% natif iOS & Android — Zéro faux châssis, Zéro fausse barre
+   ========================================================================== */
 
 .studio-viewport {
   min-height: 100vh;
@@ -8,8 +11,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--bg-studio);
-  padding: 30px 20px;
+  background: #000000;
+  padding: 0;
+  margin: 0;
   box-sizing: border-box;
   position: relative;
   overflow-x: hidden;
@@ -17,151 +21,12 @@
   color: var(--text-primary);
 }
 
-/* Studio Header Controls (Desktop only) */
-.studio-toolbar {
-  position: fixed;
-  top: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  z-index: 100;
-  background: rgba(18, 18, 20, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 7px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-}
-
-.studio-toolbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 13.5px;
-  letter-spacing: 0.04em;
-  color: var(--text-primary);
-}
-
-.brand-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #FFFFFF;
-}
-
-.studio-toolbar-badge {
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.studio-controls-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border-left: 1px solid var(--border-subtle);
-  padding-left: 12px;
-}
-
-.studio-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all var(--duration-quick) ease;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.studio-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.studio-btn.active {
-  color: #000;
-  background: #fff;
-}
-
-/* iPhone 16 Pro Frame Wrapper */
-.iphone-16-pro {
-  position: relative;
-  width: 393px;
-  height: 852px;
-  background: #000000;
-  border-radius: 54px;
-  box-shadow: 
-    0 0 0 1px #2C2C2E,
-    0 0 0 3.5px #1C1C1E,
-    0 25px 60px rgba(0, 0, 0, 0.85);
-  overflow: hidden;
-  z-index: 10;
-  transition: transform var(--duration-medium) var(--spring-snappy);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Hardware Buttons */
-.iphone-button {
-  position: absolute;
-  background: #242426;
-  z-index: 5;
-  border-radius: 3px;
-}
-
-.btn-action {
-  left: -5.5px;
-  top: 140px;
-  width: 3px;
-  height: 28px;
-}
-
-.btn-vol-up {
-  left: -5.5px;
-  top: 185px;
-  width: 3px;
-  height: 52px;
-}
-
-.btn-vol-down {
-  left: -5.5px;
-  top: 247px;
-  width: 3px;
-  height: 52px;
-}
-
-.btn-power {
-  right: -5.5px;
-  top: 195px;
-  width: 3px;
-  height: 78px;
-}
-
-.btn-camera-control {
-  right: -4.5px;
-  top: 610px;
-  width: 2px;
-  height: 64px;
-  background: #1C1C1E;
-}
-
-/* Internal Screen */
+/* Container de l'écran mobile (430px max sur grand écran PC, 100vw sur mobile) */
 .iphone-screen {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  max-width: 430px;
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg-deep);
   position: relative;
   display: flex;
@@ -171,122 +36,22 @@
   transform: translateZ(0);
 }
 
-/* iOS Status Bar */
-.ios-status-bar {
-  height: 48px;
-  padding: 0 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  z-index: 90;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  pointer-events: none;
-}
-
-.status-time {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Dynamic Island — Apple Native Style (Clean Physical Pill) */
-.dynamic-island {
-  position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #000000;
-  border-radius: 20px;
-  height: 35px;
-  width: 122px;
-  z-index: 95;
-  box-sizing: border-box;
-  cursor: default;
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.dynamic-island.expanded {
-  width: 350px;
-  height: auto;
-  min-height: 122px;
-  border-radius: 28px;
-  top: 10px;
-  padding: 10px 14px;
-  background: #000000;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.98), 0 0 1px rgba(255, 255, 255, 0.3);
-}
-
-.di-content-collapsed {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.di-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.di-ring-avatar {
-  width: 17px;
-  height: 17px;
-  object-fit: contain;
-}
-
-.di-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #fff;
-}
-
-/* Home Indicator Bar */
-.ios-home-indicator {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 138px;
-  height: 4.5px;
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: 100px;
-  z-index: 92;
-  pointer-events: none;
-}
-
-/* Persistent app header (sits under the Dynamic Island) */
+/* En-tête supérieur sous l'encoche / Safe Area réelle de l'iPhone */
 .app-top {
   flex-shrink: 0;
-  padding-top: 50px;
+  padding-top: max(16px, env(safe-area-inset-top));
   background: #000000;
   position: relative;
   z-index: 80;
 }
 
-/* Scrollable Viewport */
+/* Conteneur défilable des onglets Santé, Sommeil, Cycle, Forme */
 .app-scroll-container {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: 0;
-  padding-bottom: 108px;
+  padding-bottom: calc(max(24px, env(safe-area-inset-bottom)) + 84px);
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   scrollbar-width: none;
@@ -297,33 +62,26 @@
   display: none;
 }
 
-/* Mobile Fullscreen / Standalone PWA Breakpoint */
+/* Masquage strict de tous les anciens éléments de maquette */
+.studio-toolbar,
+.ios-status-bar,
+.dynamic-island,
+.iphone-button,
+.ios-home-indicator {
+  display: none !important;
+}
+
 @media (max-width: 500px) {
   .studio-viewport {
     padding: 0;
     background: #000000;
     justify-content: flex-start;
   }
-  
-  .studio-toolbar {
-    display: none;
-  }
-  
-  .iphone-16-pro {
+
+  .iphone-screen {
     width: 100vw;
     height: 100vh;
     height: 100dvh;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  
-  .iphone-16-pro::after,
-  .iphone-button {
-    display: none;
-  }
-  
-  .app-scroll-container {
-    padding-top: 0;
-    padding-bottom: calc(var(--safe-bottom) + 92px);
+    max-width: 100vw;
   }
 }

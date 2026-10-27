@@ -1,5 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-import { useLiquidGlass } from '../lib/liquidGlass';
+import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeartPulse, Moon, Flower2, Dumbbell, Settings } from 'lucide-react';
 
@@ -7,18 +6,6 @@ export const TabBar: React.FC = () => {
   const { tab, setTab, t, profile, modal, openModal, closeModal } = useApp();
   const isFemale = profile.sex === 'femme';
   const isSettingsOpen = modal === 'settings';
-  const navRef = useRef<HTMLElement | null>(null);
-
-  // Apple-style real Liquid Glass refraction
-  useLiquidGlass(navRef, {
-    scale: -115,
-    chroma: 7,
-    border: 0.08,
-    mapBlur: 14,
-    blur: 4,
-    saturate: 2.2,
-    fallbackBlur: 32,
-  });
 
   useEffect(() => {
     if (!isFemale && tab === 'cycle') {
@@ -39,7 +26,7 @@ export const TabBar: React.FC = () => {
   };
 
   return (
-    <nav ref={navRef} className="apple-tab-bar" aria-label="Navigation principale">
+    <nav className="apple-tab-bar" aria-label="Navigation principale">
       {/* 1. Santé */}
       <button
         type="button"
@@ -94,29 +81,31 @@ export const TabBar: React.FC = () => {
         </button>
       )}
 
-      {/* 5. Réglages */}
-      <button
-        type="button"
-        className={`tab-item ${isSettingsOpen ? 'active' : ''}`}
-        onClick={() => {
-          try {
-            if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-              navigator.vibrate(10);
+      {/* 5. Réglages (uniquement disponible pour les profils hommes car pour les profils femmes l'accès se fait via le bouton bague en haut) */}
+      {!isFemale && (
+        <button
+          type="button"
+          className={`tab-item ${isSettingsOpen ? 'active' : ''}`}
+          onClick={() => {
+            try {
+              if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+                navigator.vibrate(10);
+              }
+            } catch (e) {}
+            if (isSettingsOpen) {
+              closeModal();
+            } else {
+              openModal('settings');
             }
-          } catch (e) {}
-          if (isSettingsOpen) {
-            closeModal();
-          } else {
-            openModal('settings');
-          }
-        }}
-        aria-label={t('settings.title')}
-        title={t('settings.title')}
-        style={{ color: isSettingsOpen ? '#D9F970' : undefined }}
-      >
-        <Settings size={19} strokeWidth={isSettingsOpen ? 2.2 : 1.7} />
-        <span className="tab-label">{t('settings.title')}</span>
-      </button>
+          }}
+          aria-label={t('settings.title')}
+          title={t('settings.title')}
+          style={{ color: isSettingsOpen ? '#D9F970' : undefined }}
+        >
+          <Settings size={19} strokeWidth={isSettingsOpen ? 2.2 : 1.7} />
+          <span className="tab-label">{t('settings.title')}</span>
+        </button>
+      )}
     </nav>
   );
 };

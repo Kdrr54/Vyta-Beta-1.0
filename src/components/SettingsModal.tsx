@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { SensorIntervalOption } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
+import { qringBle } from '../lib/qringBleService';
 import {
   X,
   Battery,
@@ -30,6 +32,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  TrendingUp,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -45,6 +48,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     finish,
     language,
     setLanguage,
+    cardThemeMode,
+    setCardThemeMode,
     t,
     openModal,
     sensorIntervals,
@@ -63,6 +68,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   // Find My Ring radar state
   const [showRadar, setShowRadar] = useState<boolean>(false);
   const [pingActive, setPingActive] = useState<boolean>(false);
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [calibrationProgress, setCalibrationProgress] = useState<number>(0);
+  const [calibrationStep, setCalibrationStep] = useState<string>('');
+
+  const handleStartCalibration = async () => {
+    setIsCalibrating(true);
+    setCalibrationProgress(0);
+    setCalibrationStep(isEn ? 'Optical PPG coupling...' : 'Couplage optique PPG...');
+    
+    await qringBle.startWearCalibration((prog, step) => {
+      setCalibrationProgress(prog);
+      setCalibrationStep(step);
+    });
+
+    updateRing({
+      wearCalibrationScore: 99,
+      wearCalibrationDate: isEn ? 'Today · 99% Optimal' : 'Aujourd’hui · 99% Optimal',
+    });
+
+    setTimeout(() => {
+      setIsCalibrating(false);
+    }, 1200);
+  };
   const isConnected = ring.isConnected !== false;
   const isVytaCareActive = ring.vytaCareActive !== false;
   const [isSyncingRing, setIsSyncingRing] = useState(false);
@@ -153,15 +181,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 width: '34px',
                 height: '34px',
                 borderRadius: '11px',
-                background: 'rgba(217, 249, 112, 0.12)',
-                border: '1px solid rgba(217, 249, 112, 0.35)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 14px rgba(217, 249, 112, 0.18)',
+                boxShadow: '0 0 14px rgba(255, 255, 255, 0.14)',
               }}
             >
-              <Disc size={17} color="#D9F970" />
+              <Disc size={17} color="#FAF7F2" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               <h2
@@ -208,7 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
             borderBottom: '1.5px solid rgba(217, 249, 112, 0.6)',
-            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 20px rgba(217, 249, 112, 0.12)',
+            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 20px rgba(255, 255, 255, 0.08)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
@@ -251,9 +279,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   width: '6.5px',
                   height: '6.5px',
                   borderRadius: '50%',
-                  background: isConnected ? '#30D158' : '#FF453A',
+                  background: isConnected ? '#FAF7F2' : '#FF453A',
                   boxShadow: isConnected
-                    ? '0 0 8px #30D158'
+                    ? '0 0 8px #FAF7F2'
                     : '0 0 6px #FF453A',
                   flexShrink: 0,
                 }}
@@ -262,7 +290,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 style={{
                   fontSize: '11px',
                   fontWeight: 700,
-                  color: isConnected ? '#30D158' : '#FF453A',
+                  color: isConnected ? '#FAF7F2' : '#FF453A',
                   letterSpacing: '0.02em',
                   whiteSpace: 'nowrap',
                 }}
@@ -293,7 +321,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   ? 'rgba(217, 249, 112, 0.16)'
                   : 'rgba(255, 255, 255, 0.06)',
                 border: isSyncingRing
-                  ? '1px solid rgba(217, 249, 112, 0.45)'
+                  ? '1px solid rgba(255, 255, 255, 0.35)'
                   : '1px solid rgba(255, 255, 255, 0.12)',
                 cursor: 'pointer',
                 flexShrink: 0,
@@ -302,7 +330,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             >
               <RefreshCw
                 size={11}
-                color={isSyncingRing ? '#D9F970' : '#30D158'}
+                color={isSyncingRing ? '#D9F970' : '#FAF7F2'}
                 style={{
                   transform: isSyncingRing ? 'rotate(360deg)' : 'none',
                   transition: isSyncingRing ? 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
@@ -404,7 +432,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     background:
                       ring.batteryRing <= 20
                         ? 'linear-gradient(90deg, #FF453A, #FF9F0A)'
-                        : 'linear-gradient(90deg, #D9F970, #30D158)',
+                        : 'linear-gradient(90deg, #D9F970, #FAF7F2)',
                     boxShadow:
                       ring.batteryRing <= 20
                         ? '0 0 10px rgba(255, 69, 58, 0.6)'
@@ -463,10 +491,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               padding: '10px 12px',
               borderRadius: '14px',
               background: isVytaCareActive
-                ? 'linear-gradient(135deg, rgba(217, 249, 112, 0.12), rgba(48, 209, 88, 0.08))'
+                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04))'
                 : 'rgba(255, 255, 255, 0.04)',
               border: isVytaCareActive
-                ? '1px solid rgba(217, 249, 112, 0.35)'
+                ? '1px solid rgba(255, 255, 255, 0.25)'
                 : '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
@@ -483,7 +511,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   height: '26px',
                   borderRadius: '8px',
                   background: isVytaCareActive
-                    ? 'rgba(217, 249, 112, 0.2)'
+                    ? 'rgba(255, 255, 255, 0.14)'
                     : 'rgba(255, 255, 255, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
@@ -515,8 +543,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               style={{
                 fontSize: '10.5px',
                 fontWeight: 700,
-                color: isVytaCareActive ? '#0A0A0C' : 'rgba(250, 247, 242, 0.65)',
-                background: isVytaCareActive ? '#D9F970' : 'rgba(255, 255, 255, 0.08)',
+                color: isVytaCareActive ? '#000000' : 'rgba(250, 247, 242, 0.65)',
+                background: isVytaCareActive ? '#FAF7F2' : 'rgba(255, 255, 255, 0.08)',
                 padding: '3px 8px',
                 borderRadius: '6px',
                 letterSpacing: '0.03em',
@@ -557,21 +585,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 transition: 'all 0.18s ease',
               }}
             >
-              <Bluetooth size={14} color="#30D158" />
+              <Bluetooth size={14} color="#FAF7F2" />
               <span>{isEn ? 'Pair / Sync Ring' : 'Appairer la bague'}</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setShowRadar(!showRadar)}
+              onClick={() => openModal('find_my')}
               style={{
                 padding: '10px 12px',
                 borderRadius: '14px',
-                background: showRadar ? 'rgba(217, 249, 112, 0.18)' : 'rgba(255, 255, 255, 0.07)',
-                border: showRadar
-                  ? '1px solid rgba(217, 249, 112, 0.5)'
-                  : '1px solid rgba(255, 255, 255, 0.15)',
-                color: showRadar ? '#D9F970' : '#FAF7F2',
+                background: 'rgba(48, 209, 88, 0.12)',
+                border: '1px solid rgba(48, 209, 88, 0.35)',
+                color: '#30D158',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 display: 'flex',
@@ -582,8 +608,115 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 transition: 'all 0.18s ease',
               }}
             >
-              <Radio size={14} color="#D9F970" />
+              <Radio size={14} color="#30D158" />
               <span>{t('settings.find_my_ring')}</span>
+            </button>
+          </div>
+
+          {/* Calibrage de Port de la Bague (Wear Calibration - SDK QC) */}
+          <div
+            style={{
+              padding: '13px 14px',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.035)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              zIndex: 2,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={13} color="#FAF7F2" />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
+                  {isEn ? 'Ring Wear Calibration' : 'Calibrage du Port de la Bague'}
+                </span>
+              </div>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: '#FAF7F2',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {ring.wearCalibrationScore || 99}% {isEn ? 'OPTIMAL' : 'OPTIMAL'}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', lineHeight: 1.4, margin: 0 }}>
+              {isEn
+                ? 'Calibrates optical PPG sensor contact impedance and microvascular alignment against your skin.'
+                : 'Calibre le couplage optique PPG et l’impédance cutanée pour une précision biométrique maximale.'}
+            </p>
+
+            {/* Live Calibration HUD when active */}
+            {isCalibrating && (
+              <div
+                style={{
+                  padding: '12px',
+                  borderRadius: '14px',
+                  background: 'rgba(0, 0, 0, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: '#FAF7F2', fontWeight: 500 }}>
+                    {calibrationStep}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
+                    {calibrationProgress}%
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.15)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${calibrationProgress}%`,
+                      height: '100%',
+                      background: '#FAF7F2',
+                      transition: 'width 0.3s ease',
+                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleStartCalibration}
+              disabled={isCalibrating}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                borderRadius: '12px',
+                background: isCalibrating ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.22)',
+                color: '#FAF7F2',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: isCalibrating ? 'default' : 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <RefreshCw size={13} className={isCalibrating ? 'spin' : ''} />
+              <span>
+                {isCalibrating
+                  ? (isEn ? 'Calibrating PPG Sensors...' : 'Calibrage en cours...')
+                  : (isEn ? 'Launch Wear Calibration (15s)' : 'Lancer le calibrage de port (15s)')}
+              </span>
             </button>
           </div>
 
@@ -595,7 +728,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 padding: '14px',
                 borderRadius: '18px',
                 background: 'rgba(0, 0, 0, 0.55)',
-                border: '1px solid rgba(217, 249, 112, 0.28)',
+                border: '1px solid rgba(255, 255, 255, 0.22)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
@@ -604,25 +737,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Radio size={13} color="#D9F970" />
+                  <Radio size={13} color="#FAF7F2" />
                   <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#FAF7F2' }}>
                     {isEn ? 'UWB Proximity Radar' : 'Radar de Proximité UWB'}
                   </span>
                 </div>
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#D9F970', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
                   0,8 m · -42 dBm
                 </span>
               </div>
 
               <div className="radar-stage" style={{ height: '120px', borderRadius: '14px' }}>
-                <div className="radar-wave" style={{ borderColor: 'rgba(217, 249, 112, 0.45)' }} />
-                <div className="radar-wave" style={{ borderColor: 'rgba(217, 249, 112, 0.35)' }} />
-                <div className="radar-wave" style={{ borderColor: 'rgba(217, 249, 112, 0.25)' }} />
+                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.35)' }} />
+                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.25)' }} />
+                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }} />
                 <div
                   className="radar-center-ring"
                   style={{
-                    background: '#D9F970',
-                    boxShadow: '0 0 20px rgba(217, 249, 112, 0.8)',
+                    background: '#FAF7F2',
+                    boxShadow: '0 0 20px rgba(255, 255, 255, 0.7)',
                   }}
                 >
                   <Disc size={18} color="#000000" />
@@ -636,8 +769,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   width: '100%',
                   padding: '9px',
                   borderRadius: '12px',
-                  background: pingActive ? '#D9F970' : 'rgba(217, 249, 112, 0.14)',
-                  border: '1px solid rgba(217, 249, 112, 0.45)',
+                  background: pingActive ? '#D9F970' : 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.35)',
                   color: pingActive ? '#0A0A0C' : '#D9F970',
                   fontSize: '11.5px',
                   fontWeight: 700,
@@ -665,15 +798,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         </div>
 
                 {/* ====================================================================
-            2. FRÉQUENCE D'ÉCHANTILLONNAGE & MESURE DES CAPTEURS
+            2. FRÉQUENCE D'ÉCHANTILLONNAGE & MESURE DES 8 CAPTEURS BIOMÉTRIQUES
             ==================================================================== */}
         <div
           style={{
             flexShrink: 0,
-            padding: '16px',
-            borderRadius: '24px',
-            background: '#111115',
-            border: '1px solid rgba(255, 248, 240, 0.1)',
+            padding: '18px 16px',
+            borderRadius: '26px',
+            background:
+              'radial-gradient(ellipse at 50% 0%, rgba(217, 249, 112, 0.07) 0%, rgba(16, 16, 20, 0.98) 75%), #0A0A0C',
+            border: '1px solid rgba(255, 248, 240, 0.12)',
+            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.55)',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
@@ -681,26 +816,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         >
           {/* Section Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
               <div
                 style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '8px',
-                  background: 'rgba(217, 249, 112, 0.14)',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.16)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Sliders size={14} color="#D9F970" />
+                <Sliders size={15} color="#FAF7F2" strokeWidth={1.8} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
                   {isEn ? 'Sensor Measurement Intervals' : 'Intervalles de Mesure des Capteurs'}
                 </span>
-                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                  {isEn ? 'Hardware sampling rate & frequency' : 'Fréquence d\'échantillonnage de la bague'}
+                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
+                  {isEn ? '8 Biometrics Autonomous Sampling' : 'Échantillonnage autonome des 8 biométries'}
                 </span>
               </div>
             </div>
@@ -711,18 +847,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                padding: '4px 9px',
-                borderRadius: '8px',
-                background: estimatedDays >= 6 ? 'rgba(48, 209, 88, 0.14)' : 'rgba(255, 159, 10, 0.14)',
-                border: estimatedDays >= 6 ? '1px solid rgba(48, 209, 88, 0.35)' : '1px solid rgba(255, 159, 10, 0.35)',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                background: estimatedDays >= 6 ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 159, 10, 0.16)',
+                border: estimatedDays >= 6 ? '1px solid rgba(48, 209, 88, 0.38)' : '1px solid rgba(255, 159, 10, 0.38)',
+                boxShadow: estimatedDays >= 6 ? '0 0 10px rgba(48, 209, 88, 0.18)' : 'none',
               }}
             >
-              <Zap size={11} color={estimatedDays >= 6 ? '#30D158' : '#FF9F0A'} />
+              <Zap size={11} color={estimatedDays >= 6 ? '#30D158' : '#FF9F0A'} fill={estimatedDays >= 6 ? '#30D158' : '#FF9F0A'} />
               <span
                 style={{
-                  fontSize: '10.5px',
+                  fontSize: '11px',
                   fontWeight: 700,
-                  color: estimatedDays >= 6 ? '#30D158' : '#FF9F0A',
+                  color: estimatedDays >= 6 ? '#FAF7F2' : '#FF9F0A',
+                  fontFamily: 'var(--font-mono, monospace)',
                 }}
               >
                 ~{estimatedDays} {isEn ? 'days' : 'jours'}
@@ -730,317 +868,286 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          {/* SENSOR 1: Fréquence Cardiaque (FC / Heart Rate) */}
+          {/* Quick Presets Bar */}
           <div
             style={{
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '6px',
+              padding: '4px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <HeartPulse size={14} color="#FF453A" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Heart Rate (BPM)' : 'Fréquence Cardiaque (BPM)'}
+            {[
+              {
+                id: 'perf',
+                labelFr: '15 min (Max)',
+                labelEn: '15 min (Max)',
+                subFr: '~4-5j',
+                subEn: '~4-5d',
+                action: () =>
+                  updateSensorIntervals({
+                    heartRate: '15min',
+                    hrv: '15min',
+                    spo2: '15min',
+                    temperature: '15min',
+                    stress: '15min',
+                    bloodPressure: '15min',
+                    glucose: '15min',
+                    respiratory: '15min',
+                  }),
+              },
+              {
+                id: 'balanced',
+                labelFr: 'Équilibré',
+                labelEn: 'Balanced',
+                subFr: '~7j',
+                subEn: '~7d',
+                action: () =>
+                  updateSensorIntervals({
+                    heartRate: '30min',
+                    hrv: '30min',
+                    spo2: '1h',
+                    temperature: '1h',
+                    stress: '30min',
+                    bloodPressure: '1h',
+                    glucose: '2h',
+                    respiratory: '1h',
+                  }),
+              },
+              {
+                id: 'eco',
+                labelFr: '2 h (Éco)',
+                labelEn: '2 h (Eco)',
+                subFr: '~8j',
+                subEn: '~8d',
+                action: () =>
+                  updateSensorIntervals({
+                    heartRate: '2h',
+                    hrv: '2h',
+                    spo2: '2h',
+                    temperature: '2h',
+                    stress: '2h',
+                    bloodPressure: '2h',
+                    glucose: '2h',
+                    respiratory: '2h',
+                  }),
+              },
+            ].map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={preset.action}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  borderRadius: '9px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  color: 'rgba(250, 247, 242, 0.85)',
+                  fontSize: '10.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{isEn ? preset.labelEn : preset.labelFr}</span>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                  {isEn ? preset.subEn : preset.subFr}
                 </span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#D9F970', fontWeight: 600 }}>
-                {sensorIntervals.heartRate === '10min'
-                  ? isEn ? 'Every 10 min' : 'Toutes les 10 min'
-                  : sensorIntervals.heartRate === '20min'
-                  ? isEn ? 'Every 20 min' : 'Toutes les 20 min'
-                  : sensorIntervals.heartRate === '30min'
-                  ? isEn ? 'Every 30 min' : 'Toutes les 30 min'
-                  : isEn ? 'Every hour' : 'Chaque heure'}
-              </span>
-            </div>
-
-            {/* Interval Pills */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px' }}>
-              {[
-                { id: '10min', label: '10 m' },
-                { id: '20min', label: '20 m' },
-                { id: '30min', label: '30 m' },
-                { id: '60min', label: '1 h' },
-              ].map((opt) => {
-                const active = sensorIntervals.heartRate === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateSensorIntervals({ heartRate: opt.id as any })}
-                    style={{
-                      padding: '6px 2px',
-                      borderRadius: '8px',
-                      background: active ? '#D9F970' : 'rgba(255, 255, 255, 0.05)',
-                      border: active ? '1px solid #D9F970' : '1px solid rgba(255, 255, 255, 0.08)',
-                      color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.7)',
-                      fontSize: '11px',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+              </button>
+            ))}
           </div>
 
-          {/* SENSOR 2: Variabilité Cardiaque (VRC / HRV) */}
-          <div
-            style={{
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Activity size={14} color="#A78BFA" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Heart Rate Variability (HRV)' : 'Variabilité Cardiaque (VRC)'}
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#A78BFA', fontWeight: 600 }}>
-                {sensorIntervals.hrv === 'continu_nuit'
-                  ? isEn ? 'Night Only' : 'Nuit (Sommeil)'
-                  : sensorIntervals.hrv === '15min'
-                  ? '15 min'
-                  : sensorIntervals.hrv === '30min'
-                  ? '30 min'
-                  : '1 h'}
-              </span>
-            </div>
+          {/* 8 Biometric Sensor Rows */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {[
+              {
+                key: 'heartRate' as const,
+                nameFr: 'Fréquence Cardiaque (BPM)',
+                nameEn: 'Heart Rate (BPM)',
+                descFr: 'Cardiofréquencemètre PPG optique vert',
+                descEn: 'Continuous green optical PPG sensor',
+                icon: HeartPulse,
+                color: '#FF453A',
+              },
+              {
+                key: 'hrv' as const,
+                nameFr: 'Variabilité Cardiaque (VRC)',
+                nameEn: 'Heart Rate Variability (HRV)',
+                descFr: 'Équilibre nerveux & indice SDNN/RMSSD',
+                descEn: 'Autonomic nervous recovery index',
+                icon: Activity,
+                color: '#A78BFA',
+              },
+              {
+                key: 'spo2' as const,
+                nameFr: 'Oxygénation Sanguine (SpO2)',
+                nameEn: 'Blood Oxygen (SpO2)',
+                descFr: 'Saturation artérielle & LED infrarouge',
+                descEn: 'Arterial saturation & infrared LEDs',
+                icon: Droplets,
+                color: '#38BDF8',
+              },
+              {
+                key: 'temperature' as const,
+                nameFr: 'Température Cutanée (NTC)',
+                nameEn: 'Skin Temperature (NTC)',
+                descFr: 'Thermistance différentielle médicale',
+                descEn: 'Medical differential thermistor',
+                icon: Thermometer,
+                color: '#FBBF24',
+              },
+              {
+                key: 'stress' as const,
+                nameFr: 'Niveau de Stress & Émotion',
+                nameEn: 'Stress Level & Emotion',
+                descFr: 'Charge mentale & tension autonome (0x73)',
+                descEn: 'Mental strain & autonomic tension (0x73)',
+                icon: Zap,
+                color: '#EC4899',
+              },
+              {
+                key: 'bloodPressure' as const,
+                nameFr: 'Pression Artérielle (Tension)',
+                nameEn: 'Blood Pressure Estimation',
+                descFr: 'Analyse PTT & dynamique onde de pouls',
+                descEn: 'Pulse transit time & arterial wave',
+                icon: Heart,
+                color: '#F43F5E',
+              },
+              {
+                key: 'glucose' as const,
+                nameFr: 'Stabilité Glycémique (Métabolisme)',
+                nameEn: 'Metabolic Glucose Stability',
+                descFr: 'Oscillation glucidique & stabilité métabolique',
+                descEn: 'Glucose oscillation & metabolic stability',
+                icon: TrendingUp,
+                color: '#6366F1',
+              },
+              {
+                key: 'respiratory' as const,
+                nameFr: 'Fréquence Respiratoire (RPM)',
+                nameEn: 'Respiratory Rate (RPM)',
+                descFr: 'Ventilation & cycles respiratoires',
+                descEn: 'Breathing rate & chest amplitude',
+                icon: Wind,
+                color: '#34D399',
+              },
+            ].map((sensor) => {
+              const currentVal: SensorIntervalOption = (sensorIntervals?.[sensor.key] as SensorIntervalOption) || '1h';
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px' }}>
-              {[
-                { id: 'continu_nuit', label: isEn ? 'Sleep' : 'Nuit' },
-                { id: '15min', label: '15 m' },
-                { id: '30min', label: '30 m' },
-                { id: '60min', label: '1 h' },
-              ].map((opt) => {
-                const active = sensorIntervals.hrv === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateSensorIntervals({ hrv: opt.id as any })}
-                    style={{
-                      padding: '6px 2px',
-                      borderRadius: '8px',
-                      background: active ? '#A78BFA' : 'rgba(255, 255, 255, 0.05)',
-                      border: active ? '1px solid #A78BFA' : '1px solid rgba(255, 255, 255, 0.08)',
-                      color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.7)',
-                      fontSize: '11px',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+              const formatValLabel = (val: SensorIntervalOption) => {
+                if (val === '15min') return isEn ? 'Every 15 min' : 'Toutes les 15 min';
+                if (val === '30min') return isEn ? 'Every 30 min' : 'Toutes les 30 min';
+                if (val === '1h') return isEn ? 'Every hour' : 'Toutes les heures';
+                return isEn ? 'Every 2 hours' : 'Toutes les 2 h';
+              };
 
-          {/* SENSOR 3: Température Cutanée */}
-          <div
-            style={{
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Thermometer size={14} color="#FBBF24" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Skin Temperature' : 'Température Cutanée (NTC)'}
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#FBBF24', fontWeight: 600 }}>
-                {sensorIntervals.temperature === 'nuit'
-                  ? isEn ? 'Night Only' : 'Nuit (Sommeil)'
-                  : sensorIntervals.temperature === '15min'
-                  ? '15 min'
-                  : sensorIntervals.temperature === '30min'
-                  ? '30 min'
-                  : '1 h'}
-              </span>
-            </div>
+              return (
+                <div
+                  key={sensor.key}
+                  style={{
+                    padding: '11px 12px',
+                    borderRadius: '16px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.07)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    transition: 'all 0.16s ease',
+                  }}
+                >
+                  {/* Top: Icon + Name + Description + Current Value Badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div
+                        style={{
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '8px',
+                          background: `${sensor.color}18`,
+                          border: `1px solid ${sensor.color}35`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <sensor.icon size={13} color={sensor.color} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2', lineHeight: 1.2 }}>
+                          {isEn ? sensor.nameEn : sensor.nameFr}
+                        </span>
+                        <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.44)', marginTop: '1px' }}>
+                          {isEn ? sensor.descEn : sensor.descFr}
+                        </span>
+                      </div>
+                    </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px' }}>
-              {[
-                { id: '15min', label: '15 m' },
-                { id: '30min', label: '30 m' },
-                { id: '60min', label: '1 h' },
-                { id: 'nuit', label: isEn ? 'Sleep' : 'Nuit' },
-              ].map((opt) => {
-                const active = sensorIntervals.temperature === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateSensorIntervals({ temperature: opt.id as any })}
-                    style={{
-                      padding: '6px 2px',
-                      borderRadius: '8px',
-                      background: active ? '#FBBF24' : 'rgba(255, 255, 255, 0.05)',
-                      border: active ? '1px solid #FBBF24' : '1px solid rgba(255, 255, 255, 0.08)',
-                      color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.7)',
-                      fontSize: '11px',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        color: sensor.color,
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        background: `${sensor.color}15`,
+                        border: `1px solid ${sensor.color}30`,
+                        fontFamily: 'var(--font-mono, monospace)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {formatValLabel(currentVal)}
+                    </span>
+                  </div>
 
-          {/* SENSOR 4: Oxygène Sanguin (SpO2) */}
-          <div
-            style={{
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Droplets size={14} color="#38BDF8" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Blood Oxygen (SpO2)' : 'Oxygénation Sanguine (SpO2)'}
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#38BDF8', fontWeight: 600 }}>
-                {sensorIntervals.spo2 === 'nuit'
-                  ? isEn ? 'Night Only' : 'Nuit (Sommeil)'
-                  : sensorIntervals.spo2 === '15min'
-                  ? '15 min'
-                  : sensorIntervals.spo2 === '30min'
-                  ? '30 min'
-                  : '1 h'}
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '5px' }}>
-              {[
-                { id: '15min', label: '15 m' },
-                { id: '30min', label: '30 m' },
-                { id: '60min', label: '1 h' },
-                { id: 'nuit', label: isEn ? 'Sleep' : 'Nuit' },
-              ].map((opt) => {
-                const active = sensorIntervals.spo2 === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateSensorIntervals({ spo2: opt.id as any })}
-                    style={{
-                      padding: '6px 2px',
-                      borderRadius: '8px',
-                      background: active ? '#38BDF8' : 'rgba(255, 255, 255, 0.05)',
-                      border: active ? '1px solid #38BDF8' : '1px solid rgba(255, 255, 255, 0.08)',
-                      color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.7)',
-                      fontSize: '11px',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* SENSOR 5: Fréquence Respiratoire */}
-          <div
-            style={{
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                <Wind size={14} color="#34D399" />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Respiratory Rate' : 'Fréquence Respiratoire'}
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: '#34D399', fontWeight: 600 }}>
-                {sensorIntervals.respiratory === 'continu_nuit'
-                  ? isEn ? 'Night Only' : 'Nuit (Sommeil)'
-                  : sensorIntervals.respiratory === '30min'
-                  ? '30 min'
-                  : '1 h'}
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px' }}>
-              {[
-                { id: 'continu_nuit', label: isEn ? 'Sleep' : 'Nuit' },
-                { id: '30min', label: '30 m' },
-                { id: '60min', label: '1 h' },
-              ].map((opt) => {
-                const active = sensorIntervals.respiratory === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => updateSensorIntervals({ respiratory: opt.id as any })}
-                    style={{
-                      padding: '6px 2px',
-                      borderRadius: '8px',
-                      background: active ? '#34D399' : 'rgba(255, 255, 255, 0.05)',
-                      border: active ? '1px solid #34D399' : '1px solid rgba(255, 255, 255, 0.08)',
-                      color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.7)',
-                      fontSize: '11px',
-                      fontWeight: active ? 700 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+                  {/* 4 Standardized Interval Pills: 15min / 30min / 1h / 2h */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                    {(
+                      [
+                        { id: '15min', label: '15 min' },
+                        { id: '30min', label: '30 min' },
+                        { id: '1h', label: '1 h' },
+                        { id: '2h', label: '2 h' },
+                      ] as const
+                    ).map((opt) => {
+                      const active = currentVal === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => updateSensorIntervals({ [sensor.key]: opt.id })}
+                          style={{
+                            padding: '6px 0',
+                            borderRadius: '9px',
+                            background: active ? sensor.color : 'rgba(255, 255, 255, 0.04)',
+                            border: active ? `1px solid ${sensor.color}` : '1px solid rgba(255, 255, 255, 0.08)',
+                            color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.72)',
+                            fontSize: '11px',
+                            fontWeight: active ? 700 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            textAlign: 'center',
+                            boxShadow: active ? `0 0 10px ${sensor.color}66` : 'none',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -1501,7 +1608,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
                   {isEn ? 'Apple Health & Fitness' : 'Pont Apple Santé & Forme'}
                 </span>
-                <span style={{ fontSize: '11px', color: '#30D158', fontWeight: 500 }}>
+                <span style={{ fontSize: '11px', color: '#FAF7F2', fontWeight: 500 }}>
                   {isEn ? 'Real-time HealthKit Sync Active' : 'Synchronisation HealthKit temps réel'}
                 </span>
               </div>
@@ -1584,6 +1691,165 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </span>
           </div>
 
+          {/* Style des métriques : Coloré vs Noir & Blanc */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', fontWeight: 600 }}>
+              {isEn ? 'Biometric Glow Theme' : 'Style Visuel des Constantes'}
+            </span>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '8px',
+                padding: '4px',
+                borderRadius: '14px',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCardThemeMode('colored')}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                  color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '12px',
+                  fontWeight: cardThemeMode === 'colored' ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Coloré ✨
+              </button>
+              <button
+                type="button"
+                onClick={() => setCardThemeMode('monochrome')}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                  border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                  color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '12px',
+                  fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Noir & Blanc
+              </button>
+            </div>
+          </div>
+
+          {/* Style des métriques : Coloré vs Noir & Blanc */}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', fontWeight: 600 }}>
+
+              {isEn ? 'Biometric Glow Theme' : 'Style Visuel des Constantes'}
+
+            </span>
+
+            <div
+
+              style={{
+
+                display: 'grid',
+
+                gridTemplateColumns: '1fr 1fr',
+
+                gap: '8px',
+
+                padding: '4px',
+
+                borderRadius: '14px',
+
+                background: 'rgba(0, 0, 0, 0.5)',
+
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+
+              }}
+
+            >
+
+              <button
+
+                type="button"
+
+                onClick={() => setCardThemeMode('colored')}
+
+                style={{
+
+                  padding: '9px 12px',
+
+                  borderRadius: '10px',
+
+                  background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+
+                  border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+
+                  color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+
+                  fontSize: '12px',
+
+                  fontWeight: cardThemeMode === 'colored' ? 700 : 500,
+
+                  cursor: 'pointer',
+
+                  transition: 'all 0.2s ease',
+
+                }}
+
+              >
+
+                Coloré ✨
+
+              </button>
+
+              <button
+
+                type="button"
+
+                onClick={() => setCardThemeMode('monochrome')}
+
+                style={{
+
+                  padding: '9px 12px',
+
+                  borderRadius: '10px',
+
+                  background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+
+                  border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+
+                  color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+
+                  fontSize: '12px',
+
+                  fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
+
+                  cursor: 'pointer',
+
+                  transition: 'all 0.2s ease',
+
+                }}
+
+              >
+
+                Noir & Blanc
+
+              </button>
+
+            </div>
+
+          </div>
+
+
+
           {/* Language Switcher */}
           <div
             style={{
@@ -1657,13 +1923,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={14} color="#D9F970" />
+                <Sliders size={14} color="#FAF7F2" />
                 <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2' }}>
                   {isEn ? 'Simulation Lab (1s = 1h)' : 'Laboratoire de Simulation (1s = 1h)'}
                 </span>
               </div>
               {simulationHoursElapsed > 0 && (
-                <span style={{ fontSize: '10px', color: '#D9F970', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '10px', color: '#FAF7F2', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                   +{simulationHoursElapsed}h {isEn ? 'simulated' : 'simulées'}
                 </span>
               )}
@@ -1683,7 +1949,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 style={{
                   padding: '9px 10px',
                   borderRadius: '10px',
-                  background: isSimulating ? '#D9F970' : 'rgba(217, 249, 112, 0.14)',
+                  background: isSimulating ? '#D9F970' : 'rgba(255, 255, 255, 0.1)',
                   border: '1px solid #D9F970',
                   color: isSimulating ? '#0A0A0C' : '#D9F970',
                   fontSize: '11px',
@@ -1766,7 +2032,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <ShieldCheck size={13} color="#30D158" />
+              <ShieldCheck size={13} color="#FAF7F2" />
               <span>{isEn ? 'Encrypted On-Device Vault' : 'Chiffrement Biométrique Local'}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-mono)' }}><span>MAC: {ring.macAddress || 'C8:2B:96:4A:99:84'}</span><span>·</span><span>{ring.serial}</span></div>

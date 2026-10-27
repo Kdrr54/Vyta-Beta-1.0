@@ -102,9 +102,9 @@ export const translations = {
     'immunity.unlock_btn': 'Débloquer le Protocole CoVyta IA',
 
     // Sleep Phases
-    'sleep.title': '4 Phases de Sommeil',
+    'sleep.title': 'Phases de Sommeil',
     'sleep.score': 'Score :',
-    'sleep.total': 'Sommeil total',
+    'sleep.total': 'Sommeil effectif',
     'sleep.deep': 'Profond',
     'sleep.rem': 'REM / Paradoxal',
     'sleep.light': 'Léger',
@@ -279,9 +279,9 @@ export const translations = {
     'immunity.unlock_btn': 'Unlock CoVyta AI Protocol',
 
     // Sleep Phases
-    'sleep.title': '4 Sleep Stages',
+    'sleep.title': 'Sleep Stages',
     'sleep.score': 'Score:',
-    'sleep.total': 'Total Sleep',
+    'sleep.total': 'Effective Sleep',
     'sleep.deep': 'Deep',
     'sleep.rem': 'REM / Paradoxical',
     'sleep.light': 'Light',

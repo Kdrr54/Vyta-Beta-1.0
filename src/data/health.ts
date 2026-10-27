@@ -19,31 +19,45 @@ export const WEEK = [
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
 export const defaultSensorIntervals: SensorIntervals = {
-  heartRate: '20min',
-  hrv: 'continu_nuit',
-  temperature: '30min',
-  spo2: 'nuit',
-  respiratory: 'continu_nuit',
+  heartRate: '30min',
+  hrv: '30min',
+  spo2: '1h',
+  temperature: '1h',
+  stress: '30min',
+  bloodPressure: '1h',
+  glucose: '2h',
+  respiratory: '1h',
 };
 
 /**
- * Calcule l'autonomie estimée de la bague (en jours) selon les fréquences d'échantillonnage choisies
+ * Calcule l'autonomie estimée de la bague (en jours) selon les fréquences d'échantillonnage des 8 capteurs
  */
 export function calculateEstimatedBatteryDays(intervals: SensorIntervals): number {
-  let days = 6;
-  if (intervals.heartRate === '10min') days -= 1;
-  else if (intervals.heartRate === '20min') days -= 0;
-  else if (intervals.heartRate === '30min') days += 0.5;
-  else if (intervals.heartRate === '60min') days += 1.5;
+  let days = 8.0;
+  const weights: Record<string, number> = {
+    '15min': 0.45,
+    '30min': 0.22,
+    '1h': 0.08,
+    '2h': 0.0,
+  };
 
-  if (intervals.spo2 === '15min') days -= 1;
-  else if (intervals.spo2 === '30min') days -= 0.5;
-  else if (intervals.spo2 === 'nuit') days += 0.5;
+  const keys: (keyof SensorIntervals)[] = [
+    'heartRate',
+    'hrv',
+    'spo2',
+    'temperature',
+    'stress',
+    'bloodPressure',
+    'glucose',
+    'respiratory',
+  ];
 
-  if (intervals.temperature === '15min') days -= 0.3;
-  else if (intervals.temperature === 'nuit') days += 0.3;
+  for (const k of keys) {
+    const val = intervals?.[k] || '1h';
+    days -= weights[val] ?? 0.1;
+  }
 
-  return Math.max(3, Math.min(8, Math.round(days)));
+  return Math.max(4, Math.min(8, Math.round(days)));
 }
 
 /**
@@ -101,6 +115,8 @@ export const ringDevice: RingDevice = {
   vytaCareActive: true,
   vytaCareExpires: 'Octobre 2028',
   sensorIntervals: defaultSensorIntervals,
+  wearCalibrationScore: 99,
+  wearCalibrationDate: 'Aujourd\'hui à 08:30',
 };
 
 
@@ -184,54 +200,30 @@ export const finishes: FinishOption[] = [
   },
 ];
 
-export const weekMetrics: DayMetrics[] = [
-  {
-    score: 86,
-    pillars: { sleep: 84, recovery: 88, activity: 90 },
-    steps: 10240, distanceKm: 7.6, activeKcal: 560,
-    bodyEnergy: 71, bodyEnergyWake: 88, bodyEnergyBedtime: 29,
-    bpm: 61, restingBpm: 52, minBpm: 48, maxBpm: 138, hrv: 69, hrvBaseline: 66, tempDelta: -0.05, spo2: 98.2,
-    anomaly: null,
-    sleep: { score: 84, deepMin: 98, remMin: 95, lightMin: 231, awakeMin: 31 },
-  },
-  {
-    score: 79,
-    pillars: { sleep: 74, recovery: 80, activity: 85 },
-    steps: 6980, distanceKm: 5.1, activeKcal: 390,
-    bodyEnergy: 64, bodyEnergyWake: 80, bodyEnergyBedtime: 31,
-    bpm: 64, restingBpm: 54, minBpm: 50, maxBpm: 154, hrv: 61, hrvBaseline: 66, tempDelta: 0.12, spo2: 97.9,
-    anomaly: null,
-    sleep: { score: 74, deepMin: 82, remMin: 86, lightMin: 228, awakeMin: 40 },
-  },
-  {
-    score: 88,
-    pillars: { sleep: 87, recovery: 91, activity: 82 },
-    steps: 9120, distanceKm: 6.7, activeKcal: 505,
-    bodyEnergy: 75, bodyEnergyWake: 91, bodyEnergyBedtime: 33,
-    bpm: 62, restingBpm: 51, minBpm: 47, maxBpm: 148, hrv: 71, hrvBaseline: 66, tempDelta: -0.02, spo2: 98.4,
-    anomaly: null,
-    sleep: { score: 87, deepMin: 106, remMin: 102, lightMin: 224, awakeMin: 27 },
-  },
-  {
-    score: 91,
-    pillars: { sleep: 89, recovery: 95, activity: 88 },
-    steps: 8420, distanceKm: 6.2, activeKcal: 480,
-    bodyEnergy: 78, bodyEnergyWake: 92, bodyEnergyBedtime: 34,
-    bpm: 63, restingBpm: 51, minBpm: 48, maxBpm: 164, hrv: 74, hrvBaseline: 66, tempDelta: -0.08, spo2: 98.6,
-    anomaly: null,
-    sleep: { score: 89, deepMin: 112, remMin: 108, lightMin: 222, awakeMin: 24 },
-  },
-  // Jours à venir : aucune donnée (sélection désactivée dans l'interface)
-  ...Array.from({ length: 3 }, (): DayMetrics => ({
-    score: 0,
-    pillars: { sleep: 0, recovery: 0, activity: 0 },
-    steps: 0, distanceKm: 0, activeKcal: 0,
-    bodyEnergy: 0, bodyEnergyWake: 0, bodyEnergyBedtime: 0,
-    bpm: 0, restingBpm: 0, hrv: 0, hrvBaseline: 0, tempDelta: 0, spo2: 0,
-    anomaly: null,
-    sleep: { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 },
-  })),
-];
+export const weekMetrics: DayMetrics[] = Array.from({ length: 7 }, (): DayMetrics => ({
+  score: 0,
+  pillars: { sleep: 0, recovery: 0, activity: 0 },
+  steps: 0,
+  distanceKm: 0,
+  activeKcal: 0,
+  bodyEnergy: 0,
+  bodyEnergyWake: 0,
+  bodyEnergyBedtime: 0,
+  bpm: 0,
+  restingBpm: 0,
+  minBpm: 0,
+  maxBpm: 0,
+  hrv: 0,
+  hrvBaseline: 0,
+  tempDelta: 0,
+  spo2: 0,
+  anomaly: null,
+  sleep: { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 },
+  stress: 0,
+  stressLevel: '--',
+  bloodPressure: { sbp: 0, dbp: 0 },
+  glucose: { valueMmol: 0, stabilityScore: 0 },
+}));
 
 export const emptyDayMetrics: DayMetrics = {
   score: 0,
@@ -252,6 +244,10 @@ export const emptyDayMetrics: DayMetrics = {
   spo2: 0,
   anomaly: null,
   sleep: { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 },
+  stress: 0,
+  stressLevel: '--',
+  bloodPressure: { sbp: 0, dbp: 0 },
+  glucose: { valueMmol: 0, stabilityScore: 0 },
 };
 
 export const createEmptyWeekMetrics = (): DayMetrics[] => {

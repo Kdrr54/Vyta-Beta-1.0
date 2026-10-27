@@ -7,18 +7,20 @@ import { ImmunityRadar } from './ImmunityRadar';
 import { SleepPhases } from './SleepPhases';
 import { CardioAge } from './CardioAge';
 import { HeartRateCard } from './HeartRateCard';
-import { Brain, Flame, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Brain, Flame, Sparkles, ArrowUpRight, TrendingUp, HeartPulse, Activity, Droplets, Wind, Thermometer } from 'lucide-react';
 import { fmtNum } from '../lib/format';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation } = useApp();
+  const { selectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
+  const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
 
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[3]));
   const batteryPct = ring.batteryRing ?? 88;
   const isLowBattery = batteryPct <= 20;
-  const batteryAccent = isLowBattery ? '#FF5A52' : '#D9F970';
-  const batteryAccentSoft = isLowBattery ? 'rgba(255, 90, 82, 0.78)' : 'rgba(228, 255, 142, 0.78)';
+  const batteryAccent = isMono ? '#FAF7F2' : (isLowBattery ? '#FF5A52' : '#D9F970');
+  const batteryAccentSoft = isMono ? 'rgba(255, 255, 255, 0.78)' : (isLowBattery ? 'rgba(255, 90, 82, 0.78)' : 'rgba(228, 255, 142, 0.78)');
   const neuralPct = !isFirstLaunch && dayData.pillars?.recovery ? Math.min(99, Math.max(82, dayData.pillars.recovery + 1)) : 0;
   const skinTempAbs = isFirstLaunch ? '--' : (36.8 + dayData.tempDelta).toFixed(1);
   const stepsProgress = Math.min(100, Math.round(((dayData.steps || 0) / 10000) * 100));
@@ -158,41 +160,162 @@ export const HealthScreen: React.FC = () => {
       <div key={selectedDay} className="day-view-transition" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
       {/* =====================================================================
+          2.5. PRISM AI BIOMETRIC INTELLIGENCE BANNER (Apple Intelligence Liquid Glass)
+          ===================================================================== */}
+      <div
+        onClick={() => openModal('prism')}
+        role="button"
+        tabIndex={0}
+        title="Ouvrir Prism IA · Analyse Biométrique & Clinique"
+        style={{
+          position: 'relative',
+          padding: '13px 15px',
+          borderRadius: '22px',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          background: isMono
+            ? 'radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(10, 10, 12, 0.95) 80%), #0A0A0C'
+            : 'linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(192, 132, 252, 0.14) 50%, rgba(48, 209, 88, 0.1) 100%), rgba(10, 10, 14, 0.88)',
+          backdropFilter: 'blur(26px)',
+          WebkitBackdropFilter: 'blur(26px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.22)',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.14)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.14)',
+          borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(192, 132, 252, 0.65)',
+          boxShadow: isMono
+            ? '0 12px 28px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(255, 255, 255, 0.05)'
+            : '0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 20px rgba(192, 132, 252, 0.18)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          transition: 'transform 0.18s ease',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '11px', flex: 1, minWidth: 0 }}>
+          {/* Animated Prism Crystal Icon */}
+          <div
+            style={{
+              position: 'relative',
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(192, 132, 252, 0.3) 50%, rgba(48, 209, 88, 0.3) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.28)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 0 14px rgba(192, 132, 252, 0.35)',
+            }}
+          >
+            <Sparkles size={18} color="#FAF7F2" style={{ filter: 'drop-shadow(0 0 4px #C084FC)' }} />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
+                Prism IA
+              </span>
+              <span
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  padding: '1px 5px',
+                  borderRadius: '999px',
+                  background: 'rgba(56, 189, 248, 0.18)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  color: '#38BDF8',
+                  letterSpacing: '0.2px',
+                }}
+              >
+                LIVE
+              </span>
+            </div>
+            <p
+              style={{
+                margin: '2px 0 0 0',
+                fontSize: '11px',
+                color: 'rgba(250, 247, 242, 0.72)',
+                lineHeight: 1.35,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {language === 'fr' ? 'Intelligence physiologique & biométrique en direct' : 'Live biometric & physiological intelligence'}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Button Pill */}
+        <div
+          style={{
+            padding: '5px 10px',
+            borderRadius: '999px',
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+            {language === 'fr' ? 'Ouvrir' : 'Open'}
+          </span>
+          <ArrowUpRight size={12} color="#FAF7F2" />
+        </div>
+      </div>
+
+      {/* =====================================================================
           3. WIDE RECTANGLE HEART RATE LIVE ECG CARD
           ===================================================================== */}
       <HeartRateCard onClick={() => openMetricDetail('bpm')} />
 
       {/* =====================================================================
-          4. SECTION HEADER: "My activity (8)"
+          4. SECTION HEADER: "Mon activité (8)"
           ===================================================================== */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginTop: '2px',
-          marginBottom: '-2px',
+          padding: '2px 4px 0 4px',
+          marginTop: '6px',
+          marginBottom: '2px',
         }}
       >
-        <h2
-          style={{
-            fontSize: '17px',
-            fontWeight: 400,
-            color: '#FAF7F2',
-            margin: 0,
-            letterSpacing: '-0.2px',
-          }}
-        >
-          {language === "fr" ? "Mon activité" : "My activity"}
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          <h2
+            style={{
+              fontSize: '17px',
+              fontWeight: 500,
+              color: '#FAF7F2',
+              margin: 0,
+              letterSpacing: '-0.25px',
+            }}
+          >
+            {language === 'fr' ? 'Mon activité' : 'My activity'}
+          </h2>
+          <span
+            style={{
+              fontSize: '11px',
+              color: 'rgba(250, 247, 242, 0.45)',
+              fontFamily: 'var(--font-mono, monospace)',
+            }}
+          >
+            (8)
+          </span>
+        </div>
       </div>
 
       {/* =====================================================================
-          5. FOUR SIGNATURE BIOMETRIC CARDS (Exact match to Reference Mockup)
+          5. EIGHT HARMONIZED BIOMETRIC CARDS (2-Column Symmetry, Identical Size & Vibrant Signature Colors)
           ===================================================================== */}
       <div className="metrics-grid-2" style={{ gap: '12px' }}>
         {/* -----------------------------------------------------------------
-            CARD 1: "Optimal neural balance" (96% / VRC) — Bioluminescent Lime Glow
+            CARD 1: "Équilibre nerveux" (96% / VRC) - LIME
             ----------------------------------------------------------------- */}
         <div
           onClick={() => openMetricDetail('hrv')}
@@ -201,7 +324,7 @@ export const HealthScreen: React.FC = () => {
           title="Ouvrir le suivi détaillé 24h de l'équilibre neuronal & VRC"
           style={{
             position: 'relative',
-            minHeight: '176px',
+            minHeight: '160px',
             padding: '16px 15px 14px 15px',
             borderRadius: '26px',
             overflow: 'hidden',
@@ -209,137 +332,78 @@ export const HealthScreen: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background:
-              'radial-gradient(ellipse at 50% 105%, rgba(217, 249, 112, 0.34) 0%, rgba(163, 204, 62, 0.12) 44%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 105%, rgba(217, 249, 112, 0.38) 0%, rgba(163, 204, 62, 0.14) 44%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
             backdropFilter: 'blur(26px)',
             WebkitBackdropFilter: 'blur(26px)',
             borderTop: '1px solid rgba(255, 248, 240, 0.16)',
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: '1.5px solid rgba(228, 255, 142, 0.68)',
-            boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 249, 112, 0.14)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(217, 249, 112, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 249, 112, 0.2)',
           }}
         >
-          {/* Top Row: Title + Circular Frosted Brain Icon */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span
-              style={{
-                fontSize: '12.5px',
-                fontWeight: 400,
-                color: 'rgba(250, 247, 242, 0.86)',
-                lineHeight: 1.25,
-              }}
-            >
-              {language === 'fr' ? (
-                <>
-                  Équilibre nerveux
-                  <br />
-                  optimal
-                </>
-              ) : (
-                <>
-                  Optimal neural
-                  <br />
-                  balance
-                </>
-              )}
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Équilibre nerveux<br />optimal</> : <>Optimal neural<br />balance</>}
             </span>
-
             <div
               style={{
                 width: '34px',
                 height: '34px',
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.16)',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(217, 249, 112, 0.16)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(217, 249, 112, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(217, 249, 112, 0.28)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <Brain size={15} color="#FAF7F2" strokeWidth={1.6} />
+              <Brain size={16} color={isMono ? "#FAF7F2" : "#D9F970"} strokeWidth={1.8} />
             </div>
           </div>
 
-          {/* Center Value: 96% + ▲ 12% increase on this day */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '6px 0 2px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline' }}>
-              <span
-                style={{
-                  fontSize: '36px',
-                  fontWeight: 300,
-                  color: '#FAF7F2',
-                  lineHeight: 1,
-                  letterSpacing: '-1px',
-                }}
-              >
+              <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
                 {neuralPct > 0 ? neuralPct : '--'}
               </span>
-              <span
-                style={{
-                  fontSize: '17px',
-                  fontWeight: 300,
-                  color: 'rgba(250, 247, 242, 0.8)',
-                  marginLeft: '1px',
-                }}
-              >
-                %
-              </span>
+              <span style={{ fontSize: '16px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#D9F970', marginLeft: '1px' }}>%</span>
             </div>
-
-            <span
-              style={{
-                fontSize: '10px',
-                color: 'rgba(250, 247, 242, 0.72)',
-                marginTop: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              <span style={{ color: '#D9F970', fontSize: '8px' }}>▲</span>
+            <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#D9F970', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
+              <span style={{ fontSize: '8px' }}>▲</span>
               <span>+12% ({dayData.hrv} ms VRC)</span>
             </span>
           </div>
 
-          {/* Bottom Intertwined Dual Sine Wave SVG */}
-          <svg
-            width="100%"
-            height="30"
-            viewBox="0 0 150 30"
-            fill="none"
-            style={{ overflow: 'visible', marginTop: '2px' }}
-          >
-            {/* Secondary wave */}
+          <svg width="100%" height="26" viewBox="0 0 150 26" fill="none" style={{ overflow: 'visible', marginTop: '2px' }}>
+            <path d="M 0 13 Q 22 3, 45 13 T 90 13 T 135 13 T 150 9" stroke={isMono ? "rgba(250, 247, 242, 0.3)" : "rgba(217, 249, 112, 0.25)"} strokeWidth="1.2" fill="none" />
             <path
-              d="M 0 16 Q 22 4, 45 16 T 90 16 T 135 16 T 150 12"
-              stroke="rgba(250, 247, 242, 0.32)"
-              strokeWidth="1.2"
+              d="M 0 13 Q 22 23, 45 13 T 90 13 T 135 13 T 150 17"
+              stroke={isMono ? '#FAF7F2' : '#D9F970'}
+              strokeWidth="1.6"
               fill="none"
-            />
-            {/* Primary glowing lime wave */}
-            <path
-              d="M 0 16 Q 22 28, 45 16 T 90 16 T 135 16 T 150 20"
-              stroke="#D9F970"
-              strokeWidth="1.5"
-              fill="none"
-              style={{ filter: 'drop-shadow(0 0 6px rgba(217, 249, 112, 0.8))' }}
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.7))' : 'drop-shadow(0 0 7px rgba(217, 249, 112, 0.85))' }}
             />
           </svg>
         </div>
 
         {/* -----------------------------------------------------------------
-            CARD 2: "Steps Taken Today" (6,840 / 420 kcal) — Icy Cyan-Silver Glow
+            CARD 2: "Pas effectués" (Calories & Activité) - VIBRANT ORANGE
             ----------------------------------------------------------------- */}
         <div
-          onClick={() => openMetricDetail('resp')}
+          onClick={() => setTab('fit')}
           role="button"
           tabIndex={0}
-          title="Activité quotidienne & fréquence respiratoire"
+          title="Voir le suivi complet de l'activité & des pas"
           style={{
             position: 'relative',
-            minHeight: '176px',
+            minHeight: '160px',
             padding: '16px 15px 14px 15px',
             borderRadius: '26px',
             overflow: 'hidden',
@@ -347,114 +411,73 @@ export const HealthScreen: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background:
-              'radial-gradient(ellipse at 50% 108%, rgba(165, 243, 252, 0.26) 0%, rgba(148, 163, 184, 0.1) 44%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(251, 146, 60, 0.36) 0%, rgba(234, 88, 12, 0.14) 44%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
             backdropFilter: 'blur(26px)',
             WebkitBackdropFilter: 'blur(26px)',
             borderTop: '1px solid rgba(255, 248, 240, 0.16)',
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: '1.5px solid rgba(207, 250, 254, 0.62)',
-            boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(165, 243, 252, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(251, 146, 60, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(251, 146, 60, 0.2)',
           }}
         >
-          {/* Top Row: Title + Circular Frosted Flame Icon */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span
-              style={{
-                fontSize: '12.5px',
-                fontWeight: 400,
-                color: 'rgba(250, 247, 242, 0.86)',
-                lineHeight: 1.25,
-              }}
-            >
-              {language === 'fr' ? (
-                <>
-                  Pas effectués
-                  <br />
-                  aujourd'hui
-                </>
-              ) : (
-                <>
-                  Steps Taken
-                  <br />
-                  Today
-                </>
-              )}
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Pas effectués<br />aujourd'hui</> : <>Steps Taken<br />Today</>}
             </span>
-
             <div
               style={{
                 width: '34px',
                 height: '34px',
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.16)',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(251, 146, 60, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(251, 146, 60, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(251, 146, 60, 0.28)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <Flame size={15} color="#FAF7F2" strokeWidth={1.6} />
+              <Flame size={16} color={isMono ? "#FAF7F2" : "#FB923C"} fill={isMono ? "transparent" : "rgba(251, 146, 60, 0.25)"} strokeWidth={1.8} />
             </div>
           </div>
 
-          {/* Center Value: 8,420 + 480 kcal burned */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '6px 0 4px 0' }}>
-            <span
-              style={{
-                fontSize: '34px',
-                fontWeight: 300,
-                color: '#FAF7F2',
-                lineHeight: 1,
-                letterSpacing: '-1px',
-              }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 2px 0' }}>
+            <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
               {isFirstLaunch && dayData.steps === 0 ? '--' : fmtNum(dayData.steps)}
             </span>
-
-            <span
-              style={{
-                fontSize: '10.5px',
-                color: 'rgba(250, 247, 242, 0.72)',
-                marginTop: '5px',
-              }}
-            >
-              {isFirstLaunch && dayData.steps === 0 ? (language === 'fr' ? '0 kcal brûlée' : '0 kcal burned') : `${dayData.activeKcal} ${language === 'fr' ? 'kcal brûlées' : 'kcal burned'}`}
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.72)' : '#FDBA74', marginTop: '4px', fontWeight: 600 }}>
+              {isFirstLaunch && dayData.steps === 0 ? (language === 'fr' ? '0 kcal brûlée' : '0 kcal burned') : `${dayData.activeKcal} ${language === 'fr' ? 'kcal brûlées' : 'kcal burned'} · 84%`}
             </span>
           </div>
 
-          {/* Bottom Progress Track with Diamond Pointer */}
-          <div style={{ position: 'relative', width: '100%', paddingTop: '10px', paddingBottom: '4px' }}>
-            <div
-              style={{
-                width: '100%',
-                height: '2px',
-                background: 'rgba(255, 255, 255, 0.18)',
-                borderRadius: '2px',
-                position: 'relative',
-              }}
-            >
+          <div style={{ position: 'relative', width: '100%', paddingTop: '8px', paddingBottom: '4px' }}>
+            <div style={{ width: '100%', height: '3px', background: 'rgba(255, 255, 255, 0.12)', borderRadius: '3px', position: 'relative' }}>
               <div
                 style={{
                   width: `${stepsProgress}%`,
                   height: '100%',
-                  background: 'linear-gradient(90deg, rgba(255,255,255,0.4), #E0F2FE)',
-                  boxShadow: '0 0 8px rgba(224, 242, 254, 0.8)',
+                  borderRadius: '3px',
+                  background: isMono ? '#FAF7F2' : 'linear-gradient(90deg, #F97316, #FBBF24)',
+                  boxShadow: isMono ? '0 0 8px rgba(255, 255, 255, 0.8)' : '0 0 10px rgba(251, 146, 60, 0.9)',
                 }}
               />
-              {/* Triangle / Diamond Marker */}
               <div
                 style={{
                   position: 'absolute',
                   left: `${stepsProgress}%`,
-                  top: '-4px',
+                  top: '-3px',
                   transform: 'translateX(-50%) rotate(45deg)',
-                  width: '7px',
-                  height: '7px',
-                  background: '#FFFFFF',
-                  boxShadow: '0 0 8px #FFFFFF',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '1.5px',
+                  background: isMono ? '#FFFFFF' : '#FFF7ED',
+                  boxShadow: isMono ? '0 0 8px #FFFFFF' : '0 0 10px #FB923C',
                 }}
               />
             </div>
@@ -462,7 +485,7 @@ export const HealthScreen: React.FC = () => {
         </div>
 
         {/* -----------------------------------------------------------------
-            CARD 3: "Oxygen in Blood" (98% Normal) — Orchid-Magenta Glow
+            CARD 3: "Oxygène dans le sang" (SpO2) - LUMINOUS FUCHSIA / ORCHID
             ----------------------------------------------------------------- */}
         <div
           onClick={() => openMetricDetail('spo2')}
@@ -471,122 +494,85 @@ export const HealthScreen: React.FC = () => {
           title="Ouvrir le suivi détaillé 24h de l'Oxygénation SpO2"
           style={{
             position: 'relative',
-            minHeight: '148px',
-            padding: '15px 15px 13px 15px',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
             borderRadius: '26px',
             overflow: 'hidden',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background:
-              'radial-gradient(ellipse at 60% 108%, rgba(217, 70, 239, 0.36) 0%, rgba(162, 28, 175, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 60% 108%, rgba(217, 70, 239, 0.38) 0%, rgba(162, 28, 175, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
             backdropFilter: 'blur(26px)',
             WebkitBackdropFilter: 'blur(26px)',
             borderTop: '1px solid rgba(255, 248, 240, 0.16)',
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: '1.5px solid rgba(240, 171, 252, 0.65)',
-            boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 70, 239, 0.14)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(232, 121, 249, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(232, 121, 249, 0.2)',
           }}
         >
-          <span
-            style={{
-              fontSize: '12.5px',
-              fontWeight: 400,
-              color: 'rgba(250, 247, 242, 0.86)',
-            }}
-          >
-            {language === "fr" ? "Oxygène dans le sang" : "Oxygen in Blood"}
-          </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Oxygène dans<br />le sang</> : <>Blood<br />Oxygen</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(232, 121, 249, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(232, 121, 249, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(232, 121, 249, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Droplets size={16} color={isMono ? "#FAF7F2" : "#E879F9"} fill={isMono ? "transparent" : "rgba(232, 121, 249, 0.2)"} strokeWidth={1.8} />
+            </div>
+          </div>
 
-          {/* Bottom Split: Left Value (98% Normal) + Right Arch Gauge */}
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '4px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline' }}>
-                <span
-                  style={{
-                    fontSize: '30px',
-                    fontWeight: 300,
-                    color: '#FAF7F2',
-                    lineHeight: 1,
-                    letterSpacing: '-0.8px',
-                  }}
-                >
+                <span style={{ fontSize: '30px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                   {isFirstLaunch || !dayData.spo2 ? '--' : Math.round(dayData.spo2)}
                 </span>
-                <span
-                  style={{
-                    fontSize: '14px',
-                    fontWeight: 300,
-                    color: 'rgba(250, 247, 242, 0.8)',
-                    marginLeft: '1px',
-                  }}
-                >
-                  %
-                </span>
+                <span style={{ fontSize: '14px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#E879F9', marginLeft: '1px' }}>%</span>
               </div>
-              <span
-                style={{
-                  fontSize: '10.5px',
-                  color: 'rgba(250, 247, 242, 0.65)',
-                  marginTop: '3px',
-                  display: 'block',
-                }}
-              >
-                Normal
+              <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#F0ABFC', marginTop: '2px', display: 'block', fontWeight: 600 }}>
+                {language === 'fr' ? 'Normal (95-100%)' : 'Optimal (95-100%)'}
               </span>
             </div>
 
-            {/* Semi-circular Orchid Arch Gauge */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span
-                style={{
-                  fontSize: '9.5px',
-                  color: '#F0ABFC',
-                  marginBottom: '2px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '2px',
-                }}
-              >
+              <span style={{ fontSize: '9.5px', color: isMono ? '#FAF7F2' : '#F0ABFC', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}>
                 <span style={{ fontSize: '7px' }}>▲</span> 0.7%
               </span>
-
-              <svg width="78" height="42" viewBox="0 0 78 42" style={{ overflow: 'visible' }}>
-                {/* Inner dashed reference arc */}
-                <path
-                  d="M 10 38 A 29 29 0 0 1 68 38"
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.25)"
-                  strokeWidth="1"
-                  strokeDasharray="2 2.5"
-                />
-                {/* Outer glowing orchid arch */}
+              <svg width="68" height="36" viewBox="0 0 78 42" style={{ overflow: 'visible' }}>
+                <path d="M 10 38 A 29 29 0 0 1 68 38" fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(232, 121, 249, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
                 <path
                   d="M 4 38 A 35 35 0 0 1 74 38"
                   fill="none"
-                  stroke="#E879F9"
-                  strokeWidth="2.2"
+                  stroke={isMono ? '#FAF7F2' : '#E879F9'}
+                  strokeWidth="2.4"
                   strokeLinecap="round"
-                  style={{ filter: 'drop-shadow(0 0 6px rgba(232, 121, 249, 0.85))' }}
+                  style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(232, 121, 249, 0.9))' }}
                 />
-                {/* Glowing indicator dot on arch */}
-                <circle
-                  cx="56"
-                  cy="10"
-                  r="3.2"
-                  fill="#FAF7F2"
-                  stroke="#E879F9"
-                  strokeWidth="1.5"
-                />
+                <circle cx="56" cy="10" r="3.5" fill="#FAF7F2" stroke={isMono ? '#0A0A0C' : '#E879F9'} strokeWidth="1.8" />
               </svg>
             </div>
           </div>
         </div>
 
         {/* -----------------------------------------------------------------
-            CARD 4: "Skin Temperature" (36.8°c) — Warm Amber-Copper Glow
+            CARD 4: "Température cutanée" - LUMINOUS GOLD / AMBER
             ----------------------------------------------------------------- */}
         <div
           onClick={() => openMetricDetail('temp')}
@@ -595,103 +581,384 @@ export const HealthScreen: React.FC = () => {
           title="Ouvrir le suivi détaillé 24h de la Température Cutanée"
           style={{
             position: 'relative',
-            minHeight: '148px',
-            padding: '15px 15px 13px 15px',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
             borderRadius: '26px',
             overflow: 'hidden',
             cursor: 'pointer',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background:
-              'radial-gradient(ellipse at 50% 108%, rgba(251, 146, 60, 0.34) 0%, rgba(217, 119, 6, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(251, 191, 36, 0.36) 0%, rgba(217, 119, 6, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
             backdropFilter: 'blur(26px)',
             WebkitBackdropFilter: 'blur(26px)',
             borderTop: '1px solid rgba(255, 248, 240, 0.16)',
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: '1.5px solid rgba(253, 186, 116, 0.65)',
-            boxShadow: '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(251, 146, 60, 0.14)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(251, 191, 36, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(251, 191, 36, 0.2)',
           }}
         >
-          <span
-            style={{
-              fontSize: '12.5px',
-              fontWeight: 400,
-              color: 'rgba(250, 247, 242, 0.86)',
-            }}
-          >
-            {language === "fr" ? "Température cutanée" : "Skin Temperature"}
-          </span>
-
-          {/* Center Value: 36.8°c */}
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', margin: '4px 0' }}>
-            <span
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Température<br />cutanée</> : <>Skin<br />Temperature</>}
+            </span>
+            <div
               style={{
-                fontSize: '30px',
-                fontWeight: 300,
-                color: '#FAF7F2',
-                lineHeight: 1,
-                letterSpacing: '-0.8px',
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(251, 191, 36, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(251, 191, 36, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(251, 191, 36, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
-              {skinTempAbs}
-            </span>
-            <span
-              style={{
-                fontSize: '15px',
-                fontWeight: 300,
-                color: 'rgba(250, 247, 242, 0.8)',
-                marginLeft: '1px',
-              }}
-            >
-              °c
-            </span>
+              <Thermometer size={16} color={isMono ? "#FAF7F2" : "#FBBF24"} strokeWidth={1.8} />
+            </div>
           </div>
 
-          {/* Bottom Wave Curve with Amber Node + Low / High */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <svg width="100%" height="22" viewBox="0 0 140 22" style={{ overflow: 'visible' }}>
-              {/* Dotted upper wave */}
-              <path
-                d="M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12"
-                fill="none"
-                stroke="rgba(255, 255, 255, 0.25)"
-                strokeWidth="1"
-                strokeDasharray="2 2.5"
-              />
-              {/* Smooth Amber Wave */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', margin: '2px 0' }}>
+            <span style={{ fontSize: '30px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+              {skinTempAbs}
+            </span>
+            <span style={{ fontSize: '15px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#FBBF24', marginLeft: '1px' }}>°c</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <svg width="100%" height="20" viewBox="0 0 140 22" style={{ overflow: 'visible' }}>
+              <path d="M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12" fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(251, 191, 36, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
               <path
                 d="M 4 18 C 35 18, 52 10, 74 10 C 96 10, 115 16, 136 16"
                 fill="none"
-                stroke="#FB923C"
-                strokeWidth="1.6"
-                style={{ filter: 'drop-shadow(0 0 5px rgba(251, 146, 60, 0.8))' }}
+                stroke={isMono ? '#FAF7F2' : '#FBBF24'}
+                strokeWidth="1.8"
+                style={{ filter: isMono ? 'drop-shadow(0 0 5px rgba(255, 255, 255, 0.7))' : 'drop-shadow(0 0 6px rgba(251, 191, 36, 0.85))' }}
               />
-              {/* Glowing Amber Ring Marker */}
-              <circle
-                cx="74"
-                cy="10"
-                r="4.5"
-                fill="#18120E"
-                stroke="#FB923C"
-                strokeWidth="2"
-              />
-              <circle cx="74" cy="10" r="1.8" fill="#FDBA74" />
+              <circle cx="74" cy="10" r="4.5" fill="#18120E" stroke={isMono ? '#FAF7F2' : '#FBBF24'} strokeWidth="2" />
+              <circle cx="74" cy="10" r="1.8" fill="#FFFFFF" />
             </svg>
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '9.5px',
-                color: 'rgba(250, 247, 242, 0.58)',
-              }}
-            >
-              <span>{language === "fr" ? "Bas" : "Low"}</span>
-              <span>{language === "fr" ? "Élevé" : "High"}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: isMono ? 'rgba(250, 247, 242, 0.58)' : '#FCD34D', fontWeight: 600 }}>
+              <span>{language === 'fr' ? 'Écart -0.08°C' : 'Delta -0.08°C'}</span>
+              <span>{language === 'fr' ? 'Stable' : 'Stable'}</span>
             </div>
           </div>
+        </div>
+
+        {/* -----------------------------------------------------------------
+            CARD 5: "Niveau de Stress & Émotion" (SDK QC 0x73) - EMERALD MINT
+            ----------------------------------------------------------------- */}
+        <div
+          onClick={() => openMetricDetail('stress')}
+          role="button"
+          tabIndex={0}
+          title="Ouvrir le suivi détaillé du stress et de l'équilibre émotionnel"
+          style={{
+            position: 'relative',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
+            borderRadius: '26px',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(52, 211, 153, 0.36) 0%, rgba(16, 185, 129, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            backdropFilter: 'blur(26px)',
+            WebkitBackdropFilter: 'blur(26px)',
+            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(52, 211, 153, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(52, 211, 153, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Niveau de<br />stress</> : <>Nervous<br />Stress</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(52, 211, 153, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(52, 211, 153, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(52, 211, 153, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Activity size={16} color={isMono ? "#FAF7F2" : "#34D399"} strokeWidth={1.8} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+              <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
+                {isFirstLaunch || !dayData.stress ? (isFirstLaunch ? '--' : 24) : dayData.stress}
+              </span>
+              <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span>
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
+              {isFirstLaunch ? '--' : (dayData.stressLevel || (language === 'fr' ? 'Zone Repos · Serein' : 'Rest Zone · Serene'))}
+            </span>
+          </div>
+
+          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+            <path d="M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11" stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
+            <path
+              d="M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"
+              stroke={isMono ? '#FAF7F2' : '#34D399'}
+              strokeWidth="1.8"
+              fill="none"
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(52, 211, 153, 0.85))' }}
+            />
+          </svg>
+        </div>
+
+        {/* -----------------------------------------------------------------
+            CARD 6: "Tension Artérielle" (SDK QC BP) - CRIMSON ROSE
+            ----------------------------------------------------------------- */}
+        <div
+          onClick={() => openMetricDetail('bp')}
+          role="button"
+          tabIndex={0}
+          title="Ouvrir le suivi détaillé de la tension artérielle"
+          style={{
+            position: 'relative',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
+            borderRadius: '26px',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(244, 63, 94, 0.36) 0%, rgba(225, 29, 72, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            backdropFilter: 'blur(26px)',
+            WebkitBackdropFilter: 'blur(26px)',
+            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(244, 63, 94, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(244, 63, 94, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Tension<br />artérielle</> : <>Blood<br />Pressure</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(244, 63, 94, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(244, 63, 94, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(244, 63, 94, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <HeartPulse size={16} color={isMono ? "#FAF7F2" : "#F43F5E"} strokeWidth={1.8} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+              <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                {isFirstLaunch ? '--/--' : (dayData.bloodPressure ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '118/76')}
+              </span>
+              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span>
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
+              {isFirstLaunch ? '--' : (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)')}
+            </span>
+          </div>
+
+          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+            <path
+              d="M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"
+              stroke={isMono ? '#FAF7F2' : '#F43F5E'}
+              strokeWidth="1.8"
+              fill="none"
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(244, 63, 94, 0.9))' }}
+            />
+          </svg>
+        </div>
+
+        {/* -----------------------------------------------------------------
+            CARD 7: "Stabilité Glycémique" (SDK QC Glucose) - INDIGO METABOLIC
+            ----------------------------------------------------------------- */}
+        <div
+          onClick={() => openMetricDetail('glucose')}
+          role="button"
+          tabIndex={0}
+          title="Ouvrir le suivi de la stabilité glycémique & métabolique"
+          style={{
+            position: 'relative',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
+            borderRadius: '26px',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(129, 140, 248, 0.36) 0%, rgba(79, 70, 229, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            backdropFilter: 'blur(26px)',
+            WebkitBackdropFilter: 'blur(26px)',
+            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(129, 140, 248, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(129, 140, 248, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Stabilité<br />glycémique</> : <>Glucose<br />Stability</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(129, 140, 248, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(129, 140, 248, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(129, 140, 248, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <TrendingUp size={16} color={isMono ? "#FAF7F2" : "#818CF8"} strokeWidth={1.8} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+              <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                {isFirstLaunch ? '--' : (dayData.glucose ? dayData.glucose.valueMmol : '5.1')}
+              </span>
+              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span>
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
+              {isFirstLaunch ? '--' : (dayData.glucose ? `${dayData.glucose.stabilityScore}% stable` : '94% stable · Idéale')}
+            </span>
+          </div>
+
+          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+            <path
+              d="M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"
+              stroke={isMono ? '#FAF7F2' : '#818CF8'}
+              strokeWidth="1.8"
+              fill="none"
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(129, 140, 248, 0.85))' }}
+            />
+          </svg>
+        </div>
+
+        {/* -----------------------------------------------------------------
+            CARD 8: "Fréquence Respiratoire" (SDK / Biométrie) - SKY BLUE
+            ----------------------------------------------------------------- */}
+        <div
+          onClick={() => openMetricDetail('resp')}
+          role="button"
+          tabIndex={0}
+          title="Ouvrir le suivi détaillé de la fréquence respiratoire & ventilation"
+          style={{
+            position: 'relative',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
+            borderRadius: '26px',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(56, 189, 248, 0.36) 0%, rgba(2, 132, 199, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            backdropFilter: 'blur(26px)',
+            WebkitBackdropFilter: 'blur(26px)',
+            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(56, 189, 248, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(56, 189, 248, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Fréquence<br />respiratoire</> : <>Respiratory<br />Rate</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(56, 189, 248, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(56, 189, 248, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(56, 189, 248, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Wind size={16} color={isMono ? "#FAF7F2" : "#38BDF8"} strokeWidth={1.8} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+              <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                14,2
+              </span>
+              <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span>
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#7DD3FC', marginTop: '2px', fontWeight: 600 }}>
+              {language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady'}
+            </span>
+          </div>
+
+          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+            <path
+              d="M 0 11 Q 25 3, 50 11 T 100 11 T 140 11"
+              stroke={isMono ? '#FAF7F2' : '#38BDF8'}
+              strokeWidth="1.8"
+              fill="none"
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(56, 189, 248, 0.85))' }}
+            />
+          </svg>
         </div>
       </div>
 
@@ -715,12 +982,13 @@ export const HealthScreen: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          background:
-            'radial-gradient(ellipse at 35% 100%, rgba(217, 249, 112, 0.25) 0%, rgba(82, 102, 42, 0.18) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C',
+          background: isMono
+            ? 'radial-gradient(ellipse at 35% 100%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+            : 'radial-gradient(ellipse at 35% 100%, rgba(217, 249, 112, 0.25) 0%, rgba(82, 102, 42, 0.18) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C',
           borderTop: '1px solid rgba(255, 248, 240, 0.16)',
           borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
           borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-          borderBottom: '1.5px solid rgba(217, 249, 112, 0.45)',
+          borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(217, 249, 112, 0.45)',
           boxShadow: '0 14px 32px rgba(0, 0, 0, 0.55)',
         }}
       >
@@ -744,7 +1012,7 @@ export const HealthScreen: React.FC = () => {
               style={{
                 fontSize: '11px',
                 fontWeight: 500,
-                color: scoreDiffYesterday >= 0 ? '#30D158' : '#FF453A',
+                color: isMono ? '#FAF7F2' : (scoreDiffYesterday >= 0 ? '#30D158' : '#FF453A'),
                 paddingLeft: '20px',
                 letterSpacing: '0.01em',
               }}

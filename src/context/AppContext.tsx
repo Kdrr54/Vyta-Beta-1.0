@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals } from '../types';
+import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption } from '../types';
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays } from '../data/health';
 import { DayMetrics } from '../types';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
@@ -17,11 +17,11 @@ interface AppContextType {
   updateProfile: (partial: Partial<UserProfile>) => void;
   finish: RingFinish;
   setFinish: (finish: RingFinish) => void;
-  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null;
-  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state') => void;
+  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | null;
+  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism') => void;
   closeModal: () => void;
-  metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null;
-  openMetricDetail: (metric: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp') => void;
+  metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null;
+  openMetricDetail: (metric: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => void;
   closeMetricDetail: () => void;
   storyData: any | null;
   openStory: (data: any) => void;
@@ -34,6 +34,8 @@ interface AppContextType {
   updateRing: (partial: Partial<RingDevice>) => void;
   theme: AppTheme;
   setTheme: (theme: AppTheme) => void;
+  cardThemeMode: 'monochrome' | 'colored';
+  setCardThemeMode: (mode: 'monochrome' | 'colored') => void;
   simulatedDate: Date;
   setSimulatedDate: (d: Date) => void;
   resetSimulatedDate: () => void;
@@ -47,6 +49,8 @@ interface AppContextType {
   isFirstLaunch: boolean;
   isPaired: boolean;
   setIsPaired: (paired: boolean) => void;
+  isLiveRunningViewOpen: boolean;
+  setIsLiveRunningViewOpen: (open: boolean) => void;
   resetToFactory: () => void;
   loadDemoData: () => void;
   weekData: DayMetrics[];
@@ -82,8 +86,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
   const [finish, setFinish] = useState<RingFinish>(() => detectRingFinish(defaultRing.macAddress, defaultRing.serial));
-  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null>(initialModal as any);
-  const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null>(initialMetric);
+  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | null>(initialModal as any);
+  const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null>(initialMetric);
   const [storyData, setStoryData] = useState<any | null>(initialStory);
   const [ring, setRing] = useState<RingDevice>(() => {
     if (typeof window !== 'undefined') {
@@ -130,15 +134,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [isDateModalOpen, setIsDateModalOpen] = useState<boolean>(false);
-  // Biometric sensor sampling intervals
+  // Biometric sensor sampling intervals (8 biometrics)
   const [sensorIntervals, setSensorIntervals] = useState<SensorIntervals>(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('vyta_sensor_intervals');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.heartRate === 'continu') parsed.heartRate = '20min';
-          return parsed;
+          const sanitize = (val: any, fallback: SensorIntervalOption): SensorIntervalOption => {
+            if (val === '15min' || val === '30min' || val === '1h' || val === '2h') return val;
+            if (val === '10min' || val === '20min') return '15min';
+            if (val === '60min') return '1h';
+            if (val === '120min') return '2h';
+            return fallback;
+          };
+          return {
+            heartRate: sanitize(parsed.heartRate, defaultSensorIntervals.heartRate),
+            hrv: sanitize(parsed.hrv, defaultSensorIntervals.hrv),
+            spo2: sanitize(parsed.spo2, defaultSensorIntervals.spo2),
+            temperature: sanitize(parsed.temperature, defaultSensorIntervals.temperature),
+            stress: sanitize(parsed.stress, defaultSensorIntervals.stress),
+            bloodPressure: sanitize(parsed.bloodPressure, defaultSensorIntervals.bloodPressure),
+            glucose: sanitize(parsed.glucose, defaultSensorIntervals.glucose),
+            respiratory: sanitize(parsed.respiratory, defaultSensorIntervals.respiratory),
+          };
         }
       } catch (e) {}
     }
@@ -176,6 +195,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
+  const [cardThemeMode, setCardThemeModeState] = useState<'monochrome' | 'colored'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('vyta_card_theme_mode') as 'monochrome' | 'colored') || 'colored';
+    }
+    return 'colored';
+  });
+
+  const setCardThemeMode = (mode: 'monochrome' | 'colored') => {
+    setCardThemeModeState(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vyta_card_theme_mode', mode);
+    }
+  };
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -206,22 +239,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
 
-  // État premier lancement (usine, sans données) vs données de démo
+  // État premier lancement (usine, toutes les valeurs à 0)
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('vyta_first_launch') === 'true';
+      const saved = localStorage.getItem('vyta_first_launch');
+      if (saved !== null) return saved === 'true';
     }
-    return false;
+    return true; // Valeurs à 0 par défaut
   });
 
-  // État appairage de la bague (Premier lancement / Usine)
+  // État appairage de la bague (Actif par défaut pour afficher le dashboard à 0)
   const [isPaired, setIsPairedState] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vyta_ring_paired');
+      const saved = localStorage.getItem('vyta_ring_paired_v2');
       if (saved !== null) {
         return saved === 'true';
       }
-      return false; // Premier lancement : non appairé par défaut
+      return true; // Prêt à l'emploi sur iPhone
     }
     return true;
   });
@@ -229,9 +263,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setIsPaired = (paired: boolean) => {
     setIsPairedState(paired);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('vyta_ring_paired', paired ? 'true' : 'false');
+      localStorage.setItem('vyta_ring_paired_v2', paired ? 'true' : 'false');
     }
   };
+
+  // État affichage plein écran de la carte de course GPS en direct
+  const [isLiveRunningViewOpen, setIsLiveRunningViewOpen] = useState<boolean>(false);
 
   const [profile, setProfile] = useState<UserProfile>({
     firstName: 'Alexandre',
@@ -241,12 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sex: initialSex,
   });
 
-  const [liveBpm, setLiveBpm] = useState<number>(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('vyta_first_launch') === 'true') {
-      return 0;
-    }
-    return weekMetrics[TODAY_INDEX].bpm;
-  });
+  const [liveBpm, setLiveBpm] = useState<number>(() => 0);
 
   // Micro-fluctuation simulation of PPG optical sensor around current BPM
   useEffect(() => {
@@ -299,15 +331,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
 
-  // Données de la semaine dynamiques (accumulées en direct lors de la simulation)
+  // Données de la semaine dynamiques (Toutes les valeurs à 0 par défaut)
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('vyta_week_data');
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return isFirstLaunch ? createEmptyWeekMetrics() : weekMetrics;
+    return createEmptyWeekMetrics();
   });
 
   // Moteur de simulation accélérée (1 seconde réelle = 1 heure de vie de bague)
@@ -337,7 +363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.setItem('vyta_first_launch', 'true');
-      localStorage.setItem('vyta_ring_paired', 'false');
+      localStorage.setItem('vyta_ring_paired_v2', 'false');
       localStorage.setItem('vyta_week_data', JSON.stringify(empty));
       localStorage.setItem('vyta_sensor_intervals', JSON.stringify(defaultSensorIntervals));
     } catch (e) {}
@@ -361,7 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSelectedDay(3);
     try {
       localStorage.removeItem('vyta_first_launch');
-      localStorage.setItem('vyta_ring_paired', 'true');
+      localStorage.setItem('vyta_ring_paired_v2', 'true');
       localStorage.setItem('vyta_week_data', JSON.stringify(weekMetrics));
     } catch (e) {}
   };
@@ -462,9 +488,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(timer);
   }, [isSimulating, sensorIntervals, selectedDay]);
 
-  const openModal = (m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state') => setModal(m);
+  const openModal = (m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism') => setModal(m);
   const closeModal = () => setModal(null);
-  const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp') => setMetricDetail(m);
+  const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => setMetricDetail(m);
   const closeMetricDetail = () => setMetricDetail(null);
   const openStory = (data: any) => setStoryData(data);
   const closeStory = () => setStoryData(null);
@@ -500,6 +526,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateRing,
         theme,
         setTheme,
+        cardThemeMode,
+        setCardThemeMode,
         simulatedDate,
         setSimulatedDate,
         resetSimulatedDate,
@@ -513,6 +541,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isFirstLaunch,
         isPaired,
         setIsPaired,
+        isLiveRunningViewOpen,
+        setIsLiveRunningViewOpen,
         resetToFactory,
         loadDemoData,
         weekData,

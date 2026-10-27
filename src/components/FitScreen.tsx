@@ -144,7 +144,7 @@ const initialWorkoutExercises: GymExercise[] = [
 ];
 
 export const FitScreen: React.FC = () => {
-  const { openStory } = useApp();
+  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen } = useApp();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
   const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
@@ -181,7 +181,7 @@ export const FitScreen: React.FC = () => {
   const [runDurationSec, setRunDurationSec] = useState<number>(initialRunDur);
   const [runDistanceKm, setRunDistanceKm] = useState<number>(initialRunDist);
   const [isFastDemo, setIsFastDemo] = useState<boolean>(false);
-  const [isLiveRunningViewOpen, setIsLiveRunningViewOpen] = useState<boolean>(initialRunState === 'running');
+  // isLiveRunningViewOpen hoisted to AppContext
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(() => {
     if (initialRunDur > 0 && initialRunDist > 0) {

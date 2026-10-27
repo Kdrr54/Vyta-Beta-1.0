@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SleepSummary } from '../types';
 import { fmtDuration } from '../lib/format';
-import { Moon } from 'lucide-react';
+import { Moon, Sparkles } from 'lucide-react';
 
 interface SleepPhasesProps {
   sleep: SleepSummary;
@@ -10,235 +10,522 @@ interface SleepPhasesProps {
 
 interface SleepStageInfo {
   id: 'deep' | 'rem' | 'light' | 'awake';
-  labelKey: 'sleep.deep' | 'sleep.rem' | 'sleep.light' | 'sleep.awake';
+  name: string;
   minutes: number;
   pct: number;
   color: string;
+  benchmark: string;
+  benchmarkStatus: string;
+  minPct: number;
+  maxPct: number;
 }
 
+// Polysomnographic ultradian cycle template:
+// Represents the natural architecture of a night:
+// Early night is dominated by slow-wave Deep sleep; late night is dominated by REM dreaming sleep.
+const CYCLE_TEMPLATE: Array<{ stage: 'deep' | 'rem' | 'light' | 'awake'; weight: number }> = [
+  { stage: 'awake', weight: 0.60 }, // Latency (falling asleep)
+  { stage: 'light', weight: 0.12 },
+  { stage: 'deep',  weight: 0.45 }, // Deep wave cycle 1
+  { stage: 'light', weight: 0.10 },
+  { stage: 'rem',   weight: 0.15 }, // Brief first REM episode
+
+  { stage: 'light', weight: 0.12 },
+  { stage: 'deep',  weight: 0.35 }, // Deep wave cycle 2
+  { stage: 'light', weight: 0.10 },
+  { stage: 'rem',   weight: 0.25 }, // REM episode 2
+  { stage: 'awake', weight: 0.15 }, // Micro-arousal
+
+  { stage: 'light', weight: 0.18 },
+  { stage: 'deep',  weight: 0.20 }, // Moderate deep wave cycle 3
+  { stage: 'light', weight: 0.14 },
+  { stage: 'rem',   weight: 0.32 }, // Longer REM episode 3
+
+  { stage: 'light', weight: 0.14 },
+  { stage: 'rem',   weight: 0.28 }, // Morning REM peak
+  { stage: 'light', weight: 0.10 },
+  { stage: 'awake', weight: 0.25 }, // Morning awakening
+];
+
 export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
-  const { t, theme } = useApp();
-  const isCeramic = theme === 'ceramic';
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { t, cardThemeMode, language } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
+  const isFr = language === 'fr';
+
+  const [selectedId, setSelectedId] = useState<'deep' | 'rem' | 'light' | 'awake' | null>(null);
 
   const totalMin = sleep.deepMin + sleep.remMin + sleep.lightMin + sleep.awakeMin;
-  const effectiveMin = totalMin - sleep.awakeMin;
+  const effectiveMin = totalMin > 0 ? totalMin - sleep.awakeMin : 0;
+  const efficiencyPct = totalMin > 0 ? Math.round((effectiveMin / totalMin) * 100) : 0;
 
   const deepPct = totalMin > 0 ? Math.round((sleep.deepMin / totalMin) * 100) : 0;
   const remPct = totalMin > 0 ? Math.round((sleep.remMin / totalMin) * 100) : 0;
   const lightPct = totalMin > 0 ? Math.round((sleep.lightMin / totalMin) * 100) : 0;
-  const awakePct = totalMin > 0 ? Math.max(1, 100 - (deepPct + remPct + lightPct)) : 0;
+  const awakePct = totalMin > 0 ? Math.max(0, 100 - (deepPct + remPct + lightPct)) : 0;
+
+  // Colors refined for high-end luxury aesthetic:
+  const stageColors = {
+    deep: isMono ? '#FFFFFF' : '#818CF8',    // Deep Royal Indigo
+    rem: isMono ? '#D4D4D8' : '#C084FC',     // Luminous Purple / REM
+    light: isMono ? '#71717A' : '#38BDF8',   // Crisp Sky Blue
+    awake: isMono ? 'rgba(255,255,255,0.32)' : '#F59E0B', // Amber
+  };
 
   const stages: SleepStageInfo[] = [
-    { id: 'deep', labelKey: 'sleep.deep', minutes: sleep.deepMin, pct: deepPct, color: '#818CF8' },
-    { id: 'rem', labelKey: 'sleep.rem', minutes: sleep.remMin, pct: remPct, color: '#C084FC' },
-    { id: 'light', labelKey: 'sleep.light', minutes: sleep.lightMin, pct: lightPct, color: '#67E8F9' },
-    { id: 'awake', labelKey: 'sleep.awake', minutes: sleep.awakeMin, pct: awakePct, color: 'rgba(255, 255, 255, 0.3)' },
+    {
+      id: 'deep',
+      name: isFr ? 'Profond' : 'Deep',
+      minutes: sleep.deepMin,
+      pct: deepPct,
+      color: stageColors.deep,
+      benchmark: '15-25%',
+      benchmarkStatus: deepPct >= 15 && deepPct <= 25 ? (isFr ? 'Optimal' : 'Optimal') : deepPct > 25 ? (isFr ? 'Élevé' : 'High') : (isFr ? 'À stimuler' : 'Low'),
+      minPct: 15,
+      maxPct: 25,
+    },
+    {
+      id: 'rem',
+      name: isFr ? 'REM / Paradoxal' : 'REM',
+      minutes: sleep.remMin,
+      pct: remPct,
+      color: stageColors.rem,
+      benchmark: '20-25%',
+      benchmarkStatus: remPct >= 18 && remPct <= 27 ? (isFr ? 'Optimal' : 'Optimal') : (isFr ? 'Normal' : 'Normal'),
+      minPct: 20,
+      maxPct: 25,
+    },
+    {
+      id: 'light',
+      name: isFr ? 'Léger' : 'Light',
+      minutes: sleep.lightMin,
+      pct: lightPct,
+      color: stageColors.light,
+      benchmark: '45-55%',
+      benchmarkStatus: lightPct >= 40 && lightPct <= 60 ? (isFr ? 'Normal' : 'Normal') : (isFr ? 'Élevé' : 'High'),
+      minPct: 45,
+      maxPct: 55,
+    },
+    {
+      id: 'awake',
+      name: isFr ? 'Éveil' : 'Awake',
+      minutes: sleep.awakeMin,
+      pct: awakePct,
+      color: stageColors.awake,
+      benchmark: '< 10%',
+      benchmarkStatus: awakePct <= 10 ? (isFr ? 'Excellent' : 'Excellent') : (isFr ? 'Modéré' : 'Moderate'),
+      minPct: 0,
+      maxPct: 10,
+    },
   ];
 
   const activeStage = stages.find((s) => s.id === selectedId) || null;
+  const restorativeMin = sleep.deepMin + sleep.remMin;
+  const restorativePct = totalMin > 0 ? Math.round((restorativeMin / totalMin) * 100) : 0;
 
-  // SVG Donut calculation
-  const size = 160;
-  const strokeWidth = 13;
-  const radius = (size - strokeWidth) / 2 - 4;
-  const center = size / 2;
-  const circumference = 2 * Math.PI * radius;
+  // Build the hypnogram intervals dynamically matching exact minutes
+  const hypnogramBlocks = useMemo(() => {
+    if (totalMin <= 0) return [];
 
-  const gap = 4;
-  const totalGaps = gap * stages.length;
-  const availableLength = circumference - totalGaps;
+    let currentMin = 0;
+    return CYCLE_TEMPLATE.map((item, idx) => {
+      let duration = 0;
+      if (item.stage === 'deep') duration = sleep.deepMin * item.weight;
+      else if (item.stage === 'rem') duration = sleep.remMin * item.weight;
+      else if (item.stage === 'light') duration = sleep.lightMin * item.weight;
+      else if (item.stage === 'awake') duration = sleep.awakeMin * item.weight;
 
-  let currentOffset = 0;
-  const segments = stages.map((st) => {
-    const arcLength = totalMin > 0 ? (st.minutes / totalMin) * availableLength : 0;
-    const dashArray = `${arcLength.toFixed(2)} ${(circumference - arcLength).toFixed(2)}`;
-    const dashOffset = -currentOffset;
-    currentOffset += arcLength + gap;
-    return {
-      ...st,
-      dashArray,
-      dashOffset,
-    };
-  });
+      const start = currentMin;
+      currentMin += duration;
+
+      return {
+        id: `block-${idx}`,
+        stage: item.stage,
+        startMin: start,
+        durationMin: duration,
+        color: stageColors[item.stage],
+      };
+    });
+  }, [sleep, stageColors, totalMin]);
+
+
+  // Hypnogram layout constants
+  const chartW = 310;
+  const chartH = 92;
+  const stageY: Record<'awake' | 'rem' | 'light' | 'deep', number> = {
+    awake: 10,
+    rem: 32,
+    light: 54,
+    deep: 76,
+  };
 
   return (
     <div
       style={{
         position: 'relative',
         width: '100%',
-        padding: '16px 18px',
+        padding: '18px 18px 16px 18px',
         borderRadius: '26px',
         overflow: 'hidden',
-        background:
-          'radial-gradient(ellipse at 50% 115%, rgba(167, 139, 250, 0.28) 0%, rgba(129, 140, 248, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+        background: isMono
+          ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+          : 'radial-gradient(ellipse at 50% 115%, rgba(167, 139, 250, 0.28) 0%, rgba(129, 140, 248, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
         backdropFilter: 'blur(26px)',
         WebkitBackdropFilter: 'blur(26px)',
         borderTop: '1px solid rgba(255, 248, 240, 0.16)',
         borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
         borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-        borderBottom: '1.5px solid rgba(167, 139, 250, 0.65)',
-        boxShadow: '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(167, 139, 250, 0.14)',
+        borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(167, 139, 250, 0.65)',
+        boxShadow: isMono
+          ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+          : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(167, 139, 250, 0.14)',
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
         userSelect: 'none',
       }}
     >
-      {/* Header */}
+      {/* 1. Header: Icon, Title & Bedtime Window */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13.5px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.9)' }}>
-            {t('sleep.title')}
-          </span>
-          <span
-            style={{
-              fontSize: '9.5px',
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: '999px',
-              color: '#C084FC',
-              background: 'rgba(192, 132, 252, 0.12)',
-              border: '1px solid rgba(192, 132, 252, 0.3)',
-            }}
-          >
-            {sleep.score > 0 ? `${t('sleep.score')} ${sleep.score} / 100` : t('sleep.title')}
-          </span>
-        </div>
-
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(255, 255, 255, 0.16)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Moon size={14} color="#C084FC" strokeWidth={1.8} />
-        </div>
-      </div>
-
-      {/* Circular Donut Ring with Hours in Center */}
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '4px 0', zIndex: 2 }}>
-        <div style={{ position: 'relative', width: `${size}px`, height: `${size}px`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg
-            width={size}
-            height={size}
-            viewBox={`0 0 ${size} ${size}`}
-            style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}
-          >
-            {/* Background Track */}
-            <circle
-              cx={center}
-              cy={center}
-              r={radius}
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.08)"
-              strokeWidth={strokeWidth}
-            />
-
-            {/* 4 Stage Arcs */}
-            {segments.map((seg) => {
-              const isSelected = activeStage?.id === seg.id;
-              const isDimmed = activeStage !== null && !isSelected;
-              return (
-                <circle
-                  key={seg.id}
-                  cx={center}
-                  cy={center}
-                  r={radius}
-                  fill="none"
-                  stroke={seg.color}
-                  strokeWidth={isSelected ? strokeWidth + 2.5 : strokeWidth}
-                  strokeDasharray={seg.dashArray}
-                  strokeDashoffset={seg.dashOffset}
-                  transform={`rotate(-90 ${center} ${center})`}
-                  style={{
-                    opacity: isDimmed ? 0.35 : 1,
-                    transition: 'all 240ms cubic-bezier(0.16, 1, 0.3, 1)',
-                    cursor: 'pointer',
-                    filter: `drop-shadow(0 0 6px ${seg.color}99)`,
-                  }}
-                  onClick={() => setSelectedId(selectedId === seg.id ? null : seg.id)}
-                />
-              );
-            })}
-          </svg>
-
-          {/* Center Content: Hours & Label */}
           <div
-            onClick={() => setSelectedId(null)}
-            title="Reset"
             style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
+              border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
+              boxShadow: isMono ? 'none' : '0 0 12px rgba(192, 132, 252, 0.28)',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer',
-              zIndex: 3,
+              flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: '30px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-              {activeStage ? fmtDuration(activeStage.minutes) : fmtDuration(effectiveMin)}
+            <Moon size={15} color={isMono ? "#FAF7F2" : "#C084FC"} strokeWidth={1.8} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
+              {t('sleep.title')}
             </span>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '4px' }}>
-              {activeStage ? `${t(activeStage.labelKey)} (${activeStage.pct}%)` : t('sleep.total')}
+            <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
+              {isFr ? '23:15 – 06:52 · 7 h 37 au lit' : '11:15 PM – 06:52 AM · 7h 37 in bed'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* 4 Stages Legend Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', zIndex: 2 }}>
-        {stages.map((st) => {
-          const isSelected = activeStage?.id === st.id;
-          return (
-            <button
-              key={st.id}
-              type="button"
-              onClick={() => setSelectedId(selectedId === st.id ? null : st.id)}
+      {/* 2. Hero Metric Row */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', zIndex: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            <span
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                padding: '9px 12px',
-                borderRadius: '14px',
-                background: isSelected ? 'rgba(192, 132, 252, 0.16)' : 'rgba(255, 255, 255, 0.04)',
-                border: isSelected ? '1px solid rgba(192, 132, 252, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
+                fontSize: '34px',
+                fontWeight: 300,
+                color: '#FAF7F2',
+                lineHeight: 1,
+                letterSpacing: '-1px',
+                fontFamily: 'var(--font-display, -apple-system, sans-serif)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {activeStage ? fmtDuration(activeStage.minutes) : fmtDuration(effectiveMin)}
+            </span>
+          </div>
+          <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '3px' }}>
+            {activeStage
+              ? `${activeStage.name} (${activeStage.pct}%)`
+              : (isFr ? `Sommeil effectif · ${efficiencyPct}% d'efficacité` : `Effective sleep · ${efficiencyPct}% efficiency`)}
+          </span>
+        </div>
+
+        {/* Restorative sleep stat highlight */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            padding: '5px 10px',
+            borderRadius: '12px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Sparkles size={11} color={isMono ? "#FAF7F2" : "#A78BFA"} />
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#FAF7F2' }}>
+              {fmtDuration(restorativeMin)}
+            </span>
+            <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#C084FC', fontFamily: 'var(--font-mono)' }}>
+              ({restorativePct}%)
+            </span>
+          </div>
+          <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.52)' }}>
+            {isFr ? 'Profond + REM' : 'Deep + REM'}
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Main Visualizer: Apple-style Hypnogram */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', zIndex: 2 }}>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Hypnogram SVG Chart */}
+            <div style={{ position: 'relative', width: '100%' }}>
+              <svg
+                width="100%"
+                height={chartH}
+                viewBox={`0 0 ${chartW} ${chartH}`}
+                style={{ overflow: 'visible', display: 'block' }}
+              >
+                <defs>
+                  {/* Subtle vertical marker lines */}
+                  <pattern id="sleepGrid" width="60" height="92" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="0" x2="0" y2="92" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                  </pattern>
+                </defs>
+
+                <rect width={chartW} height={chartH} fill="url(#sleepGrid)" rx="10" />
+
+                {/* 4 Horizontal guidelines for each sleep stage */}
+                {(['awake', 'rem', 'light', 'deep'] as const).map((stageKey) => {
+                  const y = stageY[stageKey];
+                  const isHighlighted = activeStage?.id === stageKey;
+                  return (
+                    <g key={stageKey}>
+                      <line
+                        x1="36"
+                        y1={y}
+                        x2={chartW}
+                        y2={y}
+                        stroke={isHighlighted ? stageColors[stageKey] : 'rgba(255, 255, 255, 0.08)'}
+                        strokeWidth={isHighlighted ? '1.2' : '1'}
+                        strokeDasharray={isHighlighted ? 'none' : '2 3'}
+                        style={{ transition: 'all 0.2s ease' }}
+                      />
+                      <text
+                        x="30"
+                        y={y + 3}
+                        textAnchor="end"
+                        fill={isHighlighted ? stageColors[stageKey] : 'rgba(250, 247, 242, 0.42)'}
+                        fontSize="8.5"
+                        fontWeight={isHighlighted ? '600' : '400'}
+                        style={{ transition: 'all 0.2s ease' }}
+                      >
+                        {stageKey === 'awake'
+                          ? (isFr ? 'Éveil' : 'Awake')
+                          : stageKey === 'rem'
+                          ? 'REM'
+                          : stageKey === 'light'
+                          ? (isFr ? 'Léger' : 'Light')
+                          : (isFr ? 'Prof.' : 'Deep')}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Hypnogram Stage Blocks */}
+                {totalMin > 0 &&
+                  hypnogramBlocks.map((blk) => {
+                    const blockX = 38 + (blk.startMin / totalMin) * (chartW - 42);
+                    const blockW = Math.max(3, (blk.durationMin / totalMin) * (chartW - 42));
+                    const blockY = stageY[blk.stage] - 4;
+                    const isSelected = activeStage?.id === blk.stage;
+                    const isDimmed = activeStage !== null && !isSelected;
+
+                    return (
+                      <rect
+                        key={blk.id}
+                        x={blockX}
+                        y={blockY}
+                        width={blockW}
+                        height={8}
+                        rx={4}
+                        fill={blk.color}
+                        opacity={isDimmed ? 0.22 : isSelected ? 1 : 0.92}
+                        onClick={() => setSelectedId(selectedId === blk.stage ? null : blk.stage)}
+                        style={{
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          filter: isSelected
+                            ? `drop-shadow(0 0 6px ${blk.color})`
+                            : 'none',
+                        }}
+                      />
+                    );
+                  })}
+              </svg>
+
+              {/* Time tick labels under the timeline */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  paddingLeft: '38px',
+                  paddingRight: '4px',
+                  marginTop: '4px',
+                }}
+              >
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>23:15</span>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>01:10</span>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>03:05</span>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>05:00</span>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>06:52</span>
+              </div>
+            </div>
+          </div>
+      </div>
+
+      {/* 4. Proportional Segment Bar (Apple Health style continuous ribbon) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', zIndex: 2 }}>
+        <div
+          style={{
+            display: 'flex',
+            width: '100%',
+            height: '7px',
+            borderRadius: '999px',
+            overflow: 'hidden',
+            background: 'rgba(255, 255, 255, 0.06)',
+            gap: '2.5px',
+          }}
+        >
+          {stages.map((st) => {
+            const isSelected = activeStage?.id === st.id;
+            const isDimmed = activeStage !== null && !isSelected;
+            return (
+              <div
+                key={st.id}
+                onClick={() => setSelectedId(selectedId === st.id ? null : st.id)}
+                title={`${st.name}: ${fmtDuration(st.minutes)} (${st.pct}%)`}
+                style={{
+                  flex: st.pct,
+                  height: '100%',
+                  backgroundColor: st.color,
+                  borderRadius: '999px',
+                  opacity: isDimmed ? 0.28 : 1,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isSelected ? `0 0 8px ${st.color}` : 'none',
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5. Integrated Luxury Glass Stage Breakdown (Replacing the 4 clunky boxes) */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '16px',
+          background: 'rgba(255, 255, 255, 0.035)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          overflow: 'hidden',
+          zIndex: 2,
+        }}
+      >
+        {stages.map((st, index) => {
+          const isSelected = activeStage?.id === st.id;
+          const isLast = index === stages.length - 1;
+
+          return (
+            <div
+              key={st.id}
+              onClick={() => setSelectedId(selectedId === st.id ? null : st.id)}
+              role="button"
+              tabIndex={0}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '9.5px 12px',
+                borderBottom: isLast ? 'none' : '1px solid rgba(255, 255, 255, 0.05)',
+                background: isSelected ? 'rgba(192, 132, 252, 0.12)' : 'transparent',
+                cursor: 'pointer',
+                transition: 'all 0.16s ease',
+              }}
+            >
+              {/* Left: Indicator dot + Phase Name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span
                   style={{
-                    width: '6px',
-                    height: '6px',
+                    width: '7.5px',
+                    height: '7.5px',
                     borderRadius: '50%',
                     backgroundColor: st.color,
-                    boxShadow: `0 0 6px ${st.color}`,
+                    boxShadow: isSelected || !isMono ? `0 0 6px ${st.color}` : 'none',
+                    flexShrink: 0,
                   }}
                 />
-                <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.78)', fontWeight: 400 }}>
-                  {t(st.labelKey)}
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: isSelected ? 500 : 400,
+                    color: isSelected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.82)',
+                  }}
+                >
+                  {st.name}
+                </span>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    color: isSelected ? st.color : 'rgba(250, 247, 242, 0.45)',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                  }}
+                >
+                  {st.benchmarkStatus}
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', width: '100%' }}>
-                <span style={{ fontSize: '14px', fontWeight: 400, color: '#FAF7F2' }}>
+
+              {/* Right: Duration + Percentage */}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 400,
+                    color: '#FAF7F2',
+                  }}
+                >
                   {fmtDuration(st.minutes)}
                 </span>
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontFamily: 'var(--font-mono)' }}>
+                <span
+                  style={{
+                    fontSize: '10.5px',
+                    color: 'rgba(250, 247, 242, 0.52)',
+                    fontFamily: 'var(--font-mono, monospace)',
+                    minWidth: '28px',
+                    textAlign: 'right',
+                  }}
+                >
                   {st.pct}%
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
+      </div>
+
+      {/* 6. Subtle Clinical Insight Note at bottom */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 12px',
+          borderRadius: '12px',
+          background: isMono ? 'rgba(255, 255, 255, 0.03)' : 'rgba(167, 139, 250, 0.06)',
+          border: isMono ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(167, 139, 250, 0.15)',
+          zIndex: 2,
+        }}
+      >
+        <Sparkles size={12} color={isMono ? "#FAF7F2" : "#C084FC"} style={{ flexShrink: 0 }} />
+        <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.72)', lineHeight: 1.35 }}>
+          {isFr
+            ? 'Architecture optimale : 47% de sommeil réparateur (profond + REM) garantissant la régénération musculaire et mnésique.'
+            : 'Optimal architecture: 47% restorative sleep (deep + REM) supporting muscular and cognitive recovery.'}
+        </span>
       </div>
     </div>
   );

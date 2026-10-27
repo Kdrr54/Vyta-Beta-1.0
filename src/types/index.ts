@@ -51,14 +51,23 @@ export interface DayMetrics {
   spo2: number;
   anomaly: { tempDelta: number; hrvDelta: number } | null;
   sleep: SleepSummary;
+  stress?: number;
+  stressLevel?: string;
+  bloodPressure?: { sbp: number; dbp: number };
+  glucose?: { valueMmol: number; stabilityScore: number };
 }
 
+export type SensorIntervalOption = '15min' | '30min' | '1h' | '2h';
+
 export interface SensorIntervals {
-  heartRate: '10min' | '20min' | '30min' | '60min';
-  hrv: 'continu_nuit' | '15min' | '30min' | '60min';
-  temperature: '15min' | '30min' | '60min' | 'nuit';
-  spo2: '15min' | '30min' | '60min' | 'nuit';
-  respiratory: 'continu_nuit' | '30min' | '60min';
+  heartRate: SensorIntervalOption;
+  hrv: SensorIntervalOption;
+  spo2: SensorIntervalOption;
+  temperature: SensorIntervalOption;
+  stress: SensorIntervalOption;
+  bloodPressure: SensorIntervalOption;
+  glucose: SensorIntervalOption;
+  respiratory: SensorIntervalOption;
 }
 
 export interface FinishOption {
@@ -81,4 +90,6 @@ export interface RingDevice {
   vytaCareActive?: boolean;
   vytaCareExpires?: string;
   sensorIntervals?: SensorIntervals;
+  wearCalibrationScore?: number;
+  wearCalibrationDate?: string;
 }

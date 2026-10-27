@@ -7,7 +7,8 @@ interface CardioAgeProps {
 }
 
 export const CardioAge: React.FC<CardioAgeProps> = ({ score }) => {
-  const { profile, t, isFirstLaunch } = useApp();
+  const { profile, t, isFirstLaunch, cardThemeMode } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
   const isZeroState = isFirstLaunch || score === 0;
 
   const delta = score >= 90 ? -4 : score >= 80 ? -2 : 0;
@@ -21,15 +22,18 @@ export const CardioAge: React.FC<CardioAgeProps> = ({ score }) => {
         padding: '16px 18px',
         borderRadius: '26px',
         overflow: 'hidden',
-        background:
-          'radial-gradient(ellipse at 50% 115%, rgba(217, 249, 112, 0.28) 0%, rgba(163, 204, 62, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+        background: isMono
+          ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+          : 'radial-gradient(ellipse at 50% 115%, rgba(217, 249, 112, 0.28) 0%, rgba(163, 204, 62, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
         backdropFilter: 'blur(26px)',
         WebkitBackdropFilter: 'blur(26px)',
         borderTop: '1px solid rgba(255, 248, 240, 0.16)',
         borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
         borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-        borderBottom: '1.5px solid rgba(217, 249, 112, 0.65)',
-        boxShadow: '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 249, 112, 0.14)',
+        borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(217, 249, 112, 0.65)',
+        boxShadow: isMono
+          ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+          : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(217, 249, 112, 0.14)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -69,7 +73,7 @@ export const CardioAge: React.FC<CardioAgeProps> = ({ score }) => {
             justifyContent: 'center',
           }}
         >
-          <Heart size={14} color="#D9F970" strokeWidth={1.8} />
+          <Heart size={14} color={isMono ? "#FAF7F2" : "#D9F970"} strokeWidth={1.8} />
         </div>
       </div>
     </div>

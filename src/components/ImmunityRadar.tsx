@@ -7,7 +7,8 @@ interface ImmunityRadarProps {
 }
 
 export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
-  const { covytaActive, openModal, t, isFirstLaunch } = useApp();
+  const { covytaActive, openModal, t, isFirstLaunch, cardThemeMode } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
 
   // Une anomalie n'existe QUE si la bague a transmis des données et qu'un écart réel a été détecté
   const hasAnomaly = !isFirstLaunch && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
@@ -23,7 +24,9 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
         overflow: 'hidden',
         background: hasAnomaly
           ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 69, 58, 0.28) 0%, rgba(255, 45, 85, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)'
-          : 'radial-gradient(ellipse at 50% 115%, rgba(52, 211, 153, 0.25) 0%, rgba(16, 185, 129, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+          : (isMono
+            ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+            : 'radial-gradient(ellipse at 50% 115%, rgba(52, 211, 153, 0.25) 0%, rgba(16, 185, 129, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)'),
         backdropFilter: 'blur(26px)',
         WebkitBackdropFilter: 'blur(26px)',
         borderTop: '1px solid rgba(255, 248, 240, 0.16)',
@@ -31,10 +34,12 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
         borderRight: '1px solid rgba(255, 248, 240, 0.12)',
         borderBottom: hasAnomaly
           ? '1.5px solid rgba(255, 69, 58, 0.65)'
-          : '1.5px solid rgba(52, 211, 153, 0.65)',
+          : (isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(52, 211, 153, 0.65)'),
         boxShadow: hasAnomaly
           ? '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(255, 69, 58, 0.14)'
-          : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(52, 211, 153, 0.14)',
+          : (isMono
+            ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+            : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(52, 211, 153, 0.14)'),
         userSelect: 'none',
       }}
     >
@@ -142,15 +147,15 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
             ) : (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
                   <span>{t('immunity.temp_normal')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
                   <span>{t('immunity.hrv_stable')}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#30D158' }}>✓</span>
+                  <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
                   <span>{t('immunity.immune_optimal')}</span>
                 </div>
               </>

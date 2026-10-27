@@ -9,7 +9,8 @@ interface BodyEnergyGaugeProps {
 }
 
 export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, bedtime }) => {
-  const { t, isFirstLaunch } = useApp();
+  const { t, isFirstLaunch, cardThemeMode } = useApp();
+  const isMono = cardThemeMode === 'monochrome';
   const isZeroState = isFirstLaunch || energy === 0;
 
   const r = 44;
@@ -24,15 +25,18 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
         padding: '16px 18px',
         borderRadius: '26px',
         overflow: 'hidden',
-        background:
-          'radial-gradient(ellipse at 50% 115%, rgba(56, 189, 248, 0.28) 0%, rgba(14, 165, 233, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+        background: isMono
+          ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+          : 'radial-gradient(ellipse at 50% 115%, rgba(56, 189, 248, 0.28) 0%, rgba(14, 165, 233, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
         backdropFilter: 'blur(26px)',
         WebkitBackdropFilter: 'blur(26px)',
         borderTop: '1px solid rgba(255, 248, 240, 0.16)',
         borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
         borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-        borderBottom: '1.5px solid rgba(56, 189, 248, 0.65)',
-        boxShadow: '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(56, 189, 248, 0.14)',
+        borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(56, 189, 248, 0.65)',
+        boxShadow: isMono
+          ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+          : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(56, 189, 248, 0.14)',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
@@ -51,9 +55,9 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
               fontWeight: 600,
               padding: '2px 8px',
               borderRadius: '999px',
-              color: '#38BDF8',
-              background: 'rgba(56, 189, 248, 0.12)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
+              color: isMono ? '#FAF7F2' : '#38BDF8',
+              background: isMono ? 'rgba(255, 255, 255, 0.1)' : 'rgba(56, 189, 248, 0.12)',
+              border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(56, 189, 248, 0.3)',
             }}
           >
             {isZeroState ? 'En attente de nuit' : (energy >= 70 ? t('energy.recharged') : t('energy.moderate'))}
@@ -72,7 +76,7 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
             justifyContent: 'center',
           }}
         >
-          <Zap size={14} color="#38BDF8" strokeWidth={1.8} />
+          <Zap size={14} color={isMono ? "#FAF7F2" : "#38BDF8"} strokeWidth={1.8} />
         </div>
       </div>
 
@@ -91,13 +95,13 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
             <path
               d="M 10 54 A 45 45 0 0 1 100 54"
               fill="none"
-              stroke="#38BDF8"
+              stroke={isMono ? '#FAF7F2' : '#38BDF8'}
               strokeWidth="7"
               strokeDasharray={`${strokeLen}`}
               strokeDashoffset={`${strokeLen - fillLen}`}
               strokeLinecap="round"
               style={{
-                filter: 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.85))',
+                filter: isMono ? 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.85))',
                 transition: 'stroke-dashoffset 900ms cubic-bezier(0.16, 1, 0.3, 1)',
               }}
             />
@@ -120,7 +124,7 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.current')}</span>
-            <span style={{ fontSize: '12.5px', fontWeight: 500, color: '#38BDF8', whiteSpace: 'nowrap' }}>{energy}%</span>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: isMono ? '#FAF7F2' : '#38BDF8', whiteSpace: 'nowrap' }}>{energy}%</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.bedtime')}</span>

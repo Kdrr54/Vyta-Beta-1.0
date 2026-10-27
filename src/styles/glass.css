@@ -37,96 +37,76 @@
 }
 
 /* ==========================================================================
-   APPLE LIQUID GLASS TAB BAR (Refraction, Prismatic Rim & Luminous Specular)
+   APPLE LIQUID GLASS TAB BAR (Pure Obsidian Frosted Glass & Razor Crystal Rim)
    ========================================================================== */
 
 .apple-tab-bar {
   position: absolute;
-  bottom: 22px;
-  left: 14px;
-  right: 14px;
-  height: 62px;
-  border-radius: 34px;
+  bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  left: 16px;
+  right: 16px;
+  height: 60px;
+  border-radius: 32px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 4px;
+  padding: 0 6px;
   z-index: 90;
   overflow: visible;
   user-select: none;
   -webkit-user-select: none;
 
-  /* True Liquid Glass Translucency: Content behind refracts with rich saturation */
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.07) 25%,
-    rgba(18, 20, 28, 0.38) 65%,
-    rgba(10, 11, 16, 0.58) 100%
-  );
+  background: rgba(14, 15, 20, 0.82);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
 
-  /* Deep Optical Blur & Saturation */
-  backdrop-filter: blur(36px) saturate(220%) contrast(106%);
-  -webkit-backdrop-filter: blur(36px) saturate(220%) contrast(106%);
-
-  /* Dual Razor Crystal Border */
-  border: 1px solid rgba(255, 255, 255, 0.32);
-
-  /* Layered Physical Lighting, Beveled Inset Highlights & Deep Diffuse Shadow */
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 28px 64px rgba(0, 0, 0, 0.75),
-    0 10px 24px rgba(0, 0, 0, 0.45),
-    0 2px 6px rgba(0, 0, 0, 0.3),
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),       /* Top Razor Specular Edge */
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18),           /* Lateral Bevel Highlight */
-    inset 0 14px 28px rgba(255, 255, 255, 0.09),         /* Ambient Interior Light Gathering */
-    inset 0 -6px 14px rgba(0, 0, 0, 0.35),               /* Bottom Curved Meniscus */
-    inset 0 -1px 2px rgba(255, 255, 255, 0.35);          /* Bottom Light Bounce */
+    0 16px 36px rgba(0, 0, 0, 0.65),
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.22),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.35);
 
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
               box-shadow 0.2s ease,
               background 0.2s ease;
 }
 
-/* Curved Liquid Specular Glare across the top hemisphere */
+/* Curved Specular Glare */
 .apple-tab-bar::before {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 34px;
+  border-radius: 32px;
   background: radial-gradient(
-    ellipse at 50% -15%,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(255, 255, 255, 0.12) 35%,
-    rgba(217, 249, 112, 0.06) 55%,
-    transparent 75%
+    ellipse at 50% 0%,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.02) 40%,
+    transparent 70%
   );
   pointer-events: none;
   z-index: 1;
 }
 
-/* Chromatic Edge Prism along the top hairline */
+/* Elegant Apple hairline glass highlight */
 .apple-tab-bar::after {
   content: '';
   position: absolute;
   top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1.5px;
+  left: 14%;
+  right: 14%;
+  height: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.4) 15%,
-    rgba(217, 249, 112, 0.7) 35%,
-    rgba(255, 255, 255, 0.95) 50%,
-    rgba(232, 121, 249, 0.7) 65%,
-    rgba(255, 255, 255, 0.4) 85%,
+    rgba(255, 255, 255, 0.18) 20%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.18) 80%,
     transparent 100%
   );
   border-radius: 999px;
   pointer-events: none;
   z-index: 2;
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6));
 }
 
 .tab-item {

@@ -432,9 +432,14 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   return (
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 99999,
+        width: '100vw',
+        maxWidth: '430px',
+        height: '100dvh',
+        left: '50%',
+        transform: 'translateX(-50%)',
         background: '#0B0B0D',
         display: 'flex',
         flexDirection: 'column',
@@ -458,7 +463,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
       <div
         style={{
           position: 'absolute',
-          top: '54px',
+          top: 'calc(max(20px, env(safe-area-inset-top)) + 12px)',
           left: '16px',
           right: '16px',
           display: 'flex',
@@ -664,7 +669,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
       <div
         style={{
           position: 'absolute',
-          bottom: '108px',
+          bottom: 'calc(max(20px, env(safe-area-inset-bottom)) + 88px)',
           left: '16px',
           right: '16px',
           background: 'rgba(22, 22, 24, 0.94)',
@@ -778,7 +783,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           borderTop: '1px solid rgba(255, 255, 255, 0.08)',
           borderTopLeftRadius: '22px',
           borderTopRightRadius: '22px',
-          padding: '8px 16px 24px 16px',
+          padding: '8px 16px calc(max(20px, env(safe-area-inset-bottom)) + 12px) 16px',
           zIndex: 600,
         }}
       >

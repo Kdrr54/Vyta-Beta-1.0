@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 interface MetricDetailModalProps {
-  metricId: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp';
+  metricId: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose';
   onClose: () => void;
 }
 
@@ -41,7 +41,7 @@ interface MetricTheme {
   tipPointsEn: { title: string; desc: string }[];
 }
 
-const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp', MetricTheme> = {
+const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose', MetricTheme> = {
   spo2: {
     primary: '#E879F9',
     secondary: '#D946EF',
@@ -246,7 +246,130 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp', MetricThem
       },
     ],
   },
+  stress: {
+    primary: '#FFFFFF',
+    secondary: '#A1A1AA',
+    glow: 'rgba(255, 255, 255, 0.35)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
+    sheetBg: '#0D0D10',
+    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
+    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    subtitleFr: 'Tension nerveuse & équilibre neuro-végétatif (SDK)',
+    subtitleEn: 'Nervous tension & autonomic balance (SDK)',
+    tipPointsFr: [
+      {
+        title: 'Prédominance parasympathique',
+        desc: 'Le score de 24/100 confirme un tonus vagal actif favorisant la décompression physique et la détente cellulaire.',
+      },
+      {
+        title: 'Résilience au stress',
+        desc: 'Les épisodes d’activation diurne sont suivis d’un retour rapide à la ligne de base, signe d’une excellente flexibilité cardiaque.',
+      },
+      {
+        title: 'Conseil récupération',
+        desc: 'Conservez des micro-pauses sans écran pour maintenir ce niveau bas de tension nerveuse tout au long de la journée.',
+      },
+    ],
+    tipPointsEn: [
+      {
+        title: 'Parasympathetic dominance',
+        desc: 'Score of 24/100 confirms an active vagal tone supporting cellular rest and rapid physical recovery.',
+      },
+      {
+        title: 'Stress resilience',
+        desc: 'Daytime stress peaks are followed by swift baseline normalization, reflecting great nervous flexibility.',
+      },
+      {
+        title: 'Restoration tip',
+        desc: 'Keep taking screen-free micro-breaks to preserve this low autonomic stress baseline throughout the day.',
+      },
+    ],
+  },
+
+  bp: {
+    primary: '#FFFFFF',
+    secondary: '#A1A1AA',
+    glow: 'rgba(255, 255, 255, 0.35)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
+    sheetBg: '#0D0D10',
+    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
+    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    subtitleFr: 'Pression artérielle systolique & diastolique (PPG)',
+    subtitleEn: 'Systolic & diastolic blood pressure (PPG)',
+    tipPointsFr: [
+      {
+        title: 'Conformité hémodynamique',
+        desc: 'Valeurs mesurées à 118/76 mmHg. La pression systolique (<120) et diastolique (<80) sont dans la zone optimale recommandée.',
+      },
+      {
+        title: 'Élasticité de l’arbre vasculaire',
+        desc: 'La propagation de l’onde de pouls estimée par le capteur optique reflète une compliance artérielle saine.',
+      },
+      {
+        title: 'Conseil santé vasculaire',
+        desc: 'Une hydratation régulière et un apport équilibré en électrolytes soutiennent cette tension idéale.',
+      },
+    ],
+    tipPointsEn: [
+      {
+        title: 'Hemodynamic compliance',
+        desc: 'Values at 118/76 mmHg. Both systolic (<120) and diastolic (<80) remain strictly within optimal health guidelines.',
+      },
+      {
+        title: 'Vascular elasticity',
+        desc: 'Optical pulse wave analysis indicates healthy arterial wall flexibility and smooth microvascular blood flow.',
+      },
+      {
+        title: 'Cardiovascular tip',
+        desc: 'Regular hydration and mineral balance keep your arterial pressure in this smooth resting range.',
+      },
+    ],
+  },
+
+  glucose: {
+    primary: '#FFFFFF',
+    secondary: '#A1A1AA',
+    glow: 'rgba(255, 255, 255, 0.35)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
+    sheetBg: '#0D0D10',
+    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
+    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    subtitleFr: 'Indice de stabilité glucidique & métabolique (SDK)',
+    subtitleEn: 'Metabolic glucose stability & optical trend (SDK)',
+    tipPointsFr: [
+      {
+        title: 'Amortissement glycémique optimal',
+        desc: 'La courbe d’absorption montre une stabilité de 94%, sans pics d’insuline marqués ni variations brusques.',
+      },
+      {
+        title: 'Stabilité énergétique continue',
+        desc: 'L’absence de chute glycémique réactive après les repas préserve votre vigilance et prévient les coups de fatigue.',
+      },
+      {
+        title: 'Conseil nutritionnel',
+        desc: 'Privilégiez les fibres en début de repas pour maintenir cette courbe métabolique parfaitement régulière.',
+      },
+    ],
+    tipPointsEn: [
+      {
+        title: 'Optimal glucose buffering',
+        desc: 'Stability score of 94% indicates smooth post-meal carbohydrate management without insulin spikes.',
+      },
+      {
+        title: 'Continuous energy delivery',
+        desc: 'Absence of reactive glucose crashes protects brain energy and prevents afternoon sluggishness.',
+      },
+      {
+        title: 'Nutrition tip',
+        desc: 'Eating dietary fiber and protein prior to starches keeps your metabolic baseline steady.',
+      },
+    ],
+  },
 };
+
 
 // Interpolation Catmull-Rom vers Bézier cubique pour courbe organique fluide
 function getSmoothPath(points: { x: number; y: number }[]): string {
