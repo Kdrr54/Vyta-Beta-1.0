@@ -3,18 +3,25 @@
  * Supports both:
  * 1. Native iOS / Android via @capacitor-community/bluetooth-le (CoreBluetooth)
  * 2. Web Bluetooth API in supported desktop/mobile browsers
- * Handles background device discovery, connection, battery reading, and real-time biometric telemetry.
+ * 
+ * Implements the reverse-engineered 16-byte frame protocol for:
+ * - QRing (R20, R02, R06, R10)
+ * - Colmi R02 / QCWireless
+ * - Nordic UART Service (NUS)
  */
 
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 
-// UUIDs extracted from QRing / QCWireless official hardware SDKs
-export const QRING_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
-export const QRING_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone to Ring (Write)
-export const QRING_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Ring to Phone (Notify)
+// Nordic UART Service (Standard in QRing / Colmi / Realtek hardware)
+export const NORDIC_UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+export const NORDIC_UART_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone to Ring (WriteWithoutResponse)
+export const NORDIC_UART_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Ring to Phone (Notify)
 
-export const QRING_ALT_SERVICE_UUID = '7905fff0-b5ce-4e99-a40f-4b1e122d00d0';
+// Alternative QRing vendor UUIDs
+export const QRING_ALT_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
+export const QRING_ALT_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+export const QRING_ALT_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
 export const STANDARD_BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
 export const STANDARD_BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
@@ -53,6 +60,11 @@ class QRingBleService {
   // Native Capacitor BLE handles
   private connectedDeviceId: string | null = null;
   private isNativeInitialized = false;
+
+  // Dynamic discovered GATT handles for the connected ring
+  private activeServiceUuid = NORDIC_UART_SERVICE_UUID;
+  private activeRxUuid = NORDIC_UART_RX_CHAR_UUID;
+  private activeTxUuid = NORDIC_UART_TX_CHAR_UUID;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -95,8 +107,25 @@ class QRingBleService {
   }
 
   /**
+   * Builds a strict 16-byte packet with checksum at index 15:
+   * checksum = sum(bytes[0..14]) & 0xFF
+   */
+  public makePacket(cmd: number, subdata: number[] = []): number[] {
+    const p = new Array(16).fill(0);
+    p[0] = cmd & 0xFF;
+    for (let i = 0; i < subdata.length && i < 14; i++) {
+      p[i + 1] = subdata[i] & 0xFF;
+    }
+    let sum = 0;
+    for (let i = 0; i < 15; i++) {
+      sum += p[i];
+    }
+    p[15] = sum & 0xFF;
+    return p;
+  }
+
+  /**
    * Request Bluetooth pairing with the Smart Ring
-   * Automatically switches between Native iOS CoreBluetooth and Web Bluetooth
    */
   public async requestAndConnect(): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     if (!this.isSupported()) {
@@ -130,8 +159,7 @@ class QRingBleService {
   }
 
   /**
-   * Native iOS / Android Bluetooth connection using requestLEScan
-   * Discards "Unknown" raw packets and non-ring peripherals (LED strips, TVs...)
+   * Native iOS / Android Bluetooth connection using background LE scan
    */
   private async scanAndConnectNative(): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     console.log('[QRing BLE Native] Initializing CoreBluetooth...');
@@ -140,7 +168,7 @@ class QRingBleService {
       this.isNativeInitialized = true;
     }
 
-    console.log('[QRing BLE Native] Starting background LE scan (no native modal dialog)...');
+    console.log('[QRing BLE Native] Starting background LE scan...');
     return new Promise((resolve) => {
       let isResolved = false;
 
@@ -167,7 +195,7 @@ class QRingBleService {
         async (result) => {
           const rawName = (result.localName || result.device?.name || '').trim();
 
-          // 1. STRIKE OUT ALL "Unknown" OR EMPTY NAMES (Prevents system modal spam)
+          // 1. STRIKE OUT ALL "Unknown" OR EMPTY NAMES
           if (!rawName || rawName.toLowerCase() === 'unknown') return;
 
           const upper = rawName.toUpperCase();
@@ -264,7 +292,7 @@ class QRingBleService {
   }
 
   /**
-   * Connect to a specific BLE device by ID
+   * Connect to a specific BLE device by ID and dynamically inspect its GATT services
    */
   public async connectDirectly(
     deviceId: string,
@@ -281,7 +309,55 @@ class QRingBleService {
       this.connectedDeviceId = deviceId;
       let batteryLevel: number | undefined;
 
-      // 1. Read Standard Battery
+      // 1. Dynamic GATT Discovery: locate active write and notify characteristics
+      try {
+        const services = await BleClient.getServices(deviceId);
+        console.log('[QRing BLE Native] Found', services.length, 'services');
+
+        for (const s of services) {
+          const sUuid = s.uuid.toLowerCase();
+          for (const c of s.characteristics) {
+            const cUuid = c.uuid.toLowerCase();
+
+            // Look for Nordic UART or vendor write characteristic
+            if (c.properties.write || c.properties.writeWithoutResponse) {
+              if (sUuid.includes('6e40') || sUuid.includes('fff0') || sUuid.includes('7905')) {
+                this.activeServiceUuid = s.uuid;
+                this.activeRxUuid = c.uuid;
+                console.log('[QRing BLE Native] Matched RX char:', c.uuid, 'in service:', s.uuid);
+              }
+            }
+
+            // Look for Nordic UART or vendor notify characteristic
+            if (c.properties.notify || c.properties.indicate) {
+              if (sUuid.includes('6e40') || sUuid.includes('fff0') || sUuid.includes('7905')) {
+                this.activeServiceUuid = s.uuid;
+                this.activeTxUuid = c.uuid;
+                console.log('[QRing BLE Native] Matched TX char:', c.uuid, 'in service:', s.uuid);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[QRing BLE Native] getServices discovery warning:', e);
+      }
+
+      // 2. Start Vendor TX Notifications on discovered characteristic
+      try {
+        await BleClient.startNotifications(
+          deviceId,
+          this.activeServiceUuid,
+          this.activeTxUuid,
+          (val) => {
+            this.handleVendorNotification(val);
+          }
+        );
+        console.log('[QRing BLE Native] Vendor TX notifications active on:', this.activeTxUuid);
+      } catch (e) {
+        console.warn('[QRing BLE Native] Failed to start vendor notifications:', e);
+      }
+
+      // 3. Also check Standard Battery GATT service (0x180F)
       try {
         const batVal = await BleClient.read(
           deviceId,
@@ -289,46 +365,17 @@ class QRingBleService {
           STANDARD_BATTERY_LEVEL_UUID
         );
         if (batVal && batVal.byteLength > 0) {
-          batteryLevel = batVal.getUint8(0);
-          console.log('[QRing BLE Native] Read Standard Battery:', batteryLevel, '%');
+          const b = batVal.getUint8(0);
+          if (b > 0 && b <= 100) {
+            batteryLevel = b;
+            console.log('[QRing BLE Native] Standard Battery level:', batteryLevel, '%');
+          }
         }
-      } catch (e) {
-        console.log('[QRing BLE Native] Standard battery service not present on ring');
-      }
+      } catch (_) {}
 
-      // 2. Start Vendor UART Notifications
-      try {
-        await BleClient.startNotifications(
-          deviceId,
-          QRING_SERVICE_UUID,
-          QRING_TX_CHAR_UUID,
-          (val) => {
-            this.handleVendorNotification(val);
-          }
-        );
-        console.log('[QRing BLE Native] Vendor TX notifications active');
-
-        // Request battery and start real-time heart rate via vendor protocol
-        await this.sendBatteryRequest();
-        await this.startRealTimeHeartRate();
-      } catch (e) {
-        console.log('[QRing BLE Native] Vendor service setup notice:', e);
-      }
-
-      // 3. Start Standard Heart Rate Notifications (if ring advertises 0x180D)
-      try {
-        await BleClient.startNotifications(
-          deviceId,
-          STANDARD_HEART_RATE_SERVICE_UUID,
-          STANDARD_HEART_RATE_MEASUREMENT_UUID,
-          (val) => {
-            this.handleStandardHeartRateNotification(val);
-          }
-        );
-        console.log('[QRing BLE Native] Standard Heart Rate notifications active');
-      } catch (e) {
-        // standard HR not available
-      }
+      // 4. Send Hardware Protocol Handshakes: Time Sync then Battery Request
+      await this.sendTimeSync();
+      await this.sendBatteryRequest();
 
       this.notify({
         isConnected: true,
@@ -356,13 +403,14 @@ class QRingBleService {
   }
 
   /**
-   * Web Bluetooth connection (Chrome / Edge / Safari with Web Bluetooth)
+   * Web Bluetooth connection (Chrome / Edge with Web Bluetooth)
    */
   private async connectWeb(): Promise<{ success: boolean; deviceName: string; battery?: number }> {
     console.log('[QRing BLE Web] Requesting Web Bluetooth Device...');
     const device = await (navigator as any).bluetooth.requestDevice({
       filters: [
-        { services: [QRING_SERVICE_UUID] },
+        { services: [NORDIC_UART_SERVICE_UUID] },
+        { services: [QRING_ALT_SERVICE_UUID] },
         { namePrefix: 'QRing' },
         { namePrefix: 'Vyta' },
         { namePrefix: 'QC' },
@@ -370,10 +418,9 @@ class QRingBleService {
         { namePrefix: 'R0' },
       ],
       optionalServices: [
-        QRING_SERVICE_UUID,
+        NORDIC_UART_SERVICE_UUID,
         QRING_ALT_SERVICE_UUID,
         'battery_service',
-        'heart_rate',
         STANDARD_BATTERY_SERVICE_UUID,
         STANDARD_HEART_RATE_SERVICE_UUID,
       ],
@@ -393,32 +440,27 @@ class QRingBleService {
 
     let batteryLevel: number | undefined;
 
-    // Read standard battery
-    try {
-      const batteryService = await server.getPrimaryService(STANDARD_BATTERY_SERVICE_UUID);
-      const batteryChar = await batteryService.getCharacteristic(STANDARD_BATTERY_LEVEL_UUID);
-      const val = await batteryChar.readValue();
-      batteryLevel = val.getUint8(0);
-      console.log('[QRing BLE Web] Read Standard Battery:', batteryLevel);
-    } catch (e) {
-      console.log('[QRing BLE Web] Standard battery service not available');
-    }
-
     // Connect vendor service
     try {
-      const vendorService = await server.getPrimaryService(QRING_SERVICE_UUID);
-      this.rxChar = await vendorService.getCharacteristic(QRING_RX_CHAR_UUID);
-      this.txChar = await vendorService.getCharacteristic(QRING_TX_CHAR_UUID);
+      let vendorService: any;
+      try {
+        vendorService = await server.getPrimaryService(NORDIC_UART_SERVICE_UUID);
+      } catch {
+        vendorService = await server.getPrimaryService(QRING_ALT_SERVICE_UUID);
+      }
+
+      this.rxChar = await vendorService.getCharacteristic(NORDIC_UART_RX_CHAR_UUID);
+      this.txChar = await vendorService.getCharacteristic(NORDIC_UART_TX_CHAR_UUID);
 
       await this.txChar.startNotifications();
       this.txChar.addEventListener('characteristicvaluechanged', (evt: any) => {
         this.handleVendorNotification(evt.target.value);
       });
 
+      await this.sendTimeSync();
       await this.sendBatteryRequest();
-      await this.startRealTimeHeartRate();
     } catch (e) {
-      console.log('[QRing BLE Web] Vendor service setup notice:', e);
+      console.warn('[QRing BLE Web] Vendor service setup notice:', e);
     }
 
     this.notify({
@@ -432,42 +474,182 @@ class QRingBleService {
   }
 
   /**
-   * Send battery status request packet to the ring
+   * Send Time Sync Handshake to Ring
+   * Opcode 0x01: BCD date/time format required by QRing/Colmi firmware before accepting measurements
    */
-  public async sendBatteryRequest() {
-    // 1. QCWireless standard battery request
-    await this.writeBytes([0x03, 0x01, 0x00, 0x04]);
-    // 2. QCWireless alternative battery / status query
-    await this.writeBytes([0x03, 0x00, 0x00, 0x03]);
-    // 3. JRing / Colmi battery command
-    await this.writeBytes([0xFC, 0x0F, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+  public async sendTimeSync() {
+    const now = new Date();
+    const year = now.getFullYear() % 100; // e.g. 26
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const hour = now.getHours();
+    const min = now.getMinutes();
+    const sec = now.getSeconds();
+    const packet = this.makePacket(0x01, [year, month, day, hour, min, sec, 0x01]);
+    await this.writeBytes(packet);
+    console.log('[QRing BLE] Sent Time Sync Handshake');
   }
 
   /**
-   * Start real-time heart rate sensor on the ring (PPG continuous sampling)
-   * QCWireless / QRing SDK: Opcode 0x01, Sub 0x01 (Start)
+   * Send 16-byte battery status request packet to the ring:
+   * 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03
+   */
+  public async sendBatteryRequest() {
+    const batPacket = this.makePacket(0x03, [0x00]);
+    await this.writeBytes(batPacket);
+    console.log('[QRing BLE] Sent 16-byte Battery Request (Opcode 0x03)');
+  }
+
+  /**
+   * Start real-time heart rate sensor on the ring (Illuminates Green Optical LEDs)
+   * QRing / mrvar0x protocol: Opcode 0x69, type 0x06, action 0x01, checksum 0x70
+   * Colmi R02 alternative: Opcode 0x69, type 0x01, action 0x01, checksum 0x6B
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
-    // 1. QCWireless Start continuous PPG: 0x01 0x01
-    const ok1 = await this.writeBytes([0x01, 0x01, 0x00, 0x02]);
-    // 2. Alternative Real-time pulse sensor trigger: 0x02 0x01
-    await this.writeBytes([0x02, 0x01, 0x00, 0x03]);
-    // 3. JRing optical green LED activation command: 0x69 0x01
-    await this.writeBytes([0x69, 0x01, 0x00, 0x6A]);
-    // 4. JRing continuous optical mode
-    await this.writeBytes([0xFC, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E]);
-    return ok1;
+    console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring LEDs)...');
+    
+    // 1. Primary QRing measurement command (69 06 01 ... 70)
+    const p1 = this.makePacket(0x69, [0x06, 0x01]);
+    const ok = await this.writeBytes(p1);
+
+    // 2. Colmi R02 continuous PPG command (69 01 01 ... 6B)
+    const p2 = this.makePacket(0x69, [0x01, 0x01]);
+    await this.writeBytes(p2);
+
+    // 3. Alternative standard pulse command (01 01 ... 02)
+    const p3 = this.makePacket(0x01, [0x01]);
+    await this.writeBytes(p3);
+
+    return ok;
   }
 
   /**
    * Stop real-time heart rate sensor on the ring to preserve battery
-   * QCWireless / QRing SDK: Opcode 0x01, Sub 0x00 (Stop)
+   * QRing / mrvar0x protocol: Opcode 0x69, type 0x06, action 0x04, checksum 0x73
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
-    const cmd = [0x01, 0x00, 0x00, 0x01];
-    const ok = await this.writeBytes(cmd);
-    if (ok) console.log('[QRing BLE] Sent Stop Real-Time Heart Rate command (0x01 0x00)');
+    console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring LEDs)...');
+    
+    // 1. QRing stop command (69 06 04 ... 73)
+    const p1 = this.makePacket(0x69, [0x06, 0x04]);
+    const ok = await this.writeBytes(p1);
+
+    // 2. Colmi stop command (69 01 00 ... 6A)
+    const p2 = this.makePacket(0x69, [0x01, 0x00]);
+    await this.writeBytes(p2);
+
+    // 3. Alternative pulse stop
+    const p3 = this.makePacket(0x01, [0x00]);
+    await this.writeBytes(p3);
+
     return ok;
+  }
+
+  /**
+   * Write bytes to ring using writeWithoutResponse (with fallback to write)
+   */
+  private async writeBytes(bytes: number[]): Promise<boolean> {
+    try {
+      if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
+        const dataView = numbersToDataView(bytes);
+        // Try WriteWithoutResponse first (standard for Nordic UART RX)
+        try {
+          await BleClient.writeWithoutResponse(
+            this.connectedDeviceId,
+            this.activeServiceUuid,
+            this.activeRxUuid,
+            dataView
+          );
+          return true;
+        } catch (_) {
+          // Fallback to write with response
+          await BleClient.write(
+            this.connectedDeviceId,
+            this.activeServiceUuid,
+            this.activeRxUuid,
+            dataView
+          );
+          return true;
+        }
+      } else if (this.rxChar) {
+        const cmd = new Uint8Array(bytes);
+        try {
+          await this.rxChar.writeValueWithoutResponse(cmd);
+          return true;
+        } catch {
+          await this.rxChar.writeValue(cmd);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('[QRing BLE] Write bytes error:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Decodes incoming 16-byte notification packets from the ring
+   */
+  private handleVendorNotification(dataView: DataView) {
+    if (!dataView || dataView.byteLength === 0) return;
+    const len = dataView.byteLength;
+    const header = dataView.getUint8(0);
+
+    const hex = Array.from(new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    console.log('[QRing BLE RECV]', hex);
+
+    // 1. Battery Response packet (header 0x03)
+    // Response layout: 03 <batPct> 00 ... <checksum>
+    if (header === 0x03 && len >= 2) {
+      const batVal = dataView.getUint8(1);
+      if (batVal > 0 && batVal <= 100) {
+        console.log('[QRing BLE] Real Battery Level Received from Ring:', batVal, '%');
+        this.notify({ batteryPct: batVal, isConnected: true });
+        return;
+      }
+    }
+
+    // 2. Real-time Heart Rate stream packet (header 0x69)
+    // QRing stream layout: 69 06 00 <bpm> 00 ... <checksum>
+    if (header === 0x69 && len >= 4) {
+      const bpm = dataView.getUint8(3);
+      if (bpm >= 35 && bpm <= 230) {
+        console.log('[QRing BLE] Real PPG Heart Rate Received from Ring:', bpm, 'bpm');
+        this.notify({ heartRate: bpm, isConnected: true });
+        return;
+      }
+      // Fallback: check byte 2 or byte 1
+      const b2 = dataView.getUint8(2);
+      if (b2 >= 35 && b2 <= 230) {
+        console.log('[QRing BLE] Real Heart Rate (byte 2):', b2, 'bpm');
+        this.notify({ heartRate: b2, isConnected: true });
+        return;
+      }
+    }
+
+    // 3. Alternative Heart Rate headers (0x01, 0x11, 0x02)
+    if (header === 0x01 || header === 0x11 || header === 0x02) {
+      for (let i = 1; i < Math.min(len, 6); i++) {
+        const val = dataView.getUint8(i);
+        if (val >= 40 && val <= 220) {
+          console.log('[QRing BLE] Real Heart Rate from alternative frame:', val, 'bpm');
+          this.notify({ heartRate: val, isConnected: true });
+          return;
+        }
+      }
+    }
+
+    // 4. Multi-metric frame battery (header 0xFC or 0x0F)
+    if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
+      const batIndex = header === 0xFC ? 8 : 7;
+      const b = dataView.getUint8(batIndex);
+      if (b > 0 && b <= 100) {
+        console.log('[QRing BLE] Multi-metric frame battery:', b, '%');
+        this.notify({ batteryPct: b, isConnected: true });
+      }
+    }
   }
 
   /**
@@ -477,7 +659,7 @@ class QRingBleService {
   public async startWearCalibration(
     onProgress?: (progress: number, step: string) => void
   ): Promise<{ success: boolean; score: number }> {
-    const cmd = [0x19, 0x06, 0x00, 0x1F];
+    const cmd = this.makePacket(0x19, [0x06, 0x00]);
     await this.writeBytes(cmd);
 
     const steps = [
@@ -491,111 +673,23 @@ class QRingBleService {
       onProgress?.(Math.round(((i + 1) / steps.length) * 100), steps[i]);
       await new Promise((res) => setTimeout(res, 550));
     }
-    this.notify({ wearCalibrationScore: 99, isConnected: true });
     return { success: true, score: 99 };
   }
 
   /**
-   * Request Blood Pressure (Tension artérielle) measurement
-   * SDK QCWireless: Opcode 0x21 startBloodPressureMeasuring
+   * Request Blood Pressure measurement
    */
   public async startBloodPressureMeasuring(): Promise<boolean> {
-    const cmd = [0x21, 0x01, 0x00, 0x22];
+    const cmd = this.makePacket(0x21, [0x01, 0x00]);
     return await this.writeBytes(cmd);
   }
 
   /**
    * Request Stress telemetry
-   * SDK QCWireless: Opcode 0x73 getSchedualStressStatus
    */
   public async readStress(): Promise<boolean> {
-    const cmd = [0x73, 0x01, 0x00, 0x74];
+    const cmd = this.makePacket(0x73, [0x01, 0x00]);
     return await this.writeBytes(cmd);
-  }
-
-  private async writeBytes(bytes: number[]): Promise<boolean> {
-    try {
-      if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
-        const dataView = numbersToDataView(bytes);
-        await BleClient.write(this.connectedDeviceId, QRING_SERVICE_UUID, QRING_RX_CHAR_UUID, dataView);
-        return true;
-      } else if (this.rxChar) {
-        const cmd = new Uint8Array(bytes);
-        await this.rxChar.writeValue(cmd);
-        return true;
-      }
-    } catch (e) {
-      console.warn('[QRing BLE] Write bytes error:', e);
-    }
-    return false;
-  }
-
-  private handleVendorNotification(dataView: DataView) {
-    if (!dataView || dataView.byteLength === 0) return;
-    const len = dataView.byteLength;
-    const header = dataView.getUint8(0);
-
-    if (len >= 2) {
-      // 1. QCWireless Battery packet (header 0x03 or 0x0C)
-      if (header === 0x03 || header === 0x0C) {
-        const b1 = dataView.getUint8(1);
-        const b2 = len >= 3 ? dataView.getUint8(2) : 0;
-        const batteryVal = b1 > 0 && b1 <= 100 ? b1 : (b2 > 0 && b2 <= 100 ? b2 : 0);
-        if (batteryVal > 0) {
-          console.log('[QRing BLE] Real battery received:', batteryVal, '%');
-          this.notify({ batteryPct: batteryVal, isConnected: true });
-        }
-      }
-      // 2. JRing / Colmi multi-metric frame (header 0xFC or 0x0F)
-      if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
-        const batIndex = header === 0xFC ? 8 : 7;
-        const b = dataView.getUint8(batIndex);
-        if (b > 0 && b <= 100) {
-          console.log('[QRing BLE] Multi-metric frame battery:', b, '%');
-          this.notify({ batteryPct: b, isConnected: true });
-        }
-      }
-      // 3. Real-time Heart Rate packet response (header 0x01 or 0x11 or 0x02 or 0x69)
-      if (header === 0x01 || header === 0x11 || header === 0x02 || header === 0x69) {
-        const hr1 = dataView.getUint8(1);
-        const hr2 = len >= 3 ? dataView.getUint8(2) : 0;
-        const hr = hr1 >= 35 && hr1 <= 230 ? hr1 : (hr2 >= 35 && hr2 <= 230 ? hr2 : 0);
-        if (hr > 0) {
-          console.log('[QRing BLE] Real PPG Heart Rate:', hr, 'bpm');
-          this.notify({ heartRate: hr, isConnected: true });
-        }
-      }
-      // Stress packet response (0x73)
-      if (header === 0x73 && len >= 3) {
-        const stress = dataView.getUint8(1);
-        if (stress <= 100) {
-          this.notify({ stress, isConnected: true });
-        }
-      }
-      // Blood pressure packet response (0x21)
-      if (header === 0x21 && len >= 4) {
-        const sbp = dataView.getUint8(1);
-        const dbp = dataView.getUint8(2);
-        if (sbp > 60 && sbp < 220 && dbp > 40 && dbp < 140) {
-          this.notify({ bloodPressure: { sbp, dbp }, isConnected: true });
-        }
-      }
-    }
-  }
-
-  private handleStandardHeartRateNotification(dataView: DataView) {
-    if (!dataView || dataView.byteLength < 2) return;
-    const flags = dataView.getUint8(0);
-    let hr: number;
-    if ((flags & 0x01) === 0) {
-      hr = dataView.getUint8(1);
-    } else {
-      hr = dataView.getUint16(1, true);
-    }
-    if (hr > 30 && hr < 240) {
-      console.log('[QRing BLE] Standard HR measurement:', hr, 'bpm');
-      this.notify({ heartRate: hr, isConnected: true });
-    }
   }
 
   public async disconnect() {

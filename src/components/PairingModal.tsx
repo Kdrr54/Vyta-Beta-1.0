@@ -53,7 +53,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
         }
         updateRing({
           isConnected: true,
-          batteryRing: res.battery ?? 0,
+          ...(res.battery && res.battery > 0 ? { batteryRing: res.battery } : {}),
         });
         setIsExiting(true);
         setTimeout(() => {
@@ -98,10 +98,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           } catch (e) {}
         }
 
-        updateRing({
-          isConnected: true,
-          batteryRing: res.battery ?? 0,
-        });
+        updateRing({ isConnected: true, ...(res.battery && res.battery > 0 ? { batteryRing: res.battery } : {}) });
 
         // Lancement immédiat du fondu direct
         setIsExiting(true);

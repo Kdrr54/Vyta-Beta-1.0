@@ -21,8 +21,8 @@ export const HealthScreen: React.FC = () => {
   const isLowBattery = batteryPct <= 20;
   const batteryAccent = isMono ? '#FAF7F2' : (isLowBattery ? '#FF5A52' : '#D9F970');
   const batteryAccentSoft = isMono ? 'rgba(255, 255, 255, 0.78)' : (isLowBattery ? 'rgba(255, 90, 82, 0.78)' : 'rgba(228, 255, 142, 0.78)');
-  const neuralPct = !isFirstLaunch && dayData.pillars?.recovery ? Math.min(99, Math.max(82, dayData.pillars.recovery + 1)) : 0;
-  const skinTempAbs = isFirstLaunch ? '--' : (36.8 + dayData.tempDelta).toFixed(1);
+  const neuralPct = dayData?.pillars?.recovery && dayData.pillars.recovery > 0 ? dayData.pillars.recovery : 0;
+  const skinTempAbs = dayData?.tempDelta !== undefined && dayData.tempDelta !== 0 ? (36.8 + dayData.tempDelta).toFixed(1) : '--';
   const stepsProgress = Math.min(100, Math.round(((dayData.steps || 0) / 10000) * 100));
   const prevDayData = selectedDay > 0 ? ((weekData && weekData[selectedDay - 1]) || (isFirstLaunch ? null : weekMetrics[selectedDay - 1])) : null;
   const scoreDiffYesterday = prevDayData && prevDayData.score > 0 && dayData.score > 0 ? dayData.score - prevDayData.score : 0;

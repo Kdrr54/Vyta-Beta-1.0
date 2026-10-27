@@ -404,7 +404,7 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
-  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData } = useApp();
+  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal } = useApp();
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
   const detail: MetricDetailItem = METRIC_DETAILS[metricId];
   const theme: MetricTheme = METRIC_THEMES[metricId];
@@ -420,21 +420,18 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const dayMetricValue = React.useMemo(() => {
     if (metricId === 'bpm') {
       if (selectedDay === TODAY_INDEX && isMeasuring && liveBpm) return liveBpm;
-      if (isFirstLaunch) return (dayData?.bpm || 0);
-      return dayData?.bpm || 62;
+      return dayData?.bpm || 0;
     }
     if (metricId === 'hrv') {
-      if (isFirstLaunch) return (dayData?.hrv || 0);
-      return dayData?.hrv || 71;
+      return dayData?.hrv || 0;
     }
     if (metricId === 'temp') {
-      return dayData.tempDelta;
+      return dayData?.tempDelta || 0;
     }
     if (metricId === 'spo2') {
-      if (isFirstLaunch) return (dayData?.spo2 || 0);
-      return dayData?.spo2 || 98.4;
+      return dayData?.spo2 || 0;
     }
-    return 14.2;
+    return 0;
   }, [metricId, selectedDay, dayData, isMeasuring, liveBpm]);
 
   useEffect(() => {
@@ -480,7 +477,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const displayDistribution = isEn ? detail.distributionEn : detail.distribution;
   const displayTipPoints = isEn ? theme.tipPointsEn : theme.tipPointsFr;
 
-  const isZeroState = isFirstLaunch && (dayMetricValue === 0 || dayMetricValue === null);
+  const isZeroState = !dayMetricValue || dayMetricValue === 0;
 
   // Active dataset based on selected day curve
   const dataset: MetricDataPoint[] = React.useMemo(() => {
@@ -592,7 +589,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       ? formatVal(activePoint.value)
       : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
-      : formatVal(dayMetricValue);
+      : (dayMetricValue > 0 ? formatVal(dayMetricValue) : '--');
 
   return (
     <div className={`modal-backdrop ${isClosing ? "is-closing" : ""}`} onClick={handleClose} role="dialog" aria-modal="true">
@@ -966,6 +963,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 <button
                   type="button"
                   onClick={() => {
+                    if (!ring.isConnected) {
+                      openModal('pairing');
+                      return;
+                    }
                     if (isMeasuring) {
                       setIsMeasuring(false);
                       setCountdown(30);

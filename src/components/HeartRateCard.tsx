@@ -28,16 +28,11 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
   // BPM de la journée sélectionnée (ou BPM direct pendant une mesure active)
   const dayBpm = dayData?.bpm || 0;
-  const rawBpm = isMeasuring ? liveBpm : (isFirstLaunch ? dayBpm : (dayBpm || liveBpm || 0));
+  const rawBpm = isMeasuring ? liveBpm : dayBpm;
   const displayBpm = rawBpm > 0 ? rawBpm : 0;
   const displayBpmText = displayBpm > 0 ? String(displayBpm) : '--';
-  const restingBpm = dayData?.restingBpm || 0;
-  const minBpmText = (!isFirstLaunch && dayData?.minBpm && dayData.minBpm > 0)
-    ? String(dayData.minBpm)
-    : (displayBpm > 0 ? String(Math.max(40, (restingBpm || 51) - 3)) : '--');
-  const maxBpmText = (!isFirstLaunch && dayData?.maxBpm && dayData.maxBpm > 0)
-    ? String(dayData.maxBpm)
-    : (displayBpm > 0 ? String(Math.round(displayBpm * 1.8)) : '--');
+  const minBpmText = (dayData?.minBpm && dayData.minBpm > 0) ? String(dayData.minBpm) : '--';
+  const maxBpmText = (dayData?.maxBpm && dayData.maxBpm > 0) ? String(dayData.maxBpm) : '--';
 
   const isResting = displayBpm > 0 && displayBpm <= 75;
 
@@ -50,7 +45,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       try { navigator.vibrate(35); } catch (_) {}
     }
 
-    if (completed) {
+    if (completed && liveBpm > 35) {
       setJustCompleted(true);
       setTimeout(() => setJustCompleted(false), 3600);
       setWeekData(prev => {
@@ -59,8 +54,8 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         const cur = { ...(next[idx] || {}) };
         const finalBpm = liveBpm;
         cur.bpm = finalBpm;
-        cur.minBpm = Math.max(42, finalBpm - 12);
-        cur.maxBpm = Math.min(185, finalBpm + 48);
+        cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
+        cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
         next[idx] = cur as DayMetrics;
         try {
           localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -72,6 +67,10 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
   const handleStartMeasure = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!ring.isConnected) {
+      openModal('pairing');
+      return;
+    }
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate([18, 30, 22]); } catch (_) {}
     }
