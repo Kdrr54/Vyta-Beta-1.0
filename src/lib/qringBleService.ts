@@ -6,28 +6,37 @@
  * 
  * Implements the reverse-engineered 16-byte frame protocol for:
  * - QRing (R20, R02, R06, R10)
- * - Colmi R02 / QCWireless
+ * - Shenzhen QCWireless Smart Ring
  * - Nordic UART Service (NUS)
  * 
- * Features:
- * - Automatic background reconnection engine (CoreBluetooth OS-bonded peripheral hooking)
- * - 20-second keep-alive heartbeat (battery query 0x03) preventing ring dormant sleep
- * - Dual-byte battery frame decoding (charging byte vs battery %)
- * - Auto-connect on app boot & visibility/focus resume
+ * Official QRing Protocol Specifications:
+ * - Primary Service UUID: 6e40fff0-b5a3-f393-e0a9-e50e24dcca9e
+ * - Write Char (RX): 6e400002-b5a3-f393-e0a9-e50e24dcca9e
+ * - Notify Char (TX): 6e400003-b5a3-f393-e0a9-e50e24dcca9e
+ * - SetTime Handshake (Cmd 1): 0x01 [year, month, day, hour, min, sec]
+ * - Battery Request (Cmd 3): 0x03 [0x00...]
+ * - Realtime Heart Rate (Cmd 30): 0x1E [0x03] -> Response 0x1E [heartRate, ...]
+ * - Live Sensor Stream (Cmd 105): 0x69 [DataType, DataAction.Start=1]
+ * - Heartbeat Keep-Alive (every 20s): Prevents ring dormant sleep
  */
 
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 
-// Nordic UART Service (Standard in QRing / Colmi / Realtek hardware)
-export const NORDIC_UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-export const NORDIC_UART_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone to Ring (WriteWithoutResponse)
-export const NORDIC_UART_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Ring to Phone (Notify)
+// QRing Primary Vendor Service (Used by all QRing / Colmi R02 / QCWireless hardware)
+export const QRING_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
+export const QRING_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // Phone to Ring (WriteWithoutResponse)
+export const QRING_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Ring to Phone (Notify)
 
-// Alternative QRing vendor UUIDs
-export const QRING_ALT_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
-export const QRING_ALT_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-export const QRING_ALT_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+// Fallback Nordic UART Service (NUS)
+export const NORDIC_UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+export const NORDIC_UART_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+export const NORDIC_UART_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+// Alternative QRing alias
+export const QRING_ALT_SERVICE_UUID = QRING_SERVICE_UUID;
+export const QRING_ALT_RX_CHAR_UUID = QRING_RX_CHAR_UUID;
+export const QRING_ALT_TX_CHAR_UUID = QRING_TX_CHAR_UUID;
 
 export const STANDARD_BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
 export const STANDARD_BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
@@ -67,10 +76,10 @@ class QRingBleService {
   private connectedDeviceId: string | null = null;
   private isNativeInitialized = false;
 
-  // Dynamic discovered GATT handles for the connected ring
-  private activeServiceUuid = NORDIC_UART_SERVICE_UUID;
-  private activeRxUuid = NORDIC_UART_RX_CHAR_UUID;
-  private activeTxUuid = NORDIC_UART_TX_CHAR_UUID;
+  // Active discovered GATT handles (defaults to QRing 6e40fff0)
+  private activeServiceUuid = QRING_SERVICE_UUID;
+  private activeRxUuid = QRING_RX_CHAR_UUID;
+  private activeTxUuid = QRING_TX_CHAR_UUID;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -272,8 +281,8 @@ class QRingBleService {
       // Step 1: Hook into already-connected iOS CoreBluetooth peripherals
       try {
         const connectedPeripherals = await BleClient.getConnectedDevices([
+          QRING_SERVICE_UUID,
           NORDIC_UART_SERVICE_UUID,
-          QRING_ALT_SERVICE_UUID,
           STANDARD_BATTERY_SERVICE_UUID,
           STANDARD_HEART_RATE_SERVICE_UUID,
         ]);
@@ -585,7 +594,7 @@ class QRingBleService {
             this.scheduleAutoReconnect();
           }
         },
-        { timeout: 8000, skipDescriptorDiscovery: true }
+        { timeout: 8000 }
       );
 
       this.connectedDeviceId = deviceId;
@@ -609,28 +618,14 @@ class QRingBleService {
         for (const s of services) {
           const sUuid = s.uuid.toLowerCase();
           for (const c of s.characteristics) {
-            // Look for Nordic UART, QRing, or vendor write characteristic
-            if (c.properties.write || c.properties.writeWithoutResponse) {
-              if (
-                sUuid.includes('6e40') ||
-                sUuid.includes('fff0') ||
-                sUuid.includes('7905') ||
-                sUuid.includes('fee7')
-              ) {
+            // Prioritize QRing vendor service 6e40fff0
+            if (sUuid.includes('fff0') || sUuid.includes('6e40') || sUuid.includes('7905') || sUuid.includes('fee7')) {
+              if (c.properties.write || c.properties.writeWithoutResponse) {
                 this.activeServiceUuid = s.uuid;
                 this.activeRxUuid = c.uuid;
                 console.log('[QRing BLE Native] Matched RX char:', c.uuid, 'in service:', s.uuid);
               }
-            }
-
-            // Look for Nordic UART, QRing, or vendor notify characteristic
-            if (c.properties.notify || c.properties.indicate) {
-              if (
-                sUuid.includes('6e40') ||
-                sUuid.includes('fff0') ||
-                sUuid.includes('7905') ||
-                sUuid.includes('fee7')
-              ) {
+              if (c.properties.notify || c.properties.indicate) {
                 this.activeServiceUuid = s.uuid;
                 this.activeTxUuid = c.uuid;
                 console.log('[QRing BLE Native] Matched TX char:', c.uuid, 'in service:', s.uuid);
@@ -642,7 +637,7 @@ class QRingBleService {
         console.warn('[QRing BLE Native] getServices discovery warning:', e);
       }
 
-      // 2. Start Vendor TX Notifications on discovered characteristic
+      // 2. Start Vendor TX Notifications on discovered characteristic and fallbacks
       try {
         await BleClient.startNotifications(
           deviceId,
@@ -654,7 +649,23 @@ class QRingBleService {
         );
         console.log('[QRing BLE Native] Vendor TX notifications active on:', this.activeTxUuid);
       } catch (e) {
-        console.warn('[QRing BLE Native] Failed to start vendor notifications:', e);
+        console.warn('[QRing BLE Native] Failed to start notifications on active service, trying QRING_SERVICE_UUID fallback:', e);
+        try {
+          await BleClient.startNotifications(
+            deviceId,
+            QRING_SERVICE_UUID,
+            QRING_TX_CHAR_UUID,
+            (val) => {
+              this.handleVendorNotification(val);
+            }
+          );
+          this.activeServiceUuid = QRING_SERVICE_UUID;
+          this.activeRxUuid = QRING_RX_CHAR_UUID;
+          this.activeTxUuid = QRING_TX_CHAR_UUID;
+          console.log('[QRing BLE Native] Fallback notifications active on QRING_SERVICE_UUID');
+        } catch (e2) {
+          console.warn('[QRing BLE Native] Fallback notifications also failed:', e2);
+        }
       }
 
       // 3. Also check Standard Battery GATT service (0x180F)
@@ -712,8 +723,8 @@ class QRingBleService {
     console.log('[QRing BLE Web] Requesting Web Bluetooth Device...');
     const device = await (navigator as any).bluetooth.requestDevice({
       filters: [
+        { services: [QRING_SERVICE_UUID] },
         { services: [NORDIC_UART_SERVICE_UUID] },
-        { services: [QRING_ALT_SERVICE_UUID] },
         { namePrefix: 'QRing' },
         { namePrefix: 'Vyta' },
         { namePrefix: 'QC' },
@@ -721,8 +732,8 @@ class QRingBleService {
         { namePrefix: 'R0' },
       ],
       optionalServices: [
+        QRING_SERVICE_UUID,
         NORDIC_UART_SERVICE_UUID,
-        QRING_ALT_SERVICE_UUID,
         'battery_service',
         STANDARD_BATTERY_SERVICE_UUID,
         STANDARD_HEART_RATE_SERVICE_UUID,
@@ -748,13 +759,13 @@ class QRingBleService {
     try {
       let vendorService: any;
       try {
-        vendorService = await server.getPrimaryService(NORDIC_UART_SERVICE_UUID);
+        vendorService = await server.getPrimaryService(QRING_SERVICE_UUID);
       } catch {
-        vendorService = await server.getPrimaryService(QRING_ALT_SERVICE_UUID);
+        vendorService = await server.getPrimaryService(NORDIC_UART_SERVICE_UUID);
       }
 
-      this.rxChar = await vendorService.getCharacteristic(NORDIC_UART_RX_CHAR_UUID);
-      this.txChar = await vendorService.getCharacteristic(NORDIC_UART_TX_CHAR_UUID);
+      this.rxChar = await vendorService.getCharacteristic(QRING_RX_CHAR_UUID);
+      this.txChar = await vendorService.getCharacteristic(QRING_TX_CHAR_UUID);
 
       await this.txChar.startNotifications();
       this.txChar.addEventListener('characteristicvaluechanged', (evt: any) => {
@@ -780,7 +791,8 @@ class QRingBleService {
 
   /**
    * Send Time Sync Handshake to Ring
-   * Opcode 0x01: BCD date/time format required by QRing/Colmi firmware before accepting measurements
+   * QRing / Colmi official command:
+   * Opcode 0x01: [year % 100, month (1..12), day, hour, min, sec, 0, 0, 0, 0, 0, 0, 0, 0]
    */
   public async sendTimeSync() {
     const now = new Date();
@@ -790,7 +802,7 @@ class QRingBleService {
     const hour = now.getHours();
     const min = now.getMinutes();
     const sec = now.getSeconds();
-    const packet = this.makePacket(0x01, [year, month, day, hour, min, sec, 0x01]);
+    const packet = this.makePacket(0x01, [year, month, day, hour, min, sec]);
     await this.writeBytes(packet);
     console.log('[QRing BLE] Sent Time Sync Handshake');
   }
@@ -807,8 +819,11 @@ class QRingBleService {
 
   /**
    * Start real-time heart rate sensor on the ring (Illuminates Green Optical LEDs)
-   * QRing / mrvar0x protocol: Opcode 0x69, type 0x06, action 0x01, checksum 0x70
-   * Colmi R02 alternative: Opcode 0x69, type 0x01, action 0x01, checksum 0x6B
+   * Official QRing / Colmi R02 protocol:
+   * 1. Command 30 (0x1E, type 0x03): Native QRing realtime heart rate start
+   * 2. Command 105 (0x69, DataType.RealtimeHeartRate=6, DataAction.Start=1)
+   * 3. Command 105 (0x69, DataType.HeartRate=1, DataAction.Start=1)
+   * 4. Command 105 (0x69, DataType.BloodOxygen=3, DataAction.Start=1): Activates Red + Green PPG LEDs
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring LEDs)...');
@@ -823,55 +838,75 @@ class QRingBleService {
       }
     }
 
-    // 1. Primary QRing measurement command (69 06 01 ... 70)
-    const p1 = this.makePacket(0x69, [0x06, 0x01]);
-    const ok = await this.writeBytes(p1);
+    // 1. Native QRing Command 30 (0x1E) Realtime Heart Rate request (type = 3)
+    const p30 = this.makePacket(0x1E, [0x03]);
+    const ok = await this.writeBytes(p30);
 
-    // 2. Colmi R02 continuous PPG command (69 01 01 ... 6B)
-    const p2 = this.makePacket(0x69, [0x01, 0x01]);
-    await this.writeBytes(p2);
+    // 2. Official Colmi / QRing DataRequest (Command 105 = 0x69)
+    // DataType 6 = RealtimeHeartRate, Action 1 = Start
+    const p105_6 = this.makePacket(0x69, [0x06, 0x01]);
+    await this.writeBytes(p105_6);
 
-    // 3. Alternative standard pulse command (01 01 ... 02)
-    const p3 = this.makePacket(0x01, [0x01]);
-    await this.writeBytes(p3);
+    // DataType 1 = HeartRate, Action 1 = Start
+    const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
+    await this.writeBytes(p105_1);
 
-    // 4. Optical SpO2 command (illuminates red & green optical sensors)
-    const p4 = this.makePacket(0x69, [0x02, 0x01]);
-    await this.writeBytes(p4);
+    // DataType 3 = BloodOxygen (SpO2), Action 1 = Start (activates red + green optical LEDs)
+    const p105_3 = this.makePacket(0x69, [0x03, 0x01]);
+    await this.writeBytes(p105_3);
+
+    // 3. Alternative pulse start (01 01 ... 02)
+    const pAlt = this.makePacket(0x01, [0x01]);
+    await this.writeBytes(pAlt);
 
     return ok;
   }
 
   /**
    * Stop real-time heart rate sensor on the ring to preserve battery
-   * QRing / mrvar0x protocol: Opcode 0x69, type 0x06, action 0x04, checksum 0x73
+   * QRing protocol:
+   * 1. Command 30 (0x1E, type 0x00): Stop
+   * 2. Command 105 (0x69, DataType, Action.Stop=4)
+   * 3. Command 106 (0x6A, DataType, 0, 0)
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring LEDs)...');
     
-    // 1. QRing stop command (69 06 04 ... 73)
-    const p1 = this.makePacket(0x69, [0x06, 0x04]);
-    const ok = await this.writeBytes(p1);
+    // 1. Native QRing Command 30 Stop (0x1E, 0x00)
+    const p30 = this.makePacket(0x1E, [0x00]);
+    const ok = await this.writeBytes(p30);
 
-    // 2. Colmi stop command (69 01 00 ... 6A)
-    const p2 = this.makePacket(0x69, [0x01, 0x00]);
-    await this.writeBytes(p2);
+    // 2. Command 105 Stop (DataAction.Stop = 4)
+    const p105_6_stop = this.makePacket(0x69, [0x06, 0x04]);
+    await this.writeBytes(p105_6_stop);
 
-    // 3. Alternative pulse stop
-    const p3 = this.makePacket(0x01, [0x00]);
-    await this.writeBytes(p3);
+    const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
+    await this.writeBytes(p105_1_stop);
+
+    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
+    await this.writeBytes(p105_3_stop);
+
+    // 3. Command 106 Stop (0x6A)
+    const p106_stop = this.makePacket(0x6A, [0x06, 0x00, 0x00]);
+    await this.writeBytes(p106_stop);
+
+    // 4. Alternative pulse stop
+    const pAltStop = this.makePacket(0x01, [0x00]);
+    await this.writeBytes(pAltStop);
 
     return ok;
   }
 
   /**
    * Write bytes to ring using writeWithoutResponse (with fallback to write)
+   * Tries active service first, then QRING_SERVICE_UUID (6e40fff0) and NORDIC_UART_SERVICE_UUID (6e400001)
    */
   private async writeBytes(bytes: number[]): Promise<boolean> {
     try {
       if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
         const dataView = numbersToDataView(bytes);
-        // Try WriteWithoutResponse first (standard for Nordic UART RX)
+
+        // 1. Try active discovered service
         try {
           await BleClient.writeWithoutResponse(
             this.connectedDeviceId,
@@ -880,8 +915,21 @@ class QRingBleService {
             dataView
           );
           return true;
-        } catch (_) {
-          // Fallback to write with response
+        } catch (_) {}
+
+        // 2. Try QRing Primary Service (6e40fff0)
+        try {
+          await BleClient.writeWithoutResponse(
+            this.connectedDeviceId,
+            QRING_SERVICE_UUID,
+            QRING_RX_CHAR_UUID,
+            dataView
+          );
+          return true;
+        } catch (_) {}
+
+        // 3. Try with response
+        try {
           await BleClient.write(
             this.connectedDeviceId,
             this.activeServiceUuid,
@@ -889,7 +937,18 @@ class QRingBleService {
             dataView
           );
           return true;
-        }
+        } catch (_) {}
+
+        // 4. Try Nordic UART fallback
+        try {
+          await BleClient.writeWithoutResponse(
+            this.connectedDeviceId,
+            NORDIC_UART_SERVICE_UUID,
+            NORDIC_UART_RX_CHAR_UUID,
+            dataView
+          );
+          return true;
+        } catch (_) {}
       } else if (this.rxChar) {
         const cmd = new Uint8Array(bytes);
         try {
@@ -920,9 +979,9 @@ class QRingBleService {
     console.log('[QRing BLE RECV]', hex);
 
     // 1. Battery Response packet (header 0x03)
-    // Response layout can be:
-    // Format A: 03 <batPct: 1..100> <chargingState: 0..2> ...
-    // Format B: 03 <chargingState: 0..2> <batPct: 1..100> ...
+    // Response layout:
+    // Format A: 03 <chargePercent: 1..100> <isCharging: 0..2> ...
+    // Format B: 03 <isCharging: 0..2> <chargePercent: 1..100> ...
     if (header === 0x03 && len >= 2) {
       const b1 = dataView.getUint8(1);
       const b2 = len >= 3 ? dataView.getUint8(2) : 0;
@@ -945,25 +1004,41 @@ class QRingBleService {
       }
     }
 
-    // 2. Real-time Heart Rate stream packet (header 0x69)
-    // QRing stream layout: 69 06 00 <bpm> 00 ... <checksum>
-    if (header === 0x69 && len >= 4) {
-      const bpm = dataView.getUint8(3);
-      if (bpm >= 35 && bpm <= 230) {
-        console.log('[QRing BLE] Real PPG Heart Rate Received from Ring:', bpm, 'bpm');
-        this.notify({ heartRate: bpm, isConnected: true });
-        return;
-      }
-      // Fallback: check byte 2 or byte 1
-      const b2 = dataView.getUint8(2);
-      if (b2 >= 35 && b2 <= 230) {
-        console.log('[QRing BLE] Real Heart Rate (byte 2):', b2, 'bpm');
-        this.notify({ heartRate: b2, isConnected: true });
-        return;
+    // 2. Native QRing Command 30 (0x1E) Realtime Heart Rate Response
+    // Layout: 1E <heartRate: 35..230> 00 ... <checksum>
+    if (header === 30 || header === 0x1E) {
+      if (len >= 2) {
+        const bpm = dataView.getUint8(1);
+        if (bpm >= 35 && bpm <= 230) {
+          console.log('[QRing BLE] Command 30 (0x1E) Real PPG Heart Rate Received:', bpm, 'bpm');
+          this.notify({ heartRate: bpm, isConnected: true });
+          return;
+        }
       }
     }
 
-    // 3. Alternative Heart Rate headers (0x01, 0x11, 0x02)
+    // 3. Real-time Heart Rate stream packet (header 0x69 / 105)
+    // QRing stream layout: 69 06 00 <bpm> 00 ... <checksum>
+    if (header === 0x69 || header === 105) {
+      if (len >= 4) {
+        const bpm = dataView.getUint8(3);
+        if (bpm >= 35 && bpm <= 230) {
+          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received (byte 3):', bpm, 'bpm');
+          this.notify({ heartRate: bpm, isConnected: true });
+          return;
+        }
+      }
+      for (let i = 1; i < Math.min(len, 6); i++) {
+        const b = dataView.getUint8(i);
+        if (b >= 35 && b <= 230) {
+          console.log('[QRing BLE] Command 105 Real Heart Rate Received (byte', i, '):', b, 'bpm');
+          this.notify({ heartRate: b, isConnected: true });
+          return;
+        }
+      }
+    }
+
+    // 4. Alternative Heart Rate headers (0x01, 0x11, 0x02)
     if (header === 0x01 || header === 0x11 || header === 0x02) {
       for (let i = 1; i < Math.min(len, 6); i++) {
         const val = dataView.getUint8(i);
@@ -975,7 +1050,7 @@ class QRingBleService {
       }
     }
 
-    // 4. Multi-metric frame battery (header 0xFC, 0x0F, or 0x08)
+    // 5. Multi-metric frame battery (header 0xFC, 0x0F, or 0x08)
     if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
       const batIndex = header === 0xFC ? 8 : 7;
       const b = dataView.getUint8(batIndex);
