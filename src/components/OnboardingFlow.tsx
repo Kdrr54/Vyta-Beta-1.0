@@ -270,6 +270,23 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               <span>Commencer la configuration</span>
               <ArrowRight size={17} />
             </button>
+            <button
+              type="button"
+              onClick={onComplete}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(250, 247, 242, 0.55)',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                padding: '6px 0',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Accéder au tableau de bord
+            </button>
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.4)' }}>
               Configuration personnalisée en moins de 60 secondes
             </span>
@@ -294,25 +311,42 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         >
           {/* Header de l'étape */}
           <div>
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'rgba(250, 247, 242, 0.6)',
-                fontSize: '13px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer',
-                padding: '4px 0',
-                marginBottom: '10px',
-              }}
-            >
-              <ChevronLeft size={16} />
-              <span>Retour</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.6)',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                }}
+              >
+                <ChevronLeft size={16} />
+                <span>Retour</span>
+              </button>
+              <button
+                type="button"
+                onClick={onComplete}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '2px',
+                }}
+              >
+                Passer
+              </button>
+            </div>
 
             <span
               style={{

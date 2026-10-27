@@ -197,7 +197,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           <span>Profil</span>
         </button>
       )}
-      {isPaired && onClose && status === 'idle' && (
+      {onClose && status === 'idle' && (
         <button
           type="button"
           onClick={() => {
