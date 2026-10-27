@@ -13,9 +13,12 @@ export interface StoryData {
   realGpsPoints?: [number, number][];
 }
 
+export const DEFAULT_ROUTE_PATH_D =
+  'M 40 170 Q 110 160, 160 120 T 260 90 T 320 60';
+
 /**
  * Convertit un tableau de coordonnées GPS réelles [latitude, longitude]
- * en un tracé SVG vectoriel proportionnel centré dans le cadre viewBox.
+ * en un tracé SVG vectoriel proportionnel parfaitement centré dans le cadre viewBox.
  */
 export function convertGpsPointsToSvgPath(
   points: [number, number][],
@@ -25,9 +28,9 @@ export function convertGpsPointsToSvgPath(
 ): { pathD: string; startPoint: Pt; endPoint: Pt } {
   if (!points || points.length < 2) {
     return {
-      pathD: PARC_MONCEAU_PATH_D,
-      startPoint: { x: 180, y: 44 },
-      endPoint: { x: 180, y: 44 },
+      pathD: DEFAULT_ROUTE_PATH_D,
+      startPoint: { x: 40, y: 170 },
+      endPoint: { x: 320, y: 60 },
     };
   }
 
@@ -44,27 +47,20 @@ export function convertGpsPointsToSvgPath(
   const latToMeters = 111320;
   const lngToMeters = 111320 * Math.cos((midLat * Math.PI) / 180);
 
-  // Éviter la division par zéro sur ligne droite pure (minimum 10m de span virtuel pour centrage)
-  const dLatMeters = Math.max(10, (maxLat - minLat) * latToMeters);
-  const dLngMeters = Math.max(10, (maxLng - minLng) * lngToMeters);
+  const centerLng = (minLng + maxLng) / 2;
+  const centerLat = (minLat + maxLat) / 2;
+  const spanX = (maxLng - minLng) * lngToMeters;
+  const spanY = (maxLat - minLat) * latToMeters;
 
-  const innerW = viewWidth - padding * 2;
-  const innerH = viewHeight - padding * 2;
-  const scale = Math.min(innerW / dLngMeters, innerH / dLatMeters);
+  const scale = Math.min(
+    (viewWidth - padding * 2) / Math.max(25, spanX),
+    (viewHeight - padding * 2) / Math.max(25, spanY)
+  );
 
-  const pathW = dLngMeters * scale;
-  const pathH = dLatMeters * scale;
-  const offsetX = (viewWidth - pathW) / 2;
-  const offsetY = (viewHeight - pathH) / 2;
-
-  const svgCoords: Pt[] = points.map(([lat, lng]) => {
-    const rx = (lng - minLng) * lngToMeters * scale;
-    const ry = (maxLat - lat) * latToMeters * scale;
-    return {
-      x: Math.round((offsetX + rx) * 10) / 10,
-      y: Math.round((offsetY + ry) * 10) / 10,
-    };
-  });
+  const svgCoords: Pt[] = points.map(([lat, lng]) => ({
+    x: Math.round((viewWidth / 2 + (lng - centerLng) * lngToMeters * scale) * 10) / 10,
+    y: Math.round((viewHeight / 2 - (lat - centerLat) * latToMeters * scale) * 10) / 10,
+  }));
 
   const pathD = svgCoords.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
 
@@ -78,31 +74,17 @@ export function convertGpsPointsToSvgPath(
 export type StoryTemplateVariant = 'transparent' | 'satellite' | 'dark_gold' | 'telemetry';
 
 /**
- * Coordonnées GPS de référence du parcours Parc Monceau (identiques à AppleWorkoutMap.tsx)
+ * Coordonnées de tracé épuré par défaut
  */
 export const WORKOUT_ROUTE_WAYPOINTS: Pt[] = [
-  { x: 180, y: 44 },  // Départ Rotonde
-  { x: 135, y: 55 },  // Km 1 Nord-Ouest
-  { x: 88, y: 72 },   // Km 2 Av. Van Dyck
-  { x: 58, y: 104 },  // Km 3 Ouest
-  { x: 54, y: 142 },  // Km 4 Sud-Ouest
-  { x: 82, y: 172 },  // Km 5 Sud (Av. Ruysdaël)
-  { x: 140, y: 190 }, // Km 6 Sud-Est
-  { x: 215, y: 192 }, // Km 7 Est (Rue de Prony)
-  { x: 275, y: 165 }, // Km 8 Nord-Est
-  { x: 295, y: 120 },
-  { x: 285, y: 78 },
-  { x: 240, y: 52 },
-  { x: 196, y: 45 },  // Arrivée Rotonde
-  { x: 180, y: 44 },  // Bouclage complet
+  { x: 40, y: 170 },
+  { x: 90, y: 155 },
+  { x: 140, y: 135 },
+  { x: 185, y: 115 },
+  { x: 235, y: 95 },
+  { x: 280, y: 75 },
+  { x: 320, y: 60 },
 ];
-
-/**
- * Chemin SVG Bézier canonique du Parc Monceau (viewBox 0 0 360 230)
- * Identique sur AppleWorkoutMap, les vignettes de Trajets et la Story
- */
-export const PARC_MONCEAU_PATH_D =
-  'M 180 44 Q 180 44, 157.5 49.5 T 135 55 Q 135 55, 111.5 63.5 T 88 72 Q 88 72, 73 88 T 58 104 Q 58 104, 56 123 T 54 142 Q 54 142, 68 157 T 82 172 Q 82 172, 111 181 T 140 190 Q 140 190, 177.5 191 T 215 192 Q 215 192, 245 178.5 T 275 165 Q 275 165, 285 142.5 T 295 120 Q 295 120, 290 99 T 285 78 Q 285 78, 262.5 65 T 240 52 Q 240 52, 218 48.5 T 196 45 Q 196 45, 188 44.5 T 180 44 Z';
 
 /**
  * Échantillonne de façon lisse (Catmull-Rom) la trajectoire réelle de la course
@@ -269,26 +251,33 @@ export function generateStoryDataUrl(
         const midLat = (minLat + maxLat) / 2;
         const latToM = 111320;
         const lngToM = 111320 * Math.cos((midLat * Math.PI) / 180);
-        const dLatM = Math.max(10, (maxLat - minLat) * latToM);
-        const dLngM = Math.max(10, (maxLng - minLng) * lngToM);
-        const pad = 36;
-        const sc = Math.min((boxW - pad * 2) / dLngM, (boxH - pad * 2) / dLatM);
-        const offX = (boxW - dLngM * sc) / 2;
-        const offY = (boxH - dLatM * sc) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+        const spanX = (maxLng - minLng) * lngToM;
+        const spanY = (maxLat - minLat) * latToM;
+        const pad = 48;
+        const scale = Math.min(
+          (boxW - pad * 2) / Math.max(25, spanX),
+          (boxH - pad * 2) / Math.max(25, spanY)
+        );
         fitted = data.realGpsPoints.map(([lat, lng]) => ({
-          x: offX + (lng - minLng) * lngToM * sc,
-          y: offY + (maxLat - lat) * latToM * sc,
+          x: boxW / 2 + (lng - centerLng) * lngToM * scale,
+          y: boxH / 2 - (lat - centerLat) * latToM * scale,
         }));
         startPt = fitted[0];
         endPt = fitted[fitted.length - 1];
       } else {
-        const prog = typeof data.routeProgress === 'number' && data.routeProgress > 0.02
-          ? Math.min(1, data.routeProgress)
-          : 1;
-        const raw = getSampledRunTrajectory(prog);
-        fitted = fitTrajectoryToBox(raw, boxW, boxH, 24);
+        // Tracé fluide par défaut (aucun circuit prédéfini)
+        const defaultCurve: Pt[] = [
+          { x: boxW * 0.15, y: boxH * 0.72 },
+          { x: boxW * 0.35, y: boxH * 0.62 },
+          { x: boxW * 0.55, y: boxH * 0.44 },
+          { x: boxW * 0.72, y: boxH * 0.34 },
+          { x: boxW * 0.85, y: boxH * 0.22 },
+        ];
+        fitted = defaultCurve;
         startPt = fitted[0];
-        endPt = prog < 0.98 ? fitted[fitted.length - 1] : undefined;
+        endPt = fitted[fitted.length - 1];
       }
 
       if (fitted.length < 2) return;

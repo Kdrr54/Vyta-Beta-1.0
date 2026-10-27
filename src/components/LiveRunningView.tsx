@@ -19,21 +19,7 @@ interface LiveRunningViewProps {
   userPosition?: [number, number] | null;
 }
 
-const MONCEAU_CENTER: [number, number] = [48.8796, 2.3089];
-
-const REAL_ROUTE_POINTS: { lat: number; lng: number; km?: number; pace?: string }[] = [
-  { lat: 48.88092, lng: 2.30895, km: 0, pace: '5:19' },      // Départ
-  { lat: 48.88055, lng: 2.30735, km: 1, pace: '5:19' },      // Km 1
-  { lat: 48.87985, lng: 2.30615, km: 2, pace: '5:21' },      // Km 2
-  { lat: 48.87900, lng: 2.30620, km: 3, pace: '5:14' },      // Km 3
-  { lat: 48.87825, lng: 2.30730, km: 4, pace: '5:18' },      // Km 4
-  { lat: 48.87805, lng: 2.30895, km: 5, pace: '5:10' },      // Km 5
-  { lat: 48.87830, lng: 2.31065, km: 6, pace: '5:05' },      // Km 6
-  { lat: 48.87925, lng: 2.31175, km: 7, pace: '5:00' },      // Km 7
-  { lat: 48.88020, lng: 2.31140, km: 8, pace: '4:48' },      // Km 8
-  { lat: 48.88075, lng: 2.31015 },
-  { lat: 48.88092, lng: 2.30895, pace: '4:48' },             // Arrivée
-];
+const DEFAULT_LOCATION_CENTER: [number, number] = [48.8566, 2.3522];
 
 const TILES_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 const TILES_DARK_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
@@ -83,8 +69,8 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   const leafletOuterGlowRef = useRef<L.Polyline | null>(null);
   const leafletRunnerRef = useRef<L.Marker | null>(null);
 
-  // Progress computation (total 8.12 km loop or dynamic)
-  const currentProg = Math.max(0, Math.min(1, runDistanceKm / 8.12));
+  // Progress computation
+  const currentProg = Math.max(0, Math.min(1, runDistanceKm / 10));
 
   // Sync with props
   useEffect(() => {
@@ -110,51 +96,26 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     }
   }, [propRealGpsPoints]);
 
-  // Compute live runner location (ALWAYS real GPS location, never Paris unless in fast demo)
+  // Compute live runner location (ALWAYS real GPS location)
   const getRunnerLatLng = (_prog?: number): [number, number] => {
-    if (isFastDemo && realGpsPoints.length === 0) {
-      const totalSegments = REAL_ROUTE_POINTS.length - 1;
-      const segmentIndex = currentProg * totalSegments;
-      const i = Math.floor(segmentIndex);
-      const t = segmentIndex - i;
-      const p1 = REAL_ROUTE_POINTS[i];
-      const p2 = REAL_ROUTE_POINTS[Math.min(i + 1, totalSegments)];
-      return [p1.lat + (p2.lat - p1.lat) * t, p1.lng + (p2.lng - p1.lng) * t];
+    if (propRealGpsPoints && propRealGpsPoints.length > 0) {
+      return propRealGpsPoints[propRealGpsPoints.length - 1];
     }
-    if (userPosition) return userPosition;
     if (realGpsPoints.length > 0) return realGpsPoints[realGpsPoints.length - 1];
+    if (propUserPosition) return propUserPosition;
+    if (userPosition) return userPosition;
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('vyta_last_user_location');
         if (saved) return JSON.parse(saved);
       } catch (e) {}
     }
-    return [48.8566, 2.3522];
+    return DEFAULT_LOCATION_CENTER;
   };
 
-  // Compute active trail points (ALWAYS real GPS trail, never Paris unless in fast demo)
+  // Compute active trail points (ALWAYS strictly real GPS trail)
   const getActiveTrailPoints = (): [number, number][] => {
-    if (isFastDemo && realGpsPoints.length === 0) {
-      if (currentProg <= 0) return [];
-      const totalSegments = REAL_ROUTE_POINTS.length - 1;
-      const segmentIndex = currentProg * totalSegments;
-      const i = Math.floor(segmentIndex);
-      const t = segmentIndex - i;
-
-      const trail: [number, number][] = [];
-      for (let idx = 0; idx <= i; idx++) {
-        trail.push([REAL_ROUTE_POINTS[idx].lat, REAL_ROUTE_POINTS[idx].lng]);
-      }
-      if (t > 0 && i < totalSegments) {
-        const p1 = REAL_ROUTE_POINTS[i];
-        const p2 = REAL_ROUTE_POINTS[i + 1];
-        trail.push([
-          p1.lat + (p2.lat - p1.lat) * t,
-          p1.lng + (p2.lng - p1.lng) * t,
-        ]);
-      }
-      return trail;
-    }
+    if (propRealGpsPoints && propRealGpsPoints.length > 0) return propRealGpsPoints;
     return realGpsPoints;
   };
 

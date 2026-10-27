@@ -17,7 +17,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
-import { StoryData, PARC_MONCEAU_PATH_D } from '../lib/story';
+import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../lib/story';
 import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -61,22 +61,11 @@ export interface StoredRoute {
   avgHr: number;
   dateStr: string;
   pointsSvgPath: string;
+  realGpsPoints?: [number, number][];
   progress?: number;
 }
 
 const initialStoredRoutes: StoredRoute[] = [
-  {
-    id: 'route-monceau',
-    title: 'Boucle Parc Monceau (Record)',
-    location: 'Paris 8e · Rotonde de Chartres',
-    distanceKm: 8.12,
-    durationSec: 2512,
-    elevationM: 64,
-    avgHr: 156,
-    dateStr: '15 oct. 2026 · 07:10',
-    pointsSvgPath: PARC_MONCEAU_PATH_D,
-    progress: 1,
-  },
   {
     id: 'route-seine',
     title: 'Quais de Seine · Tour Eiffel',
@@ -311,26 +300,34 @@ export const FitScreen: React.FC = () => {
           );
           const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
 
-          // Si déplacement réel (au moins 1.8 mètre et moins de 120m)
-          if (distMeters >= 1.8 && distMeters < 120) {
+          // Si déplacement réel (au moins 2.2 mètres et moins de 120m)
+          if (distMeters >= 2.2 && distMeters < 120) {
             const distKm = distMeters / 1000;
             setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
 
-            let calculatedSpeed = 0;
+            let instantKmh = 0;
             if (speed !== null && speed >= 0) {
-              calculatedSpeed = speed * 3.6; // Vitesse réelle en km/h calculée directement par le capteur GPS iPhone
+              instantKmh = speed * 3.6; // Vitesse Doppler réelle CoreLocation
             } else {
-              calculatedSpeed = (distMeters / dtSec) * 3.6;
+              instantKmh = (distMeters / dtSec) * 3.6;
             }
 
-            // Filtrer vitesses humaines plausibles
-            calculatedSpeed = Math.min(35, Math.max(0, calculatedSpeed));
-            if (calculatedSpeed < 0.9) calculatedSpeed = 0;
+            // Si marche lente ou à l'arrêt (< 1.5 km/h), vitesse nulle
+            if (instantKmh < 1.5) {
+              instantKmh = 0;
+            } else {
+              instantKmh = Math.min(30, Math.max(0, instantKmh));
+            }
 
-            setInstantSpeedKmh(Math.round(calculatedSpeed * 10) / 10);
+            // Lissage exponentiel (évite tout sursaut brusque de 10 km/h)
+            setInstantSpeedKmh((prev) => {
+              const smoothed = prev > 0 ? (prev * 0.6 + instantKmh * 0.4) : instantKmh;
+              return Math.round(smoothed * 10) / 10;
+            });
+
             lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
             setRealGpsPoints((prev) => [...prev, coords]);
-          } else if (distMeters < 1.8 && dtSec > 2.5) {
+          } else if (distMeters < 2.0 && dtSec > 2.0) {
             // Utilisateur à l'arrêt ou marchant très lentement
             setInstantSpeedKmh(0);
           }
@@ -368,8 +365,9 @@ export const FitScreen: React.FC = () => {
       setRunDurationSec(0);
       setRunDistanceKm(0);
       setInstantSpeedKmh(0);
-      setRealGpsPoints([]);
-      lastGpsFixRef.current = null;
+      const initPoints: [number, number][] = userPosition ? [userPosition] : [];
+      setRealGpsPoints(initPoints);
+      lastGpsFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
       setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
     }
     setRunState('running');
@@ -400,20 +398,23 @@ export const FitScreen: React.FC = () => {
   };
 
   const saveCurrentRunToTrajets = () => {
-    const finalDist = runDistanceKm > 0.05 ? runDistanceKm : 8.12;
-    const finalDur = runDurationSec > 5 ? runDurationSec : 2512;
-    const finalHr = liveHr > 60 ? liveHr : 156;
+    const finalDist = Math.round(runDistanceKm * 100) / 100;
+    const finalDur = runDurationSec;
+    const finalHr = liveHr > 40 ? liveHr : 0;
+    const hasGps = realGpsPoints && realGpsPoints.length >= 2;
+    const pathInfo = hasGps ? convertGpsPointsToSvgPath(realGpsPoints) : null;
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
       title: `Course Vyta · ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
-      location: 'Paris · Parcours libre',
-      distanceKm: Math.round(finalDist * 100) / 100,
+      location: 'Course extérieure',
+      distanceKm: finalDist,
       durationSec: finalDur,
       elevationM: Math.round(finalDist * 8),
       avgHr: finalHr,
       dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      pointsSvgPath: PARC_MONCEAU_PATH_D,
+      pointsSvgPath: pathInfo ? pathInfo.pathD : DEFAULT_ROUTE_PATH_D,
+      realGpsPoints: hasGps ? realGpsPoints : undefined,
       progress: 1,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);
@@ -457,22 +458,27 @@ export const FitScreen: React.FC = () => {
 
   const shareStoredRoute = (route: StoredRoute, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const paceVal = route.distanceKm > 0 && route.durationSec > 0
+      ? fmtMMSS(Math.round(route.durationSec / route.distanceKm))
+      : '--:--';
     openStory({
+      mode: 'run',
       title: route.title,
-      date: route.dateStr,
+      dateStr: route.dateStr,
       stats: [
         { label: 'Distance', value: route.distanceKm.toFixed(2), unit: 'km' },
-        { label: 'Allure', value: fmtMMSS(Math.round(route.durationSec / route.distanceKm)), unit: '/km' },
-        { label: 'Temps', value: fmtClockSec(route.durationSec), unit: '' },
-        { label: 'FC Moyenne', value: `${route.avgHr}`, unit: 'bpm' },
+        { label: 'Allure', value: paceVal, unit: '/km' },
+        { label: 'Temps', value: fmtClockSec(route.durationSec) },
+        { label: 'FC Moyenne', value: route.avgHr > 0 ? `${route.avgHr}` : '--', unit: 'bpm' },
       ],
       routeProgress: route.progress ?? 1,
+      realGpsPoints: route.realGpsPoints,
     });
   };
 
   // Live computed metrics (strictement 0 à l'arrêt)
   const isIdle = runState === 'idle';
-  const liveProgress = runState === 'finished' ? 1 : Math.min(1, runDistanceKm / 8.12);
+  const liveProgress = runState === 'finished' ? 1 : Math.min(1, runDistanceKm / 10);
   const livePaceSec =
     runDistanceKm > 0.01
       ? Math.round(runDurationSec / runDistanceKm)
@@ -786,21 +792,21 @@ export const FitScreen: React.FC = () => {
 
   // Handlers for Story Generator
   const openRunStory = () => {
-    const finalDist = runDistanceKm > 0 ? parseFloat(runDistanceKm.toFixed(2)) : 8.12;
-    const finalDur = runDurationSec > 0 ? runDurationSec : 2512;
-    const finalPace = finalDist > 0 ? Math.round(finalDur / finalDist) : 309;
-    const finalHr = liveHr > 72 ? liveHr : 156;
+    const finalDist = parseFloat(runDistanceKm.toFixed(2));
+    const finalDur = runDurationSec;
+    const finalPace = finalDist > 0 && finalDur > 0 ? Math.round(finalDur / finalDist) : 0;
+    const finalHr = liveHr > 40 ? liveHr : 0;
 
     openStory({
       mode: 'run',
       title: 'Course GPS Vyta',
-      dateStr: run.date,
+      dateStr: new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }),
       accentText: 'Séance GPS Enregistrée',
       stats: [
-        { label: 'Distance', value: `${finalDist}`, unit: 'km' },
-        { label: 'Allure', value: fmtMMSS(finalPace), unit: '/km' },
+        { label: 'Distance', value: finalDist > 0 ? `${finalDist.toFixed(2)}` : '0.00', unit: 'km' },
+        { label: 'Allure', value: finalPace > 0 ? fmtMMSS(finalPace) : '--:--', unit: '/km' },
         { label: 'Temps', value: fmtClockSec(finalDur) },
-        { label: 'FC Moyenne', value: `${finalHr}`, unit: 'bpm' },
+        { label: 'FC Moyenne', value: finalHr > 0 ? `${finalHr}` : '--', unit: 'bpm' },
       ],
       realGpsPoints: realGpsPoints && realGpsPoints.length >= 2 ? realGpsPoints : undefined,
     });
@@ -1007,6 +1013,8 @@ export const FitScreen: React.FC = () => {
             progress={liveProgress}
             runState={runState}
             distanceKm={runDistanceKm}
+            realGpsPoints={realGpsPoints}
+            userPosition={userPosition}
           />
 
           {/* Key Running Metrics Grid (Live GPS) */}

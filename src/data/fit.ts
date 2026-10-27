@@ -2,7 +2,7 @@ import { Pt } from '../types';
 
 /* ---------- Course GPS ---------- */
 
-/** Boucle de parc générée de façon déterministe (coordonnées normalisées, ajustées ensuite au cadre). */
+/** Tracé de course généré de façon déterministe (coordonnées normalisées, ajustées ensuite au cadre). */
 export const routeRaw: Pt[] = Array.from({ length: 140 }, (_, i) => {
   const a = (i / 139) * Math.PI * 1.9;
   return {

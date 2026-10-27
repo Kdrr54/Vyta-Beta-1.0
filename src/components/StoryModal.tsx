@@ -5,7 +5,7 @@ import {
   getRunTrajectorySvgPath,
   StoryData,
   StoryTemplateVariant,
-  PARC_MONCEAU_PATH_D,
+  DEFAULT_ROUTE_PATH_D,
   convertGpsPointsToSvgPath,
   getRunnerPosition,
 } from '../lib/story';
@@ -51,11 +51,11 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
       return convertGpsPointsToSvgPath(data.realGpsPoints, 360, 230, 36);
     }
     return {
-      pathD: PARC_MONCEAU_PATH_D,
-      startPoint: { x: 180, y: 44 },
-      endPoint: runnerPos,
+      pathD: DEFAULT_ROUTE_PATH_D,
+      startPoint: { x: 40, y: 170 },
+      endPoint: { x: 320, y: 60 },
     };
-  }, [data.realGpsPoints, runnerPos]);
+  }, [data.realGpsPoints]);
 
   useEffect(() => {
     const variant = SLIDE_VARIANTS[activeSlide] || 'transparent';

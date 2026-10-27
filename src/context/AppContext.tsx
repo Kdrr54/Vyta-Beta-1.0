@@ -84,7 +84,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const initialMetric = (params?.get('metric') as 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null) || null;
   const initialStory = params?.get('story') === '1' ? {
     mode: 'run',
-    title: 'Course Matinale · Parc',
+    title: 'Course Matinale',
     dateStr: 'Jeu. 15 octobre · 07 h 10',
     accentText: 'Nouveau Record 1 km (4:48)',
     stats: [

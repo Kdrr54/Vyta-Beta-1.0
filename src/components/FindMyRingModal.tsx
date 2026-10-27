@@ -24,8 +24,8 @@ interface FindMyRingModalProps {
   onBack?: () => void;
 }
 
-// Position par défaut de référence (Parc Monceau, Paris 8e)
-const DEFAULT_COORDS: [number, number] = [48.8796, 2.3089];
+// Position par défaut de référence (Paris)
+const DEFAULT_COORDS: [number, number] = [48.8566, 2.3522];
 
 const TILES_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 const TILES_DARK_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
@@ -47,7 +47,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [coords, setCoords] = useState<[number, number]>(DEFAULT_COORDS);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
   const [showProximityRadar, setShowProximityRadar] = useState<boolean>(false);
-  const [locationAddress, setLocationAddress] = useState<string>('Parc Monceau, 75008 Paris');
+  const [locationAddress, setLocationAddress] = useState<string>('Paris, France');
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
 
   // 1. Détection de la position réelle (HTML5 Geolocation) pour la dernière position connue

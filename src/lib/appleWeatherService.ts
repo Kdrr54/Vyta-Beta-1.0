@@ -14,9 +14,9 @@ export interface AppleWeatherData {
   source: 'Apple WeatherKit' | 'Open-Meteo Realtime';
 }
 
-// Parc Monceau / Paris default coordinates
-const DEFAULT_LAT = 48.8796;
-const DEFAULT_LNG = 2.3089;
+// Paris default coordinates
+const DEFAULT_LAT = 48.8566;
+const DEFAULT_LNG = 2.3522;
 
 export const fetchWeatherForLocation = async (
   lat = DEFAULT_LAT,
@@ -104,7 +104,7 @@ export const fetchWeatherForLocation = async (
       windSpeedKmH: 11,
       uvIndex: 2,
       runningConditionScore: 94,
-      runningAdvice: 'Temps doux et sec : parfait pour une sortie tempo au Parc Monceau.',
+      runningAdvice: 'Temps doux et sec : conditions idéales pour votre séance de course.',
       sleepImpactAdvice: 'Conditions nocturnes idéales pour maximiser le sommeil profond.',
       source: 'Apple WeatherKit',
     };

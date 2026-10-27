@@ -11,31 +11,11 @@ interface AppleWorkoutMapProps {
   progress?: number;
   runState?: 'idle' | 'running' | 'paused' | 'finished';
   distanceKm?: number;
+  realGpsPoints?: [number, number][];
+  userPosition?: [number, number] | null;
 }
 
-interface RouteWaypoint {
-  lat: number;
-  lng: number;
-  km?: number;
-  pace?: string;
-  isPR?: boolean;
-}
-
-const MONCEAU_CENTER: [number, number] = [48.8796, 2.3089];
-
-const REAL_ROUTE_POINTS: RouteWaypoint[] = [
-  { lat: 48.88092, lng: 2.30895, km: 0, pace: '5:19' },      // Départ
-  { lat: 48.88055, lng: 2.30735, km: 1, pace: '5:19' },      // Km 1
-  { lat: 48.87985, lng: 2.30615, km: 2, pace: '5:21' },      // Km 2
-  { lat: 48.87900, lng: 2.30620, km: 3, pace: '5:14' },      // Km 3
-  { lat: 48.87825, lng: 2.30730, km: 4, pace: '5:18' },      // Km 4
-  { lat: 48.87805, lng: 2.30895, km: 5, pace: '5:10' },      // Km 5
-  { lat: 48.87830, lng: 2.31065, km: 6, pace: '5:05' },      // Km 6
-  { lat: 48.87925, lng: 2.31175, km: 7, pace: '5:00' },      // Km 7
-  { lat: 48.88020, lng: 2.31140, km: 8, pace: '4:48', isPR: true }, // Km 8 (Sprint PR ★)
-  { lat: 48.88075, lng: 2.31015 },
-  { lat: 48.88092, lng: 2.30895, pace: '4:48' },             // Arrivée
-];
+const DEFAULT_MAP_CENTER: [number, number] = [48.8566, 2.3522];
 
 const TILES_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 const TILES_DARK_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
@@ -45,18 +25,20 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   progress = 0,
   runState = 'idle',
   distanceKm = 0,
+  realGpsPoints: propRealGpsPoints,
+  userPosition: propUserPosition,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Real GPS live tracking points recorded during workout
-  const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>([]);
+  const [internalGpsPoints, setInternalGpsPoints] = useState<[number, number][]>([]);
 
   // Apple MapKit state & refs
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
   const appleMapInstanceRef = useRef<any>(null);
   const applePolylineRef = useRef<any>(null);
   const appleRunnerAnnotationRef = useRef<any>(null);
-  const appleKmAnnotationsRef = useRef<Map<number, any>>(new Map());
+  const appleStartAnnotationRef = useRef<any>(null);
   const appleFinishAnnotationRef = useRef<any>(null);
 
   // Leaflet refs
@@ -66,90 +48,57 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   const leafletPolylineRef = useRef<L.Polyline | null>(null);
   const leafletGlowPolyRef = useRef<L.Polyline | null>(null);
   const leafletRunnerRef = useRef<L.Marker | null>(null);
-  const leafletKmMarkersRef = useRef<Map<number, L.Marker>>(new Map());
+  const leafletStartMarkerRef = useRef<L.Marker | null>(null);
   const leafletFinishMarkerRef = useRef<L.Marker | null>(null);
 
   const [mapType, setMapType] = useState<'dark' | 'satellite'>('dark');
   const [activeSplit, setActiveSplit] = useState<number | null>(null);
-  const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+  const [userPosition, setUserPosition] = useState<[number, number] | null>(() => propUserPosition || null);
   const [isCentering, setIsCentering] = useState<boolean>(false);
 
-  // Progression calculation: 0 when idle, strictly 0 to 1
-  const currentProg = runState === 'idle' ? 0 : Math.max(0, Math.min(1, progress));
+  // Sync prop userPosition
+  useEffect(() => {
+    if (propUserPosition) {
+      setUserPosition(propUserPosition);
+    }
+  }, [propUserPosition]);
 
-  // Compute runner position
-  const getRunnerLatLng = (prog: number): [number, number] => {
-    if (realGpsPoints.length > 0) {
-      return realGpsPoints[realGpsPoints.length - 1];
-    }
-    if (userPosition && (prog <= 0 || runState === 'idle')) {
-      return userPosition;
-    }
-    if (prog <= 0) return userPosition || [REAL_ROUTE_POINTS[0].lat, REAL_ROUTE_POINTS[0].lng];
-    if (prog >= 1) {
-      const last = REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1];
-      return [last.lat, last.lng];
-    }
-    const totalSegments = REAL_ROUTE_POINTS.length - 1;
-    const segmentIndex = prog * totalSegments;
-    const i = Math.floor(segmentIndex);
-    const t = segmentIndex - i;
-    const p1 = REAL_ROUTE_POINTS[i];
-    const p2 = REAL_ROUTE_POINTS[Math.min(i + 1, totalSegments)];
-    return [
-      p1.lat + (p2.lat - p1.lat) * t,
-      p1.lng + (p2.lng - p1.lng) * t,
-    ];
-  };
-
-  // Compute active trail points (drawn only as runner advances)
+  // Compute active trail points: STRICTLY the user's recorded GPS points
   const getActiveTrailPoints = (): [number, number][] => {
     if (runState === 'idle') {
       return [];
     }
-    if (realGpsPoints.length > 1) {
-      return realGpsPoints;
-    }
-    if (currentProg <= 0) {
-      return [];
-    }
-    if (currentProg >= 1 || runState === 'finished') {
-      return REAL_ROUTE_POINTS.map(p => [p.lat, p.lng]);
-    }
-
-    const totalSegments = REAL_ROUTE_POINTS.length - 1;
-    const segmentIndex = currentProg * totalSegments;
-    const i = Math.floor(segmentIndex);
-    const t = segmentIndex - i;
-
-    const trail: [number, number][] = [];
-    for (let idx = 0; idx <= i; idx++) {
-      trail.push([REAL_ROUTE_POINTS[idx].lat, REAL_ROUTE_POINTS[idx].lng]);
-    }
-    if (t > 0 && i < totalSegments) {
-      const p1 = REAL_ROUTE_POINTS[i];
-      const p2 = REAL_ROUTE_POINTS[i + 1];
-      trail.push([
-        p1.lat + (p2.lat - p1.lat) * t,
-        p1.lng + (p2.lng - p1.lng) * t,
-      ]);
-    }
-    return trail;
+    const points = propRealGpsPoints && propRealGpsPoints.length > 0
+      ? propRealGpsPoints
+      : internalGpsPoints;
+    return points;
   };
 
-  // Real GPS Geolocation Watcher when running outdoors
+  // Compute runner position
+  const getRunnerLatLng = (): [number, number] => {
+    const trail = getActiveTrailPoints();
+    if (trail.length > 0) {
+      return trail[trail.length - 1];
+    }
+    if (propUserPosition) return propUserPosition;
+    if (userPosition) return userPosition;
+    return DEFAULT_MAP_CENTER;
+  };
+
+  // Fallback GPS watcher if parent didn't supply points
   useEffect(() => {
     if (runState !== 'running') {
-      if (runState === 'idle') setRealGpsPoints([]);
+      if (runState === 'idle') setInternalGpsPoints([]);
       return;
     }
+    if (propRealGpsPoints && propRealGpsPoints.length > 0) return;
     if (!('geolocation' in navigator)) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
-        if (accuracy <= 30) {
-          setRealGpsPoints(prev => [...prev, [latitude, longitude]]);
+        if (accuracy <= 70) {
+          setInternalGpsPoints((prev) => [...prev, [latitude, longitude]]);
         }
       },
       (err) => console.log('GPS tracking notice:', err.message),
@@ -157,7 +106,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [runState]);
+  }, [runState, propRealGpsPoints]);
 
   // Immediate auto-geolocation to place map directly on user's real coordinates
   useEffect(() => {
@@ -199,7 +148,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
     const stopCleaner = cleanMapAttributions(containerRef.current);
 
     const setupMap = async () => {
-      const initialCenter: [number, number] = userPosition || MONCEAU_CENTER;
+      const initialCenter: [number, number] = userPosition || DEFAULT_MAP_CENTER;
       const mapkit = (window as any).mapkit;
       if (mapkit) {
         const ok = await initAppleMapKit();
@@ -230,65 +179,72 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
             appleMapInstanceRef.current = map;
             setIsAppleMapKitActive(true);
             return;
-          } catch (err) {
-            console.warn('MapKit JS init fallback to Leaflet:', err);
+          } catch (e) {
+            console.warn('MapKit JS init fallback to Leaflet:', e);
           }
         }
       }
 
-      // Leaflet Fallback
-      if (cancelled || !containerRef.current || leafletMapRef.current) return;
+      // Fallback: Leaflet Dark Slate
+      if (cancelled || !containerRef.current) return;
+      try {
+        const map = L.map(containerRef.current, {
+          center: initialCenter,
+          zoom: 17,
+          zoomControl: false,
+          attributionControl: false,
+        });
 
-      const map = L.map(containerRef.current, {
-        center: initialCenter,
-        zoom: 17,
-        zoomControl: false,
-        attributionControl: false,
-        minZoom: 3,
-        maxZoom: 19,
-      });
+        const tileLayer = L.tileLayer(TILES_DARK, {
+          maxZoom: 19,
+          subdomains: ['server', 'services'],
+        }).addTo(map);
+        leafletTileRef.current = tileLayer;
 
-      const tileLayer = L.tileLayer(TILES_DARK, { maxZoom: 19 }).addTo(map);
-      leafletTileRef.current = tileLayer;
+        const labelLayer = L.tileLayer(TILES_DARK_LABELS, {
+          maxZoom: 19,
+          opacity: 0.85,
+        }).addTo(map);
+        leafletLabelsRef.current = labelLayer;
 
-      const labelsLayer = L.tileLayer(TILES_DARK_LABELS, { maxZoom: 19, opacity: 0.85 }).addTo(map);
-      leafletLabelsRef.current = labelsLayer;
+        // Dynamic polyline (halo + core)
+        const glowPoly = L.polyline([], {
+          color: '#30D158',
+          weight: 12,
+          opacity: 0.25,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        leafletGlowPolyRef.current = glowPoly;
 
-      // Dynamic trail polyline (empty initially)
-      const glowPoly = L.polyline([], {
-        color: '#30D158',
-        weight: 9,
-        opacity: 0.35,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map);
-      leafletGlowPolyRef.current = glowPoly;
+        const poly = L.polyline([], {
+          color: '#30D158',
+          weight: 4.5,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        leafletPolylineRef.current = poly;
 
-      const mainPoly = L.polyline([], {
-        color: '#30D158',
-        weight: 5,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map);
-      leafletPolylineRef.current = mainPoly;
+        // Runner location pulsing dot
+        const runnerIcon = L.divIcon({
+          className: 'apple-map-runner-icon',
+          html: `
+            <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
+              <div style="position:absolute;width:22px;height:22px;background:rgba(0,122,255,0.35);border-radius:50%;animation:pulseGlow 2s infinite ease-out;"></div>
+              <div style="width:14px;height:14px;background:#007AFF;border:2.5px solid #FFFFFF;border-radius:50%;box-shadow:0 0 8px rgba(0,122,255,0.9);position:relative;z-index:2;"></div>
+            </div>
+          `,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        const runnerMarker = L.marker(initialCenter, { icon: runnerIcon }).addTo(map);
+        leafletRunnerRef.current = runnerMarker;
 
-      // Live runner marker
-      const runnerIcon = L.divIcon({
-        className: 'apple-map-runner-icon',
-        html: `
-          <div class="runner-radar-container" style="position:relative;width:26px;height:26px;">
-            <div class="runner-radar-wave" style="position:absolute;inset:0;border-radius:50%;background:rgba(48,209,88,0.4);animation:runnerPulse 1.8s infinite ease-out;"></div>
-            <div style="position:absolute;top:5px;left:5px;width:16px;height:16px;background:#30D158;border:2.5px solid #FFF;border-radius:50%;box-shadow:0 0 12px rgba(48,209,88,1);"></div>
-          </div>
-        `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
-      });
-      const runnerMarker = L.marker(initialCenter, { icon: runnerIcon, zIndexOffset: 1000 }).addTo(map);
-      leafletRunnerRef.current = runnerMarker;
-
-      leafletMapRef.current = map;
+        leafletMapRef.current = map;
+      } catch (err) {
+        console.warn('Leaflet map init warning:', err);
+      }
     };
 
     setupMap();
@@ -307,9 +263,9 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
     };
   }, []);
 
-  // DYNAMIC TRACKING UPDATE: Draws route in real-time as runner advances
+  // DYNAMIC TRACKING UPDATE: Strictly draws user's actual GPS trajectory
   useEffect(() => {
-    const runnerPos = getRunnerLatLng(currentProg);
+    const runnerPos = getRunnerLatLng();
     const trailPoints = getActiveTrailPoints();
 
     // 1. UPDATE APPLE MAPKIT JS
@@ -325,9 +281,24 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         }
       }
 
+      // Start Marker
+      if (trailPoints.length >= 2 && !appleStartAnnotationRef.current) {
+        const startCoord = new mapkit.Coordinate(trailPoints[0][0], trailPoints[0][1]);
+        const startMarker = new mapkit.MarkerAnnotation(startCoord, {
+          color: '#FFFFFF',
+          glyphText: 'A',
+          title: 'Départ',
+        });
+        map.addAnnotation(startMarker);
+        appleStartAnnotationRef.current = startMarker;
+      } else if (trailPoints.length < 2 && appleStartAnnotationRef.current) {
+        map.removeAnnotation(appleStartAnnotationRef.current);
+        appleStartAnnotationRef.current = null;
+      }
+
       // Update or create active polyline
       if (trailPoints.length >= 2) {
-        const coords = trailPoints.map(p => new mapkit.Coordinate(p[0], p[1]));
+        const coords = trailPoints.map((p) => new mapkit.Coordinate(p[0], p[1]));
         if (applePolylineRef.current) {
           map.removeOverlay(applePolylineRef.current);
         }
@@ -346,33 +317,14 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         applePolylineRef.current = null;
       }
 
-      // Dynamically drop Milestone Km Markers ONLY when distance reached
-      REAL_ROUTE_POINTS.filter(p => p.km && p.km > 0).forEach(p => {
-        const hasPassedKm = (runState === 'finished') || (distanceKm >= p.km!);
-        const isAlreadyAdded = appleKmAnnotationsRef.current.has(p.km!);
-
-        if (hasPassedKm && !isAlreadyAdded) {
-          const marker = new mapkit.MarkerAnnotation(new mapkit.Coordinate(p.lat, p.lng), {
-            color: p.isPR ? '#FFD60A' : '#FFFFFF',
-            glyphText: String(p.km),
-            title: `Km ${p.km}`,
-            subtitle: p.isPR ? 'Record ★ (4:48 /km)' : `${p.pace} /km`,
-          });
-          map.addAnnotation(marker);
-          appleKmAnnotationsRef.current.set(p.km!, marker);
-        } else if (!hasPassedKm && isAlreadyAdded) {
-          map.removeAnnotation(appleKmAnnotationsRef.current.get(p.km!));
-          appleKmAnnotationsRef.current.delete(p.km!);
-        }
-      });
-
       // Finish marker when complete
-      if (runState === 'finished' && !appleFinishAnnotationRef.current) {
-        const finishCoord = new mapkit.Coordinate(REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1].lat, REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1].lng);
+      if (runState === 'finished' && trailPoints.length >= 2 && !appleFinishAnnotationRef.current) {
+        const lastPt = trailPoints[trailPoints.length - 1];
+        const finishCoord = new mapkit.Coordinate(lastPt[0], lastPt[1]);
         const finishMarker = new mapkit.MarkerAnnotation(finishCoord, {
           color: '#FF453A',
-          glyphText: '🏁',
-          title: 'Arrivée de la course',
+          glyphText: 'B',
+          title: 'Arrivée',
         });
         map.addAnnotation(finishMarker);
         appleFinishAnnotationRef.current = finishMarker;
@@ -382,11 +334,9 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
           try {
             map.showItems([applePolylineRef.current], {
               animate: true,
-              padding: new mapkit.Padding(25, 25, 25, 25),
+              padding: new mapkit.Padding(30, 30, 30, 30),
             });
-          } catch (e) {
-            // Ignore if showItems fails
-          }
+          } catch (e) {}
         }
       } else if (runState !== 'finished' && appleFinishAnnotationRef.current) {
         map.removeAnnotation(appleFinishAnnotationRef.current);
@@ -406,55 +356,47 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         }
       }
 
+      // Start pin
+      if (trailPoints.length >= 2 && !leafletStartMarkerRef.current) {
+        const startIcon = L.divIcon({
+          className: 'apple-map-pin start-pin',
+          html: `<div style="width:12px;height:12px;background:#FFF;border:2.5px solid #000;border-radius:50%;box-shadow:0 0 8px rgba(255,255,255,0.8);"></div>`,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6],
+        });
+        const m = L.marker(trailPoints[0], { icon: startIcon }).addTo(map);
+        leafletStartMarkerRef.current = m;
+      } else if (trailPoints.length < 2 && leafletStartMarkerRef.current) {
+        map.removeLayer(leafletStartMarkerRef.current);
+        leafletStartMarkerRef.current = null;
+      }
+
       // Update dynamic trail
       if (leafletPolylineRef.current && leafletGlowPolyRef.current) {
         leafletPolylineRef.current.setLatLngs(trailPoints);
         leafletGlowPolyRef.current.setLatLngs(trailPoints);
       }
 
-      // Dynamically drop Km badges
-      REAL_ROUTE_POINTS.filter(p => p.km && p.km > 0).forEach(p => {
-        const hasPassedKm = (runState === 'finished') || (distanceKm >= p.km!);
-        const isAlreadyAdded = leafletKmMarkersRef.current.has(p.km!);
-
-        if (hasPassedKm && !isAlreadyAdded) {
-          const isPR = p.isPR;
-          const kmIcon = L.divIcon({
-            className: 'apple-map-km-badge',
-            html: `<div style="width:18px;height:18px;background:${isPR ? '#FFD60A' : '#FFF'};color:#000;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1.5px solid #000;box-shadow:0 2px 6px rgba(0,0,0,0.5);cursor:pointer;font-family:-apple-system,sans-serif;">${p.km}</div>`,
-            iconSize: [18, 18],
-            iconAnchor: [9, 9],
-          });
-          const marker = L.marker([p.lat, p.lng], { icon: kmIcon }).addTo(map);
-          marker.on('click', () => setActiveSplit(p.km!));
-          leafletKmMarkersRef.current.set(p.km!, marker);
-        } else if (!hasPassedKm && isAlreadyAdded) {
-          map.removeLayer(leafletKmMarkersRef.current.get(p.km!)!);
-          leafletKmMarkersRef.current.delete(p.km!);
-        }
-      });
-
       // Finish pin when complete
-      if (runState === 'finished' && !leafletFinishMarkerRef.current) {
+      if (runState === 'finished' && trailPoints.length >= 2 && !leafletFinishMarkerRef.current) {
+        const lastPt = trailPoints[trailPoints.length - 1];
         const finishIcon = L.divIcon({
           className: 'apple-map-pin finish-pin',
           html: `<div style="width:14px;height:14px;background:#FF453A;border:2px solid #FFF;border-radius:50%;box-shadow:0 0 10px rgba(255,69,58,0.9);"></div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7],
         });
-        const m = L.marker([REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1].lat, REAL_ROUTE_POINTS[REAL_ROUTE_POINTS.length - 1].lng], { icon: finishIcon }).addTo(map);
+        const m = L.marker(lastPt, { icon: finishIcon }).addTo(map);
         leafletFinishMarkerRef.current = m;
 
         // Auto-fit bounds on completion
-        if (trailPoints.length >= 2) {
-          map.fitBounds(L.latLngBounds(trailPoints), { padding: [25, 25], animate: true });
-        }
+        map.fitBounds(L.latLngBounds(trailPoints), { padding: [30, 30], animate: true });
       } else if (runState !== 'finished' && leafletFinishMarkerRef.current) {
         map.removeLayer(leafletFinishMarkerRef.current);
         leafletFinishMarkerRef.current = null;
       }
     }
-  }, [currentProg, distanceKm, runState, realGpsPoints]);
+  }, [distanceKm, runState, propRealGpsPoints, internalGpsPoints, userPosition]);
 
   // Toggle Map Type
   const toggleMapType = () => {
@@ -485,7 +427,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
       } catch (_) {}
     }
 
-    const currentCoords = getRunnerLatLng(currentProg);
+    const currentCoords = getRunnerLatLng();
 
     const applyCenter = (lat: number, lng: number) => {
       setUserPosition([lat, lng]);
@@ -561,7 +503,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
               background: 'rgba(24, 24, 27, 0.92)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              border: activeSplit === 8 ? '1px solid rgba(255, 214, 10, 0.6)' : '1px solid rgba(255,255,255,0.18)',
+              border: '1px solid rgba(255,255,255,0.18)',
               borderRadius: '12px',
               padding: '6px 14px',
               display: 'flex',
@@ -572,14 +514,9 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
             }}
           >
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF' }}>Km {activeSplit}</span>
-            <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: activeSplit === 8 ? '#FFD60A' : '#30D158' }}>
+            <span style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: '#30D158' }}>
               {run.splitsSec[activeSplit - 1] ? fmtMMSS(run.splitsSec[activeSplit - 1]) : '5:09'} /km
             </span>
-            {activeSplit === 8 && (
-              <span style={{ fontSize: '10px', background: 'rgba(255, 214, 10, 0.2)', color: '#FFD60A', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                RECORD ★
-              </span>
-            )}
             <button
               onClick={() => setActiveSplit(null)}
               style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: '0 0 0 4px', fontSize: '12px' }}
