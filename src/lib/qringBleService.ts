@@ -435,8 +435,12 @@ class QRingBleService {
    * Send battery status request packet to the ring
    */
   public async sendBatteryRequest() {
-    const cmd = [0x03, 0x01, 0x00, 0x04];
-    await this.writeBytes(cmd);
+    // 1. QCWireless standard battery request
+    await this.writeBytes([0x03, 0x01, 0x00, 0x04]);
+    // 2. QCWireless alternative battery / status query
+    await this.writeBytes([0x03, 0x00, 0x00, 0x03]);
+    // 3. JRing / Colmi battery command
+    await this.writeBytes([0xFC, 0x0F, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
   }
 
   /**
@@ -444,10 +448,15 @@ class QRingBleService {
    * QCWireless / QRing SDK: Opcode 0x01, Sub 0x01 (Start)
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
-    const cmd = [0x01, 0x01, 0x00, 0x02];
-    const ok = await this.writeBytes(cmd);
-    if (ok) console.log('[QRing BLE] Sent Start Real-Time Heart Rate command (0x01 0x01)');
-    return ok;
+    // 1. QCWireless Start continuous PPG: 0x01 0x01
+    const ok1 = await this.writeBytes([0x01, 0x01, 0x00, 0x02]);
+    // 2. Alternative Real-time pulse sensor trigger: 0x02 0x01
+    await this.writeBytes([0x02, 0x01, 0x00, 0x03]);
+    // 3. JRing optical green LED activation command: 0x69 0x01
+    await this.writeBytes([0x69, 0x01, 0x00, 0x6A]);
+    // 4. JRing continuous optical mode
+    await this.writeBytes([0xFC, 0x11, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E]);
+    return ok1;
   }
 
   /**
@@ -527,19 +536,32 @@ class QRingBleService {
     const header = dataView.getUint8(0);
 
     if (len >= 2) {
-      // Battery packet response (header 0x03 or 0x0C)
+      // 1. QCWireless Battery packet (header 0x03 or 0x0C)
       if (header === 0x03 || header === 0x0C) {
-        const batteryVal = dataView.getUint8(1);
-        if (batteryVal <= 100) {
-          console.log('[QRing BLE] Received real battery update:', batteryVal, '%');
+        const b1 = dataView.getUint8(1);
+        const b2 = len >= 3 ? dataView.getUint8(2) : 0;
+        const batteryVal = b1 > 0 && b1 <= 100 ? b1 : (b2 > 0 && b2 <= 100 ? b2 : 0);
+        if (batteryVal > 0) {
+          console.log('[QRing BLE] Real battery received:', batteryVal, '%');
           this.notify({ batteryPct: batteryVal, isConnected: true });
         }
       }
-      // Real-time Heart Rate packet response (header 0x01 or 0x11)
-      if (header === 0x01 || header === 0x11) {
-        const hr = dataView.getUint8(1);
-        if (hr > 30 && hr < 240) {
-          console.log('[QRing BLE] Received real heart rate update:', hr, 'bpm');
+      // 2. JRing / Colmi multi-metric frame (header 0xFC or 0x0F)
+      if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
+        const batIndex = header === 0xFC ? 8 : 7;
+        const b = dataView.getUint8(batIndex);
+        if (b > 0 && b <= 100) {
+          console.log('[QRing BLE] Multi-metric frame battery:', b, '%');
+          this.notify({ batteryPct: b, isConnected: true });
+        }
+      }
+      // 3. Real-time Heart Rate packet response (header 0x01 or 0x11 or 0x02 or 0x69)
+      if (header === 0x01 || header === 0x11 || header === 0x02 || header === 0x69) {
+        const hr1 = dataView.getUint8(1);
+        const hr2 = len >= 3 ? dataView.getUint8(2) : 0;
+        const hr = hr1 >= 35 && hr1 <= 230 ? hr1 : (hr2 >= 35 && hr2 <= 230 ? hr2 : 0);
+        if (hr > 0) {
+          console.log('[QRing BLE] Real PPG Heart Rate:', hr, 'bpm');
           this.notify({ heartRate: hr, isConnected: true });
         }
       }

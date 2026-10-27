@@ -456,10 +456,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           qringBle.stopRealTimeHeartRate();
           return 0;
         }
-        setLiveBpm((current) => {
-          const delta = (Math.random() - 0.46) * 2.2;
-          return Math.round(Math.max(52, Math.min(180, current + delta)));
-        });
+        // Waiting for real physical optical sensor PPG packet from ring hardware
         return prev - 1;
       });
     }, 1000);

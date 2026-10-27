@@ -15,7 +15,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
   className = '',
   style = {},
 }) => {
-  const { liveBpm, setLiveBpm, selectedDay, language, weekData, isFirstLaunch, setWeekData, cardThemeMode } = useApp();
+  const { liveBpm, setLiveBpm, selectedDay, language, weekData, isFirstLaunch, setWeekData, cardThemeMode, ring, openModal } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
 
@@ -120,10 +120,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         }
 
         // Realistic PPG sensor micro-fluctuations during live sampling (e.g. 64-74 BPM)
-        setLiveBpm((current) => {
-          const delta = (Math.random() - 0.46) * 2.2;
-          return Math.round(Math.max(52, Math.min(180, current + delta)));
-        });
+        // Waiting for real physical optical sensor PPG packet from ring hardware
 
         return prev - 1;
       });
