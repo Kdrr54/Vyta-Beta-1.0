@@ -533,46 +533,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  // Effet d'horloge de simulation accélérée : 1 seconde = 1 heure
-  useEffect(() => {
-    if (!isSimulating) return;
-
-    const timer = setInterval(() => {
-      setSimulationHoursElapsed(prev => prev + 1);
-
-      // 1. Avancer la date simulée de 1 heure
-      setSimulatedDateState(prevDate => {
-        const nextDate = new Date(prevDate.getTime() + 60 * 60 * 1000);
-        try {
-          localStorage.setItem('vyta_simulated_date', nextDate.toISOString());
-        } catch (e) {}
-        return nextDate;
-      });
-
-      // 2. Décharge de la batterie selon les fréquences d'échantillonnage réelles
-      const fullDays = calculateEstimatedBatteryDays(sensorIntervals);
-      const totalHours = fullDays * 24;
-      const hourlyDrain = 100 / totalHours;
-
-      setRing(prevRing => {
-        const curBattery = prevRing.batteryRing ?? 87;
-        const newBattery = Math.max(0, curBattery - hourlyDrain);
-        const rounded = Math.round(newBattery * 10) / 10;
-        const updated = {
-          ...prevRing,
-          isConnected: rounded > 0,
-          batteryRing: rounded,
-        };
-        try {
-          localStorage.setItem('vyta_ring_device', JSON.stringify(updated));
-        } catch (e) {}
-        return updated;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isSimulating, sensorIntervals, selectedDay]);
-
   const openModal = (m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism') => setModal(m);
   const closeModal = () => setModal(null);
   const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => setMetricDetail(m);

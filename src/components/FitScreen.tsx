@@ -148,7 +148,7 @@ const initialWorkoutExercises: GymExercise[] = [
 ];
 
 export const FitScreen: React.FC = () => {
-  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen } = useApp();
+  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm } = useApp();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
   const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
@@ -184,7 +184,6 @@ export const FitScreen: React.FC = () => {
   const [runState, setRunState] = useState<'idle' | 'running' | 'paused' | 'finished'>(initialRunState);
   const [runDurationSec, setRunDurationSec] = useState<number>(initialRunDur);
   const [runDistanceKm, setRunDistanceKm] = useState<number>(initialRunDist);
-  const [isFastDemo, setIsFastDemo] = useState<boolean>(false);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -199,37 +198,17 @@ export const FitScreen: React.FC = () => {
   const lastGpsFixRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   // isLiveRunningViewOpen hoisted to AppContext
 
-  const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(() => {
-    if (initialRunDur > 0 && initialRunDist > 0) {
-      const pts: TelemetryPoint[] = [];
-      const steps = Math.min(40, initialRunDur);
-      for (let i = 0; i <= steps; i++) {
-        const t = Math.round((i / steps) * initialRunDur);
-        const dist = parseFloat(((i / steps) * initialRunDist).toFixed(3));
-        const spd = t > 0 ? (dist / t) * 3600 : 0;
-        const hr = Math.round(112 + (dist / 8.12) * 52);
-        pts.push({ timeSec: t, distanceKm: dist, speedKmh: Math.round(spd * 10) / 10, hrBpm: hr });
-      }
-      return pts;
-    }
-    return [];
-  });
+  const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>([]);
 
-    // Minuteur d'entraînement & télémétrie réelle (pas de vitesse factice hardcodée)
+  // Minuteur d'entraînement & télémétrie réelle (distance GPS et cardio bague réel)
   useEffect(() => {
     if (runState !== 'running') return;
 
     const interval = setInterval(() => {
       setRunDurationSec((prevDur) => {
         const nextDur = prevDur + 1;
-
-        if (isFastDemo) {
-          // Démo rapide uniquement si activée manuellement
-          setRunDistanceKm((prevDist) => Math.round((prevDist + 0.045) * 1000) / 1000);
-        }
-
-        const curSpeed = isFastDemo ? 12.4 : instantSpeedKmh;
-        const curHr = Math.min(176, Math.round(112 + Math.min(1, runDistanceKm / 6) * 48 + Math.sin(nextDur / 6) * 3));
+        const curSpeed = instantSpeedKmh;
+        const curHr = liveBpm > 0 ? liveBpm : 0;
 
         setTelemetryHistory((prevHistory) => [
           ...prevHistory,
@@ -246,7 +225,7 @@ export const FitScreen: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [runState, isFastDemo, instantSpeedKmh, runDistanceKm]);
+  }, [runState, instantSpeedKmh, runDistanceKm, liveBpm]);
 
   // Surveillance GPS temps réel haute précision (Distance & Vitesse réelles du coureur)
   useEffect(() => {
@@ -509,13 +488,11 @@ export const FitScreen: React.FC = () => {
       : 0;
   const liveSpeedKmh =
     runState === 'running'
-      ? (isFastDemo ? '12.4' : (runDistanceKm > 0.01 && instantSpeedKmh >= 1.0 ? instantSpeedKmh.toFixed(1) : '0.0'))
+      ? (runDistanceKm > 0.01 && instantSpeedKmh >= 1.0 ? instantSpeedKmh.toFixed(1) : '0.0')
       : '0.0';
-  const liveHr = isIdle
-    ? 0
-    : Math.min(176, Math.round(112 + liveProgress * 52 + Math.sin(runDurationSec / 6) * 3));
-  const liveCalories = isIdle ? 0 : Math.round(runDistanceKm * 75);
-  const liveElevation = isIdle ? 0 : Math.round(liveProgress * 64);
+  const liveHr = isIdle ? 0 : (liveBpm > 0 ? liveBpm : 0);
+  const liveCalories = isIdle ? 0 : Math.round(runDistanceKm * 65);
+  const liveElevation = 0;
 
   // ------------------ MUSCULATION (SÉANCE PERSONNALISÉE) ------------------
   const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
@@ -956,16 +933,6 @@ export const FitScreen: React.FC = () => {
                   </span>
                 </span>
               </div>
-
-              {/* Simulation speed toggle */}
-              <button
-                type="button"
-                className={`sim-speed-btn ${isFastDemo ? 'active' : ''}`}
-                onClick={() => setIsFastDemo(!isFastDemo)}
-                title="Bascule mode simulation accélérée pour test direct"
-              >
-                <span>{isFastDemo ? '⚡ Démo 15x' : 'Vitesse 1x'}</span>
-              </button>
             </div>
 
             {/* Run Action Buttons */}
@@ -2162,8 +2129,6 @@ export const FitScreen: React.FC = () => {
           onStop={stopRun}
           onClose={() => setIsLiveRunningViewOpen(false)}
           onOpenStory={openRunStory}
-          isFastDemo={isFastDemo}
-          onToggleFastDemo={() => setIsFastDemo(!isFastDemo)}
           realGpsPoints={realGpsPoints}
           userPosition={userPosition}
         />

@@ -1900,7 +1900,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </div>
 
           {/* ====================================================================
-              6. LABORATOIRE DE SIMULATION & REMISE À ZÉRO USINE
+              6. MAINTENANCE & RÉINITIALISATION
               ==================================================================== */}
           <div
             style={{
@@ -1908,108 +1908,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               padding: '14px',
               borderRadius: '16px',
               background: 'rgba(0, 0, 0, 0.45)',
-              border: isSimulating ? '1.5px solid #D9F970' : '1px solid rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
               display: 'flex',
               flexDirection: 'column',
               gap: '10px',
-              transition: 'all 0.25s ease',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={14} color="#FAF7F2" />
+                <RotateCcw size={14} color="#FAF7F2" />
                 <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Simulation Lab (1s = 1h)' : 'Laboratoire de Simulation (1s = 1h)'}
+                  {isEn ? 'Device Maintenance' : 'Maintenance & Réinitialisation'}
                 </span>
               </div>
-              {simulationHoursElapsed > 0 && (
-                <span style={{ fontSize: '10px', color: '#FAF7F2', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  +{simulationHoursElapsed}h {isEn ? 'simulated' : 'simulées'}
-                </span>
-              )}
             </div>
 
             <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35 }}>
               {isEn
-                ? 'Accelerate ring time: 1 real second = 1 hour of battery discharge and activity tracking.'
-                : 'Accélérez le temps : 1 seconde réelle = 1 heure de décharge de batterie et de suivi d\'activité.'}
+                ? 'Clear local device cache and reset application data to factory state.'
+                : 'Effacez le cache local et remettez l\'application à son état d\'origine.'}
             </span>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              {/* Bouton Simulation 1s = 1h */}
-              <button
-                type="button"
-                onClick={toggleSimulation}
-                style={{
-                  padding: '9px 10px',
-                  borderRadius: '10px',
-                  background: isSimulating ? '#D9F970' : 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid #D9F970',
-                  color: isSimulating ? '#0A0A0C' : '#D9F970',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {isSimulating ? <Pause size={12} fill="#0A0A0C" /> : <Play size={12} fill="#D9F970" />}
-                <span>{isSimulating ? 'Pause Simu' : 'Simuler (1s=1h)'}</span>
-              </button>
-
-              {/* Bouton Remise à Zéro Usine */}
-              <button
-                type="button"
-                onClick={resetToFactory}
-                title="Remettre l'application à zéro comme au premier déballage"
-                style={{
-                  padding: '9px 10px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 69, 58, 0.12)',
-                  border: '1px solid rgba(255, 69, 58, 0.35)',
-                  color: '#FF453A',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <RotateCcw size={12} />
-                <span>{isEn ? 'Factory Reset' : 'Remise à Zéro'}</span>
-              </button>
-            </div>
-
-            {isFirstLaunch && (
-              <button
-                type="button"
-                onClick={loadDemoData}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  background: 'rgba(56, 189, 248, 0.12)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#38BDF8',
-                  fontSize: '10.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '5px',
-                }}
-              >
-                <Sparkles size={11} />
-                <span>{isEn ? 'Restore 7-Day Demo Data' : 'Restaurer données de démo (1 semaine)'}</span>
-              </button>
-            )}
+            {/* Bouton Remise à Zéro Usine */}
+            <button
+              type="button"
+              onClick={resetToFactory}
+              title="Remettre l'application à zéro comme au premier déballage"
+              style={{
+                width: '100%',
+                padding: '9px 10px',
+                borderRadius: '10px',
+                background: 'rgba(255, 69, 58, 0.12)',
+                border: '1px solid rgba(255, 69, 58, 0.35)',
+                color: '#FF453A',
+                fontSize: '11px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <RotateCcw size={12} />
+              <span>{isEn ? 'Factory Reset' : 'Remise à Zéro de l\'Application'}</span>
+            </button>
           </div>
 
           {/* Footer Hardware Certification */}

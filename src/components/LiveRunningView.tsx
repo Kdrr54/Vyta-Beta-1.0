@@ -22,8 +22,6 @@ interface LiveRunningViewProps {
   onStop: () => void;
   onClose: () => void;
   onOpenStory?: () => void;
-  isFastDemo?: boolean;
-  onToggleFastDemo?: () => void;
   realGpsPoints?: [number, number][];
   userPosition?: [number, number] | null;
 }
@@ -49,8 +47,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   onStop,
   onClose,
   onOpenStory,
-  isFastDemo = false,
-  onToggleFastDemo,
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
 }) => {
@@ -673,35 +669,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         </button>
       </div>
 
-      {/* SPEED DEMO TOGGLE PILL (Discreet upper right under compass) */}
-      {onToggleFastDemo && (
-        <button
-          type="button"
-          onClick={onToggleFastDemo}
-          style={{
-            position: 'absolute',
-            top: '110px',
-            right: '16px',
-            zIndex: 500,
-            background: isFastDemo ? 'rgba(252, 82, 0, 0.35)' : 'rgba(24, 24, 27, 0.75)',
-            backdropFilter: 'blur(14px)',
-            border: isFastDemo ? '1px solid #FC5200' : '1px solid rgba(255,255,255,0.1)',
-            color: isFastDemo ? '#FC5200' : '#8E8E93',
-            fontSize: '10px',
-            fontWeight: 700,
-            padding: '4px 10px',
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          <Zap size={11} fill={isFastDemo ? '#FC5200' : 'none'} />
-          <span>{isFastDemo ? 'Démo 15x' : '1x'}</span>
-        </button>
-      )}
-
       {/* FLOATING TELEMETRY CARD (Course à pied • Temps • Vitesse • Distance) - Visible when collapsed */}
       {!isSheetExpanded && (
         <div
@@ -1181,29 +1148,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                 Recentrer 🎯
               </button>
             </div>
-
-            {/* Simulation Démo */}
-            {onToggleFastDemo && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFF' }}>Simulation Démo</span>
-                <button
-                  type="button"
-                  onClick={onToggleFastDemo}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '20px',
-                    background: isFastDemo ? '#FC5200' : 'rgba(255,255,255,0.1)',
-                    border: 'none',
-                    color: '#FFF',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {isFastDemo ? '⚡ Démo 15x' : 'Mode Réel (1x)'}
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}
