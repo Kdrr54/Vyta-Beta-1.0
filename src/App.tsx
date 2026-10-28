@@ -52,14 +52,19 @@ const AppInner: React.FC = () => {
     if (el) {
       el.style.scrollBehavior = 'auto';
       el.scrollTop = 0;
-      window.scrollTo(0, 0);
-      requestAnimationFrame(() => {
-        if (el) {
-          el.scrollTop = 0;
-          el.style.scrollBehavior = '';
-        }
-      });
     }
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    requestAnimationFrame(() => {
+      if (el) {
+        el.scrollTop = 0;
+        el.style.scrollBehavior = '';
+      }
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
   }, [tab]);
 
   // Si la bague n'est pas encore appairée (premier lancement) :

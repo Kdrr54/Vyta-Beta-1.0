@@ -969,7 +969,7 @@ export const FitScreen: React.FC = () => {
               </div>
             )}
 
-            {runState === 'finished' && (
+            {runState === 'finished' && (runDistanceKm > 0.05 || runDurationSec > 10) && (
               <div className="run-action-btns-row">
                 <button
                   type="button"
@@ -1718,22 +1718,24 @@ export const FitScreen: React.FC = () => {
             </div>
           ))}
 
-          {/* Partager Ma Séance CTA */}
-          <button
-            type="button"
-            className="apple-pay-btn"
-            style={{
-              background: '#FFFFFF',
-              color: '#000000',
-              fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
-              marginTop: '4px',
-            }}
-            onClick={openGymStory}
-          >
-            <Share2 size={16} />
-            <span>Partager Ma Séance</span>
-          </button>
+          {/* Partager Ma Séance CTA (uniquement si des séries ont été effectuées) */}
+          {doneSetsCount > 0 && (
+            <button
+              type="button"
+              className="apple-pay-btn"
+              style={{
+                background: '#FFFFFF',
+                color: '#000000',
+                fontWeight: 700,
+                boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
+                marginTop: '4px',
+              }}
+              onClick={openGymStory}
+            >
+              <Share2 size={16} />
+              <span>Partager Ma Séance</span>
+            </button>
+          )}
         </div>
       )}
 

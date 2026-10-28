@@ -29,34 +29,35 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
   // Active day data
   const [inspectedDay, setInspectedDay] = useState<number>(selectedDay);
   const activeDayIndex = inspectedDay;
-  const activeData = (weekData && weekData[activeDayIndex]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[activeDayIndex] || weekMetrics[TODAY_INDEX]));
+  const currentWeek = weekData && weekData.length === 7 ? weekData : weekMetrics;
+  const activeData = currentWeek[activeDayIndex] || emptyDayMetrics;
   const activeScore = activeData.score;
 
   // Recorded days (days with data up to today)
-  const recordedDays = (weekData || weekMetrics).slice(0, TODAY_INDEX + 1);
-  const recordedScores = recordedDays.map((d) => d.score);
+  const recordedDays = currentWeek.slice(0, TODAY_INDEX + 1);
+  const daysWithData = recordedDays.filter((d) => d.score > 0);
   const avgScore =
-    recordedScores.length > 0
-      ? Math.round(recordedScores.reduce((a, b) => a + b, 0) / recordedScores.length)
-      : 86;
+    daysWithData.length > 0
+      ? Math.round(daysWithData.reduce((acc, d) => acc + d.score, 0) / daysWithData.length)
+      : 0;
 
   // Best day in the week
-  const maxScore = Math.max(...recordedScores);
-  const bestDayIndex = recordedScores.indexOf(maxScore);
-  const bestDayName = WEEK[bestDayIndex]?.long || (isEn ? 'Thursday' : 'Jeudi');
+  const maxScore = daysWithData.length > 0 ? Math.max(...daysWithData.map((d) => d.score)) : 0;
+  const bestDayIndex = maxScore > 0 ? currentWeek.findIndex((d) => d.score === maxScore) : -1;
+  const bestDayName = bestDayIndex >= 0 ? WEEK[bestDayIndex]?.long : (isEn ? 'Awaiting data' : 'En attente de mesures');
 
   // Difference vs yesterday
-  const prevScore = activeDayIndex > 0 ? (weekMetrics[activeDayIndex - 1]?.score || activeScore) : activeScore;
-  const diffYesterday = activeDayIndex > 0 ? activeScore - prevScore : 0;
+  const prevScore = activeDayIndex > 0 ? (currentWeek[activeDayIndex - 1]?.score || 0) : 0;
+  const diffYesterday = (activeScore > 0 && prevScore > 0) ? activeScore - prevScore : 0;
 
   // Difference vs weekly average
-  const diffAvg = activeScore - avgScore;
+  const diffAvg = (activeScore > 0 && avgScore > 0) ? activeScore - avgScore : 0;
 
   // Pillar drivers differences vs yesterday
-  const prevPillars = activeDayIndex > 0 ? weekMetrics[activeDayIndex - 1]?.pillars : activeData.pillars;
-  const sleepDiff = activeData.pillars.sleep - prevPillars.sleep;
-  const recoveryDiff = activeData.pillars.recovery - prevPillars.recovery;
-  const activityDiff = activeData.pillars.activity - prevPillars.activity;
+  const prevPillars = activeDayIndex > 0 ? currentWeek[activeDayIndex - 1]?.pillars : activeData.pillars;
+  const sleepDiff = (activeData.pillars.sleep > 0 && prevPillars.sleep > 0) ? activeData.pillars.sleep - prevPillars.sleep : 0;
+  const recoveryDiff = (activeData.pillars.recovery > 0 && prevPillars.recovery > 0) ? activeData.pillars.recovery - prevPillars.recovery : 0;
+  const activityDiff = (activeData.pillars.activity > 0 && prevPillars.activity > 0) ? activeData.pillars.activity - prevPillars.activity : 0;
 
   return (
     <div
@@ -185,11 +186,13 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                 letterSpacing: '-1.5px',
               }}
             >
-              {activeScore}
+              {activeScore > 0 ? activeScore : '--'}
             </span>
-            <span style={{ fontSize: '18px', fontWeight: 300, color: 'rgba(250, 247, 242, 0.5)' }}>
-              / 100
-            </span>
+            {activeScore > 0 && (
+              <span style={{ fontSize: '18px', fontWeight: 300, color: 'rgba(250, 247, 242, 0.5)' }}>
+                / 100
+              </span>
+            )}
           </div>
 
           {/* Comparative Metrics Chips Row */}
@@ -219,8 +222,8 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                   fontSize: '13px',
                   fontWeight: 700,
                   color:
-                    activeDayIndex === 0
-                      ? 'rgba(250, 247, 242, 0.7)'
+                    activeScore === 0 || prevScore === 0
+                      ? 'rgba(250, 247, 242, 0.45)'
                       : diffYesterday >= 0
                       ? '#30D158'
                       : '#FF453A',
@@ -230,7 +233,9 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                   marginTop: '2px',
                 }}
               >
-                {activeDayIndex === 0 ? (
+                {activeScore === 0 || prevScore === 0 ? (
+                  '--'
+                ) : activeDayIndex === 0 ? (
                   'Base'
                 ) : (
                   <>
@@ -257,14 +262,21 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                 style={{
                   fontSize: '13px',
                   fontWeight: 700,
-                  color: diffAvg >= 0 ? '#30D158' : '#FF453A',
+                  color: activeScore === 0 || avgScore === 0 ? 'rgba(250, 247, 242, 0.45)' : diffAvg >= 0 ? '#30D158' : '#FF453A',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '3px',
                   marginTop: '2px',
                 }}
               >
-                {diffAvg >= 0 ? `+${diffAvg}` : diffAvg} pts
+                {activeScore === 0 || avgScore === 0 ? (
+                  '--'
+                ) : (
+                  <>
+                    {diffAvg >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                    {diffAvg >= 0 ? `+${diffAvg}` : diffAvg} pts
+                  </>
+                )}
               </span>
             </div>
 
@@ -289,7 +301,7 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                   marginTop: '2px',
                 }}
               >
-                {avgScore} / 100
+                {avgScore > 0 ? `${avgScore} / 100` : '--'}
               </span>
             </div>
           </div>
@@ -314,7 +326,9 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
               {isEn ? 'Weekly Score Progression' : 'Évolution des notes sur la semaine'}
             </span>
             <span style={{ fontSize: '11px', color: '#D9F970', fontWeight: 600 }}>
-              {isEn ? `Peak : ${bestDayName} (${maxScore})` : `Pic : ${bestDayName} (${maxScore})`}
+              {avgScore > 0 && maxScore > 0
+                ? (isEn ? `Peak : ${bestDayName} (${maxScore})` : `Pic : ${bestDayName} (${maxScore})`)
+                : (isEn ? 'Awaiting data' : 'En attente de mesures')}
             </span>
           </div>
 
@@ -332,43 +346,45 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
             }}
           >
             {/* Horizontal benchmark line for Weekly Average */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: `${(avgScore / 100) * 110}px`,
-                borderTop: '1px dashed rgba(217, 249, 112, 0.45)',
-                pointerEvents: 'none',
-                zIndex: 1,
-              }}
-            >
-              <span
+            {avgScore > 0 && (
+              <div
                 style={{
                   position: 'absolute',
-                  right: '2px',
-                  top: '-15px',
-                  fontSize: '8.5px',
-                  fontWeight: 600,
-                  color: '#D9F970',
-                  background: 'rgba(10, 10, 12, 0.85)',
-                  padding: '1px 4px',
-                  borderRadius: '4px',
+                  left: 0,
+                  right: 0,
+                  bottom: `${(avgScore / 100) * 110}px`,
+                  borderTop: '1px dashed rgba(217, 249, 112, 0.45)',
+                  pointerEvents: 'none',
+                  zIndex: 1,
                 }}
               >
-                {isEn ? `Avg ${avgScore}` : `Moy. ${avgScore}`}
-              </span>
-            </div>
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: '2px',
+                    top: '-15px',
+                    fontSize: '8.5px',
+                    fontWeight: 600,
+                    color: '#D9F970',
+                    background: 'rgba(10, 10, 12, 0.85)',
+                    padding: '1px 4px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {isEn ? `Avg ${avgScore}` : `Moy. ${avgScore}`}
+                </span>
+              </div>
+            )}
 
             {WEEK.map((w, idx) => {
-              const dayMetricsData = weekMetrics[idx];
+              const dayMetricsData = currentWeek[idx];
               const score = dayMetricsData?.score || 0;
               const hasData = score > 0;
               const isSelected = idx === activeDayIndex;
               const isCurrentDay = idx === TODAY_INDEX;
 
               // Difference vs day before
-              const pScore = idx > 0 ? (weekMetrics[idx - 1]?.score || score) : score;
+              const pScore = idx > 0 ? (currentWeek[idx - 1]?.score || score) : score;
               const diffVsPrev = idx > 0 ? score - pScore : 0;
 
               // Height in px (max 105px)
@@ -532,7 +548,9 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                         {idx === TODAY_INDEX && (isEn ? ' (Today)' : " (Aujourd'hui)")}
                       </span>
                       <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                        {statusFor(d.score)} · Sommeil {d.pillars.sleep} · VRC {d.pillars.recovery}
+                        {d.score > 0
+                          ? `${statusFor(d.score)} · Sommeil ${d.pillars.sleep} · VRC ${d.pillars.recovery}`
+                          : (isEn ? 'Awaiting measurements' : 'En attente de mesures')}
                       </span>
                     </div>
                   </div>
@@ -548,12 +566,16 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                         background:
                           isCurrentRow
                             ? 'rgba(217, 249, 112, 0.2)'
+                            : (d.score === 0 || activeScore === 0)
+                            ? 'rgba(255, 255, 255, 0.05)'
                             : diffFromActive >= 0
                             ? 'rgba(48, 209, 88, 0.15)'
                             : 'rgba(255, 69, 58, 0.15)',
                         color:
                           isCurrentRow
                             ? '#D9F970'
+                            : (d.score === 0 || activeScore === 0)
+                            ? 'rgba(250, 247, 242, 0.4)'
                             : diffFromActive >= 0
                             ? '#30D158'
                             : '#FF453A',
@@ -561,6 +583,8 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                     >
                       {isCurrentRow
                         ? (isEn ? 'Active Day' : 'Jour actif')
+                        : (d.score === 0 || activeScore === 0)
+                        ? '--'
                         : diffFromActive >= 0
                         ? `+${diffFromActive} pts`
                         : `${diffFromActive} pts`}
@@ -575,7 +599,7 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                         textAlign: 'right',
                       }}
                     >
-                      {d.score}
+                      {d.score > 0 ? d.score : '--'}
                     </span>
                   </div>
                 </div>
@@ -612,17 +636,19 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                 </span>
               </div>
               <span style={{ fontSize: '18px', fontWeight: 400, color: '#FAF7F2' }}>
-                {isFirstLaunch || activeScore === 0 ? '--' : activeData.pillars.sleep}
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                {activeScore === 0 || activeData.pillars.sleep === 0 ? '--' : activeData.pillars.sleep}
+                {(activeScore > 0 && activeData.pillars.sleep > 0) && (
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                )}
               </span>
               <span
                 style={{
                   fontSize: '10px',
                   fontWeight: 600,
-                  color: sleepDiff >= 0 ? '#30D158' : '#FF453A',
+                  color: (activeScore === 0 || prevScore === 0) ? 'rgba(250, 247, 242, 0.45)' : sleepDiff >= 0 ? '#30D158' : '#FF453A',
                 }}
               >
-                {sleepDiff >= 0 ? `+${sleepDiff}` : sleepDiff} pts vs hier
+                {(activeScore === 0 || prevScore === 0) ? '--' : `${sleepDiff >= 0 ? `+${sleepDiff}` : sleepDiff} pts vs hier`}
               </span>
             </div>
 
@@ -645,17 +671,19 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                 </span>
               </div>
               <span style={{ fontSize: '18px', fontWeight: 400, color: '#FAF7F2' }}>
-                {isFirstLaunch || activeScore === 0 ? '--' : activeData.pillars.recovery}
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                {activeScore === 0 || activeData.pillars.recovery === 0 ? '--' : activeData.pillars.recovery}
+                {(activeScore > 0 && activeData.pillars.recovery > 0) && (
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                )}
               </span>
               <span
                 style={{
                   fontSize: '10px',
                   fontWeight: 600,
-                  color: recoveryDiff >= 0 ? '#30D158' : '#FF453A',
+                  color: (activeScore === 0 || prevScore === 0) ? 'rgba(250, 247, 242, 0.45)' : recoveryDiff >= 0 ? '#30D158' : '#FF453A',
                 }}
               >
-                {recoveryDiff >= 0 ? `+${recoveryDiff}` : recoveryDiff} pts vs hier
+                {(activeScore === 0 || prevScore === 0) ? '--' : `${recoveryDiff >= 0 ? `+${recoveryDiff}` : recoveryDiff} pts vs hier`}
               </span>
             </div>
 
@@ -678,17 +706,19 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                 </span>
               </div>
               <span style={{ fontSize: '18px', fontWeight: 400, color: '#FAF7F2' }}>
-                {isFirstLaunch || activeScore === 0 ? '--' : activeData.pillars.activity}
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                {activeScore === 0 || activeData.pillars.activity === 0 ? '--' : activeData.pillars.activity}
+                {(activeScore > 0 && activeData.pillars.activity > 0) && (
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>/100</span>
+                )}
               </span>
               <span
                 style={{
                   fontSize: '10px',
                   fontWeight: 600,
-                  color: activityDiff >= 0 ? '#30D158' : '#FF453A',
+                  color: (activeScore === 0 || prevScore === 0) ? 'rgba(250, 247, 242, 0.45)' : activityDiff >= 0 ? '#30D158' : '#FF453A',
                 }}
               >
-                {activityDiff >= 0 ? `+${activityDiff}` : activityDiff} pts vs hier
+                {(activeScore === 0 || prevScore === 0) ? '--' : `${activityDiff >= 0 ? `+${activityDiff}` : activityDiff} pts vs hier`}
               </span>
             </div>
           </div>
@@ -717,13 +747,17 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
           </div>
 
           <p style={{ fontSize: '12px', lineHeight: 1.5, color: 'rgba(250, 247, 242, 0.85)', margin: 0 }}>
-            {activeScore >= 90
+            {activeScore === 0
               ? isEn
-                ? `Outstanding condition! Your score of ${activeScore}/100 exceeds your weekly average (${avgScore}) by +${diffAvg} points. Deeper restorative sleep (+14 min) and an elevated HRV (74 ms) are the two primary drivers of this positive gap.`
-                : `Condition physique remarquable ! Votre note de ${activeScore}/100 dépasse de +${diffAvg} points votre moyenne hebdomadaire (${avgScore}). Un sommeil profond plus réparateur (+14 min) et une VRC élevée (74 ms) expliquent cette excellente progression.`
+                ? 'Wear your Vyta ring continuously during the day and while sleeping to unlock personalized physiological insights.'
+                : 'Portez votre bague Vyta en continu durant la journée et pendant votre sommeil pour afficher votre analyse biométrique personnalisée.'
+              : activeScore >= 90
+              ? isEn
+                ? `Outstanding condition! Your score of ${activeScore}/100 exceeds your weekly average (${avgScore}) by +${diffAvg} points.`
+                : `Condition physique remarquable ! Votre note de ${activeScore}/100 dépasse de +${diffAvg} points votre moyenne hebdomadaire (${avgScore}).`
               : isEn
-              ? `Your score of ${activeScore}/100 is ${Math.abs(diffAvg)} points below your weekly average (${avgScore}). Light nocturnal awakenings and lower HRV recovery account for the variation.`
-              : `Votre note de ${activeScore}/100 est en retrait de ${Math.abs(diffAvg)} points par rapport à votre moyenne (${avgScore}). Une dette de sommeil léger et une VRC plus basse expliquent cet écart temporaire.`}
+              ? `Your score of ${activeScore}/100 is ${Math.abs(diffAvg)} points below your weekly average (${avgScore}).`
+              : `Votre note de ${activeScore}/100 est en retrait de ${Math.abs(diffAvg)} points par rapport à votre moyenne (${avgScore}).`}
           </p>
         </div>
       </div>

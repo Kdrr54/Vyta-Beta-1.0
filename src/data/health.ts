@@ -3,18 +3,40 @@ export type { DayMetrics };
 
 export const RING_IMAGE = '/assets/ring/ring-front.png';
 
-/** Semaine du lundi 12 au dimanche 18 octobre 2026 — « aujourd'hui » = jeudi 15. */
-export const TODAY_INDEX = 3;
-export const MONTH = 'octobre';
-export const WEEK = [
-  { short: 'L', long: 'Lundi', date: 12 },
-  { short: 'M', long: 'Mardi', date: 13 },
-  { short: 'M', long: 'Mercredi', date: 14 },
-  { short: 'J', long: 'Jeudi', date: 15 },
-  { short: 'V', long: 'Vendredi', date: 16 },
-  { short: 'S', long: 'Samedi', date: 17 },
-  { short: 'D', long: 'Dimanche', date: 18 },
-];
+/** Semaine civile réelle en cours (du Lundi au Dimanche basée sur la date réelle) */
+function computeRealCurrentWeek() {
+  const now = new Date();
+  const dayIndex = (now.getDay() + 6) % 7; // 0 = Lundi, 6 = Dimanche
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayIndex);
+  monday.setHours(0, 0, 0, 0);
+
+  const shorts = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const longs = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  const months = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+  const weekList = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      short: shorts[i],
+      long: longs[i],
+      date: d.getDate(),
+      month: months[d.getMonth()],
+    };
+  });
+
+  return {
+    week: weekList,
+    todayIndex: dayIndex,
+    month: months[now.getMonth()],
+  };
+}
+
+const realCalendar = computeRealCurrentWeek();
+export const TODAY_INDEX = realCalendar.todayIndex;
+export const MONTH = realCalendar.month;
+export const WEEK = realCalendar.week;
 
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
@@ -256,10 +278,11 @@ export const createEmptyWeekMetrics = (): DayMetrics[] => {
 };
 
 export const statusFor = (score: number): string => {
+  if (score <= 0) return 'En attente';
   if (score >= 90) return 'Optimal';
   if (score >= 80) return 'Très bon';
   if (score >= 70) return 'Modéré';
-  return 'Récupération';
+  return 'À surveiller';
 };
 
 /* ---------- Hypnogramme ---------- */

@@ -59,7 +59,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     simulationHoursElapsed,
     isFirstLaunch,
     resetToFactory,
-    loadDemoData,
   } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
 

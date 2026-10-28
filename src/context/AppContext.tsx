@@ -52,7 +52,6 @@ interface AppContextType {
   isLiveRunningViewOpen: boolean;
   setIsLiveRunningViewOpen: (open: boolean) => void;
   resetToFactory: () => void;
-  loadDemoData: () => void;
   weekData: DayMetrics[];
   setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
 }
@@ -61,7 +60,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Version de build de production avec réinitialisation usine garantie
-  const PROD_RELEASE_KEY = 'vyta_zero_state_v1_0';
+  const PROD_RELEASE_KEY = 'vyta_zero_state_v42';
   if (typeof window !== 'undefined') {
     try {
       const currentVersion = localStorage.getItem('vyta_app_version');
@@ -130,7 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isNaN(d.getTime())) return d;
       }
     }
-    return new Date(2026, 9, 17, 15, 47); // Default: Samedi 17 octobre 2026
+    return new Date();
   });
 
   const setSimulatedDate = (d: Date) => {
@@ -141,7 +140,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetSimulatedDate = () => {
-    const d = new Date(2026, 9, 17, 15, 47);
+    const d = new Date();
     setSimulatedDateState(d);
     try {
       localStorage.removeItem('vyta_simulated_date');
@@ -469,9 +468,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, [selectedDay]);
 
-  // Données de la semaine pour le design
+  // Données biométriques réelles de la semaine (strictement réelles ou 0)
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
-    return weekMetrics;
+    if (typeof window !== 'undefined') {
+      try {
+        const v = localStorage.getItem('vyta_data_ver');
+        // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
+        if (v !== 'v42_zero_real') {
+          localStorage.removeItem('vyta_week_data');
+          localStorage.removeItem('vyta_simulated_date');
+          localStorage.setItem('vyta_data_ver', 'v42_zero_real');
+          return createEmptyWeekMetrics();
+        }
+        const saved = localStorage.getItem('vyta_week_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === 7) return parsed;
+        }
+      } catch (e) {}
+    }
+    return createEmptyWeekMetrics();
   });
 
   // Moteur de simulation accélérée (1 seconde réelle = 1 heure de vie de bague)
@@ -499,37 +515,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wearCalibrationDate: "En attente d'appairage",
     });
     setLiveBpm(0);
-    const startCleanDate = new Date(2026, 9, 15, 8, 0); // Jeudi 15 Octobre 08:00
+    const startCleanDate = new Date();
     setSimulatedDate(startCleanDate);
-    setSelectedDay(3);
+    setSelectedDay(TODAY_INDEX);
     try {
       localStorage.setItem('vyta_first_launch', 'true');
       localStorage.setItem('vyta_ring_paired_final', 'false');
       localStorage.setItem('vyta_week_data', JSON.stringify(empty));
       localStorage.setItem('vyta_sensor_intervals', JSON.stringify(defaultSensorIntervals));
-    } catch (e) {}
-  };
-
-  // Recharger les données de démonstration complètes
-  const loadDemoData = () => {
-    setIsSimulating(false);
-    setSimulationHoursElapsed(0);
-    setIsFirstLaunch(false);
-    setIsPaired(true);
-    setWeekData(weekMetrics);
-    updateRing({
-      isConnected: true,
-      batteryRing: 87,
-      sensorIntervals: defaultSensorIntervals,
-    });
-    setLiveBpm(62);
-    const defaultDate = new Date(2026, 9, 15, 15, 47);
-    setSimulatedDate(defaultDate);
-    setSelectedDay(3);
-    try {
-      localStorage.removeItem('vyta_first_launch');
-      localStorage.setItem('vyta_ring_paired_final', 'true');
-      localStorage.setItem('vyta_week_data', JSON.stringify(weekMetrics));
     } catch (e) {}
   };
 
@@ -589,7 +582,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLiveRunningViewOpen,
         setIsLiveRunningViewOpen,
         resetToFactory,
-        loadDemoData,
         weekData,
         setWeekData,
       }}

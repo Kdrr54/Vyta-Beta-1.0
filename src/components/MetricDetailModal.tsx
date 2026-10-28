@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { WeekSelector } from './WeekSelector';
 import { weekMetrics, TODAY_INDEX, WEEK, emptyDayMetrics, DayMetrics } from '../data/health';
 import { useModalAnimation } from '../hooks/useModalAnimation';
-import { METRIC_DETAILS, MetricDetailItem, MetricDataPoint } from '../data/metric24h';
+import { METRIC_DETAILS, MetricDetailItem, MetricDataPoint, EssentialStat } from '../data/metric24h';
 import { qringBle } from '../lib/qringBleService';
 import {
   ChevronLeft,
@@ -405,7 +405,7 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal } = useApp();
-  const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
+  const dayData = (weekData && weekData[selectedDay]) || emptyDayMetrics;
   const detail: MetricDetailItem = METRIC_DETAILS[metricId];
   const theme: MetricTheme = METRIC_THEMES[metricId];
 
@@ -488,26 +488,39 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const isZeroState = !dayMetricValue || dayMetricValue === 0;
 
+  const statsToDisplay: EssentialStat[] = isZeroState
+    ? [
+        { label: isEn ? 'Minimum' : 'Minimum', value: '--', sub: isEn ? 'Awaiting sync' : 'En attente' },
+        { label: isEn ? 'Average' : 'Moyenne', value: '--', sub: isEn ? 'Awaiting sync' : 'En attente' },
+        { label: isEn ? 'Maximum' : 'Maximum', value: '--', sub: isEn ? 'Awaiting sync' : 'En attente' },
+      ]
+    : (metricId === 'bpm' && dayData?.bpm && dayData.bpm > 0
+        ? [
+            { label: 'Minimum', value: `${dayData.minBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Moyenne', value: `${dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Maximum', value: `${dayData.maxBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          ]
+        : (displayStats.length > 0
+            ? displayStats
+            : [
+                { label: isEn ? 'Minimum' : 'Minimum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+                { label: isEn ? 'Average' : 'Moyenne', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+                { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+              ]));
+
   // Active dataset based on selected day curve
   const dataset: MetricDataPoint[] = React.useMemo(() => {
-    if (isZeroState) {
-      return detail.points24h.map((p) => ({ ...p, value: 0 }));
+    if (isZeroState || !detail.points24h || detail.points24h.length === 0) {
+      return [
+        { label: '00:00', value: 0 },
+        { label: '06:00', value: 0 },
+        { label: '12:00', value: 0 },
+        { label: '18:00', value: 0 },
+        { label: '23:59', value: 0 },
+      ];
     }
-    const base = detail.points24h;
-    const baseAvg = base.reduce((s, p) => s + p.value, 0) / (base.length || 1);
-    const targetVal = typeof dayMetricValue === 'number' ? dayMetricValue : baseAvg;
-    const delta = targetVal - baseAvg;
-    return base.map((p) => {
-      if (metricId === 'temp') {
-        return { ...p, value: Math.round((p.value + delta * 0.4) * 100) / 100 };
-      }
-      const shifted = Math.round((p.value + delta) * 10) / 10;
-      return {
-        ...p,
-        value: Math.max(detail.minVal, Math.min(detail.maxVal, shifted)),
-      };
-    });
-  }, [detail, dayMetricValue, metricId, isZeroState]);
+    return detail.points24h;
+  }, [detail, isZeroState]);
 
   // Active point when hovering or default to latest
   const activePoint: MetricDataPoint =
@@ -1262,30 +1275,67 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 opacity="0.5"
               />
 
-              {/* Area Fill */}
-              <path d={areaPath} fill={`url(#areaGrad-${detail.id})`} />
+              {/* Chart Curve or Zero State Notice */}
+              {isZeroState ? (
+                <g>
+                  <line
+                    x1={paddingLeft}
+                    y1={bottomY - plotHeight / 2}
+                    x2={chartWidth - paddingRight}
+                    y2={bottomY - plotHeight / 2}
+                    stroke="rgba(255, 255, 255, 0.16)"
+                    strokeDasharray="4 4"
+                    strokeWidth="1.2"
+                  />
+                  <rect
+                    x={paddingLeft + plotWidth / 2 - 110}
+                    y={bottomY - plotHeight / 2 - 14}
+                    width="220"
+                    height="28"
+                    rx="14"
+                    fill="rgba(10, 10, 14, 0.88)"
+                    stroke="rgba(255, 255, 255, 0.12)"
+                  />
+                  <text
+                    x={paddingLeft + plotWidth / 2}
+                    y={bottomY - plotHeight / 2 + 4}
+                    textAnchor="middle"
+                    fill="rgba(250, 247, 242, 0.72)"
+                    fontSize="10"
+                    fontWeight="600"
+                    fontFamily="var(--font-mono)"
+                  >
+                    {isEn ? 'Waiting for 24h continuous readings' : 'En attente de relevés sur 24 heures'}
+                  </text>
+                </g>
+              ) : (
+                <>
+                  {/* Area Fill */}
+                  <path d={areaPath} fill={`url(#areaGrad-${detail.id})`} />
 
-              {/* Ambient Glowing Halo Line */}
-              <path
-                d={linePath}
-                fill="none"
-                stroke={theme.primary}
-                strokeWidth="5.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity="0.32"
-                filter={`url(#chartGlow-${detail.id})`}
-              />
+                  {/* Ambient Glowing Halo Line */}
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke={theme.primary}
+                    strokeWidth="5.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity="0.32"
+                    filter={`url(#chartGlow-${detail.id})`}
+                  />
 
-              {/* Sharp High-Intensity Core Line */}
-              <path
-                d={linePath}
-                fill="none"
-                stroke={`url(#strokeGrad-${detail.id})`}
-                strokeWidth="2.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+                  {/* Sharp High-Intensity Core Line */}
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke={`url(#strokeGrad-${detail.id})`}
+                    strokeWidth="2.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </>
+              )}
 
               {/* Interactive Scrub Cursor Indicator */}
               {hoverIndex !== null && (
@@ -1499,7 +1549,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           <div className="metric-tab-pane">
             {/* 3 Essential Stat Cards in 1 Row */}
             <div className="metric-stats-row-3">
-              {displayStats.map((st, i) => {
+              {statsToDisplay.map((st, i) => {
                 const isMiddle = i === 1;
                 return (
                   <div
@@ -1550,57 +1600,68 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </span>
               </div>
 
-              {/* Multi-segment Progress Bar with actual biological colors */}
-              <div className="clean-distrib-bar" style={{ height: '10px' }}>
-                {displayDistribution.map((d, i) => {
-                  const segColor = theme.zoneColors[i] || '#64748B';
-                  return (
-                    <div
-                      key={i}
-                      className="clean-distrib-seg"
-                      style={{
-                        width: `${d.percent}%`,
-                        backgroundColor: segColor,
-                        boxShadow: i === 0 ? `0 0 8px ${segColor}` : undefined,
-                      }}
-                      title={`${d.name}: ${d.percent}%`}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Legend with glowing color dots */}
-              <div className="clean-distrib-legend">
-                {displayDistribution.map((d, i) => {
-                  const segColor = theme.zoneColors[i] || '#64748B';
-                  return (
-                    <div key={i} className="distrib-legend-item">
-                      <span
-                        className="distrib-legend-dot"
-                        style={{
-                          backgroundColor: segColor,
-                          boxShadow: `0 0 6px ${segColor}`,
-                        }}
-                      />
-                      <span className="distrib-legend-name">{d.name}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
+              {isZeroState || displayDistribution.length === 0 ? (
+                <div style={{ padding: '16px 0 6px 0', textAlign: 'center' }}>
+                  <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '999px' }} />
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', marginTop: '8px', display: 'block', fontFamily: 'var(--font-mono)' }}>
+                    {isEn ? 'Waiting for 24-hour sensor data' : 'En attente de mesures sur 24 heures'}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {/* Multi-segment Progress Bar with actual biological colors */}
+                  <div className="clean-distrib-bar" style={{ height: '10px' }}>
+                    {displayDistribution.map((d, i) => {
+                      const segColor = theme.zoneColors[i] || '#64748B';
+                      return (
+                        <div
+                          key={i}
+                          className="clean-distrib-seg"
                           style={{
-                            fontSize: '10.5px',
-                            color: 'rgba(250, 247, 242, 0.65)',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: 'rgba(255, 255, 255, 0.06)',
+                            width: `${d.percent}%`,
+                            backgroundColor: segColor,
+                            boxShadow: i === 0 ? `0 0 8px ${segColor}` : undefined,
                           }}
-                        >
-                          {d.percent}%
-                        </span>
-                        <span className="distrib-legend-dur">{d.duration}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          title={`${d.name}: ${d.percent}%`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend with glowing color dots */}
+                  <div className="clean-distrib-legend">
+                    {displayDistribution.map((d, i) => {
+                      const segColor = theme.zoneColors[i] || '#64748B';
+                      return (
+                        <div key={i} className="distrib-legend-item">
+                          <span
+                            className="distrib-legend-dot"
+                            style={{
+                              backgroundColor: segColor,
+                              boxShadow: `0 0 6px ${segColor}`,
+                            }}
+                          />
+                          <span className="distrib-legend-name">{d.name}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                color: 'rgba(250, 247, 242, 0.65)',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: 'rgba(255, 255, 255, 0.06)',
+                              }}
+                            >
+                              {d.percent}%
+                            </span>
+                            <span className="distrib-legend-dur">{d.duration}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1622,67 +1683,79 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </span>
               </div>
 
-              <div className="metric-clean-moments-list">
-                {displayMoments.map((m, i) => {
-                  const isHovered = hoverIndex === m.pointIndex;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      className="clean-moment-row"
-                      style={{
-                        background: isHovered
-                          ? 'rgba(255, 255, 255, 0.09)'
-                          : 'rgba(255, 255, 255, 0.04)',
-                        border: isHovered
-                          ? `1px solid ${theme.primary}88`
-                          : '1px solid rgba(255, 255, 255, 0.06)',
-                        boxShadow: isHovered ? `0 0 14px ${theme.glow}` : undefined,
-                      }}
-                      onClick={() => {
-                        setPeriod('24h');
-                        setHoverIndex(m.pointIndex);
-                        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                          try {
-                            navigator.vibrate(15);
-                          } catch (_) {}
-                        }
-                      }}
-                    >
-                      <div
+              {isZeroState || displayMoments.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '28px 16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.06)', marginTop: '10px' }}>
+                  <Clock size={20} color="rgba(250, 247, 242, 0.4)" style={{ margin: '0 auto 8px auto', display: 'block' }} />
+                  <span style={{ fontSize: '12.5px', color: '#FAF7F2', fontWeight: 600, display: 'block' }}>
+                    {isEn ? 'No Events Detected Today' : 'Aucun événement marquant aujourd\'hui'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '4px', display: 'block', lineHeight: 1.4 }}>
+                    {isEn ? 'Wear your Vyta ring during activity or rest to record key biometric moments.' : 'Portez votre bague Vyta durant votre journée ou votre sommeil pour enregistrer vos variations.'}
+                  </span>
+                </div>
+              ) : (
+                <div className="metric-clean-moments-list">
+                  {displayMoments.map((m, i) => {
+                    const isHovered = hoverIndex === m.pointIndex;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        className="clean-moment-row"
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          color: '#FFFFFF',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          minWidth: '45px',
+                          background: isHovered
+                            ? 'rgba(255, 255, 255, 0.09)'
+                            : 'rgba(255, 255, 255, 0.04)',
+                          border: isHovered
+                            ? `1px solid ${theme.primary}88`
+                            : '1px solid rgba(255, 255, 255, 0.06)',
+                          boxShadow: isHovered ? `0 0 14px ${theme.glow}` : undefined,
+                        }}
+                        onClick={() => {
+                          setPeriod('24h');
+                          setHoverIndex(m.pointIndex);
+                          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                            try {
+                              navigator.vibrate(15);
+                            } catch (_) {}
+                          }
                         }}
                       >
-                        <Clock size={11} color={theme.primary} />
-                        <span>{m.time}</span>
-                      </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            color: '#FFFFFF',
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            minWidth: '45px',
+                          }}
+                        >
+                          <Clock size={11} color={theme.primary} />
+                          <span>{m.time}</span>
+                        </div>
 
-                      <div className="clean-moment-text">
-                        <span className="clean-moment-name">{m.title}</span>
-                        <span className="clean-moment-tag">{m.tag}</span>
-                      </div>
+                        <div className="clean-moment-text">
+                          <span className="clean-moment-name">{m.title}</span>
+                          <span className="clean-moment-tag">{m.tag}</span>
+                        </div>
 
-                      <span
-                        className="clean-moment-val"
-                        style={{
-                          color: theme.primary,
-                          textShadow: `0 0 10px ${theme.glow}`,
-                        }}
-                      >
-                        {m.value}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                        <span
+                          className="clean-moment-val"
+                          style={{
+                            color: theme.primary,
+                            textShadow: `0 0 10px ${theme.glow}`,
+                          }}
+                        >
+                          {m.value}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

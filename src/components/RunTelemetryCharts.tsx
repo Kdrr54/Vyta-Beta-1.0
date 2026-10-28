@@ -215,8 +215,17 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
     return Math.round(telemetryHistory.reduce((s, p) => s + p.hrBpm, 0) / telemetryHistory.length);
   }, [telemetryHistory, liveHr]);
 
-  // Scrub tactile interactif
+  // Scrub tactile interactif (100% fluide, ne bloque jamais le défilement vertical mobile)
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (telemetryHistory.length === 0) return;
+    if (e.pointerType === 'touch') return; // Préserve le scroll vertical natif iOS
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, (touchX - paddingLeft) / chartWidth));
+    setScrubRatio(ratio);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (telemetryHistory.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const touchX = e.clientX - rect.left;
@@ -426,6 +435,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             touchAction: 'pan-y',
           }}
           onPointerMove={handlePointerMove}
+          onPointerDown={handlePointerDown}
           onPointerLeave={handlePointerLeave}
         >
           <defs>
