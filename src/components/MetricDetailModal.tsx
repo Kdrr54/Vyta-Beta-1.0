@@ -432,13 +432,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.spo2 || 0;
     }
     if (metricId === 'resp') {
-      return dayData?.resp || 14;
+      return dayData?.resp || 0;
     }
     if (metricId === 'stress') {
-      return dayData?.stress || 24;
+      return dayData?.stress || 0;
     }
     if (metricId === 'glucose') {
-      return dayData?.glucose?.valueMmol || 5.1;
+      return dayData?.glucose?.valueMmol || 0;
     }
     return 0;
   }, [metricId, selectedDay, dayData, isMeasuring, liveBpm]);
@@ -599,8 +599,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
       : metricId === 'bp'
-      ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : (detail.currentValue || '118/76'))
-      : (dayMetricValue > 0 ? formatVal(dayMetricValue) : (detail.currentValue || '--'));
+      ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--')
+      : (dayMetricValue > 0 ? formatVal(dayMetricValue) : '--');
 
   return (
     <div className={`modal-backdrop ${isClosing ? "is-closing" : ""}`} onClick={handleClose} role="dialog" aria-modal="true">

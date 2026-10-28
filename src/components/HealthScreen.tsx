@@ -712,19 +712,18 @@ export const HealthScreen: React.FC = () => {
           </div>
 
           {(() => {
-            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
-            const sVal = (dayData.stress && dayData.stress > 0) ? dayData.stress : (isFirstLaunch ? 0 : (fallback?.stress ?? 24));
-            const sLevel = (dayData.stress && dayData.stress > 0) ? dayData.stressLevel : (isFirstLaunch ? '--' : (fallback?.stressLevel ?? 'Calme'));
-            const showCurve = sVal > 0;
+            const hasStress = dayData.stress !== undefined && dayData.stress > 0;
+            const sVal = hasStress ? dayData.stress : '--';
+            const sLevel = hasStress ? (dayData.stressLevel || (language === 'fr' ? 'Calme' : 'Calm')) : '--';
 
             return (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
                     <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
-                      {sVal > 0 ? sVal : '--'}
+                      {sVal}
                     </span>
-                    {sVal > 0 ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
+                    {hasStress ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
                   </div>
                   <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
                     {sLevel}
@@ -732,9 +731,9 @@ export const HealthScreen: React.FC = () => {
                 </div>
 
                 <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
-                  <path d={!showCurve ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
+                  <path d={!hasStress ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
                   <path
-                    d={!showCurve ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
+                    d={!hasStress ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
                     stroke={isMono ? '#FAF7F2' : '#34D399'}
                     strokeWidth="1.8"
                     fill="none"
@@ -801,28 +800,29 @@ export const HealthScreen: React.FC = () => {
           </div>
 
           {(() => {
-            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
-            const sbp = (dayData.bloodPressure && dayData.bloodPressure.sbp > 0) ? dayData.bloodPressure.sbp : (isFirstLaunch ? 0 : (fallback?.bloodPressure?.sbp ?? 118));
-            const dbp = (dayData.bloodPressure && dayData.bloodPressure.dbp > 0) ? dayData.bloodPressure.dbp : (isFirstLaunch ? 0 : (fallback?.bloodPressure?.dbp ?? 76));
-            const showCurve = sbp > 0;
+            const hasBp = (dayData.bloodPressure?.sbp ?? 0) > 0;
+            const sbp = hasBp ? dayData.bloodPressure!.sbp : 0;
+            const dbp = hasBp ? dayData.bloodPressure!.dbp : 0;
+            const displayVal = hasBp ? `${sbp}/${dbp}` : '--/--';
+            const displaySub = hasBp ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--';
 
             return (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
                     <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                      {sbp > 0 ? `${sbp}/${dbp}` : '--/--'}
+                      {displayVal}
                     </span>
-                    {sbp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span> : null}
+                    {hasBp ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span> : null}
                   </div>
                   <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
-                    {sbp > 0 ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--'}
+                    {displaySub}
                   </span>
                 </div>
 
                 <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
                   <path
-                    d={!showCurve ? "M 0 12 L 140 12" : "M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"}
+                    d={!hasBp ? "M 0 12 L 140 12" : "M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"}
                     stroke={isMono ? '#FAF7F2' : '#F43F5E'}
                     strokeWidth="1.8"
                     fill="none"
@@ -889,28 +889,27 @@ export const HealthScreen: React.FC = () => {
           </div>
 
           {(() => {
-            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
-            const gVal = (dayData.glucose && dayData.glucose.valueMmol > 0) ? dayData.glucose.valueMmol : (isFirstLaunch ? 0 : (fallback?.glucose?.valueMmol ?? 5.1));
-            const gScore = (dayData.glucose && dayData.glucose.stabilityScore > 0) ? dayData.glucose.stabilityScore : (isFirstLaunch ? 0 : (fallback?.glucose?.stabilityScore ?? 94));
-            const showCurve = gVal > 0;
+            const hasGlucose = (dayData.glucose?.valueMmol ?? 0) > 0;
+            const gVal = hasGlucose ? dayData.glucose!.valueMmol : '--';
+            const gScore = hasGlucose ? `${dayData.glucose!.stabilityScore}% ${language === 'fr' ? 'stable' : 'stable'}` : '--';
 
             return (
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
                     <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                      {gVal > 0 ? gVal : '--'}
+                      {gVal}
                     </span>
-                    {gVal > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span> : null}
+                    {hasGlucose ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span> : null}
                   </div>
                   <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
-                    {gScore > 0 ? `${gScore}% ${language === 'fr' ? 'stable' : 'stable'}` : '--'}
+                    {gScore}
                   </span>
                 </div>
 
                 <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
                   <path
-                    d={!showCurve ? "M 4 12 L 136 12" : "M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"}
+                    d={!hasGlucose ? "M 4 12 L 136 12" : "M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"}
                     stroke={isMono ? '#FAF7F2' : '#818CF8'}
                     strokeWidth="1.8"
                     fill="none"
