@@ -320,7 +320,7 @@ export const HeartRateTimeChart: React.FC<HeartRateTimeChartProps> = ({
       </div>
 
       {/* Graphique SVG : Courbe Cardiaque avec Temps Horizontal */}
-      <div style={{ width: '100%', position: 'relative' }}>
+      <div style={{ width: '100%', position: 'relative', touchAction: 'pan-y' }}>
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           style={{
@@ -328,7 +328,7 @@ export const HeartRateTimeChart: React.FC<HeartRateTimeChartProps> = ({
             height: 'auto',
             display: 'block',
             overflow: 'visible',
-            touchAction: 'none',
+            touchAction: 'pan-y',
           }}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}

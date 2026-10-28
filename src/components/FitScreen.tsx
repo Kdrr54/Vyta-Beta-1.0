@@ -1100,23 +1100,6 @@ export const FitScreen: React.FC = () => {
             liveHr={liveHr}
             telemetryHistory={telemetryHistory}
           />
-
-
-          {/* Partager Ma Course CTA */}
-          <button
-            type="button"
-            className="apple-pay-btn"
-            style={{
-              background: '#FFFFFF',
-              color: '#000000',
-              fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
-            }}
-            onClick={openRunStory}
-          >
-            <Share2 size={16} />
-            <span>Partager Ma Course</span>
-          </button>
         </div>
       )}
 

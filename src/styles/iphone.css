@@ -60,7 +60,6 @@
   overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
   scrollbar-width: none;
   padding-top: 0;
   padding-bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px);

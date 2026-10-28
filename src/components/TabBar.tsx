@@ -22,7 +22,14 @@ export const TabBar: React.FC = () => {
     if (modal) {
       closeModal();
     }
-    setTab(targetTab);
+    if (targetTab === tab) {
+      const el = document.querySelector('.app-scroll-container') as HTMLElement | null;
+      if (el) {
+        el.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else {
+      setTab(targetTab);
+    }
   };
 
   return (

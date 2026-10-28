@@ -46,6 +46,22 @@ const AppInner: React.FC = () => {
     }
   }, [tab, setTab]);
 
+  // Réinitialiser immédiatement le défilement tout en haut lors d'un changement d'onglet
+  React.useLayoutEffect(() => {
+    const el = document.querySelector('.app-scroll-container') as HTMLElement | null;
+    if (el) {
+      el.style.scrollBehavior = 'auto';
+      el.scrollTop = 0;
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => {
+        if (el) {
+          el.scrollTop = 0;
+          el.style.scrollBehavior = '';
+        }
+      });
+    }
+  }, [tab]);
+
   // Si la bague n'est pas encore appairée (premier lancement) :
   // Afficher IMMÉDIATEMENT et EXCLUSIVEMENT la page d'appairage en plein écran mobile.
   if (!isPaired) {

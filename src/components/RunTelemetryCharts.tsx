@@ -415,7 +415,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
       </div>
 
       {/* Graphique SVG dynamique avec Axe horizontal Temps & Axe vertical Distance/Vitesse/BPM */}
-      <div style={{ width: '100%', position: 'relative' }}>
+      <div style={{ width: '100%', position: 'relative', touchAction: 'pan-y' }}>
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           style={{
@@ -423,7 +423,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             height: 'auto',
             display: 'block',
             overflow: 'visible',
-            touchAction: 'none',
+            touchAction: 'pan-y',
           }}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
