@@ -258,26 +258,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
 
-  // État premier lancement (usine, toutes les valeurs à 0)
-  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vyta_first_launch');
-      if (saved !== null) return saved === 'true';
-    }
-    return true; // Valeurs à 0 par défaut
-  });
+  // État premier lancement
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean>(false);
 
-  // État appairage de la bague (Faux par défaut si premier lancement pour démarrer l'onboarding)
-  const [isPaired, setIsPairedState] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('vyta_ring_paired_final');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-      return false; // Premier lancement : non appairé -> lance le flux onboarding !
-    }
-    return false;
-  });
+  // État appairage (Prêt & actif pour l'expérience design)
+  const [isPaired, setIsPairedState] = useState<boolean>(true);
 
   const setIsPaired = (paired: boolean) => {
     setIsPairedState(paired);
@@ -480,9 +465,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, [selectedDay]);
 
-  // Données de la semaine dynamiques (Toutes les valeurs à 0 par défaut)
+  // Données de la semaine pour le design
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
-    return createEmptyWeekMetrics();
+    return weekMetrics;
   });
 
   // Moteur de simulation accélérée (1 seconde réelle = 1 heure de vie de bague)

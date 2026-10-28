@@ -6,9 +6,9 @@
   "ios": {
     "scheme": "Vyta",
     "teamId": "ZCU3WN2ZW4",
-    "contentInset": "always",
+    "contentInset": "never",
     "allowsLinkPreview": false,
-    "scrollEnabled": true
+    "scrollEnabled": false
   },
   "plugins": {
     "Keyboard": {

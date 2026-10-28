@@ -1,5 +1,25 @@
 import UIKit
 import Capacitor
+import WebKit
+
+class MainViewController: CAPBridgeViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.webView?.scrollView.bounces = false
+        self.webView?.scrollView.alwaysBounceVertical = false
+        self.webView?.scrollView.alwaysBounceHorizontal = false
+        self.webView?.scrollView.isScrollEnabled = false
+        self.webView?.backgroundColor = .black
+        self.webView?.isOpaque = true
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        self.webView?.scrollView.bounces = false
+        self.webView?.scrollView.alwaysBounceVertical = false
+        self.webView?.scrollView.alwaysBounceHorizontal = false
+    }
+}
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -8,7 +28,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
-        window?.rootViewController = CAPBridgeViewController()
+        window?.rootViewController = MainViewController()
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
