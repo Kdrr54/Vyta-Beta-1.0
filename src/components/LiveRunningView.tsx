@@ -2,18 +2,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X } from 'lucide-react';
+import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame, TrendingUp } from 'lucide-react';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
+import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
+import { fmtClockSec, fmtMMSS } from '../lib/format';
 
 interface LiveRunningViewProps {
   runState: 'idle' | 'running' | 'paused' | 'finished';
   runDurationSec: number;
   runDistanceKm: number;
   liveSpeedKmh?: number;
+  liveHr?: number;
+  liveElevation?: number;
+  liveCalories?: number;
+  livePaceSec?: number;
+  telemetryHistory?: TelemetryPoint[];
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
   onClose: () => void;
+  onOpenStory?: () => void;
   isFastDemo?: boolean;
   onToggleFastDemo?: () => void;
   realGpsPoints?: [number, number][];
@@ -31,16 +39,23 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   runDurationSec,
   runDistanceKm,
   liveSpeedKmh,
+  liveHr = 0,
+  liveElevation = 0,
+  liveCalories = 0,
+  livePaceSec = 0,
+  telemetryHistory = [],
   onPause,
   onResume,
   onStop,
   onClose,
+  onOpenStory,
   isFastDemo = false,
   onToggleFastDemo,
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(false);
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
     if (propUserPosition) return propUserPosition;
@@ -687,138 +702,282 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         </button>
       )}
 
-      {/* FLOATING TELEMETRY CARD (Course à pied • Temps • Allure • Distance) */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 'calc(max(20px, env(safe-area-inset-bottom)) + 88px)',
-          left: '16px',
-          right: '16px',
-          background: 'rgba(22, 22, 24, 0.94)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '18px',
-          padding: '14px 16px',
-          boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
-          zIndex: 500,
-        }}
-      >
-        {/* Header: Title "Course à pied" + Maximize icon */}
+      {/* FLOATING TELEMETRY CARD (Course à pied • Temps • Vitesse • Distance) - Visible when collapsed */}
+      {!isSheetExpanded && (
         <div
+          onClick={() => setIsSheetExpanded(true)}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            marginBottom: '12px',
+            position: 'absolute',
+            bottom: 'calc(max(20px, env(safe-area-inset-bottom)) + 92px)',
+            left: '16px',
+            right: '16px',
+            background: 'rgba(22, 22, 24, 0.94)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '18px',
+            padding: '14px 16px',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
+            zIndex: 500,
+            cursor: 'pointer',
+            transition: 'transform 160ms ease, opacity 160ms ease',
           }}
         >
-          <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
-            Course à pied
-          </span>
-          <div style={{ position: 'absolute', right: 0, color: '#8E8E93' }}>
-            <Maximize2 size={15} />
-          </div>
-        </div>
-
-        {/* 3 Metric Columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', alignItems: 'center', textAlign: 'center' }}>
-          {/* 1. Temps */}
-          <div style={{ textAlign: 'left' }}>
-            <div
-              style={{
-                fontSize: '26px',
-                fontWeight: 800,
-                color: '#FFFFFF',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing: '-0.5px',
-                lineHeight: 1.1,
+          {/* Header: Title "Course à pied" + Maximize button */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              marginBottom: '12px',
+            }}
+          >
+            <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
+              Course à pied
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSheetExpanded(true);
               }}
-            >
-              {formatTime(runDurationSec)}
-            </div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
-              Temps
-            </div>
-          </div>
-
-          {/* 2. Vitesse en km/h */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div
               style={{
-                fontSize: '26px',
-                fontWeight: 800,
-                color: '#FFFFFF',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing: '-0.5px',
-                lineHeight: 1.1,
-              }}
-            >
-              {formatSpeed()}
-            </div>
-            <div
-              style={{
+                position: 'absolute',
+                right: 0,
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '4px 6px',
+                color: '#8E8E93',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
                 fontSize: '11px',
                 fontWeight: 600,
-                color: '#8E8E93',
-                marginTop: '4px',
-                lineHeight: 1.2,
               }}
+              title="Ouvrir les graphiques et détails"
             >
-              Vitesse (km/h)
-            </div>
+              <span>Graphiques</span>
+              <Maximize2 size={13} />
+            </button>
           </div>
 
-          {/* 3. Distance */}
-          <div style={{ textAlign: 'right' }}>
-            <div
-              style={{
-                fontSize: '26px',
-                fontWeight: 800,
-                color: '#FFFFFF',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                fontVariantNumeric: 'tabular-nums',
-                letterSpacing: '-0.5px',
-                lineHeight: 1.1,
-              }}
-            >
-              {runDistanceKm.toFixed(2).replace('.', ',')}
+          {/* 3 Metric Columns */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', alignItems: 'center', textAlign: 'center' }}>
+            {/* 1. Temps */}
+            <div style={{ textAlign: 'left' }}>
+              <div
+                style={{
+                  fontSize: '26px',
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.5px',
+                  lineHeight: 1.1,
+                }}
+              >
+                {formatTime(runDurationSec)}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
+                Temps
+              </div>
             </div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
-              Distance (km)
+
+            {/* 2. Vitesse en km/h */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div
+                style={{
+                  fontSize: '26px',
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.5px',
+                  lineHeight: 1.1,
+                }}
+              >
+                {formatSpeed()}
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#8E8E93',
+                  marginTop: '4px',
+                  lineHeight: 1.2,
+                }}
+              >
+                Vitesse (km/h)
+              </div>
+            </div>
+
+            {/* 3. Distance */}
+            <div style={{ textAlign: 'right' }}>
+              <div
+                style={{
+                  fontSize: '26px',
+                  fontWeight: 800,
+                  color: '#FFFFFF',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.5px',
+                  lineHeight: 1.1,
+                }}
+              >
+                {runDistanceKm.toFixed(2).replace('.', ',')}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
+                Distance (km)
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* BOTTOM ACTION DRAWER WITH VIBRANT ORANGE PAUSE BUTTON */}
+      {/* BOTTOM ACTION DRAWER (EXPANDABLE SHEET) */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          background: '#0D0D0F',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          borderTopLeftRadius: '22px',
-          borderTopRightRadius: '22px',
-          padding: '8px 16px calc(max(20px, env(safe-area-inset-bottom)) + 12px) 16px',
+          background: isSheetExpanded ? 'rgba(16, 16, 20, 0.98)' : '#0D0D0F',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          borderTopLeftRadius: '24px',
+          borderTopRightRadius: '24px',
+          padding: isSheetExpanded
+            ? '12px 16px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 16px'
+            : '8px 16px calc(max(20px, env(safe-area-inset-bottom)) + 12px) 16px',
           zIndex: 600,
+          maxHeight: isSheetExpanded ? 'calc(100dvh - 110px)' : '100px',
+          overflowY: isSheetExpanded ? 'auto' : 'hidden',
+          transition: 'max-height 320ms cubic-bezier(0.16, 1, 0.3, 1), background 200ms ease',
+          boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.7)',
         }}
       >
-        {/* Drawer Drag Pill Handle */}
+        {/* Drawer Drag Pill Handle - Interactive Button */}
         <div
+          onClick={() => setIsSheetExpanded(!isSheetExpanded)}
           style={{
-            width: '38px',
-            height: '4px',
-            borderRadius: '2px',
-            background: '#3A3A3C',
-            margin: '0 auto 12px auto',
+            cursor: 'pointer',
+            padding: '4px 0 10px 0',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px',
           }}
-        />
+          title={isSheetExpanded ? 'Réduire' : 'Déplier les métriques et graphiques'}
+        >
+          <div
+            style={{
+              width: '42px',
+              height: '5px',
+              borderRadius: '2.5px',
+              background: '#4E4E52',
+            }}
+          />
+          <span style={{ fontSize: '10.5px', color: '#8E8E93', fontWeight: 600 }}>
+            {isSheetExpanded ? 'Glisser ou toucher pour réduire ▼' : 'Toucher pour voir les graphiques ▲'}
+          </span>
+        </div>
+
+        {/* EXPANDED CONTENT: Metrics Grid + Telemetry Charts + Share Button */}
+        {isSheetExpanded && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
+            {/* Secondary 4-Card Stats Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {/* Allure & Dénivelé */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '14px',
+                  padding: '10px 12px',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <TrendingUp size={12} color="#007AFF" />
+                  <span>Allure & Dénivelé</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
+                    {livePaceSec > 0 ? fmtMMSS(livePaceSec) : '--:--'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>/km</span>
+                  <span style={{ fontSize: '11px', color: '#30D158', marginLeft: 'auto', fontWeight: 700 }}>
+                    +{liveElevation} m
+                  </span>
+                </div>
+              </div>
+
+              {/* Cardio & Calories */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '14px',
+                  padding: '10px 12px',
+                }}
+              >
+                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Heart size={12} color="#FF453A" fill="#FF453A" />
+                  <span>Cardio & Énergie</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
+                    {liveHr > 40 ? liveHr : '--'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
+                  <span style={{ fontSize: '11px', color: '#FF9F0A', marginLeft: 'auto', fontWeight: 700 }}>
+                    {liveCalories} kcal
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Complete Interactive Telemetry Charts (Distance, Vitesse, BPM) */}
+            <RunTelemetryCharts
+              runState={runState}
+              runDurationSec={runDurationSec}
+              runDistanceKm={runDistanceKm}
+              liveSpeedKmh={liveSpeedKmh || 0}
+              liveHr={liveHr || 0}
+              telemetryHistory={telemetryHistory}
+            />
+
+            {/* Partager Ma Course CTA */}
+            {onOpenStory && (
+              <button
+                type="button"
+                onClick={onOpenStory}
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  borderRadius: '24px',
+                  background: '#FFFFFF',
+                  border: 'none',
+                  color: '#000000',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.18)',
+                }}
+              >
+                <Share2 size={16} />
+                <span>Partager Ma Course</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* RUNNING STATE: Full-Width Bright Orange "❚❚ Pause" Button */}
         {runState === 'running' && (
@@ -904,7 +1063,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         {runState === 'finished' && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={onStop}
             style={{
               width: '100%',
               height: '54px',
@@ -925,6 +1084,129 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           </button>
         )}
       </div>
+
+      {/* SETTINGS MODAL DIALOG */}
+      {isSettingsOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 900,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 200ms ease',
+          }}
+          onClick={() => setIsSettingsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#161618',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              padding: '20px 20px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#FFF', margin: 0 }}>Réglages Course GPS</h3>
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  color: '#FFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Toggle Map Satellite / Dark */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFF' }}>Vue Satellite</span>
+              <button
+                type="button"
+                onClick={toggleMapType}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  background: mapType === 'satellite' ? '#007AFF' : 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: '#FFF',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {mapType === 'satellite' ? 'Activée (Satellite)' : 'Plan Sombre'}
+              </button>
+            </div>
+
+            {/* Recentrer GPS */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFF' }}>Position Coureur</span>
+              <button
+                type="button"
+                onClick={() => {
+                  handleCenterOnRunner();
+                  setIsSettingsOpen(false);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: '#FFF',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Recentrer 🎯
+              </button>
+            </div>
+
+            {/* Simulation Démo */}
+            {onToggleFastDemo && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFF' }}>Simulation Démo</span>
+                <button
+                  type="button"
+                  onClick={onToggleFastDemo}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    background: isFastDemo ? '#FC5200' : 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    color: '#FFF',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isFastDemo ? '⚡ Démo 15x' : 'Mode Réel (1x)'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 
