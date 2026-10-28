@@ -247,14 +247,14 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     ],
   },
   stress: {
-    primary: '#FFFFFF',
-    secondary: '#A1A1AA',
-    glow: 'rgba(255, 255, 255, 0.35)',
-    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
-    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
-    sheetBg: '#0D0D10',
-    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
-    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    primary: '#34D399',
+    secondary: '#10B981',
+    glow: 'rgba(52, 211, 153, 0.45)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(52, 211, 153, 0.38) 0%, rgba(16, 185, 129, 0.16) 55%, rgba(13, 13, 16, 0.96) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(52, 211, 153, 0.45)',
+    sheetBg: '#0A120E',
+    sheetGlow: '0 -24px 60px rgba(52, 211, 153, 0.25)',
+    zoneColors: ['#34D399', '#10B981', '#065F46'],
     subtitleFr: 'Tension nerveuse & équilibre neuro-végétatif (SDK)',
     subtitleEn: 'Nervous tension & autonomic balance (SDK)',
     tipPointsFr: [
@@ -288,14 +288,14 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
   },
 
   bp: {
-    primary: '#FFFFFF',
-    secondary: '#A1A1AA',
-    glow: 'rgba(255, 255, 255, 0.35)',
-    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
-    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
-    sheetBg: '#0D0D10',
-    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
-    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    primary: '#F43F5E',
+    secondary: '#E11D48',
+    glow: 'rgba(244, 63, 94, 0.45)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(244, 63, 94, 0.38) 0%, rgba(225, 29, 72, 0.16) 55%, rgba(13, 13, 16, 0.96) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(244, 63, 94, 0.45)',
+    sheetBg: '#120A0C',
+    sheetGlow: '0 -24px 60px rgba(244, 63, 94, 0.25)',
+    zoneColors: ['#F43F5E', '#E11D48', '#881337'],
     subtitleFr: 'Pression artérielle systolique & diastolique (PPG)',
     subtitleEn: 'Systolic & diastolic blood pressure (PPG)',
     tipPointsFr: [
@@ -329,14 +329,14 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
   },
 
   glucose: {
-    primary: '#FFFFFF',
-    secondary: '#A1A1AA',
-    glow: 'rgba(255, 255, 255, 0.35)',
-    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(200, 200, 200, 0.05) 55%, rgba(13, 13, 16, 0.98) 85%), #0A0A0E',
-    heroBorder: '1px solid rgba(255, 255, 255, 0.22)',
-    sheetBg: '#0D0D10',
-    sheetGlow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
-    zoneColors: ['#FFFFFF', '#A1A1AA', '#52525B'],
+    primary: '#818CF8',
+    secondary: '#6366F1',
+    glow: 'rgba(129, 140, 248, 0.45)',
+    heroBg: 'radial-gradient(ellipse at 50% 0%, rgba(129, 140, 248, 0.38) 0%, rgba(99, 102, 241, 0.16) 55%, rgba(13, 13, 16, 0.96) 85%), #0A0A0E',
+    heroBorder: '1px solid rgba(129, 140, 248, 0.45)',
+    sheetBg: '#0B0B14',
+    sheetGlow: '0 -24px 60px rgba(129, 140, 248, 0.25)',
+    zoneColors: ['#818CF8', '#6366F1', '#3730A3'],
     subtitleFr: 'Indice de stabilité glucidique & métabolique (SDK)',
     subtitleEn: 'Metabolic glucose stability & optical trend (SDK)',
     tipPointsFr: [
@@ -430,6 +430,15 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
     if (metricId === 'spo2') {
       return dayData?.spo2 || 0;
+    }
+    if (metricId === 'resp') {
+      return dayData?.resp || 14;
+    }
+    if (metricId === 'stress') {
+      return dayData?.stress || 24;
+    }
+    if (metricId === 'glucose') {
+      return dayData?.glucose?.valueMmol || 5.1;
     }
     return 0;
   }, [metricId, selectedDay, dayData, isMeasuring, liveBpm]);
@@ -586,10 +595,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const currentDisplayVal =
     hoverIndex !== null
-      ? formatVal(activePoint.value)
+      ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
       : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
-      : (dayMetricValue > 0 ? formatVal(dayMetricValue) : '--');
+      : metricId === 'bp'
+      ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : (detail.currentValue || '118/76'))
+      : (dayMetricValue > 0 ? formatVal(dayMetricValue) : (detail.currentValue || '--'));
 
   return (
     <div className={`modal-backdrop ${isClosing ? "is-closing" : ""}`} onClick={handleClose} role="dialog" aria-modal="true">
@@ -897,6 +908,108 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fill="none"
                     style={{ filter: `drop-shadow(0 0 7px ${theme.glow})` }}
                   />
+                </svg>
+              </div>
+            )}
+
+            {metricId === 'stress' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    color: '#6EE7B7',
+                    marginBottom: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isEn ? 'Vagal Calm' : 'Calme vagal'}
+                </span>
+
+                <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
+                  <path
+                    d="M 0 21 Q 21 14, 43 21 T 86 21"
+                    stroke="rgba(52, 211, 153, 0.28)"
+                    strokeWidth="1.2"
+                    fill="none"
+                  />
+                  <path
+                    d={isZeroState ? "M 0 21 L 86 21" : "M 0 21 Q 21 28, 43 21 T 86 17"}
+                    stroke={theme.primary}
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    fill="none"
+                    style={{ filter: `drop-shadow(0 0 7px ${theme.glow})` }}
+                  />
+                </svg>
+              </div>
+            )}
+
+            {metricId === 'bp' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    color: '#FDA4AF',
+                    marginBottom: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isEn ? 'Arterial Wave' : 'Onde artérielle'}
+                </span>
+
+                <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
+                  <path
+                    d={isZeroState ? "M 0 21 L 86 21" : "M 0 21 L 22 21 L 28 6 L 35 34 L 42 16 L 47 21 L 86 21"}
+                    stroke={theme.primary}
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    style={{ filter: `drop-shadow(0 0 7px ${theme.glow})` }}
+                  />
+                </svg>
+              </div>
+            )}
+
+            {metricId === 'glucose' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    color: '#A5B4FC',
+                    marginBottom: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isEn ? 'Stability 94%' : 'Stabilité 94%'}
+                </span>
+
+                <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
+                  <path
+                    d="M 0 21 Q 21 16, 43 21 T 86 21"
+                    stroke="rgba(129, 140, 248, 0.28)"
+                    strokeWidth="1.2"
+                    fill="none"
+                  />
+                  <path
+                    d={isZeroState ? "M 0 21 L 86 21" : "M 0 23 C 20 15, 38 12, 54 22 C 68 30, 78 20, 86 22"}
+                    stroke={theme.primary}
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    fill="none"
+                    style={{ filter: `drop-shadow(0 0 7px ${theme.glow})` }}
+                  />
+                  <circle cx="54" cy="22" r="4.5" fill="#0B0B14" stroke={theme.primary} strokeWidth="1.8" />
+                  <circle cx="54" cy="22" r="2" fill="#C7D2FE" />
                 </svg>
               </div>
             )}

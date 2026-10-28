@@ -4,11 +4,10 @@ import { weekMetrics, statusFor, finishes, emptyDayMetrics } from '../data/healt
 import { WeekSelector } from './WeekSelector';
 import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
-import { SleepPhases } from './SleepPhases';
 import { CardioAge } from './CardioAge';
 import { HeartRateCard } from './HeartRateCard';
-import { Brain, Flame, Sparkles, ArrowUpRight, TrendingUp, HeartPulse, Activity, Droplets, Wind, Thermometer } from 'lucide-react';
-import { fmtNum } from '../lib/format';
+import { Brain, Flame, Sparkles, ArrowUpRight, TrendingUp, HeartPulse, Activity, Droplets, Wind, Thermometer, Moon } from 'lucide-react';
+import { fmtNum, fmtDuration } from '../lib/format';
 
 export const HealthScreen: React.FC = () => {
   const { selectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
@@ -712,28 +711,39 @@ export const HealthScreen: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
-              <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
-                {dayData.stress && dayData.stress > 0 ? dayData.stress : '--'}
-              </span>
-              {dayData.stress && dayData.stress > 0 ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
-            </div>
-            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
-              {dayData.stress && dayData.stress > 0 ? dayData.stressLevel : '--'}
-            </span>
-          </div>
+          {(() => {
+            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
+            const sVal = (dayData.stress && dayData.stress > 0) ? dayData.stress : (isFirstLaunch ? 0 : (fallback?.stress ?? 24));
+            const sLevel = (dayData.stress && dayData.stress > 0) ? dayData.stressLevel : (isFirstLaunch ? '--' : (fallback?.stressLevel ?? 'Calme'));
+            const showCurve = sVal > 0;
 
-          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
-            <path d={!dayData.stress || dayData.stress === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
-            <path
-              d={!dayData.stress || dayData.stress === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
-              stroke={isMono ? '#FAF7F2' : '#34D399'}
-              strokeWidth="1.8"
-              fill="none"
-              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(52, 211, 153, 0.85))' }}
-            />
-          </svg>
+            return (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                    <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
+                      {sVal > 0 ? sVal : '--'}
+                    </span>
+                    {sVal > 0 ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
+                  </div>
+                  <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
+                    {sLevel}
+                  </span>
+                </div>
+
+                <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+                  <path d={!showCurve ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
+                  <path
+                    d={!showCurve ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
+                    stroke={isMono ? '#FAF7F2' : '#34D399'}
+                    strokeWidth="1.8"
+                    fill="none"
+                    style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(52, 211, 153, 0.85))' }}
+                  />
+                </svg>
+              </>
+            );
+          })()}
         </div>
 
         {/* -----------------------------------------------------------------
@@ -790,27 +800,38 @@ export const HealthScreen: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
-              <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--'}
-              </span>
-              {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span> : null}
-            </div>
-            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
-              {dayData.bloodPressure && dayData.bloodPressure.sbp > 0 ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--'}
-            </span>
-          </div>
+          {(() => {
+            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
+            const sbp = (dayData.bloodPressure && dayData.bloodPressure.sbp > 0) ? dayData.bloodPressure.sbp : (isFirstLaunch ? 0 : (fallback?.bloodPressure?.sbp ?? 118));
+            const dbp = (dayData.bloodPressure && dayData.bloodPressure.dbp > 0) ? dayData.bloodPressure.dbp : (isFirstLaunch ? 0 : (fallback?.bloodPressure?.dbp ?? 76));
+            const showCurve = sbp > 0;
 
-          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
-            <path
-              d={!dayData.bloodPressure || dayData.bloodPressure.sbp === 0 ? "M 0 12 L 140 12" : "M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"}
-              stroke={isMono ? '#FAF7F2' : '#F43F5E'}
-              strokeWidth="1.8"
-              fill="none"
-              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(244, 63, 94, 0.9))' }}
-            />
-          </svg>
+            return (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                    <span style={{ fontSize: '27px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                      {sbp > 0 ? `${sbp}/${dbp}` : '--/--'}
+                    </span>
+                    {sbp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#F43F5E', fontWeight: 600 }}>mmHg</span> : null}
+                  </div>
+                  <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FDA4AF', marginTop: '2px', fontWeight: 600 }}>
+                    {sbp > 0 ? (language === 'fr' ? 'Optimale (<120/80)' : 'Optimal (<120/80)') : '--'}
+                  </span>
+                </div>
+
+                <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+                  <path
+                    d={!showCurve ? "M 0 12 L 140 12" : "M 0 12 L 40 12 L 48 3 L 56 19 L 64 9 L 70 12 L 140 12"}
+                    stroke={isMono ? '#FAF7F2' : '#F43F5E'}
+                    strokeWidth="1.8"
+                    fill="none"
+                    style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(244, 63, 94, 0.9))' }}
+                  />
+                </svg>
+              </>
+            );
+          })()}
         </div>
 
         {/* -----------------------------------------------------------------
@@ -867,27 +888,38 @@ export const HealthScreen: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
-              <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                {dayData.glucose && dayData.glucose.valueMmol > 0 ? dayData.glucose.valueMmol : '--'}
-              </span>
-              {dayData.glucose && dayData.glucose.valueMmol > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span> : null}
-            </div>
-            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
-              {dayData.glucose && dayData.glucose.valueMmol > 0 ? `${dayData.glucose.stabilityScore}% stable` : '--'}
-            </span>
-          </div>
+          {(() => {
+            const fallback = weekMetrics[selectedDay] || weekMetrics[3];
+            const gVal = (dayData.glucose && dayData.glucose.valueMmol > 0) ? dayData.glucose.valueMmol : (isFirstLaunch ? 0 : (fallback?.glucose?.valueMmol ?? 5.1));
+            const gScore = (dayData.glucose && dayData.glucose.stabilityScore > 0) ? dayData.glucose.stabilityScore : (isFirstLaunch ? 0 : (fallback?.glucose?.stabilityScore ?? 94));
+            const showCurve = gVal > 0;
 
-          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
-            <path
-              d={!dayData.glucose || dayData.glucose.valueMmol === 0 ? "M 4 12 L 136 12" : "M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"}
-              stroke={isMono ? '#FAF7F2' : '#818CF8'}
-              strokeWidth="1.8"
-              fill="none"
-              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(129, 140, 248, 0.85))' }}
-            />
-          </svg>
+            return (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                    <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                      {gVal > 0 ? gVal : '--'}
+                    </span>
+                    {gVal > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#818CF8', fontWeight: 600 }}>mmol/L</span> : null}
+                  </div>
+                  <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#A5B4FC', marginTop: '2px', fontWeight: 600 }}>
+                    {gScore > 0 ? `${gScore}% ${language === 'fr' ? 'stable' : 'stable'}` : '--'}
+                  </span>
+                </div>
+
+                <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+                  <path
+                    d={!showCurve ? "M 4 12 L 136 12" : "M 4 14 C 35 14, 55 6, 85 6 C 110 6, 125 12, 136 12"}
+                    stroke={isMono ? '#FAF7F2' : '#818CF8'}
+                    strokeWidth="1.8"
+                    fill="none"
+                    style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(129, 140, 248, 0.85))' }}
+                  />
+                </svg>
+              </>
+            );
+          })()}
         </div>
 
         {/* -----------------------------------------------------------------
@@ -1117,7 +1149,156 @@ export const HealthScreen: React.FC = () => {
 
       <ImmunityRadar anomaly={dayData.anomaly} />
 
-      <SleepPhases sleep={dayData.sleep} />
+      {/* =====================================================================
+          COMPACT SLEEP DURATION CARD ("Temps passé à dormir")
+          Direct tap-through to the dedicated Sleep tab
+          ===================================================================== */}
+      {(() => {
+        const sleep = dayData.sleep;
+        const totalMin = sleep ? (sleep.deepMin + sleep.remMin + sleep.lightMin + sleep.awakeMin) : 0;
+        const effectiveMin = totalMin > 0 ? (totalMin - sleep.awakeMin) : 0;
+        const efficiencyPct = totalMin > 0 ? Math.round((effectiveMin / totalMin) * 100) : 0;
+        const sleepScore = sleep?.score || 0;
+        const hasSleepData = effectiveMin > 0;
+
+        return (
+          <div
+            onClick={() => setTab('sleep')}
+            role="button"
+            tabIndex={0}
+            title={language === 'fr' ? "Ouvrir l’analyse détaillée du sommeil" : 'Open detailed sleep analysis'}
+            style={{
+              position: 'relative',
+              width: '100%',
+              padding: '16px 18px',
+              borderRadius: '26px',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              background: isMono
+                ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+                : 'radial-gradient(ellipse at 50% 115%, rgba(129, 140, 248, 0.28) 0%, rgba(99, 102, 241, 0.08) 42%, rgba(10, 10, 12, 0.95) 78%), rgba(10, 10, 12, 0.86)',
+              backdropFilter: 'blur(26px)',
+              WebkitBackdropFilter: 'blur(26px)',
+              borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+              borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+              borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+              borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(129, 140, 248, 0.65)',
+              boxShadow: isMono
+                ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+                : '0 14px 32px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(129, 140, 248, 0.16)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              userSelect: 'none',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+            }}
+          >
+            {/* Top row: Title + Moon Chip + Details Pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(129, 140, 248, 0.18)',
+                    border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(129, 140, 248, 0.4)',
+                    boxShadow: isMono ? 'none' : '0 0 10px rgba(129, 140, 248, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Moon size={16} color={isMono ? '#FAF7F2' : '#818CF8'} strokeWidth={1.8} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '13.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.95)' }}>
+                    {language === 'fr' ? 'Temps passé à dormir' : 'Time Asleep'}
+                  </span>
+                  <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '1px' }}>
+                    {hasSleepData
+                      ? (language === 'fr' ? 'Nuit de récupération' : 'Restorative night')
+                      : (language === 'fr' ? 'En attente de la nuit' : 'Waiting for sleep data')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Top-Right Pill to direct to Sleep tab */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(129, 140, 248, 0.15)',
+                  border: isMono ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid rgba(129, 140, 248, 0.35)',
+                  fontSize: '11px',
+                  color: isMono ? '#FAF7F2' : '#C7D2FE',
+                  fontWeight: 600,
+                }}
+              >
+                <span>{language === 'fr' ? 'Détails' : 'Details'}</span>
+                <ArrowUpRight size={13} color={isMono ? '#FAF7F2' : '#818CF8'} />
+              </div>
+            </div>
+
+            {/* Bottom Row: Big Sleep Duration Number & Complementary Badges */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span
+                  style={{
+                    fontSize: '32px',
+                    fontWeight: 300,
+                    letterSpacing: '-1px',
+                    color: '#FAF7F2',
+                    lineHeight: 1,
+                    fontFamily: 'var(--font-display, -apple-system, BlinkMacSystemFont)',
+                  }}
+                >
+                  {hasSleepData ? fmtDuration(effectiveMin) : '--'}
+                </span>
+              </div>
+
+              {hasSleepData && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {efficiencyPct > 0 && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: isMono ? '#FAF7F2' : '#A5B4FC',
+                        padding: '3px 8px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                      }}
+                    >
+                      {efficiencyPct}% {language === 'fr' ? 'efficace' : 'eff.'}
+                    </span>
+                  )}
+                  {sleepScore > 0 && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: isMono ? '#FAF7F2' : '#818CF8',
+                        padding: '3px 8px',
+                        borderRadius: '8px',
+                        background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(129, 140, 248, 0.18)',
+                        border: isMono ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid rgba(129, 140, 248, 0.4)',
+                      }}
+                    >
+                      {sleepScore}/100
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <CardioAge score={dayData.score} />
       </div>
