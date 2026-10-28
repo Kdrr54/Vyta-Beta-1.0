@@ -534,10 +534,10 @@ export const CycleScreen: React.FC = () => {
 
   return (
     <div className="screen-content cycle-screen-wrapper" style={{ paddingBottom: '96px' }}>
-      {/* 1. Header with Hello Name, Settings/Configure Button, and User Initial */}
+      {/* 1. Header with Hello Name & Top Phase Pill Badge */}
       <div
         style={{
-          paddingTop: '10px',
+          paddingTop: '6px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -545,7 +545,7 @@ export const CycleScreen: React.FC = () => {
       >
         <h1
           style={{
-            fontSize: '26px',
+            fontSize: '24px',
             fontWeight: 800,
             color: '#FFFFFF',
             margin: 0,
@@ -554,78 +554,19 @@ export const CycleScreen: React.FC = () => {
         >
           {`Hello ${displayName}`}
         </h1>
-      </div>
 
-      {/* -----------------------------------------------------------------------
-          ONBOARDING BANNER (WHEN 0 INFOS CONFIGURED)
-          ----------------------------------------------------------------------- */}
-      {!isConfigured && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, rgba(43, 4, 4, 0.75) 0%, rgba(20, 2, 2, 0.95) 100%)',
-            border: '1.5px solid #2b0404',
-            borderRadius: '20px',
-            padding: '16px 18px',
-            marginTop: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            animation: 'fadeIn 240ms ease-out',
-            boxShadow: '0 8px 30px rgba(43, 4, 4, 0.5)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={18} color="#C44558" />
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              {isEn ? 'Predict your menstrual cycle' : 'Prédire votre cycle menstruel'}
-            </h3>
-          </div>
-
-          <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45 }}>
-            {isEn
-              ? 'No cycle data recorded yet. Provide 3 quick details so Vyta can predict your phases, ovulation, and next period.'
-              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Vyta prévoie vos phases, votre ovulation et vos prochaines règles.'}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setShowConfigModal(true)}
-            style={{
-              alignSelf: 'flex-start',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'linear-gradient(135deg, #420808 0%, #2b0404 100%)',
-              border: '1px solid #731724',
-              borderRadius: '999px',
-              padding: '8px 16px',
-              color: '#FFFFFF',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(43, 4, 4, 0.6)',
-              transition: 'transform 160ms ease',
-            }}
-          >
-            <span>{isEn ? 'Setup & Predict Cycle ✨' : 'Renseigner mes infos & Prédire ✨'}</span>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
-
-      {/* 2. Top Phase Pill Badge (e.g. J2 DES RÈGLES) */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+        {/* Phase Pill Badge (e.g. J2 DES RÈGLES ou EN ATTENTE) */}
         <div
           style={{
             background: 'rgba(255, 255, 255, 0.08)',
             borderRadius: '999px',
-            padding: '6px 18px',
-            fontSize: '11.5px',
+            padding: '5px 14px',
+            fontSize: '10.5px',
             fontWeight: 800,
-            letterSpacing: '0.08em',
+            letterSpacing: '0.06em',
             textTransform: 'uppercase',
             color: '#E4E4EA',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
           }}
         >
@@ -633,7 +574,7 @@ export const CycleScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. The Luminous Organic Orb & Orbital Cycle Ring (Tactile Rotary Dial) */}
+      {/* 2. Le Tableau de Cycle à Prédire : Cadran Rotatif Orbital & Orbe Organique TOUT EN HAUT */}
       <div
         ref={dialContainerRef}
         onPointerDown={handlePointerDown}
@@ -642,9 +583,9 @@ export const CycleScreen: React.FC = () => {
         onPointerCancel={handlePointerUp}
         style={{
           position: 'relative',
-          width: '288px',
-          height: '288px',
-          margin: '16px auto 4px auto',
+          width: '280px',
+          height: '280px',
+          margin: '10px auto 4px auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -841,6 +782,63 @@ export const CycleScreen: React.FC = () => {
           {getCycleDayDateLabel(selectedCycleDay)}
         </span>
       </div>
+
+      {/* -----------------------------------------------------------------------
+          ONBOARDING BANNER (WHEN 0 INFOS CONFIGURED)
+          ----------------------------------------------------------------------- */}
+      {!isConfigured && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(43, 4, 4, 0.75) 0%, rgba(20, 2, 2, 0.95) 100%)',
+            border: '1.5px solid #2b0404',
+            borderRadius: '20px',
+            padding: '16px 18px',
+            marginTop: '14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            animation: 'fadeIn 240ms ease-out',
+            boxShadow: '0 8px 30px rgba(43, 4, 4, 0.5)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={18} color="#C44558" />
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+              {isEn ? 'Predict your menstrual cycle' : 'Prédire votre cycle menstruel'}
+            </h3>
+          </div>
+
+          <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45 }}>
+            {isEn
+              ? 'No cycle data recorded yet. Provide 3 quick details so Vyta can predict your phases, ovulation, and next period.'
+              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Vyta prévoie vos phases, votre ovulation et vos prochaines règles.'}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setShowConfigModal(true)}
+            style={{
+              alignSelf: 'flex-start',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'linear-gradient(135deg, #420808 0%, #2b0404 100%)',
+              border: '1px solid #731724',
+              borderRadius: '999px',
+              padding: '8px 16px',
+              color: '#FFFFFF',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(43, 4, 4, 0.6)',
+              transition: 'transform 160ms ease',
+            }}
+          >
+            <span>{isEn ? 'Setup & Predict Cycle ✨' : 'Renseigner mes infos & Prédire ✨'}</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
 
 
 
