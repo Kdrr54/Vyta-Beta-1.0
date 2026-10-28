@@ -3,6 +3,9 @@
   "appName": "Vyta",
   "webDir": "dist",
   "bundledWebRuntime": false,
+  "server": {
+    "hostname": "vyta"
+  },
   "ios": {
     "scheme": "Vyta",
     "teamId": "ZCU3WN2ZW4",
