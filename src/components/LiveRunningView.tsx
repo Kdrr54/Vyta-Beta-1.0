@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X } from 'lucide-react';
@@ -434,20 +435,26 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // Calculate live speed in km/h
+  // Calculate live speed in km/h (Strict 0,0 when paused, idle, or standing still)
   const formatSpeed = () => {
-    if (typeof liveSpeedKmh === 'number') {
+    if (runState !== 'running') {
+      return '0,0';
+    }
+    if (runDistanceKm < 0.01 || runDurationSec < 3) {
+      return '0,0';
+    }
+    if (typeof liveSpeedKmh === 'number' && liveSpeedKmh >= 1.0) {
       return liveSpeedKmh.toFixed(1).replace('.', ',');
     }
     return '0,0';
   };
 
-  return (
+  const content = (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 99999,
+        zIndex: 999999,
         width: '100vw',
         maxWidth: '430px',
         height: '100dvh',
@@ -457,6 +464,8 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        touchAction: 'none',
+        overscrollBehavior: 'none',
         userSelect: 'none',
       }}
     >
@@ -918,4 +927,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };

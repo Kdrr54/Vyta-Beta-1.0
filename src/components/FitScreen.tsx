@@ -266,8 +266,8 @@ export const FitScreen: React.FC = () => {
     );
 
     if (runState !== 'running') {
+      setInstantSpeedKmh(0);
       if (runState === 'idle') {
-        setInstantSpeedKmh(0);
         lastGpsFixRef.current = null;
       }
       return;
@@ -284,53 +284,64 @@ export const FitScreen: React.FC = () => {
           localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
         } catch (e) {}
 
-        // Accepter les points GPS avec précision réaliste (< 70m)
-        if (accuracy <= 70) {
-          if (!lastGpsFixRef.current) {
-            lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
-            setRealGpsPoints([coords]);
-            return;
+        // 1. Filtrage anti-dérive GPS : ignorer les signaux imprécis (> 35m)
+        if (accuracy > 35) {
+          return;
+        }
+
+        if (!lastGpsFixRef.current) {
+          lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+          setRealGpsPoints([coords]);
+          return;
+        }
+
+        const distMeters = calculateGpsDistanceMeters(
+          lastGpsFixRef.current.lat,
+          lastGpsFixRef.current.lng,
+          latitude,
+          longitude
+        );
+        const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
+
+        // 2. Détection de l'immobilité stricte (Doppler CoreLocation ou faible déplacement)
+        const hasHardwareSpeed = speed !== null && !isNaN(speed) && speed >= 0;
+        const isStationary = hasHardwareSpeed ? speed < 0.6 : distMeters < 3.5;
+
+        if (isStationary) {
+          setInstantSpeedKmh(0);
+          return;
+        }
+
+        // 3. Déplacement réel vérifié (>= 3.5 mètres et vitesse humaine réaliste)
+        if (distMeters >= 3.5 && distMeters < 120) {
+          const distKm = distMeters / 1000;
+          setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
+
+          let instantKmh = 0;
+          if (hasHardwareSpeed) {
+            instantKmh = speed * 3.6; // Vitesse Doppler réelle CoreLocation
+          } else {
+            instantKmh = (distMeters / dtSec) * 3.6;
           }
 
-          const distMeters = calculateGpsDistanceMeters(
-            lastGpsFixRef.current.lat,
-            lastGpsFixRef.current.lng,
-            latitude,
-            longitude
-          );
-          const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
-
-          // Si déplacement réel (au moins 2.2 mètres et moins de 120m)
-          if (distMeters >= 2.2 && distMeters < 120) {
-            const distKm = distMeters / 1000;
-            setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
-
-            let instantKmh = 0;
-            if (speed !== null && speed >= 0) {
-              instantKmh = speed * 3.6; // Vitesse Doppler réelle CoreLocation
-            } else {
-              instantKmh = (distMeters / dtSec) * 3.6;
-            }
-
-            // Si marche lente ou à l'arrêt (< 1.5 km/h), vitesse nulle
-            if (instantKmh < 1.5) {
-              instantKmh = 0;
-            } else {
-              instantKmh = Math.min(30, Math.max(0, instantKmh));
-            }
-
-            // Lissage exponentiel (évite tout sursaut brusque de 10 km/h)
-            setInstantSpeedKmh((prev) => {
-              const smoothed = prev > 0 ? (prev * 0.6 + instantKmh * 0.4) : instantKmh;
-              return Math.round(smoothed * 10) / 10;
-            });
-
-            lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
-            setRealGpsPoints((prev) => [...prev, coords]);
-          } else if (distMeters < 2.0 && dtSec > 2.0) {
-            // Utilisateur à l'arrêt ou marchant très lentement
-            setInstantSpeedKmh(0);
+          // Seuil d'allure : si inférieur à 2.0 km/h, considérer à l'arrêt
+          if (instantKmh < 2.0) {
+            instantKmh = 0;
+          } else {
+            instantKmh = Math.min(30, Math.max(0, instantKmh));
           }
+
+          // Lissage exponentiel doux
+          setInstantSpeedKmh((prev) => {
+            const smoothed = prev > 0 ? (prev * 0.6 + instantKmh * 0.4) : instantKmh;
+            return Math.round(smoothed * 10) / 10;
+          });
+
+          lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+          setRealGpsPoints((prev) => [...prev, coords]);
+        } else if (distMeters < 3.5 && dtSec > 1.5) {
+          // Utilisateur à l'arrêt
+          setInstantSpeedKmh(0);
         }
       },
       (err) => console.log('GPS watch error:', err.message),
@@ -376,6 +387,7 @@ export const FitScreen: React.FC = () => {
 
   const pauseRun = () => {
     setRunState('paused');
+    setInstantSpeedKmh(0);
   };
 
   const resumeRun = () => {
@@ -485,9 +497,7 @@ export const FitScreen: React.FC = () => {
       : 0;
   const liveSpeedKmh =
     runState === 'running'
-      ? (isFastDemo ? '12.4' : instantSpeedKmh.toFixed(1))
-      : runDurationSec > 0 && runDistanceKm > 0
-      ? ((runDistanceKm / runDurationSec) * 3600).toFixed(1)
+      ? (isFastDemo ? '12.4' : (runDistanceKm > 0.01 && instantSpeedKmh >= 1.0 ? instantSpeedKmh.toFixed(1) : '0.0'))
       : '0.0';
   const liveHr = isIdle
     ? 0
@@ -833,7 +843,8 @@ export const FitScreen: React.FC = () => {
   };
 
   return (
-    <div className="screen-content">
+    <>
+      <div className="screen-content" style={isLiveRunningViewOpen ? { display: 'none' } : undefined}>
       {/* Title */}
       <div style={{ paddingTop: '10px' }}>
         <span className="header-subtitle">Performance & Effort</span>
@@ -2137,6 +2148,7 @@ export const FitScreen: React.FC = () => {
           );
         })()
       )}
+      </div>
 
       {/* Live Running Screen (Strava / Apple Fitness Native Experience) */}
       {isLiveRunningViewOpen && (runState === 'running' || runState === 'paused' || runState === 'finished') && (
@@ -2155,6 +2167,6 @@ export const FitScreen: React.FC = () => {
           userPosition={userPosition}
         />
       )}
-    </div>
+    </>
   );
 };

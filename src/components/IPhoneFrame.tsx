@@ -24,7 +24,7 @@ export const IPhoneFrame: React.FC<IPhoneFrameProps> = ({
       {/* Scrollable Viewport Content */}
       <main
         className="app-scroll-container"
-        style={!header ? { paddingTop: 0, paddingBottom: 0, height: '100%' } : undefined}
+        style={!header ? { paddingTop: 0, paddingBottom: 0, height: '100%', overflow: 'hidden' } : undefined}
       >
         {children}
       </main>
