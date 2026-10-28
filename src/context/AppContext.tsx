@@ -183,7 +183,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
       if (partial.heartRate) {
-        const mins = partial.heartRate === '15min' ? 15 : partial.heartRate === '30min' ? 30 : partial.heartRate === '2h' ? 120 : 60;
+        const mins = partial.heartRate === '30min' ? 30 : 60;
         qringBle.setHeartRateInterval(mins);
       }
       try {

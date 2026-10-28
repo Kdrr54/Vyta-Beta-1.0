@@ -871,73 +871,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Quick Presets Bar */}
+          {/* Quick Presets Bar: 1h vs 30min */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '6px',
+              gap: '8px',
               padding: '4px',
-              borderRadius: '12px',
+              borderRadius: '14px',
               background: 'rgba(255, 255, 255, 0.03)',
               border: '1px solid rgba(255, 255, 255, 0.06)',
             }}
           >
             {[
               {
-                id: 'perf',
-                labelFr: '15 min (Max)',
-                labelEn: '15 min (Max)',
-                subFr: '~4-5j',
-                subEn: '~4-5d',
-                action: () =>
+                id: '1h',
+                labelFr: 'Toutes les heures (1 h)',
+                labelEn: 'Every hour (1h)',
+                subFr: 'Chaque heure · ~8j (Optimal)',
+                subEn: 'Hourly · ~8d (Optimal)',
+                isActive: (sensorIntervals?.heartRate || '1h') === '1h',
+                action: () => {
                   updateSensorIntervals({
-                    heartRate: '15min',
-                    hrv: '15min',
-                    spo2: '15min',
-                    temperature: '15min',
-                    stress: '15min',
-                    bloodPressure: '15min',
-                    glucose: '15min',
-                    respiratory: '15min',
-                  }),
+                    heartRate: '1h',
+                    hrv: '1h',
+                    spo2: '1h',
+                    temperature: '1h',
+                    stress: '1h',
+                    bloodPressure: '1h',
+                    glucose: '1h',
+                    respiratory: '1h',
+                  });
+                  qringBle.setHeartRateInterval(60);
+                },
               },
               {
-                id: 'balanced',
-                labelFr: 'Équilibré',
-                labelEn: 'Balanced',
-                subFr: '~7j',
-                subEn: '~7d',
-                action: () =>
+                id: '30min',
+                labelFr: 'Toutes les 30 min',
+                labelEn: 'Every 30 min',
+                subFr: '2× / heure · ~5j (Précis)',
+                subEn: '2x / hr · ~5d (Precise)',
+                isActive: sensorIntervals?.heartRate === '30min',
+                action: () => {
                   updateSensorIntervals({
                     heartRate: '30min',
                     hrv: '30min',
-                    spo2: '1h',
-                    temperature: '1h',
+                    spo2: '30min',
+                    temperature: '30min',
                     stress: '30min',
-                    bloodPressure: '1h',
-                    glucose: '2h',
-                    respiratory: '1h',
-                  }),
-              },
-              {
-                id: 'eco',
-                labelFr: '2 h (Éco)',
-                labelEn: '2 h (Eco)',
-                subFr: '~8j',
-                subEn: '~8d',
-                action: () =>
-                  updateSensorIntervals({
-                    heartRate: '2h',
-                    hrv: '2h',
-                    spo2: '2h',
-                    temperature: '2h',
-                    stress: '2h',
-                    bloodPressure: '2h',
-                    glucose: '2h',
-                    respiratory: '2h',
-                  }),
+                    bloodPressure: '30min',
+                    glucose: '30min',
+                    respiratory: '30min',
+                  });
+                  qringBle.setHeartRateInterval(30);
+                },
               },
             ].map((preset) => (
               <button
@@ -946,23 +934,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 onClick={preset.action}
                 style={{
                   flex: 1,
-                  padding: '6px 4px',
-                  borderRadius: '9px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  color: 'rgba(250, 247, 242, 0.85)',
-                  fontSize: '10.5px',
-                  fontWeight: 600,
+                  padding: '8px 6px',
+                  borderRadius: '10px',
+                  background: preset.isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  border: preset.isActive ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
+                  color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.75)',
+                  fontSize: '11px',
+                  fontWeight: preset.isActive ? 700 : 500,
                   cursor: 'pointer',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
+                  gap: '3px',
                   transition: 'all 0.15s ease',
+                  boxShadow: preset.isActive ? '0 2px 10px rgba(0, 0, 0, 0.35)' : 'none',
                 }}
               >
                 <span>{isEn ? preset.labelEn : preset.labelFr}</span>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '9px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
                   {isEn ? preset.subEn : preset.subFr}
                 </span>
               </button>
@@ -1048,10 +1038,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               const currentVal: SensorIntervalOption = (sensorIntervals?.[sensor.key] as SensorIntervalOption) || '1h';
 
               const formatValLabel = (val: SensorIntervalOption) => {
-                if (val === '15min') return isEn ? 'Every 15 min' : 'Toutes les 15 min';
-                if (val === '30min') return isEn ? 'Every 30 min' : 'Toutes les 30 min';
-                if (val === '1h') return isEn ? 'Every hour' : 'Toutes les heures';
-                return isEn ? 'Every 2 hours' : 'Toutes les 2 h';
+                if (val === '30min' || val === '15min') return isEn ? '30 min' : 'Toutes les 30 min';
+                return isEn ? '1 hour' : 'Toutes les heures (1h)';
               };
 
               return (
@@ -1113,28 +1101,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     </span>
                   </div>
 
-                  {/* 4 Standardized Interval Pills: 15min / 30min / 1h / 2h */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                  {/* Standardized 2 Interval Options: 30 min vs 1 h */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                     {(
                       [
-                        { id: '15min', label: '15 min' },
-                        { id: '30min', label: '30 min' },
-                        { id: '1h', label: '1 h' },
-                        { id: '2h', label: '2 h' },
+                        { id: '30min', label: isEn ? 'Toutes les 30 min' : 'Toutes les 30 min' },
+                        { id: '1h', label: isEn ? 'Toutes les heures (1h)' : 'Toutes les heures (1h)' },
                       ] as const
                     ).map((opt) => {
-                      const active = currentVal === opt.id;
+                      const active = currentVal === opt.id || (opt.id === '1h' && (currentVal === '2h' || !currentVal)) || (opt.id === '30min' && currentVal === '15min');
                       return (
                         <button
                           key={opt.id}
                           type="button"
-                          onClick={() => updateSensorIntervals({ [sensor.key]: opt.id })}
+                          onClick={() => {
+                            updateSensorIntervals({ [sensor.key]: opt.id });
+                            if (sensor.key === 'heartRate') {
+                              qringBle.setHeartRateInterval(opt.id === '30min' ? 30 : 60);
+                            }
+                          }}
                           style={{
-                            padding: '6px 0',
-                            borderRadius: '9px',
+                            padding: '7px 0',
+                            borderRadius: '10px',
                             background: active ? sensor.color : 'rgba(255, 255, 255, 0.04)',
                             border: active ? `1px solid ${sensor.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                            color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.72)',
+                            color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.78)',
                             fontSize: '11px',
                             fontWeight: active ? 700 : 500,
                             cursor: 'pointer',

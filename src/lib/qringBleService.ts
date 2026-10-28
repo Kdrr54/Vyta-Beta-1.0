@@ -104,9 +104,26 @@ class QRingBleService {
   private reconnectTimer: any = null;
   private userExplicitlyDisconnected = false;
   private lastPeriodicSyncTime = 0;
+  private configuredIntervalMinutes = 60;
 
   constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_ring_interval');
+        if (saved) {
+          const val = parseInt(saved, 10);
+          if (val === 30 || val === 60) this.configuredIntervalMinutes = val;
+        } else {
+          const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
+          if (intervalsStr) {
+            const parsed = JSON.parse(intervalsStr);
+            if (parsed.heartRate === '30min') {
+              this.configuredIntervalMinutes = 30;
+            }
+          }
+        }
+      } catch (_) {}
+
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           if (!this.isConnected() && !this.userExplicitlyDisconnected) {
@@ -715,8 +732,8 @@ class QRingBleService {
       // 4. Send Hardware Protocol Handshakes & Configuration
       await this.sendTimeSync();
       
-      // Program automatic hourly heart rate monitoring on the ring hardware (every 60 min)
-      await this.setHeartRateInterval(60);
+      // Program automatic periodic heart rate monitoring on the ring hardware (configured: 30 min or 60 min)
+      await this.setHeartRateInterval(this.configuredIntervalMinutes);
 
       // Perform complete data synchronization of stored ring records
       await this.syncAllRingData();
@@ -806,7 +823,7 @@ class QRingBleService {
       });
 
       await this.sendTimeSync();
-      await this.setHeartRateInterval(60);
+      await this.setHeartRateInterval(this.configuredIntervalMinutes);
       await this.syncAllRingData();
       this.startHeartbeat();
     } catch (e) {
@@ -845,9 +862,16 @@ class QRingBleService {
    * Configure the ring's automatic heart rate measurement interval
    * Command 22 (0x16): struct HeartRate { commandId=22; action=WRITE(2); isEnabled=1; heartInterval=minutes; }
    */
-  public async setHeartRateInterval(minutes: number = 60): Promise<boolean> {
-    console.log('[QRing BLE] Programming ring automatic heart rate monitoring to every', minutes, 'minutes (Command 22)...');
-    const packet = this.makePacket(0x16, [0x02, 0x01, minutes & 0xFF]);
+  public async setHeartRateInterval(minutes?: number): Promise<boolean> {
+    const mins = minutes ?? this.configuredIntervalMinutes;
+    this.configuredIntervalMinutes = mins;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('vyta_ring_interval', String(mins));
+      }
+    } catch (_) {}
+    console.log('[QRing BLE] Programming ring automatic periodic monitoring to every', mins, 'minutes (Command 22)...');
+    const packet = this.makePacket(0x16, [0x02, 0x01, mins & 0xFF]);
     const ok = await this.writeBytes(packet);
     console.log('[QRing BLE] Sent HeartRate Auto Monitoring Config (Command 22):', ok ? 'OK' : 'Failed');
     return ok;
@@ -926,7 +950,7 @@ class QRingBleService {
       await this.sendTimeSync();
       await new Promise((r) => setTimeout(r, 180));
 
-      await this.setHeartRateInterval(60);
+      await this.setHeartRateInterval(this.configuredIntervalMinutes);
       await new Promise((r) => setTimeout(r, 180));
 
       await this.requestHeartRateLog();

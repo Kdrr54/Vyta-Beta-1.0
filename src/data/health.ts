@@ -19,25 +19,25 @@ export const WEEK = [
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
 export const defaultSensorIntervals: SensorIntervals = {
-  heartRate: '30min',
-  hrv: '30min',
+  heartRate: '1h',
+  hrv: '1h',
   spo2: '1h',
   temperature: '1h',
-  stress: '30min',
+  stress: '1h',
   bloodPressure: '1h',
-  glucose: '2h',
+  glucose: '1h',
   respiratory: '1h',
 };
 
 /**
- * Calcule l'autonomie estimée de la bague (en jours) selon les fréquences d'échantillonnage des 8 capteurs
+ * Calcule l'autonomie estimée de la bague (en jours) selon les fréquences d'échantillonnage des capteurs (30 min ou 1h)
  */
 export function calculateEstimatedBatteryDays(intervals: SensorIntervals): number {
   let days = 8.0;
   const weights: Record<string, number> = {
     '15min': 0.45,
-    '30min': 0.22,
-    '1h': 0.08,
+    '30min': 0.35,
+    '1h': 0.0,
     '2h': 0.0,
   };
 
