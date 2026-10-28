@@ -94,11 +94,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const isConnected = Boolean(ring.isConnected);
   const isVytaCareActive = ring.vytaCareActive !== false;
   const [isSyncingRing, setIsSyncingRing] = useState(false);
-  const handleSyncRing = () => {
+  const handleSyncRing = async () => {
     setIsSyncingRing(true);
+    try {
+      await qringBle.syncAllRingData();
+    } catch (_) {}
     setTimeout(() => {
       setIsSyncingRing(false);
-    }, 750);
+    }, 1200);
   };
 
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];

@@ -182,6 +182,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSensorIntervals = (partial: Partial<SensorIntervals>) => {
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
+      if (partial.heartRate) {
+        const mins = partial.heartRate === '15min' ? 15 : partial.heartRate === '30min' ? 30 : partial.heartRate === '2h' ? 120 : 60;
+        qringBle.setHeartRateInterval(mins);
+      }
       try {
         localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));
       } catch (e) {}
@@ -400,6 +404,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data.wearCalibrationScore !== undefined) {
         updateRing({ wearCalibrationScore: data.wearCalibrationScore, wearCalibrationDate: "Aujourd'hui" });
+      }
+      if (data.steps !== undefined && data.steps > 0) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.steps = data.steps!;
+          if (data.calories && data.calories > 0) cur.activeKcal = data.calories;
+          if (data.distanceKm && data.distanceKm > 0) cur.distanceKm = data.distanceKm;
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.sleepHours !== undefined && data.sleepHours > 0) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          const totalMin = Math.round(data.sleepHours! * 60);
+          const deepMin = Math.round(totalMin * 0.22);
+          const remMin = Math.round(totalMin * 0.20);
+          const lightMin = Math.round(totalMin * 0.50);
+          const awakeMin = Math.max(0, totalMin - (deepMin + remMin + lightMin));
+          const score = Math.min(100, Math.round(data.sleepHours! * 12.5));
+          cur.sleep = {
+            score,
+            deepMin,
+            remMin,
+            lightMin,
+            awakeMin,
+          };
+          if (cur.pillars) {
+            cur.pillars = { ...cur.pillars, sleep: score };
+          }
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.spo2 !== undefined && data.spo2 > 0) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.spo2 = data.spo2!;
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.minBpm !== undefined && data.minBpm > 0) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.minBpm = data.minBpm!;
+          if (data.maxBpm) cur.maxBpm = data.maxBpm!;
+          if (data.restingBpm) cur.restingBpm = data.restingBpm!;
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
       }
     });
     return () => unsubscribe();
