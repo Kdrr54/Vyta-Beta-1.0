@@ -1096,80 +1096,29 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </svg>
               </div>
 
-              {/* Bouton de mesure du capteur en direct */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!ring.isConnected) {
-                      openModal('pairing');
-                      return;
-                    }
-                    if (isMeasuring) {
-                      setIsMeasuring(false);
-                      setCountdown(30);
-                      qringBle.stopRealTimeHeartRate();
-                    } else {
-                      setIsMeasuring(true);
-                      setCountdown(30);
-                      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                        try {
-                          navigator.vibrate([18, 30, 22]);
-                        } catch (_) {}
-                      }
-                    }
-                  }}
+              {/* Cadence fixe toutes les 30 minutes (0 continu) */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
+                <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '7px',
-                    padding: '7px 16px',
+                    gap: '6px',
+                    padding: '5px 13px',
                     borderRadius: '999px',
-                    background: isMeasuring
-                      ? 'linear-gradient(135deg, rgba(255, 69, 58, 0.35), rgba(255, 45, 85, 0.25))'
-                      : 'rgba(255, 69, 58, 0.14)',
-                    border: isMeasuring
-                      ? '1px solid rgba(255, 90, 82, 0.85)'
-                      : '1px solid rgba(255, 69, 58, 0.45)',
+                    background: 'rgba(255, 69, 58, 0.12)',
+                    border: '1px solid rgba(255, 69, 58, 0.35)',
                     color: '#FAF7F2',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    boxShadow: isMeasuring
-                      ? '0 0 18px rgba(255, 69, 58, 0.65)'
-                      : '0 2px 10px rgba(255, 69, 58, 0.2)',
-                    transition: 'all 0.2s ease',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono)',
                   }}
                 >
-                  {isMeasuring ? (
-                    <>
-                      <span
-                        style={{
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          backgroundColor: '#30D158',
-                          boxShadow: '0 0 8px #30D158',
-                        }}
-                      />
-                      <span>
-                        {language === 'fr'
-                          ? `Arrêter la mesure (${countdown}s)`
-                          : `Stop sensor (${countdown}s)`}
-                      </span>
-                      <Square size={10} fill="#FAF7F2" color="#FAF7F2" />
-                    </>
-                  ) : (
-                    <>
-                      <Heart size={13} fill="#FF453A" color="#FF453A" />
-                      <span>
-                        {language === 'fr'
-                          ? 'Lancer la mesure en temps réel (30s)'
-                          : 'Start live heart rate sensor (30s)'}
-                      </span>
-                    </>
-                  )}
-                </button>
+                  <Clock size={12} color="#FF453A" />
+                  <span>
+                    {language === 'fr'
+                      ? 'Échantillonnage fixe : toutes les 30 min (00:00, 00:30, 01:00...)'
+                      : 'Fixed sampling: every 30 min (00:00, 00:30, 01:00...)'}
+                  </span>
+                </span>
               </div>
             </div>
           )}
@@ -1204,7 +1153,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   color: 'rgba(250, 247, 242, 0.9)',
                 }}
               >
-                {isEn ? 'Continuous 24h Trend' : 'Tendance continue 24h'}
+                {isEn ? 'Scheduled Every 30 Min (00:00, 00:30...)' : 'Relevés toutes les 30 min (00:00, 00:30...)'}
               </span>
             </div>
 
@@ -1373,7 +1322,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
               {/* Bottom Time Axis Labels */}
               {dataset.map((pt, i) => {
-                if (dataset.length > 12 && i % 3 !== 0 && i !== dataset.length - 1) return null;
+                const step = dataset.length > 24 ? 8 : 3;
+                if (dataset.length > 12 && i % step !== 0 && i !== dataset.length - 1) return null;
                 return (
                   <text
                     key={i}
@@ -1447,6 +1397,68 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               </div>
             )}
           </div>
+
+          {/* Grille des 48 relevés fixes de 30 minutes (00:00, 00:30, 01:00, 01:30...) */}
+          {metricId === 'bpm' && (
+            <div
+              style={{
+                marginTop: '10px',
+                paddingTop: '10px',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.8)' }}>
+                  {isEn ? '30-Minute Scheduled Readings (0 Continuous)' : 'Relevés fixes toutes les 30 min (0 continu)'}
+                </span>
+                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', fontFamily: 'var(--font-mono)' }}>
+                  48 {isEn ? 'slots / 24h' : 'créneaux / 24h'}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '6px',
+                  maxHeight: '144px',
+                  overflowY: 'auto',
+                  paddingRight: '2px',
+                }}
+              >
+                {dataset.map((pt, idx) => {
+                  const isSelected = hoverIndex === idx;
+                  return (
+                    <button
+                      key={pt.label}
+                      type="button"
+                      onClick={() => setHoverIndex(idx)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '5px 7px',
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(255, 69, 58, 0.22)' : 'rgba(255, 255, 255, 0.035)',
+                        border: isSelected ? `1px solid ${theme.primary}` : '1px solid rgba(255, 255, 255, 0.07)',
+                        color: '#FAF7F2',
+                        fontSize: '10px',
+                        fontFamily: 'var(--font-mono)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ color: 'rgba(250, 247, 242, 0.52)' }}>{pt.label}</span>
+                      <strong style={{ color: isSelected ? theme.primary : '#FAF7F2' }}>
+                        {pt.value > 0 ? Math.round(pt.value) : '--'}
+                      </strong>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Progressive Sub-Tabs Navigation */}

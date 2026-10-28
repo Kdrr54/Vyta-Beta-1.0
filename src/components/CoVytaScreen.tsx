@@ -277,8 +277,8 @@ export const CoVytaScreen: React.FC = () => {
         'Puis-je forcer à la séance ce soir ?',
         'Que dit ma VFC sur mon état de forme ?',
       ];
-      const randomPrompt = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
-      setInputPrompt(randomPrompt);
+      const selectedPrompt = samplePrompts[0];
+      setInputPrompt(selectedPrompt);
     }, 1600);
   };
 

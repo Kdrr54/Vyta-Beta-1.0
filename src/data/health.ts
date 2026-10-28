@@ -19,7 +19,7 @@ export const WEEK = [
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
 export const defaultSensorIntervals: SensorIntervals = {
-  heartRate: '1h',
+  heartRate: '30min',
   hrv: '1h',
   spo2: '1h',
   temperature: '1h',

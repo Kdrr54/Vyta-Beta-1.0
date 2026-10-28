@@ -104,7 +104,9 @@ class QRingBleService {
   private reconnectTimer: any = null;
   private userExplicitlyDisconnected = false;
   private lastPeriodicSyncTime = 0;
-  private configuredIntervalMinutes = 60;
+  // Strict 30-minute discrete cadence (48 slots/24h: 00:00, 00:30, 01:00, 01:30... — 0 continuous)
+  private configuredIntervalMinutes = 30;
+  private isRealTimeHrActive = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -112,13 +114,17 @@ class QRingBleService {
         const saved = localStorage.getItem('vyta_ring_interval');
         if (saved) {
           const val = parseInt(saved, 10);
-          if (val === 30 || val === 60) this.configuredIntervalMinutes = val;
+          if (val === 5 || val === 10 || val === 15 || val === 30 || val === 60) {
+            this.configuredIntervalMinutes = val;
+          }
         } else {
           const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
           if (intervalsStr) {
             const parsed = JSON.parse(intervalsStr);
             if (parsed.heartRate === '30min') {
               this.configuredIntervalMinutes = 30;
+            } else if (parsed.heartRate === '15min') {
+              this.configuredIntervalMinutes = 15;
             }
           }
         }
@@ -223,7 +229,7 @@ class QRingBleService {
       if (this.isConnected()) {
         try {
           await this.sendBatteryRequest();
-          // Periodically sync hourly health records every 10 minutes
+          // 0 continuous HR: ring measures strictly every 30 minutes (00:00, 00:30, 01:00, 01:30...)
           const now = Date.now();
           if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
             this.lastPeriodicSyncTime = now;
@@ -993,6 +999,7 @@ class QRingBleService {
    * 4. Command 105 (0x69, DataType.BloodOxygen=3, DataAction.Start=1): Activates Red + Green PPG LEDs
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
+    this.isRealTimeHrActive = true;
     console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring GREEN LED (Cardiac PPG))...');
     
     // If not currently connected, attempt quick silent auto-reconnect before failing
@@ -1031,6 +1038,7 @@ class QRingBleService {
    * 3. Command 106 (0x6A, DataType, 0, 0)
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
+    this.isRealTimeHrActive = false;
     console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring GREEN LED)...');
     
     // 1. Native QRing Command 30 Stop (0x1E, 0x00)
@@ -1222,63 +1230,78 @@ class QRingBleService {
       }
     }
 
-    // 3. Today's Step & Activity logs (header 0x07 / 7 or 0x48 / 72)
+    // 3. Today's Step & Activity logs (QCBandSDK Official Big-Endian Protocol)
+    // Command 0x07 (TotalSportDataRsp): 2 sub-packets indexed by byte[1] (pocketIndex)
+    //   - pocketIndex === 0: bytes[2..5]=BCD date, bytes[6..8]=totalSteps (BE), bytes[9..11]=runningSteps (BE), bytes[12..14]=calories (BE, cal)
+    //   - pocketIndex === 1: bytes[6..8]=walkDistance (BE, meters), bytes[9..10]=sportDuration (BE, min), bytes[11..12]=sleepDuration (BE, min)
     if (header === 7 || header === 0x07) {
-      if (len >= 11) {
-        // Bytes 2..4: 24-bit steps
-        const s0 = dataView.getUint8(2);
-        const s1 = dataView.getUint8(3);
-        const s2 = dataView.getUint8(4);
-        const steps = s0 | (s1 << 8) | (s2 << 16);
+      if (len >= 15) {
+        const pocketIndex = dataView.getUint8(1);
+        if (pocketIndex === 0) {
+          const s0 = dataView.getUint8(6);
+          const s1 = dataView.getUint8(7);
+          const s2 = dataView.getUint8(8);
+          const steps = (s0 << 16) | (s1 << 8) | s2;
 
-        // Bytes 5..7: 24-bit calories
-        const c0 = dataView.getUint8(5);
-        const c1 = dataView.getUint8(6);
-        const c2 = dataView.getUint8(7);
-        const cal = c0 | (c1 << 8) | (c2 << 16);
+          const c0 = dataView.getUint8(12);
+          const c1 = dataView.getUint8(13);
+          const c2 = dataView.getUint8(14);
+          const rawCal = (c0 << 16) | (c1 << 8) | c2;
+          const cal = rawCal > 5000 ? Math.round(rawCal / 1000) : rawCal;
 
-        // Bytes 8..10: 24-bit distance in meters
-        const d0 = dataView.getUint8(8);
-        const d1 = dataView.getUint8(9);
-        const d2 = dataView.getUint8(10);
-        const distMeters = d0 | (d1 << 8) | (d2 << 16);
-        const distKm = parseFloat((distMeters / 1000).toFixed(2));
-
-        if (steps > 0 || cal > 0) {
-          console.log('[QRing BLE] Parsed real activity from ring: steps:', steps, 'cal:', cal, 'km:', distKm);
-          this.notify({
-            steps,
-            calories: cal,
-            distanceKm: distKm,
-            isConnected: true,
-          });
-          return;
+          if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
+            console.log('[QRing BLE] Cmd 0x07 (sub-packet 0) Big-Endian activity: steps:', steps, 'kcal:', cal);
+            this.notify({
+              steps,
+              calories: cal,
+              isConnected: true,
+            });
+            return;
+          }
+        } else if (pocketIndex === 1) {
+          const d0 = dataView.getUint8(6);
+          const d1 = dataView.getUint8(7);
+          const d2 = dataView.getUint8(8);
+          const distMeters = (d0 << 16) | (d1 << 8) | d2;
+          const distKm = parseFloat((distMeters / 1000).toFixed(2));
+          if (distMeters >= 0 && distMeters <= 150000 && distKm > 0) {
+            console.log('[QRing BLE] Cmd 0x07 (sub-packet 1) Big-Endian distance km:', distKm);
+            this.notify({
+              distanceKm: distKm,
+              isConnected: true,
+            });
+            return;
+          }
         }
       }
     }
 
+    // Command 0x48 / 72 (TodaySportDataRsp - BLEDataFormatUtils.bytes2Int Big-Endian MSB first):
+    //   - bytes[1..3]: totalSteps (24-bit Big-Endian: (s0 << 16) | (s1 << 8) | s2)
+    //   - bytes[4..6]: runningSteps (24-bit Big-Endian)
+    //   - bytes[7..9]: calorie (24-bit Big-Endian, in cal -> kcal)
+    //   - bytes[10..12]: walkDistance (24-bit Big-Endian, in meters)
     if (header === 72 || header === 0x48) {
       if (len >= 13) {
-        // Bytes 1..3: totalSteps (24-bit)
         const s0 = dataView.getUint8(1);
         const s1 = dataView.getUint8(2);
         const s2 = dataView.getUint8(3);
-        const steps = s0 | (s1 << 8) | (s2 << 16);
+        const steps = (s0 << 16) | (s1 << 8) | s2;
 
-        // Bytes 7..9: calories (24-bit)
         const c0 = dataView.getUint8(7);
         const c1 = dataView.getUint8(8);
         const c2 = dataView.getUint8(9);
-        const cal = c0 | (c1 << 8) | (c2 << 16);
+        const rawCal = (c0 << 16) | (c1 << 8) | c2;
+        const cal = rawCal > 5000 ? Math.round(rawCal / 1000) : rawCal;
 
-        // Bytes 10..12: walking distance (24-bit meters)
         const d0 = dataView.getUint8(10);
         const d1 = dataView.getUint8(11);
         const d2 = dataView.getUint8(12);
-        const distKm = parseFloat(((d0 | (d1 << 8) | (d2 << 16)) / 1000).toFixed(2));
+        const distMeters = (d0 << 16) | (d1 << 8) | d2;
+        const distKm = parseFloat((distMeters / 1000).toFixed(2));
 
-        if (steps > 0 || cal > 0) {
-          console.log('[QRing BLE] Command 72 parsed activity: steps:', steps, 'cal:', cal, 'km:', distKm);
+        if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
+          console.log('[QRing BLE] Command 72 (0x48) Big-Endian activity: steps:', steps, 'kcal:', cal, 'km:', distKm);
           this.notify({
             steps,
             calories: cal,

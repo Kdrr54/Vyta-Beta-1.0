@@ -391,11 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateRing({ wearCalibrationScore: data.wearCalibrationScore, wearCalibrationDate: "Aujourd'hui" });
       }
       if (data.steps !== undefined && data.steps > 0) {
+        // Guard & auto-repair if a 24-bit Little-Endian step value (> 120000) ever arrives
+        const safeSteps = data.steps > 120000
+          ? (((data.steps & 0xFF) << 16) | (data.steps & 0xFF00) | ((data.steps >> 16) & 0xFF))
+          : data.steps;
         setWeekData((prev) => {
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          cur.steps = data.steps!;
+          cur.steps = safeSteps;
           if (data.calories && data.calories > 0) cur.activeKcal = data.calories;
           if (data.distanceKm && data.distanceKm > 0) cur.distanceKm = data.distanceKm;
           next[idx] = cur;
@@ -564,62 +568,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } catch (e) {}
         return updated;
       });
-
-      // 3. Accumuler l'activité biométrique sur le jour en cours
-      setWeekData(prevData => {
-        const next = [...prevData];
-        const dayIdx = Math.min(6, Math.max(0, selectedDay));
-        const cur = { ...(next[dayIdx] || weekMetrics[dayIdx]) };
-
-        const curDate = new Date();
-        const curHour = curDate.getHours();
-        const isDaytime = curHour >= 7 && curHour < 22;
-
-        if (isDaytime) {
-          const stepDelta = Math.floor(250 + Math.random() * 350);
-          cur.steps = (cur.steps || 0) + stepDelta;
-          cur.activeKcal = (cur.activeKcal || 0) + Math.round(stepDelta * 0.045);
-          cur.distanceKm = Math.round(((cur.distanceKm || 0) + (stepDelta * 0.00075)) * 10) / 10;
-          cur.bpm = Math.floor(66 + Math.random() * 20);
-          cur.restingBpm = cur.restingBpm || 51;
-          cur.hrv = Math.floor(58 + Math.random() * 16);
-          cur.spo2 = Number((98 + Math.random() * 1.5).toFixed(1));
-          cur.score = Math.min(96, Math.max(45, Math.round((cur.steps / 10000) * 45 + 45)));
-          cur.pillars = {
-            activity: Math.min(100, Math.round((cur.steps / 10000) * 100)),
-            recovery: Math.min(95, Math.max(60, cur.hrv + 15)),
-            sleep: cur.sleep?.score || 80,
-          };
-          setLiveBpm(cur.bpm);
-        } else {
-          cur.bpm = Math.floor(48 + Math.random() * 6);
-          cur.hrv = Math.floor(68 + Math.random() * 14);
-          const deepAdd = Math.floor(8 + Math.random() * 6);
-          const remAdd = Math.floor(7 + Math.random() * 6);
-          const lightAdd = Math.floor(15 + Math.random() * 10);
-          const prevSleep = cur.sleep || { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
-          cur.sleep = {
-            deepMin: prevSleep.deepMin + deepAdd,
-            remMin: prevSleep.remMin + remAdd,
-            lightMin: prevSleep.lightMin + lightAdd,
-            awakeMin: prevSleep.awakeMin + 2,
-            score: Math.min(95, Math.max(40, Math.round(((prevSleep.deepMin + deepAdd + prevSleep.remMin + remAdd) / 180) * 100))),
-          };
-          cur.pillars = {
-            ...cur.pillars,
-            sleep: cur.sleep.score,
-            recovery: Math.min(98, cur.hrv + 18),
-          };
-          setLiveBpm(cur.bpm);
-        }
-
-        next[dayIdx] = cur;
-        try {
-          localStorage.setItem('vyta_week_data', JSON.stringify(next));
-        } catch (e) {}
-        return next;
-      });
-
     }, 1000);
 
     return () => clearInterval(timer);

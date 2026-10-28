@@ -106,21 +106,13 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     // 2. Send start command to ring hardware via BLE
     qringBle.startRealTimeHeartRate();
 
-    // 3. Countdown timer + realistic PPG dynamic sampling
+    // 3. Countdown timer
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           handleStopMeasure(true);
           return 0;
         }
-
-        // Realistic PPG sensor micro-fluctuations during live sampling (e.g. 66-74 BPM)
-        setLiveBpm((prevBpm) => {
-          const base = prevBpm && prevBpm >= 50 && prevBpm <= 120 ? prevBpm : 68;
-          const delta = (Math.random() - 0.48) * 1.6;
-          return Math.round(Math.max(62, Math.min(82, base + delta)));
-        });
-
         return prev - 1;
       });
     }, 1000);
@@ -377,7 +369,7 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
       phaseRef.current = (phaseRef.current + dt * beatsPerSec) % 1.0;
 
       const rawVal = getEcgValue(phaseRef.current);
-      const noise = Math.sin(now * 0.012) * 0.35 + (Math.random() - 0.5) * 0.25;
+      const noise = Math.sin(now * 0.012) * 0.35;
       const currentSample = Math.max(-13.5, Math.min(20.5, rawVal + noise));
 
       const targetPoints = targetPointsRef.current || 240;
@@ -589,41 +581,24 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
             <Heart size={13} color="#FF5A52" strokeWidth={1.8} style={{ opacity: 0.8 }} />
           </div>
         ) : isMeasuring ? null : (
-          <button
-            type="button"
-            onClick={handleToggleMeasure}
-            title={language === 'fr' ? 'Lancer le capteur de fréquence cardiaque en direct' : 'Start real-time heart rate sensor'}
+          <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
+              padding: '4px 10px',
               borderRadius: '999px',
-              background: 'rgba(255, 255, 255, 0.07)',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              color: 'rgba(250, 247, 242, 0.95)',
-              fontSize: '11px',
-              fontWeight: 450,
-              cursor: 'pointer',
-              outline: 'none',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              WebkitTapHighlightColor: 'transparent',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              color: 'rgba(250, 247, 242, 0.85)',
+              fontSize: '10.5px',
+              fontWeight: 500,
+              fontFamily: 'var(--font-mono)',
             }}
           >
-            <Heart
-              size={12}
-              color="#FF453A"
-              fill="#FF453A"
-              style={{
-                filter: 'drop-shadow(0 0 4px rgba(255, 69, 58, 0.6))',
-                animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
-              }}
-            />
-            <span>{language === 'fr' ? 'Mesurer en direct' : 'Live Measure'}</span>
-          </button>
+            <Heart size={11} color="#FF453A" fill="#FF453A" />
+            <span>{language === 'fr' ? 'Relevé 30 min' : 'Every 30 min'}</span>
+          </div>
         )}
       </div>
 
