@@ -993,7 +993,7 @@ class QRingBleService {
    * 4. Command 105 (0x69, DataType.BloodOxygen=3, DataAction.Start=1): Activates Red + Green PPG LEDs
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
-    console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring LEDs)...');
+    console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring GREEN LED (Cardiac PPG))...');
     
     // If not currently connected, attempt quick silent auto-reconnect before failing
     if (!this.isConnected()) {
@@ -1018,13 +1018,7 @@ class QRingBleService {
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
     await this.writeBytes(p105_1);
 
-    // DataType 3 = BloodOxygen (SpO2), Action 1 = Start (activates red + green optical LEDs)
-    const p105_3 = this.makePacket(0x69, [0x03, 0x01]);
-    await this.writeBytes(p105_3);
-
-    // 3. Alternative pulse start (01 01 ... 02)
-    const pAlt = this.makePacket(0x01, [0x01]);
-    await this.writeBytes(pAlt);
+    // Note: Only RealtimeHeartRate & HeartRate are sent so physical ring turns ON exclusively the GREEN optical LED
 
     return ok;
   }
@@ -1037,7 +1031,7 @@ class QRingBleService {
    * 3. Command 106 (0x6A, DataType, 0, 0)
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
-    console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring LEDs)...');
+    console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring GREEN LED)...');
     
     // 1. Native QRing Command 30 Stop (0x1E, 0x00)
     const p30 = this.makePacket(0x1E, [0x00]);
@@ -1050,17 +1044,34 @@ class QRingBleService {
     const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
     await this.writeBytes(p105_1_stop);
 
-    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
-    await this.writeBytes(p105_3_stop);
+
 
     // 3. Command 106 Stop (0x6A)
     const p106_stop = this.makePacket(0x6A, [0x06, 0x00, 0x00]);
     await this.writeBytes(p106_stop);
 
-    // 4. Alternative pulse stop
-    const pAltStop = this.makePacket(0x01, [0x00]);
-    await this.writeBytes(pAltStop);
 
+
+    return ok;
+  }
+
+  /**
+   * Trigger real-time optical SpO2 measurement on physical ring:
+   * Turns ON the RED + Infrared optical sensors (DataType.BloodOxygen = 3)
+   */
+  public async startRealTimeBloodOxygen(): Promise<boolean> {
+    console.log('[QRing BLE] Triggering live optical SpO2 measurement (Turning ON ring RED LED)...');
+    if (!this.isConnected()) return false;
+    const p105_3 = this.makePacket(0x69, [0x03, 0x01]);
+    return await this.writeBytes(p105_3);
+  }
+
+  public async stopRealTimeBloodOxygen(): Promise<boolean> {
+    console.log('[QRing BLE] Stopping live optical SpO2 measurement (Turning OFF ring RED LED)...');
+    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
+    const ok = await this.writeBytes(p105_3_stop);
+    const p106_stop = this.makePacket(0x6A, [0x03, 0x00, 0x00]);
+    await this.writeBytes(p106_stop);
     return ok;
   }
 
