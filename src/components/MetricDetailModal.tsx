@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { WeekSelector } from './WeekSelector';
 import { weekMetrics, TODAY_INDEX, WEEK, emptyDayMetrics, DayMetrics } from '../data/health';
@@ -414,7 +414,48 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const [isMeasuring, setIsMeasuring] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(20);
+
+  const liveBpmRef = useRef(liveBpm);
+  liveBpmRef.current = liveBpm;
+
+  const handleStopMeasure = useCallback((completed = false) => {
+    setIsMeasuring(false);
+    setCountdown(20);
+    qringBle.stopRealTimeHeartRate();
+
+    const finalBpm = liveBpmRef.current;
+    if (completed && finalBpm > 35) {
+      setWeekData((prev) => {
+        const next = [...prev];
+        const idx = Math.min(6, Math.max(0, selectedDay));
+        const cur = { ...(next[idx] || {}) };
+        cur.bpm = finalBpm;
+        cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
+        cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
+        if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
+        next[idx] = cur as DayMetrics;
+        try {
+          localStorage.setItem('vyta_week_data', JSON.stringify(next));
+        } catch (_) {}
+        return next;
+      });
+    }
+  }, [selectedDay, setWeekData]);
+
+  const handleStartMeasure = () => {
+    setCountdown(20);
+    setIsMeasuring(true);
+    qringBle.startRealTimeHeartRate();
+  };
+
+  const handleToggleMeasure = () => {
+    if (isMeasuring) {
+      handleStopMeasure(false);
+    } else {
+      handleStartMeasure();
+    }
+  };
 
   // Value for the selected day in WeekSelector
   const dayMetricValue = React.useMemo(() => {
@@ -457,12 +498,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          setIsMeasuring(false);
-          setCountdown(30);
-          qringBle.stopRealTimeHeartRate();
+          handleStopMeasure(true);
           return 0;
         }
-        // Waiting for real physical optical sensor PPG packet from ring hardware
         return prev - 1;
       });
     }, 1000);
@@ -470,8 +508,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     return () => {
       clearInterval(timer);
       unsubscribe();
+      qringBle.stopRealTimeHeartRate();
     };
-  }, [isMeasuring, metricId, setLiveBpm]);
+  }, [isMeasuring, metricId, handleStopMeasure, setLiveBpm]);
 
   const isEn = language === 'en';
   const displayTitle = isEn ? detail.titleEn : detail.title;
@@ -508,19 +547,33 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
               ]));
 
-  // Active dataset based on selected day curve
+  // Active dataset based on selected day curve (48 créneaux de 30 min de 00:00 à 23h)
   const dataset: MetricDataPoint[] = React.useMemo(() => {
-    if (isZeroState || !detail.points24h || detail.points24h.length === 0) {
-      return [
-        { label: '00:00', value: 0 },
-        { label: '06:00', value: 0 },
-        { label: '12:00', value: 0 },
-        { label: '18:00', value: 0 },
-        { label: '23:59', value: 0 },
-      ];
+    const slots: MetricDataPoint[] = [];
+    for (let h = 0; h < 24; h++) {
+      for (const m of [0, 30]) {
+        const hStr = h.toString().padStart(2, '0');
+        const mStr = m.toString().padStart(2, '0');
+        slots.push({
+          label: `${hStr}:${mStr}`,
+          value: 0,
+        });
+      }
     }
-    return detail.points24h;
-  }, [detail, isZeroState]);
+
+    // Si des données biométriques réelles sont enregistrées pour cette journée
+    if (!isZeroState && dayMetricValue > 0) {
+      if (selectedDay === TODAY_INDEX) {
+        const now = new Date();
+        const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+        slots[curIdx].value = dayMetricValue;
+      } else {
+        slots[24].value = dayMetricValue;
+      }
+    }
+
+    return slots;
+  }, [dayMetricValue, isZeroState, selectedDay]);
 
   // Active point when hovering or default to latest
   const activePoint: MetricDataPoint =
@@ -539,12 +592,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const plotWidth = chartWidth - paddingLeft - paddingRight;
   const plotHeight = bottomY - paddingTop;
 
-  const values = dataset.map((d) => d.value);
-  const minVal = Math.min(detail.minVal, ...values);
-  const maxVal = Math.max(detail.maxVal, ...values);
+  const nonZeroValues = dataset.map((d) => d.value).filter((v) => v > 0);
+  const minVal = nonZeroValues.length > 0 ? Math.min(detail.minVal, ...nonZeroValues) : detail.minVal;
+  const maxVal = nonZeroValues.length > 0 ? Math.max(detail.maxVal, ...nonZeroValues) : detail.maxVal;
   const range = maxVal - minVal || 1;
   const midVal = (minVal + maxVal) / 2;
-  const avgVal = values.reduce((sum, v) => sum + v, 0) / (values.length || 1);
+  const avgVal = nonZeroValues.length > 0 ? nonZeroValues.reduce((sum, v) => sum + v, 0) / nonZeroValues.length : 0;
 
   const getX = (i: number) => {
     if (dataset.length <= 1) return paddingLeft;
@@ -1109,30 +1162,81 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </svg>
               </div>
 
-              {/* Cadence fixe toutes les 30 minutes (0 continu) */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '5px 13px',
-                    borderRadius: '999px',
-                    background: 'rgba(255, 69, 58, 0.12)',
-                    border: '1px solid rgba(255, 69, 58, 0.35)',
-                    color: '#FAF7F2',
-                    fontSize: '11px',
-                    fontFamily: 'var(--font-mono)',
-                  }}
-                >
-                  <Clock size={12} color="#FF453A" />
-                  <span>
-                    {language === 'fr'
-                      ? 'Échantillonnage fixe : toutes les 30 min (00:00, 00:30, 01:00...)'
-                      : 'Fixed sampling: every 30 min (00:00, 00:30, 01:00...)'}
-                  </span>
-                </span>
-              </div>
+              {/* Bouton de mesure optique en direct 20 secondes si Fréquence Cardiaque aujourd'hui */}
+              {selectedDay === TODAY_INDEX && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
+                  {isMeasuring ? (
+                    <button
+                      type="button"
+                      onClick={handleToggleMeasure}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 14px',
+                        borderRadius: '999px',
+                        background: 'rgba(255, 69, 58, 0.22)',
+                        border: '1px solid rgba(255, 69, 58, 0.65)',
+                        color: '#FAF7F2',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        boxShadow: '0 0 14px rgba(255, 69, 58, 0.45)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: '#FF453A',
+                          animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
+                        }}
+                      />
+                      <span style={{ color: '#FF5A52', fontFamily: 'var(--font-mono)' }}>{countdown}s</span>
+                      <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.8)' }}>
+                        {language === 'fr' ? 'Arrêter' : 'Stop'}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleToggleMeasure}
+                      title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 14px',
+                        borderRadius: '999px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: '#FAF7F2',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        backdropFilter: 'blur(16px)',
+                        WebkitBackdropFilter: 'blur(16px)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      }}
+                    >
+                      <Heart
+                        size={12}
+                        color="#FF453A"
+                        fill="#FF453A"
+                        style={{
+                          filter: 'drop-shadow(0 0 4px rgba(255, 69, 58, 0.6))',
+                          animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
+                        }}
+                      />
+                      <span>{language === 'fr' ? 'Mesurer en direct (20s)' : 'Live Measure (20s)'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1166,7 +1270,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   color: 'rgba(250, 247, 242, 0.9)',
                 }}
               >
-                {isEn ? 'Scheduled Every 30 Min (00:00, 00:30...)' : 'Relevés toutes les 30 min (00:00, 00:30...)'}
+                {isEn ? '24h Timeline' : 'Évolution sur 24 heures'}
               </span>
             </div>
 
@@ -1179,7 +1283,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             >
               <span>{isEn ? 'Avg: ' : 'Moy: '}</span>
               <strong style={{ color: theme.primary }}>
-                {formatVal(avgVal)} {detail.unit}
+                {avgVal > 0 ? `${formatVal(avgVal)} ${detail.unit}` : '--'}
               </strong>
             </div>
           </div>
@@ -1187,6 +1291,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           <div
             className="metric-svg-wrapper"
             onMouseMove={(e) => handlePointerMove(e.clientX, e.currentTarget.getBoundingClientRect())}
+            onTouchStart={(e) => handlePointerMove(e.touches[0].clientX, e.currentTarget.getBoundingClientRect())}
             onTouchMove={(e) => handlePointerMove(e.touches[0].clientX, e.currentTarget.getBoundingClientRect())}
             onMouseLeave={() => setHoverIndex(null)}
           >
@@ -1370,21 +1475,26 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </>
               )}
 
-              {/* Bottom Time Axis Labels */}
+              {/* Bottom Time Axis Labels (de 00:00 à 23h) */}
               {dataset.map((pt, i) => {
-                const step = dataset.length > 24 ? 8 : 3;
-                if (dataset.length > 12 && i % step !== 0 && i !== dataset.length - 1) return null;
+                const isFirst = i === 0;
+                const isMilestone = i % 8 === 0 && i < 44;
+                const isLast = i === dataset.length - 1;
+                if (!isFirst && !isMilestone && !isLast) return null;
+
+                const textLabel = isLast ? '23h' : pt.label;
                 return (
                   <text
                     key={i}
                     x={getX(i)}
                     y={chartHeight - 4}
-                    textAnchor="middle"
-                    fill="rgba(255, 255, 255, 0.45)"
+                    textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}
+                    fill="rgba(255, 255, 255, 0.55)"
                     fontSize="9"
                     fontFamily="var(--font-mono)"
+                    fontWeight="500"
                   >
-                    {pt.label}
+                    {textLabel}
                   </text>
                 );
               })}
@@ -1429,26 +1539,24 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  {formatVal(activePoint.value)} {detail.unit}
+                  {activePoint.value > 0 ? `${formatVal(activePoint.value)} ${detail.unit}` : '--'}
                 </span>
-                {activePoint.info && (
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      color: 'rgba(250, 247, 242, 0.85)',
-                      padding: '1px 5px',
-                      borderRadius: '4px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                    }}
-                  >
-                    {activePoint.info}
-                  </span>
-                )}
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    color: 'rgba(250, 247, 242, 0.7)',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  {activePoint.value > 0 ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
+                </span>
               </div>
             )}
           </div>
 
-          {/* Grille des 48 relevés fixes de 30 minutes (00:00, 00:30, 01:00, 01:30...) */}
+          {/* Grille des 48 relevés de la journée */}
           {metricId === 'bpm' && (
             <div
               style={{
@@ -1462,10 +1570,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.8)' }}>
-                  {isEn ? '30-Minute Scheduled Readings (0 Continuous)' : 'Relevés fixes toutes les 30 min (0 continu)'}
+                  {isEn ? 'Daily Timeline' : 'Relevés de la journée'}
                 </span>
                 <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', fontFamily: 'var(--font-mono)' }}>
-                  48 {isEn ? 'slots / 24h' : 'créneaux / 24h'}
+                  {isEn ? '48 slots (30 min)' : '48 créneaux (30 min)'}
                 </span>
               </div>
               <div

@@ -23,14 +23,17 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
   const isPastDay = selectedDay < TODAY_INDEX;
 
   const [isMeasuring, setIsMeasuring] = useState(false);
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(20);
   const [justCompleted, setJustCompleted] = useState(false);
+
+  const liveBpmRef = useRef(liveBpm);
+  liveBpmRef.current = liveBpm;
 
   // BPM de la journée sélectionnée (ou BPM direct pendant une mesure active)
   const dayBpm = dayData?.bpm || 0;
-  const rawBpm = isMeasuring ? liveBpm : dayBpm;
+  const rawBpm = isMeasuring ? (liveBpm > 0 ? liveBpm : dayBpm) : dayBpm;
   const displayBpm = rawBpm > 0 ? rawBpm : 0;
-  const displayBpmText = displayBpm > 0 ? String(displayBpm) : '--';
+  const displayBpmText = displayBpm > 0 ? String(displayBpm) : (isMeasuring ? '...' : '--');
   const minBpmText = (dayData?.minBpm && dayData.minBpm > 0) ? String(dayData.minBpm) : '--';
   const maxBpmText = (dayData?.maxBpm && dayData.maxBpm > 0) ? String(dayData.maxBpm) : '--';
 
@@ -38,24 +41,25 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
   const handleStopMeasure = useCallback((completed = false) => {
     setIsMeasuring(false);
-    setCountdown(30);
+    setCountdown(20);
     qringBle.stopRealTimeHeartRate();
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate(35); } catch (_) {}
     }
 
-    if (completed && liveBpm > 35) {
+    const finalBpm = liveBpmRef.current;
+    if (completed && finalBpm > 35) {
       setJustCompleted(true);
       setTimeout(() => setJustCompleted(false), 3600);
       setWeekData(prev => {
         const next = [...prev];
         const idx = Math.min(6, Math.max(0, selectedDay));
         const cur = { ...(next[idx] || {}) };
-        const finalBpm = liveBpm;
         cur.bpm = finalBpm;
         cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
         cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
+        if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
         next[idx] = cur as DayMetrics;
         try {
           localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -63,7 +67,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         return next;
       });
     }
-  }, [liveBpm, selectedDay, setWeekData]);
+  }, [selectedDay, setWeekData]);
 
   const handleStartMeasure = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -71,7 +75,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       try { navigator.vibrate([18, 30, 22]); } catch (_) {}
     }
     setJustCompleted(false);
-    setCountdown(30);
+    setCountdown(20);
     qringBle.startRealTimeHeartRate();
     setIsMeasuring(true);
   };
@@ -92,7 +96,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }
   }, [selectedDay, isToday, isMeasuring, handleStopMeasure]);
 
-  // Real-time PPG measurement lifecycle for today
+  // Real-time PPG measurement lifecycle for today (20 secondes)
   useEffect(() => {
     if (!isMeasuring || !isToday) return;
 
@@ -106,7 +110,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     // 2. Send start command to ring hardware via BLE
     qringBle.startRealTimeHeartRate();
 
-    // 3. Countdown timer
+    // 3. Countdown timer 20 seconds
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -120,6 +124,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     return () => {
       clearInterval(timer);
       unsubscribe();
+      qringBle.stopRealTimeHeartRate();
     };
   }, [isMeasuring, isToday, handleStopMeasure, setLiveBpm]);
 
@@ -580,25 +585,76 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
           >
             <Heart size={13} color="#FF5A52" strokeWidth={1.8} style={{ opacity: 0.8 }} />
           </div>
-        ) : isMeasuring ? null : (
-          <div
+        ) : isMeasuring ? (
+          <button
+            type="button"
+            onClick={handleToggleMeasure}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px 10px',
+              padding: '4px 11px',
               borderRadius: '999px',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.14)',
-              color: 'rgba(250, 247, 242, 0.85)',
-              fontSize: '10.5px',
-              fontWeight: 500,
-              fontFamily: 'var(--font-mono)',
+              background: 'rgba(255, 69, 58, 0.18)',
+              border: '1px solid rgba(255, 69, 58, 0.55)',
+              color: '#FAF7F2',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              outline: 'none',
+              boxShadow: '0 0 12px rgba(255, 69, 58, 0.4)',
             }}
           >
-            <Heart size={11} color="#FF453A" fill="#FF453A" />
-            <span>{language === 'fr' ? 'Relevé 30 min' : 'Every 30 min'}</span>
-          </div>
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                backgroundColor: '#FF453A',
+                animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
+              }}
+            />
+            <span style={{ color: '#FF5A52', fontFamily: 'var(--font-mono)' }}>{countdown}s</span>
+            <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.7)' }}>
+              {language === 'fr' ? 'Arrêter' : 'Stop'}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleToggleMeasure}
+            title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 11px',
+              borderRadius: '999px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#FAF7F2',
+              fontSize: '11px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              outline: 'none',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <Heart
+              size={12}
+              color="#FF453A"
+              fill="#FF453A"
+              style={{
+                filter: 'drop-shadow(0 0 4px rgba(255, 69, 58, 0.6))',
+                animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
+              }}
+            />
+            <span>{justCompleted ? (language === 'fr' ? 'Enregistré' : 'Saved') : (language === 'fr' ? 'Mesurer (20s)' : 'Measure (20s)')}</span>
+          </button>
         )}
       </div>
 
