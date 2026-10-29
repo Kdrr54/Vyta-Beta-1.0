@@ -25,6 +25,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [countdown, setCountdown] = useState(20);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [measureFeedback, setMeasureFeedback] = useState<string | null>(null);
 
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
@@ -49,25 +50,34 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }
 
     const finalBpm = liveBpmRef.current;
-    if (completed && finalBpm > 35) {
-      setJustCompleted(true);
-      setTimeout(() => setJustCompleted(false), 3600);
-      setWeekData(prev => {
-        const next = [...prev];
-        const idx = Math.min(6, Math.max(0, selectedDay));
-        const cur = { ...(next[idx] || {}) };
-        cur.bpm = finalBpm;
-        cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
-        cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
-        if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
-        next[idx] = cur as DayMetrics;
-        try {
-          localStorage.setItem('vyta_week_data', JSON.stringify(next));
-        } catch (_) {}
-        return next;
-      });
+    if (completed) {
+      if (finalBpm > 35) {
+        setJustCompleted(true);
+        setMeasureFeedback(language === 'fr' ? `✓ ${finalBpm} BPM mesuré et enregistré` : `✓ ${finalBpm} BPM measured & saved`);
+        setTimeout(() => {
+          setJustCompleted(false);
+          setMeasureFeedback(null);
+        }, 4500);
+        setWeekData(prev => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) };
+          cur.bpm = finalBpm;
+          cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
+          cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
+          if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
+          next[idx] = cur as DayMetrics;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      } else {
+        setMeasureFeedback(language === 'fr' ? 'Pouls non détecté (gardez la bague bien serrée au doigt)' : 'No pulse detected (keep ring snug on finger)');
+        setTimeout(() => setMeasureFeedback(null), 4500);
+      }
     }
-  }, [selectedDay, setWeekData]);
+  }, [language, selectedDay, setWeekData]);
 
   const handleStartMeasure = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -796,6 +806,26 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
           </span>
         </div>
       </div>
+
+      {measureFeedback && (
+        <div
+          style={{
+            marginTop: '8px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: justCompleted ? 'rgba(48, 209, 88, 0.15)' : 'rgba(255, 69, 58, 0.18)',
+            border: justCompleted ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(255, 69, 58, 0.45)',
+            color: justCompleted ? '#30D158' : '#FF5A52',
+            fontSize: '10.5px',
+            fontWeight: 600,
+            textAlign: 'center',
+            letterSpacing: '0.01em',
+            zIndex: 3,
+          }}
+        >
+          {measureFeedback}
+        </div>
+      )}
     </div>
   );
 };

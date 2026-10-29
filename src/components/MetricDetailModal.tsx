@@ -415,6 +415,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [countdown, setCountdown] = useState(20);
+  const [measureFeedback, setMeasureFeedback] = useState<string | null>(null);
 
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
@@ -425,23 +426,30 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     qringBle.stopRealTimeHeartRate();
 
     const finalBpm = liveBpmRef.current;
-    if (completed && finalBpm > 35) {
-      setWeekData((prev) => {
-        const next = [...prev];
-        const idx = Math.min(6, Math.max(0, selectedDay));
-        const cur = { ...(next[idx] || {}) };
-        cur.bpm = finalBpm;
-        cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
-        cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
-        if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
-        next[idx] = cur as DayMetrics;
-        try {
-          localStorage.setItem('vyta_week_data', JSON.stringify(next));
-        } catch (_) {}
-        return next;
-      });
+    if (completed) {
+      if (finalBpm > 35) {
+        setMeasureFeedback(language === 'fr' ? `✓ ${finalBpm} BPM mesuré et enregistré` : `✓ ${finalBpm} BPM measured & saved`);
+        setTimeout(() => setMeasureFeedback(null), 4500);
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) };
+          cur.bpm = finalBpm;
+          cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
+          cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
+          if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
+          next[idx] = cur as DayMetrics;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      } else {
+        setMeasureFeedback(language === 'fr' ? 'Pouls non détecté (gardez la bague bien serrée au doigt)' : 'No pulse detected (keep ring snug on finger)');
+        setTimeout(() => setMeasureFeedback(null), 4500);
+      }
     }
-  }, [selectedDay, setWeekData]);
+  }, [language, selectedDay, setWeekData]);
 
   const handleStartMeasure = () => {
     setCountdown(20);
@@ -1235,6 +1243,25 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       <span>{language === 'fr' ? 'Mesurer en direct (20s)' : 'Live Measure (20s)'}</span>
                     </button>
                   )}
+                </div>
+              )}
+
+              {selectedDay === TODAY_INDEX && measureFeedback && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
+                  <div
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '999px',
+                      background: 'rgba(255, 69, 58, 0.16)',
+                      border: '1px solid rgba(255, 69, 58, 0.45)',
+                      color: '#FF5A52',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {measureFeedback}
+                  </div>
                 </div>
               )}
             </div>
