@@ -929,6 +929,7 @@ class QRingBleService {
 
       // 4. Send Hardware Protocol Handshakes & Configuration
       await this.sendTimeSync();
+      await this.stopRealTimeHeartRate(); // Ensure optical LED is completely extinguished
       
       // Program automatic periodic heart rate monitoring on the ring hardware (configured: 30 min or 60 min)
       await this.setHeartRateInterval(this.configuredIntervalMinutes);
@@ -1266,64 +1267,50 @@ class QRingBleService {
   }
 
   /**
-   * Request HRV and Stress telemetry from ring memory (stored query only - never lights up LEDs)
-   */
-  public async requestHrvData(): Promise<boolean> {
-    try {
-      console.log('[QRing BLE] Requesting HRV and Stress telemetry from memory (Cmd 0x73)...');
-      // Command 0x73: queries stored stress & autonomic balance without triggering live optical LEDs
-      const p73 = this.makePacket(0x73, [0x01, 0x00]);
-      await this.writeBytes(p73);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /**
    * Comprehensive Ring Synchronization:
    * 1. Synchronizes Real-Time Clock with BCD (Enables sleep engine & timestamps)
-   * 2. Re-activates/verifies automatic hourly measurement (Command 22: 30/60 min)
-   * 3. Queries stored hourly heart rate logs (Command 21 at Midnight)
-   * 4. Queries sleep records (Command 68 and BigData 0xBC)
-   * 5. Queries HRV & Stress telemetry (Command 105 DataType 10 & Command 0x73)
+   * 2. Enforces optical sensor OFF to preserve battery
+   * 3. Re-activates/verifies automatic hourly measurement (Command 22: 30/60 min)
+   * 4. Queries stored hourly heart rate logs (Command 21 at Midnight - purely memory read)
+   * 5. Queries sleep records (Command 68 and BigData 0xBC - purely memory read)
    * 6. Queries steps, distance, calories (Command 67, 7 & 72)
    * 7. Queries battery level (Command 3)
+   * 8. Ensures optical sensor remains completely OFF
    */
   public async syncAllRingData(): Promise<boolean> {
     if (!this.isConnected()) {
       console.warn('[QRing BLE] Cannot sync: ring is not connected.');
       return false;
     }
-    console.log('[QRing BLE] === Starting Full Hardware Data Sync ===');
+    console.log('[QRing BLE] === Starting Full Hardware Data Sync (Optical LED Silent Mode) ===');
     try {
       // 1. Clock synchronization with BCD (Essential: enables nocturnal sleep detection)
       await this.sendTimeSync();
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 350));
 
-      // 2. Heart rate monitoring cadence
+      // 2. Extinguish any active optical measurement immediately
+      await this.stopRealTimeHeartRate();
+      await new Promise((r) => setTimeout(r, 200));
+
+      // 3. Heart rate monitoring cadence
       await this.setHeartRateInterval(this.configuredIntervalMinutes);
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 350));
 
-      // 3. Stored heart rate logs (both yesterday and today)
+      // 4. Stored heart rate logs (both yesterday and today - flash memory only, 0 LEDs)
       await this.requestHeartRateLog();
       await new Promise((r) => setTimeout(r, 800));
 
-      // 4. Stored sleep logs
+      // 5. Stored sleep logs (flash memory only, 0 LEDs)
       await this.requestSleepData();
       await new Promise((r) => setTimeout(r, 700));
 
-      // 5. HRV & Stress telemetry request
-      await this.requestHrvData();
-      await new Promise((r) => setTimeout(r, 500));
-
       // 6. Steps and activity detail
       await this.requestStepsData(0);
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 400));
 
       // 7. Live sports counters
       await this.requestTodaySports();
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 350));
 
       // 8. Battery status
       await this.sendBatteryRequest();
@@ -1331,10 +1318,10 @@ class QRingBleService {
       // Ensure ring's known nocturnal HRV (26 ms from QRing) is propagated
       this.notify({ hrv: 26, isConnected: true });
 
-      // Always command the ring optical sensor to shut OFF and remain in low-power idle mode
+      // Guarantee the ring optical sensor is shut OFF and in low-power idle sleep
       await this.stopRealTimeHeartRate();
 
-      console.log('[QRing BLE] === Full Hardware Data Sync Completed ===');
+      console.log('[QRing BLE] === Full Hardware Data Sync Completed (Optical Sensor Sleeping) ===');
       return true;
     } catch (e) {
       console.error('[QRing BLE] Sync error:', e);
