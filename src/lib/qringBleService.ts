@@ -1348,16 +1348,14 @@ class QRingBleService {
 
   /**
    * Start real-time heart rate sensor on the ring (Illuminates Green Optical LEDs)
-   * Official QRing / Colmi R02 protocol:
-   * 1. Command 30 (0x1E, type 0x03): Native QRing realtime heart rate start
-   * 2. Command 105 (0x69, DataType.RealtimeHeartRate=6, DataAction.Start=1)
-   * 3. Command 105 (0x69, DataType.HeartRate=1, DataAction.Start=1)
-   * 4. Command 105 (0x69, DataType.BloodOxygen=3, DataAction.Start=1): Activates Red + Green PPG LEDs
+   * Official QRing / Colmi R02 protocol (colmi_r02_client / QCBandSDK):
+   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action = 1, 0...]
+   * Response packet: [0x69, 0x01, errorCode (0 = OK), heartRateBpm, ...]
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
     this.isRealTimeHrActive = true;
-    console.log('[QRing BLE] Triggering live optical PPG measurement (Turning ON ring GREEN LED (Cardiac PPG))...');
-    
+    console.log('[QRing BLE] Triggering live optical PPG measurement (Command 0x69 [0x01, 0x01])...');
+
     // If not currently connected, attempt quick silent auto-reconnect before failing
     if (!this.isConnected()) {
       console.warn('[QRing BLE] Ring not connected on live measure request. Running silent reconnect...');
@@ -1368,67 +1366,27 @@ class QRingBleService {
       }
     }
 
-    // 1. Native QRing Command 30 (0x1E) Realtime Heart Rate request (type = 3)
-    const p30 = this.makePacket(0x1E, [0x03]);
-    const ok = await this.writeBytes(p30);
-
-    // Single measure variant (used by some Colmi R02 firmware)
-    const p30_single = this.makePacket(0x1E, [0x01]);
-    await this.writeBytes(p30_single);
-
-    // 2. Official Colmi / QRing DataRequest (Command 105 = 0x69)
-    // DataType 6 = RealtimeHeartRate, Action 1 = Start
-    const p105_6 = this.makePacket(0x69, [0x06, 0x01]);
-    await this.writeBytes(p105_6);
-
-    // DataType 1 = HeartRate, Action 1 = Start
+    // Send ONLY the official QRing HeartRate (DataType = 1) command.
+    // Sending DataType = 6 (0x06) or Command 30 (0x1E) triggers ECG/SpO2/raw PPG (~96) instead of BPM!
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
-    await this.writeBytes(p105_1);
-
-    return ok;
-
-    // Note: Only RealtimeHeartRate & HeartRate are sent so physical ring turns ON exclusively the GREEN optical LED
-
+    const ok = await this.writeBytes(p105_1);
     return ok;
   }
 
   /**
    * Stop real-time heart rate sensor on the ring to preserve battery
-   * QRing protocol:
-   * 1. Command 30 (0x1E, type 0x00): Stop
-   * 2. Command 105 (0x69, DataType, Action.Stop=4)
-   * 3. Command 106 (0x6A, DataType, 0, 0)
+   * Official QRing / Colmi R02 protocol:
+   * Command 106 (0x6A): [0x6A, DataType.HeartRate = 1, 0x00, 0x00]
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
     this.isRealTimeHrActive = false;
-    console.log('[QRing BLE] Stopping live optical PPG measurement (Turning OFF ring GREEN LED)...');
-    
-    // 1. Native QRing Command 30 Stop (0x1E, 0x00)
-    const p30 = this.makePacket(0x1E, [0x00]);
-    const ok = await this.writeBytes(p30);
+    console.log('[QRing BLE] Stopping live optical PPG measurement (Command 0x6A [0x01, 0x00, 0x00])...');
 
-    // 2. Command 105 Stop (DataAction.Stop = 4) for all streaming types
-    const p105_6_stop = this.makePacket(0x69, [0x06, 0x04]);
-    await this.writeBytes(p105_6_stop);
+    const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
+    const ok = await this.writeBytes(p106_stop_1);
 
     const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
     await this.writeBytes(p105_1_stop);
-
-    const p105_10_stop = this.makePacket(0x69, [0x0A, 0x04]);
-    await this.writeBytes(p105_10_stop);
-
-    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
-    await this.writeBytes(p105_3_stop);
-
-    // 3. Command 106 Stop (0x6A)
-    const p106_stop_6 = this.makePacket(0x6A, [0x06, 0x00, 0x00]);
-    await this.writeBytes(p106_stop_6);
-
-    const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
-    await this.writeBytes(p106_stop_1);
-
-    const p106_stop_10 = this.makePacket(0x6A, [0x0A, 0x00, 0x00]);
-    await this.writeBytes(p106_stop_10);
 
     return ok;
   }
@@ -1766,54 +1724,27 @@ class QRingBleService {
       }
     }
 
-    // 5. Native QRing Command 30 (0x1E) Realtime Heart Rate Response
-    // Official Colmi R02 / QRing structure: [0x1E, heartRate, 0x00..., crc]
-    // Or sub-command echo: [0x1E, 0x03, heartRate, ...]
-    if (header === 30 || header === 0x1E) {
-      if (len >= 2) {
-        const b1 = dataView.getUint8(1);
-        let bpm = 0;
-        if (b1 >= 40 && b1 <= 200) {
-          bpm = b1;
-        } else if ((b1 === 0x03 || b1 === 0x01 || b1 === 0x00) && len >= 3) {
-          const b2 = dataView.getUint8(2);
-          if (b2 >= 40 && b2 <= 200) {
-            bpm = b2;
-          }
-        }
-
-        if (bpm >= 40 && bpm <= 200) {
-          console.log('[QRing BLE] Command 30 (0x1E) Real PPG Heart Rate Received:', bpm, 'bpm');
-          this.notify({ heartRate: bpm, isConnected: true });
-          return;
-        } else if (b1 === 0) {
-          console.log('[QRing BLE] Command 30 (0x1E) PPG optical sensor acquiring pulse lock...');
-          return;
-        }
-      }
-    }
-
-    // 6. Real-time Heart Rate & HRV stream packet (header 0x69 / 105)
-    // QRing stream layout: 69 <dataType> <action> <value> ...
-    // DataType 6 = RealtimeHeartRate, DataType 1 = HeartRate, DataType 10 = HRV
+    // 5. Official QRing / Colmi R02 Real-time Heart Rate stream packet (header 0x69 / 105)
+    // Exact QRing packet layout (colmi_r02_client / QCBandSDK):
+    //   byte[0] = 0x69 (105)
+    //   byte[1] = dataType (1 = HeartRate, 3 = SpO2, 10 = HRV)
+    //   byte[2] = errorCode (0 = valid reading, != 0 = error)
+    //   byte[3] = value (heartRate in BPM when dataType === 1 and errorCode === 0)
+    // Note: dataType === 6 is ECG/raw PPG (~96) and must NEVER be parsed as BPM!
     if ((header === 0x69 || header === 105) && len >= 4) {
       const dataType = dataView.getUint8(1);
-      if (dataType === 0x06 || dataType === 0x01) {
-        const b3 = dataView.getUint8(3);
-        const b2 = dataView.getUint8(2);
-        const bpm = (b3 >= 40 && b3 <= 200) ? b3 : ((b2 >= 40 && b2 <= 200) ? b2 : 0);
-        if (bpm >= 40 && bpm <= 200) {
-          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm');
-          this.notify({ heartRate: bpm, isConnected: true });
+      const errCode = dataView.getUint8(2);
+      const val = dataView.getUint8(3);
+      if (dataType === 0x01 && errCode === 0) {
+        if (val >= 40 && val <= 200) {
+          console.log('[QRing BLE] Command 105 (0x69, type=1) Real PPG Heart Rate Received:', val, 'bpm');
+          this.notify({ heartRate: val, isConnected: true });
           return;
         }
-      } else if (dataType === 10 || dataType === 0x0A) {
-        const b3 = dataView.getUint8(3);
-        const b2 = dataView.getUint8(2);
-        const hrv = (b3 >= 10 && b3 <= 200) ? b3 : ((b2 >= 10 && b2 <= 200) ? b2 : 0);
-        if (hrv > 0) {
-          console.log('[QRing BLE] Command 105 HRV Received:', hrv, 'ms');
-          this.notify({ hrv, isConnected: true });
+      } else if ((dataType === 10 || dataType === 0x0A) && errCode === 0) {
+        if (val >= 10 && val <= 200) {
+          console.log('[QRing BLE] Command 105 HRV Received:', val, 'ms');
+          this.notify({ hrv: val, isConnected: true });
           return;
         }
       }

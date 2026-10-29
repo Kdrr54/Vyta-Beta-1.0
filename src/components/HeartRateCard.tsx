@@ -90,8 +90,8 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
       try { navigator.vibrate([18, 30, 22]); } catch (_) {}
     }
     setJustCompleted(false);
+    setLiveBpm(0);
     setCountdown(20);
-    qringBle.startRealTimeHeartRate();
     setIsMeasuring(true);
   };
 

@@ -464,9 +464,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   }, [language, selectedDay, setWeekData]);
 
   const handleStartMeasure = () => {
+    setLiveBpm(0);
     setCountdown(20);
     setIsMeasuring(true);
-    qringBle.startRealTimeHeartRate();
   };
 
   const handleToggleMeasure = () => {
