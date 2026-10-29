@@ -45,6 +45,8 @@ export interface DayMetrics {
   restingBpm: number;
   minBpm?: number;
   maxBpm?: number;
+  /** 48 releves reels de la bague, un par demi-heure (00:00 -> 23:30). 0 = pas de mesure. */
+  hrLog?: number[];
   hrv: number;
   hrvBaseline: number;
   tempDelta: number;

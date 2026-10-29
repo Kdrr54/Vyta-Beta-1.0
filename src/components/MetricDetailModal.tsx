@@ -569,6 +569,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       }
     }
 
+    // Fréquence cardiaque : on trace les 48 relevés réels de la bague (un par demi-heure)
+    if (metricId === 'bpm' && Array.isArray(dayData?.hrLog) && dayData!.hrLog!.length === 48) {
+      dayData!.hrLog!.forEach((v, i) => {
+        slots[i].value = v >= 40 && v <= 200 ? v : 0;
+      });
+      return slots;
+    }
+
     // Si des données biométriques réelles sont enregistrées pour cette journée
     if (!isZeroState && dayMetricValue > 0) {
       if (selectedDay === TODAY_INDEX) {
@@ -581,13 +589,17 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, selectedDay]);
+  }, [dayMetricValue, isZeroState, selectedDay, metricId, dayData]);
 
-  // Active point when hovering or default to latest
+  // Active point when hovering or default to latest real measurement
+  const lastMeasuredIdx = (() => {
+    for (let i = dataset.length - 1; i >= 0; i--) if (dataset[i].value > 0) return i;
+    return dataset.length - 1;
+  })();
   const activePoint: MetricDataPoint =
     hoverIndex !== null && dataset[hoverIndex]
       ? dataset[hoverIndex]
-      : dataset[dataset.length - 1];
+      : dataset[lastMeasuredIdx];
 
   // SVG Chart Dimensions & Offsets
   const chartHeight = 160;
@@ -620,10 +632,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  const coordPoints = dataset.map((pt, i) => ({
-    x: getX(i),
-    y: getY(pt.value),
-  }));
+  // On ne relie que les créneaux réellement mesurés (0 = pas de relevé, pas de point)
+  const measuredPoints = dataset
+    .map((pt, i) => ({ x: getX(i), y: getY(pt.value), v: pt.value }))
+    .filter((p) => p.v > 0)
+    .map(({ x, y }) => ({ x, y }));
+  const coordPoints = measuredPoints.length > 0
+    ? measuredPoints
+    : dataset.map((pt, i) => ({ x: getX(i), y: getY(pt.value) }));
   const linePath = getSmoothPath(coordPoints);
   const areaPath = getSmoothArea(coordPoints, bottomY);
 

@@ -110,6 +110,7 @@ class QRingBleService {
   private hrLogFramesExpected = 0;
   private hrLogReadings: number[] = [];
   private hrLogDebounceTimer: any = null;
+  private hrLogRangeMinutes = 5;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -1108,20 +1109,7 @@ class QRingBleService {
     const t2 = (todayMidnightSec >> 16) & 0xFF;
     const t3 = (todayMidnightSec >> 24) & 0xFF;
 
-    // Yesterday midnight (for sleep onset from last night)
-    const yestMidnight = new Date(todayMidnight.getTime() - 24 * 3600 * 1000);
-    const yestMidnightSec = Math.floor(yestMidnight.getTime() / 1000);
-    const y0 = yestMidnightSec & 0xFF;
-    const y1 = (yestMidnightSec >> 8) & 0xFF;
-    const y2 = (yestMidnightSec >> 16) & 0xFF;
-    const y3 = (yestMidnightSec >> 24) & 0xFF;
-
-    // Query yesterday first
-    const pYest = this.makePacket(0x15, [y0, y1, y2, y3]);
-    await this.writeBytes(pYest);
-    await new Promise((r) => setTimeout(r, 650));
-
-    // Query today
+    // Query today only: yesterday's response shares the same accumulator and would overwrite today's curve
     const pToday = this.makePacket(0x15, [t0, t1, t2, t3]);
     const ok = await this.writeBytes(pToday);
     return ok;
@@ -1225,9 +1213,11 @@ class QRingBleService {
     if (this.hrLogReadings.length === 0) return;
 
     const now = new Date();
-    // 288 slots of 5 minutes in a day (24 * 12 = 288)
+    // Slot duration announced by the ring in frame 0 (byte 3), default 5 min (288 slots / day)
+    const slotMin = this.hrLogRangeMinutes;
+    const slotsPerDay = Math.floor(1440 / slotMin);
     const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
-    const currentSlot = Math.min(287, Math.max(0, Math.floor(minutesSinceMidnight / 5)));
+    const currentSlot = Math.min(slotsPerDay - 1, Math.max(0, Math.floor(minutesSinceMidnight / slotMin)));
 
     // Future slots (> currentSlot) contain uninitialized/stale flash bytes from previous days.
     // Zero out all slots after currentSlot:
@@ -1255,9 +1245,20 @@ class QRingBleService {
       console.log(
         `[QRing BLE] Finalized Heart Rate Log (slot ${currentSlot} / ${now.getHours()}h${now.getMinutes()}): latest: ${latestBpm} bpm, resting: ${restingBpm} bpm, min: ${minBpm}, max: ${maxBpm}`
       );
+      // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
+      // Each slot keeps the last real reading measured in that half hour, 0 = no measurement.
+      const halfHourLog: number[] = new Array(48).fill(0);
+      clampedLog.forEach((bpm, slotIdx) => {
+        if (bpm < 40 || bpm > 200) return;
+        const minute = slotIdx * slotMin;
+        const half = Math.floor(minute / 30);
+        if (half >= 0 && half < 48) halfHourLog[half] = bpm;
+      });
+      console.log('[QRing BLE] Half-hour heart rate log:', halfHourLog.join(','));
+
       this.notify({
         heartRate: latestBpm,
-        heartRateLog: clampedLog,
+        heartRateLog: halfHourLog,
         minBpm,
         maxBpm,
         restingBpm,
@@ -1314,9 +1315,6 @@ class QRingBleService {
 
       // 8. Battery status
       await this.sendBatteryRequest();
-
-      // Ensure ring's known nocturnal HRV (26 ms from QRing) is propagated
-      this.notify({ hrv: 26, isConnected: true });
 
       // Guarantee the ring optical sensor is shut OFF and in low-power idle sleep
       await this.stopRealTimeHeartRate();
@@ -1561,6 +1559,8 @@ class QRingBleService {
         }
         if (index === 0 && len >= 3) {
           this.hrLogFramesExpected = dataView.getUint8(2);
+          const range = len >= 4 ? dataView.getUint8(3) : 5;
+          this.hrLogRangeMinutes = range >= 1 && range <= 60 ? range : 5;
           this.hrLogReadings = [];
           console.log('[QRing BLE] Command 21 start of log, expected frames:', this.hrLogFramesExpected);
           return;
@@ -1605,8 +1605,7 @@ class QRingBleService {
         const b5 = dataView.getUint8(5);
         const totalMin = (b4 << 8) | b5;
         if (totalMin >= 90 && totalMin <= 900) {
-          // If totalMin is ~381 (net sleep 6h21), total sleep window on QRing is 508 min (8h28 = 8.47h)
-          const hours = totalMin >= 370 && totalMin <= 390 ? 8.47 : parseFloat((totalMin / 60).toFixed(2));
+          const hours = parseFloat((totalMin / 60).toFixed(2));
           console.log('[QRing BLE] Command 68 parsed sleep duration:', hours, 'hours (', totalMin, 'min )');
           this.notify({ sleepHours: hours, isConnected: true });
           return;
@@ -1733,10 +1732,8 @@ class QRingBleService {
             }
 
             if (dur >= 90 && dur <= 900) {
-              // If dur is ~381 (net sleep 6h21), total sleep window on QRing is 508 min (8h28 = 8.47h)
-              const finalHours = dur >= 370 && dur <= 390 ? 8.47 : h;
-              console.log('[QRing BLE] Parsed valid BigData sleep hours from ring:', finalHours, '(dur min:', dur, ')');
-              this.notify({ sleepHours: finalHours, isConnected: true });
+              console.log('[QRing BLE] Parsed valid BigData sleep hours from ring:', h, '(dur min:', dur, ')');
+              this.notify({ sleepHours: h, isConnected: true });
               return;
             }
           }
@@ -1811,10 +1808,11 @@ class QRingBleService {
       if (len >= 2) {
         const b1 = dataView.getUint8(1);
         const b2 = len >= 3 ? dataView.getUint8(2) : 0;
-        const sVal = (b1 > 0 && b1 <= 100) ? b1 : (b2 > 0 && b2 <= 100 ? b2 : 28);
-        const hVal = (b2 >= 15 && b2 <= 200) ? b2 : 26;
-        console.log('[QRing BLE] Command 0x73 Stress/HRV received: stress', sVal, 'hrv', hVal);
-        this.notify({ stress: sVal, hrv: hVal, isConnected: true });
+        const sVal = (b1 > 0 && b1 <= 100) ? b1 : (b2 > 0 && b2 <= 100 ? b2 : 0);
+        if (sVal > 0) {
+          console.log('[QRing BLE] Command 0x73 Stress received:', sVal);
+          this.notify({ stress: sVal, isConnected: true });
+        }
         return;
       }
     }
