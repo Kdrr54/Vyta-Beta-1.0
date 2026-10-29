@@ -8,12 +8,39 @@ import { CardioAge } from './CardioAge';
 import { HeartRateCard } from './HeartRateCard';
 import { Brain, Flame, Sparkles, ArrowUpRight, TrendingUp, HeartPulse, Activity, Droplets, Wind, Thermometer, Moon } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
+import { qringBle } from '../lib/qringBleService';
 
 export const HealthScreen: React.FC = () => {
   const { selectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
+
+  const [isSyncingRing, setIsSyncingRing] = React.useState(false);
+  const [syncFeedback, setSyncFeedback] = React.useState<string | null>(null);
+
+  const handleSyncRing = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!ring.isConnected) {
+      openModal('settings');
+      return;
+    }
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate([15, 20, 25]); } catch (_) {}
+    }
+    setIsSyncingRing(true);
+    setSyncFeedback(language === 'fr' ? 'Synchronisation de la bague...' : 'Syncing ring data...');
+    try {
+      await qringBle.syncAllRingData();
+      setSyncFeedback(language === 'fr' ? '✓ Données de la bague synchronisées' : '✓ Ring data synchronized');
+    } catch (_) {
+      setSyncFeedback(language === 'fr' ? 'Échec de synchronisation' : 'Sync failed');
+    }
+    setTimeout(() => {
+      setIsSyncingRing(false);
+      setTimeout(() => setSyncFeedback(null), 3000);
+    }, 1800);
+  };
 
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[3]));
   const batteryPct = ring.batteryRing || 0;
@@ -82,20 +109,25 @@ export const HealthScreen: React.FC = () => {
           }}
         />
 
-        {/* 3D Smart Ring embedded as the "O" of FOCUS with Battery inside */}
+        {/* 3D Smart Ring embedded as the "O" of FOCUS with Battery inside - Tap to Synchronize */}
         <div
+          onClick={handleSyncRing}
+          role="button"
+          tabIndex={0}
+          title={language === 'fr' ? 'Toucher pour synchroniser les données de la bague' : 'Tap to sync ring data'}
           style={{
             position: 'absolute',
             left: '34.38%',
             top: '45.0%',
-            transform: 'translate(-50%, -50%)',
+            transform: isSyncingRing ? 'translate(-50%, -50%) scale(1.08)' : 'translate(-50%, -50%)',
             width: '13.09%',
             height: '20.94%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 3,
-            pointerEvents: 'none',
+            cursor: 'pointer',
+            transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
           {/* Smart Ring Front Render */}
@@ -153,6 +185,44 @@ export const HealthScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Floating Synchronization Toast Feedback */}
+      {syncFeedback && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '64px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: 'rgba(20, 20, 22, 0.94)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(217, 249, 112, 0.35)',
+            borderRadius: '24px',
+            padding: '8px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#FAF7F2',
+            fontSize: '12.5px',
+            fontWeight: 500,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: '#D9F970',
+              boxShadow: '0 0 10px #D9F970',
+            }}
+          />
+          {syncFeedback}
+        </div>
+      )}
 
 
 

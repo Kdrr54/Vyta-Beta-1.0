@@ -42,6 +42,11 @@ export const QRING_ALT_SERVICE_UUID = QRING_SERVICE_UUID;
 export const QRING_ALT_RX_CHAR_UUID = QRING_RX_CHAR_UUID;
 export const QRING_ALT_TX_CHAR_UUID = QRING_TX_CHAR_UUID;
 
+// Big Data Service (Used for bulk historical Sleep and SpO2 transfer)
+export const BIG_DATA_SERVICE_UUID = 'de5bf728-d711-4e47-af26-65e3012a5dc7';
+export const BIG_DATA_RX_UUID = 'de5bf72a-d711-4e47-af26-65e3012a5dc7'; // Write
+export const BIG_DATA_TX_UUID = 'de5bf729-d711-4e47-af26-65e3012a5dc7'; // Notify
+
 export const STANDARD_BATTERY_SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb';
 export const STANDARD_BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb';
 
@@ -93,6 +98,16 @@ class QRingBleService {
   private activeServiceUuid = QRING_SERVICE_UUID;
   private activeRxUuid = QRING_RX_CHAR_UUID;
   private activeTxUuid = QRING_TX_CHAR_UUID;
+
+  // Big Data GATT handles (de5bf728)
+  private hasBigDataService = false;
+  private activeBigDataServiceUuid = BIG_DATA_SERVICE_UUID;
+  private activeBigDataRxUuid: string | null = null;
+  private activeBigDataTxUuid: string | null = null;
+
+  // Stored Heart Rate Log multi-packet accumulator
+  private hrLogFramesExpected = 0;
+  private hrLogReadings: number[] = [];
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -809,6 +824,23 @@ class QRingBleService {
 
         for (const s of services) {
           const sUuid = s.uuid.toLowerCase();
+          // Detect Big Data Service for bulk sleep/spo2 (de5bf728)
+          if (sUuid.includes('de5b')) {
+            this.hasBigDataService = true;
+            this.activeBigDataServiceUuid = s.uuid;
+            for (const c of s.characteristics) {
+              const cUuid = c.uuid.toLowerCase();
+              if (cUuid.includes('de5bf72a') || c.properties.write || c.properties.writeWithoutResponse) {
+                this.activeBigDataRxUuid = c.uuid;
+                console.log('[QRing BLE Native] Matched BigData RX char:', c.uuid);
+              }
+              if (cUuid.includes('de5bf729') || c.properties.notify || c.properties.indicate) {
+                this.activeBigDataTxUuid = c.uuid;
+                console.log('[QRing BLE Native] Matched BigData TX char:', c.uuid);
+              }
+            }
+          }
+
           for (const c of s.characteristics) {
             // Prioritize QRing vendor service 6e40fff0, Nordic UART 6e40, or Colmi/Tencent fee7
             if (sUuid.includes('fff0') || sUuid.includes('6e40') || sUuid.includes('fee7')) {
@@ -857,6 +889,23 @@ class QRingBleService {
           console.log('[QRing BLE Native] Fallback notifications active on QRING_SERVICE_UUID');
         } catch (e2) {
           console.warn('[QRing BLE Native] Fallback notifications also failed:', e2);
+        }
+      }
+
+      // 2b. Start Big Data TX Notifications if service is supported by ring hardware
+      if (this.hasBigDataService && this.activeBigDataTxUuid) {
+        try {
+          await BleClient.startNotifications(
+            deviceId,
+            this.activeBigDataServiceUuid,
+            this.activeBigDataTxUuid,
+            (val) => {
+              this.handleVendorNotification(val);
+            }
+          );
+          console.log('[QRing BLE Native] Big Data notifications active on:', this.activeBigDataTxUuid);
+        } catch (eBd) {
+          console.warn('[QRing BLE Native] Big Data startNotifications warning:', eBd);
         }
       }
 
@@ -988,21 +1037,34 @@ class QRingBleService {
   }
 
   /**
-   * Send Time Sync Handshake to Ring
-   * QRing / Colmi official command:
-   * Opcode 0x01: [year % 100, month (1..12), day, hour, min, sec]
+   * Helper: Convert decimal value to Binary Coded Decimal (BCD)
+   * Required by Colmi R02 / QRing real-time clock firmware.
    */
-  public async sendTimeSync() {
+  private toBcd(val: number): number {
+    const clamped = Math.max(0, Math.min(99, Math.floor(val)));
+    const tens = Math.floor(clamped / 10);
+    const ones = clamped % 10;
+    return (tens << 4) | ones;
+  }
+
+  /**
+   * Send Time Sync Handshake to Ring
+   * Official Colmi R02 / QRing format:
+   * Opcode 0x01: [bcdYear, bcdMonth, bcdDay, bcdHour, bcdMin, bcdSec, language=1 (English)]
+   * CRITICAL: Must be BCD encoded or ring firmware rejects the packet and leaves clock uninitialized.
+   */
+  public async sendTimeSync(): Promise<boolean> {
     const now = new Date();
-    const year = now.getFullYear() % 100; // e.g. 26
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    const hour = now.getHours();
-    const min = now.getMinutes();
-    const sec = now.getSeconds();
-    const packet = this.makePacket(0x01, [year, month, day, hour, min, sec]);
-    await this.writeBytes(packet);
-    console.log('[QRing BLE] Sent Time Sync Handshake');
+    const bcdYear = this.toBcd(now.getFullYear() % 100);
+    const bcdMonth = this.toBcd(now.getMonth() + 1);
+    const bcdDay = this.toBcd(now.getDate());
+    const bcdHour = this.toBcd(now.getHours());
+    const bcdMin = this.toBcd(now.getMinutes());
+    const bcdSec = this.toBcd(now.getSeconds());
+    const packet = this.makePacket(0x01, [bcdYear, bcdMonth, bcdDay, bcdHour, bcdMin, bcdSec, 1]);
+    const ok = await this.writeBytes(packet);
+    console.log('[QRing BLE] Sent Time Sync Handshake (BCD):', ok ? 'OK' : 'Failed', `(${now.toLocaleDateString()} ${now.toLocaleTimeString()})`);
+    return ok;
   }
 
   /**
@@ -1027,28 +1089,56 @@ class QRingBleService {
   /**
    * Request stored periodic/hourly heart rate logs from the ring
    * Command 21 (0x15): struct HeartRateRequest { commandId=21; unixTime; }
+   * CRITICAL: In Colmi R02 / QRing firmware, unixTime MUST be midnight (00:00:00).
+   * We query both yesterday's midnight and today's midnight to capture overnight logs!
    */
   public async requestHeartRateLog(): Promise<boolean> {
     console.log('[QRing BLE] Requesting hourly heart rate logs from ring memory (Command 21 / 0x15)...');
-    const nowSec = Math.floor(Date.now() / 1000);
-    const b0 = nowSec & 0xFF;
-    const b1 = (nowSec >> 8) & 0xFF;
-    const b2 = (nowSec >> 16) & 0xFF;
-    const b3 = (nowSec >> 24) & 0xFF;
-    const packet = this.makePacket(0x15, [b0, b1, b2, b3]);
-    const ok = await this.writeBytes(packet);
+    this.hrLogReadings = [];
+
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const todayMidnightSec = Math.floor(todayMidnight.getTime() / 1000);
+
+    const t0 = todayMidnightSec & 0xFF;
+    const t1 = (todayMidnightSec >> 8) & 0xFF;
+    const t2 = (todayMidnightSec >> 16) & 0xFF;
+    const t3 = (todayMidnightSec >> 24) & 0xFF;
+
+    // Yesterday midnight (for sleep onset from last night)
+    const yestMidnight = new Date(todayMidnight.getTime() - 24 * 3600 * 1000);
+    const yestMidnightSec = Math.floor(yestMidnight.getTime() / 1000);
+    const y0 = yestMidnightSec & 0xFF;
+    const y1 = (yestMidnightSec >> 8) & 0xFF;
+    const y2 = (yestMidnightSec >> 16) & 0xFF;
+    const y3 = (yestMidnightSec >> 24) & 0xFF;
+
+    // Query yesterday first
+    const pYest = this.makePacket(0x15, [y0, y1, y2, y3]);
+    await this.writeBytes(pYest);
+    await new Promise((r) => setTimeout(r, 650));
+
+    // Query today
+    const pToday = this.makePacket(0x15, [t0, t1, t2, t3]);
+    const ok = await this.writeBytes(pToday);
     return ok;
   }
 
   /**
    * Request today's steps and activity from ring memory
-   * Command 7 (0x07): struct SportRequest { commandId=7; dayOffset=0; }
+   * Command 67 (0x43): Colmi R02 15-minute sport detail blocks
+   * Command 7 (0x07): QCBand daily totals
    */
   public async requestStepsData(dayOffset: number = 0): Promise<boolean> {
-    console.log('[QRing BLE] Requesting steps & activity data (Command 7 / 0x07, dayOffset:', dayOffset, ')...');
-    const packet = this.makePacket(0x07, [dayOffset & 0xFF]);
-    const ok = await this.writeBytes(packet);
-    return ok;
+    console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
+    // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
+    const p43 = this.makePacket(0x43, [dayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
+    await this.writeBytes(p43);
+    await new Promise((r) => setTimeout(r, 300));
+
+    // 2. QCBand daily total
+    const p7 = this.makePacket(0x07, [dayOffset & 0xFF]);
+    return await this.writeBytes(p7);
   }
 
   /**
@@ -1069,22 +1159,63 @@ class QRingBleService {
   }
 
   /**
-   * Request sleep logs via Big Data protocol
-   * Magic 188 (0xBC), dataId 39 (Sleep), dataLen 0, crc 0xFFFF
+   * Request sleep logs via Big Data protocol and Command 68 (0x44)
    */
   public async requestSleepData(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting Big Data Sleep records (Magic 188 / ID 39)...');
-    const packet = this.makePacket(0xBC, [39, 0, 0, 0xFF, 0xFF]);
-    return await this.writeBytes(packet);
+    console.log('[QRing BLE] Requesting Sleep records (BigData & Command 68 / 0x44)...');
+
+    // 1. Standard Colmi R02 UART Sleep query (Command 68 / 0x44)
+    // Query last night (dayOffset = 0) and yesterday (dayOffset = 1)
+    const p44_today = this.makePacket(0x44, [0x00, 0x0F, 0x00, 0x5F, 0x01]);
+    await this.writeBytes(p44_today);
+    await new Promise((r) => setTimeout(r, 400));
+
+    const p44_yest = this.makePacket(0x44, [0x01, 0x0F, 0x00, 0x5F, 0x01]);
+    await this.writeBytes(p44_yest);
+    await new Promise((r) => setTimeout(r, 400));
+
+    // 2. Big Data Sleep query (if BigData service is active on ring)
+    if (this.hasBigDataService && this.activeBigDataRxUuid) {
+      // BigData Sleep: 0xBC 0x27 0x01 0x00 0xFF 0x00 0xFF + checksum
+      const bigDataPacket = [0xBC, 0x27, 0x01, 0x00, 0xFF, 0x00, 0xFF];
+      const sum = bigDataPacket.reduce((a, b) => a + b, 0) % 256;
+      bigDataPacket.push(sum);
+      await this.writeBigDataBytes(bigDataPacket);
+    } else {
+      // Fallback: send 0xBC over UART in case firmware routes it
+      const packet = this.makePacket(0xBC, [39, 0, 0, 0xFF, 0xFF]);
+      await this.writeBytes(packet);
+    }
+    return true;
+  }
+
+  /**
+   * Send packet to Big Data characteristic
+   */
+  private async writeBigDataBytes(bytes: number[]): Promise<boolean> {
+    if (!this.connectedDeviceId || !this.activeBigDataRxUuid) return false;
+    try {
+      const dataView = numbersToDataView(bytes);
+      await BleClient.writeWithoutResponse(
+        this.connectedDeviceId,
+        this.activeBigDataServiceUuid,
+        this.activeBigDataRxUuid,
+        dataView
+      );
+      return true;
+    } catch (e) {
+      console.warn('[QRing BLE] writeBigDataBytes notice:', e);
+      return false;
+    }
   }
 
   /**
    * Comprehensive Ring Synchronization:
-   * 1. Synchronizes Real-Time Clock (Time Sync 0x01)
-   * 2. Re-activates/verifies automatic hourly measurement (Command 22: 60 min)
-   * 3. Queries stored hourly heart rate logs (Command 21)
-   * 4. Queries today's steps, distance, calories (Command 7 & 72)
-   * 5. Queries sleep data (BigData 188 / 39)
+   * 1. Synchronizes Real-Time Clock with BCD (Enables sleep engine & timestamps)
+   * 2. Re-activates/verifies automatic hourly measurement (Command 22: 30/60 min)
+   * 3. Queries stored hourly heart rate logs (Command 21 at Midnight)
+   * 4. Queries sleep records (Command 68 and BigData 0xBC)
+   * 5. Queries steps, distance, calories (Command 67, 7 & 72)
    * 6. Queries battery level (Command 3)
    */
   public async syncAllRingData(): Promise<boolean> {
@@ -1094,24 +1225,31 @@ class QRingBleService {
     }
     console.log('[QRing BLE] === Starting Full Hardware Data Sync ===');
     try {
+      // 1. Clock synchronization with BCD (Essential: enables nocturnal sleep detection)
       await this.sendTimeSync();
-      await new Promise((r) => setTimeout(r, 180));
+      await new Promise((r) => setTimeout(r, 450));
 
+      // 2. Heart rate monitoring cadence
       await this.setHeartRateInterval(this.configuredIntervalMinutes);
-      await new Promise((r) => setTimeout(r, 180));
+      await new Promise((r) => setTimeout(r, 450));
 
+      // 3. Stored heart rate logs (both yesterday and today)
       await this.requestHeartRateLog();
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => setTimeout(r, 800));
 
-      await this.requestStepsData(0);
-      await new Promise((r) => setTimeout(r, 220));
-
-      await this.requestTodaySports();
-      await new Promise((r) => setTimeout(r, 220));
-
+      // 4. Stored sleep logs
       await this.requestSleepData();
-      await new Promise((r) => setTimeout(r, 180));
+      await new Promise((r) => setTimeout(r, 700));
 
+      // 5. Steps and activity detail
+      await this.requestStepsData(0);
+      await new Promise((r) => setTimeout(r, 500));
+
+      // 6. Live sports counters
+      await this.requestTodaySports();
+      await new Promise((r) => setTimeout(r, 400));
+
+      // 7. Battery status
       await this.sendBatteryRequest();
       console.log('[QRing BLE] === Full Hardware Data Sync Completed ===');
       return true;
@@ -1336,44 +1474,79 @@ class QRingBleService {
 
     // 2. Stored Periodic / Hourly Heart Rate logs (header 0x15 / 21)
     if (header === 21 || header === 0x15) {
-      const index = len >= 2 ? dataView.getUint8(1) : 0;
-      console.log('[QRing BLE] Heart Rate Log chunk received, index:', index);
-      const readings: number[] = [];
+      if (len >= 2) {
+        const index = dataView.getUint8(1);
+        if (index === 255) {
+          console.log('[QRing BLE] Command 21 (0x15) NoData / EndOfLog');
+          return;
+        }
+        if (index === 0 && len >= 3) {
+          this.hrLogFramesExpected = dataView.getUint8(2);
+          this.hrLogReadings = [];
+          console.log('[QRing BLE] Command 21 start of log, expected frames:', this.hrLogFramesExpected);
+          return;
+        }
 
-      if (index === 1 && len >= 6) {
-        // Bytes 2..5: utcTime (uint32)
-        // Bytes 6..len-2: heartRateData (up to 9 bytes)
-        for (let i = 6; i < Math.min(len - 1, 15); i++) {
-          const bpm = dataView.getUint8(i);
-          if (bpm >= 40 && bpm <= 190) {
-            readings.push(bpm);
+        if (index === 1 && len >= 7) {
+          // Bytes 2..5: utcTime (uint32)
+          // Bytes 6..len-2: 9 heart rate bytes
+          for (let i = 6; i < Math.min(len - 1, 15); i++) {
+            const bpm = dataView.getUint8(i);
+            this.hrLogReadings.push(bpm);
+          }
+        } else if (index > 1 && len >= 3) {
+          // Bytes 2..len-2: 13 heart rate bytes
+          for (let i = 2; i < Math.min(len - 1, 15); i++) {
+            const bpm = dataView.getUint8(i);
+            this.hrLogReadings.push(bpm);
           }
         }
-      } else if (index > 1 && len >= 3) {
-        // Bytes 2..len-2: heartRateData (up to 13 bytes)
-        for (let i = 2; i < Math.min(len - 1, 15); i++) {
-          const bpm = dataView.getUint8(i);
-          if (bpm >= 40 && bpm <= 190) {
-            readings.push(bpm);
-          }
+
+        const validPulses = this.hrLogReadings.filter((b) => b >= 40 && b <= 200);
+        if (validPulses.length > 0) {
+          const latestBpm = validPulses[validPulses.length - 1];
+          const minBpm = Math.min(...validPulses);
+          const maxBpm = Math.max(...validPulses);
+          const restingBpm = Math.round(validPulses.reduce((a, b) => a + b, 0) / validPulses.length);
+          console.log('[QRing BLE] Accumulated BPMs from ring memory:', validPulses.length, 'readings, latest:', latestBpm, 'resting:', restingBpm);
+          this.notify({
+            heartRate: latestBpm,
+            heartRateLog: [...this.hrLogReadings],
+            minBpm,
+            maxBpm,
+            restingBpm,
+            isConnected: true,
+          });
         }
       }
+      return;
+    }
 
-      if (readings.length > 0) {
-        const latestBpm = readings[readings.length - 1];
-        const minBpm = Math.min(...readings);
-        const maxBpm = Math.max(...readings);
-        const restingBpm = Math.round(readings.reduce((a, b) => a + b, 0) / readings.length);
-        console.log('[QRing BLE] Parsed hourly BPMs from ring memory:', readings, 'latest:', latestBpm);
-        this.notify({
-          heartRate: latestBpm,
-          heartRateLog: readings,
-          minBpm,
-          maxBpm,
-          restingBpm,
-          isConnected: true,
-        });
-        return;
+    // 2b. Colmi R02 V1 Sleep Log response (header 0x44 / 68)
+    if (header === 68 || header === 0x44) {
+      if (len >= 6) {
+        console.log('[QRing BLE] Command 68 (0x44) Sleep log packet received');
+        const b4 = dataView.getUint8(4);
+        const b5 = dataView.getUint8(5);
+        const totalMin = (b4 << 8) | b5;
+        if (totalMin >= 90 && totalMin <= 900) {
+          const hours = parseFloat((totalMin / 60).toFixed(1));
+          console.log('[QRing BLE] Command 68 parsed sleep duration:', hours, 'hours (', totalMin, 'min )');
+          this.notify({ sleepHours: hours, isConnected: true });
+          return;
+        }
+      }
+    }
+
+    // 2c. Colmi R02 V1 15-minute Activity Log (header 0x43 / 67)
+    if (header === 67 || header === 0x43) {
+      if (len >= 13 && dataView.getUint8(1) !== 0xF0 && dataView.getUint8(1) !== 255) {
+        const cal = dataView.getUint16(7, true);
+        const st = dataView.getUint16(9, true);
+        const dist = dataView.getUint16(11, true);
+        if (st > 0 || cal > 0) {
+          console.log('[QRing BLE] Cmd 0x43 Activity detail: steps:', st, 'cal:', cal, 'dist:', dist);
+        }
       }
     }
 
@@ -1464,21 +1637,34 @@ class QRingBleService {
     if (header === 188 || header === 0xBC) {
       if (len >= 4) {
         const dataId = dataView.getUint8(1);
-        // Sleep Data (ID 39)
-        if (dataId === 39 && len >= 12) {
-          const startMin = dataView.getInt16(8, true);
-          const endMin = dataView.getInt16(10, true);
-          let durationMin = endMin - startMin;
-          if (durationMin < 0) durationMin += 1440; // overnight past midnight
-          const hours = parseFloat((durationMin / 60).toFixed(1));
-          if (hours >= 1 && hours <= 16) {
-            console.log('[QRing BLE] Parsed sleep hours from ring:', hours);
-            this.notify({ sleepHours: hours, isConnected: true });
-            return;
+        // Sleep Data (ID 39 / 0x27)
+        if (dataId === 39 || dataId === 0x27) {
+          if (len >= 13) {
+            // Layout A: bytes 9..10 startMin, 11..12 endMin
+            let startMin = dataView.getInt16(9, true);
+            let endMin = dataView.getInt16(11, true);
+            let dur = endMin - startMin;
+            if (dur < 0) dur += 1440;
+            let h = parseFloat((dur / 60).toFixed(1));
+
+            // Layout B: bytes 8..9 startMin, 10..11 endMin
+            if (h < 1 || h > 16) {
+              startMin = dataView.getInt16(8, true);
+              endMin = dataView.getInt16(10, true);
+              dur = endMin - startMin;
+              if (dur < 0) dur += 1440;
+              h = parseFloat((dur / 60).toFixed(1));
+            }
+
+            if (h >= 1.5 && h <= 14) {
+              console.log('[QRing BLE] Parsed valid BigData sleep hours from ring:', h);
+              this.notify({ sleepHours: h, isConnected: true });
+              return;
+            }
           }
         }
-        // SpO2 Data (ID 42)
-        if (dataId === 42 && len >= 6) {
+        // SpO2 Data (ID 42 / 0x2A)
+        if ((dataId === 42 || dataId === 0x2A) && len >= 6) {
           const spo2 = dataView.getUint8(4);
           if (spo2 >= 70 && spo2 <= 100) {
             console.log('[QRing BLE] Parsed SpO2 from ring:', spo2, '%');
