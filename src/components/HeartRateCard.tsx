@@ -51,7 +51,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
     const finalBpm = liveBpmRef.current;
     if (completed) {
-      if (finalBpm > 35) {
+      if (finalBpm >= 40 && finalBpm <= 200) {
         setJustCompleted(true);
         setMeasureFeedback(language === 'fr' ? `✓ ${finalBpm} BPM mesuré et enregistré` : `✓ ${finalBpm} BPM measured & saved`);
         setTimeout(() => {
@@ -112,7 +112,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
     // 1. Subscribe to real BLE notifications from physical ring if connected
     const unsubscribe = qringBle.subscribe((data) => {
-      if (data.heartRate && data.heartRate > 35 && data.heartRate < 220) {
+      if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
         setLiveBpm(data.heartRate);
       }
     });

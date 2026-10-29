@@ -332,7 +332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
       }
-      if (data.heartRate !== undefined && data.heartRate > 0) {
+      if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
         setLiveBpm(data.heartRate);
         setWeekData((prev) => {
           const next = [...prev];
@@ -483,7 +483,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const saved = localStorage.getItem('vyta_week_data');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length === 7) return parsed;
+          if (Array.isArray(parsed) && parsed.length === 7) {
+            // Nettoyage automatique de tout faux relevé 200 BPM résiduel de l'ancien bug de trame 0x16
+            return parsed.map((d: DayMetrics) => {
+              if (d && (d.bpm >= 200)) {
+                return {
+                  ...d,
+                  bpm: 0,
+                  maxBpm: (d.maxBpm && d.maxBpm >= 200) ? 0 : d.maxBpm,
+                  minBpm: (d.minBpm && d.minBpm >= 200) ? 0 : d.minBpm,
+                  restingBpm: (d.restingBpm && d.restingBpm >= 200) ? 0 : d.restingBpm,
+                };
+              }
+              return d;
+            });
+          }
         }
       } catch (e) {}
     }

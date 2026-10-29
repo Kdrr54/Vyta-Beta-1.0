@@ -1170,10 +1170,6 @@ class QRingBleService {
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
     await this.writeBytes(p105_1);
 
-    // 3. Command 22 single test trigger
-    const p22 = this.makePacket(0x16, [0x01, 0x01]);
-    await this.writeBytes(p22);
-
     return ok;
 
     // Note: Only RealtimeHeartRate & HeartRate are sent so physical ring turns ON exclusively the GREEN optical LED
@@ -1349,7 +1345,7 @@ class QRingBleService {
         // Bytes 6..len-2: heartRateData (up to 9 bytes)
         for (let i = 6; i < Math.min(len - 1, 15); i++) {
           const bpm = dataView.getUint8(i);
-          if (bpm >= 35 && bpm <= 230) {
+          if (bpm >= 40 && bpm <= 190) {
             readings.push(bpm);
           }
         }
@@ -1357,7 +1353,7 @@ class QRingBleService {
         // Bytes 2..len-2: heartRateData (up to 13 bytes)
         for (let i = 2; i < Math.min(len - 1, 15); i++) {
           const bpm = dataView.getUint8(i);
-          if (bpm >= 35 && bpm <= 230) {
+          if (bpm >= 40 && bpm <= 190) {
             readings.push(bpm);
           }
         }
@@ -1494,52 +1490,44 @@ class QRingBleService {
     }
 
     // 5. Native QRing Command 30 (0x1E) Realtime Heart Rate Response
-    // Layout variants:
-    // Variant A: 1E <heartRate: 35..230> ...
-    // Variant B (QC / Colmi): 1E <subcmd=0x03/0x01> <heartRate: 35..230> ...
+    // Official Colmi R02 / QRing structure: [0x1E, heartRate, 0x00..., crc]
+    // Or sub-command echo: [0x1E, 0x03, heartRate, ...]
     if (header === 30 || header === 0x1E) {
-      for (let i = 1; i < Math.min(len, 6); i++) {
-        const bpm = dataView.getUint8(i);
-        if (bpm >= 35 && bpm <= 230) {
-          console.log('[QRing BLE] Command 30 (0x1E) Real PPG Heart Rate Received at byte', i, ':', bpm, 'bpm');
+      if (len >= 2) {
+        const b1 = dataView.getUint8(1);
+        let bpm = 0;
+        if (b1 >= 40 && b1 <= 200) {
+          bpm = b1;
+        } else if ((b1 === 0x03 || b1 === 0x01 || b1 === 0x00) && len >= 3) {
+          const b2 = dataView.getUint8(2);
+          if (b2 >= 40 && b2 <= 200) {
+            bpm = b2;
+          }
+        }
+
+        if (bpm >= 40 && bpm <= 200) {
+          console.log('[QRing BLE] Command 30 (0x1E) Real PPG Heart Rate Received:', bpm, 'bpm');
           this.notify({ heartRate: bpm, isConnected: true });
+          return;
+        } else if (b1 === 0) {
+          console.log('[QRing BLE] Command 30 (0x1E) PPG optical sensor acquiring pulse lock...');
           return;
         }
       }
     }
 
     // 6. Real-time Heart Rate stream packet (header 0x69 / 105)
-    // QRing stream layout: 69 06 00 <bpm> 00 ... <checksum>
-    if (header === 0x69 || header === 105) {
-      for (let i = 1; i < Math.min(len, 8); i++) {
-        const bpm = dataView.getUint8(i);
-        if (bpm >= 35 && bpm <= 230) {
-          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received at byte', i, ':', bpm, 'bpm');
+    // QRing stream layout: 69 <dataType> <action> <bpm> ...
+    // DataType 6 = RealtimeHeartRate, DataType 1 = HeartRate
+    if ((header === 0x69 || header === 105) && len >= 4) {
+      const dataType = dataView.getUint8(1);
+      if (dataType === 0x06 || dataType === 0x01) {
+        const b3 = dataView.getUint8(3);
+        const b2 = dataView.getUint8(2);
+        const bpm = (b3 >= 40 && b3 <= 200) ? b3 : ((b2 >= 40 && b2 <= 200) ? b2 : 0);
+        if (bpm >= 40 && bpm <= 200) {
+          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm');
           this.notify({ heartRate: bpm, isConnected: true });
-          return;
-        }
-      }
-    }
-
-    // 7. Single Test Heart Rate Response (header 0x16 / 22)
-    if (header === 22 || header === 0x16) {
-      for (let i = 1; i < Math.min(len, 6); i++) {
-        const bpm = dataView.getUint8(i);
-        if (bpm >= 35 && bpm <= 230) {
-          console.log('[QRing BLE] Command 22 (0x16) Single Test Heart Rate Received at byte', i, ':', bpm, 'bpm');
-          this.notify({ heartRate: bpm, isConnected: true });
-          return;
-        }
-      }
-    }
-
-    // 7. Alternative Heart Rate headers (0x01, 0x11, 0x02)
-    if (header === 0x01 || header === 0x11 || header === 0x02) {
-      for (let i = 1; i < Math.min(len, 6); i++) {
-        const val = dataView.getUint8(i);
-        if (val >= 40 && val <= 220) {
-          console.log('[QRing BLE] Real Heart Rate from alternative frame:', val, 'bpm');
-          this.notify({ heartRate: val, isConnected: true });
           return;
         }
       }

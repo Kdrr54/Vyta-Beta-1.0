@@ -496,7 +496,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     if (!isMeasuring || metricId !== 'bpm') return;
 
     const unsubscribe = qringBle.subscribe((data) => {
-      if (data.heartRate && data.heartRate > 35 && data.heartRate < 220) {
+      if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
         setLiveBpm(data.heartRate);
       }
     });
