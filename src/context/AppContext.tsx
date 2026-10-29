@@ -339,13 +339,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = data.heartRate!;
-          if (!cur.minBpm || cur.minBpm === 0 || data.heartRate! < cur.minBpm) {
+          if (data.minBpm && data.minBpm >= 40 && data.minBpm <= 200) {
+            cur.minBpm = data.minBpm;
+          } else if (!cur.minBpm || cur.minBpm === 0 || data.heartRate! < cur.minBpm) {
             cur.minBpm = data.heartRate!;
           }
-          if (!cur.maxBpm || data.heartRate! > cur.maxBpm) {
+          if (data.maxBpm && data.maxBpm >= 40 && data.maxBpm <= 200) {
+            cur.maxBpm = data.maxBpm;
+          } else if (!cur.maxBpm || data.heartRate! > cur.maxBpm) {
             cur.maxBpm = data.heartRate!;
           }
-          if (!cur.restingBpm || cur.restingBpm === 0) {
+          if (data.restingBpm && data.restingBpm >= 40 && data.restingBpm <= 200) {
+            cur.restingBpm = data.restingBpm;
+          } else if (!cur.restingBpm || cur.restingBpm === 0) {
             cur.restingBpm = data.heartRate!;
           }
           next[idx] = cur;
