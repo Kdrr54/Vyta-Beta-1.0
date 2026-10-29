@@ -420,6 +420,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
 
+  // Rafraîchir automatiquement les 48 relevés 30-min stockés dans la mémoire flash de la bague à l'ouverture (0 LED)
+  useEffect(() => {
+    if (metricId === 'bpm' && selectedDay === TODAY_INDEX) {
+      qringBle.requestHeartRateLog();
+    }
+  }, [metricId, selectedDay]);
+
   const handleStopMeasure = useCallback((completed = false) => {
     setIsMeasuring(false);
     setCountdown(20);
@@ -433,12 +440,17 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         setWeekData((prev) => {
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
-          const cur = { ...(next[idx] || {}) };
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = finalBpm;
+          const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
+          const now = new Date();
+          const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+          prevLog[curHalf] = finalBpm;
+          cur.hrLog = prevLog;
           cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
           cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
           if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
-          next[idx] = cur as DayMetrics;
+          next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
           } catch (_) {}
@@ -574,6 +586,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dayData!.hrLog!.forEach((v, i) => {
         slots[i].value = v >= 40 && v <= 200 ? v : 0;
       });
+      if (selectedDay === TODAY_INDEX && dayMetricValue >= 40 && dayMetricValue <= 200) {
+        const now = new Date();
+        const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+        if (slots[curIdx].value === 0) {
+          slots[curIdx].value = dayMetricValue;
+        }
+      }
       return slots;
     }
 
@@ -844,7 +863,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontWeight: 600,
                   }}
                 >
-                  <span style={{ fontSize: '7.5px' }}>▲</span> 0.7% {isEn ? 'Optimal' : 'Optimal'}
+                  {dayMetricValue > 0 ? <><span style={{ fontSize: '7.5px' }}>▲</span> {dayMetricValue}%</> : '--'}
                 </span>
 
                 <svg width="86" height="46" viewBox="0 0 86 46" style={{ overflow: 'visible' }}>
@@ -866,8 +885,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     style={{ filter: `drop-shadow(0 0 8px ${theme.glow})` }}
                   />
                   {/* Dynamic indicator dot on arch */}
-                  {(() => {
-                    const rawVal = Number(activePoint?.value ?? 98.6);
+                  {dayMetricValue > 0 && (() => {
+                    const rawVal = Number(activePoint?.value || dayMetricValue);
                     const ratio = Math.max(0, Math.min(1, (rawVal - 94) / 6));
                     const angle = Math.PI * (1 - ratio);
                     const cx = 43 - 38 * Math.cos(angle);
@@ -946,7 +965,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontWeight: 600,
                   }}
                 >
-                  -0,08 °C vs réf.
+                  {dayMetricValue !== 0 ? `${dayMetricValue > 0 ? '+' : ''}${dayMetricValue.toFixed(2)} °C` : '--'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" style={{ overflow: 'visible' }}>
@@ -1080,7 +1099,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontWeight: 600,
                   }}
                 >
-                  {isEn ? 'Stability 94%' : 'Stabilité 94%'}
+                  {dayMetricValue > 0 ? `${dayMetricValue.toFixed(1)} mmol/L` : '--'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
@@ -1482,6 +1501,19 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
+
+                  {/* Points réels mesurés sur les créneaux de 30 min */}
+                  {measuredPoints.map((pt, pIdx) => (
+                    <circle
+                      key={pIdx}
+                      cx={pt.x}
+                      cy={pt.y}
+                      r="3"
+                      fill="#FAF7F2"
+                      stroke={theme.primary}
+                      strokeWidth="1.8"
+                    />
+                  ))}
                 </>
               )}
 

@@ -61,12 +61,17 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
         setWeekData(prev => {
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
-          const cur = { ...(next[idx] || {}) };
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = finalBpm;
+          const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
+          const now = new Date();
+          const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+          prevLog[curHalf] = finalBpm;
+          cur.hrLog = prevLog;
           cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
           cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
           if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
-          next[idx] = cur as DayMetrics;
+          next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
           } catch (_) {}

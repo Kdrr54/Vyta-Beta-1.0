@@ -339,25 +339,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = data.heartRate!;
+
+          // Courbe réelle : fusionner les 48 relevés de la bague (un par demi-heure) sans écraser les mesures réelles déjà acquises
+          const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
+          if (Array.isArray(data.heartRateLog) && data.heartRateLog.length === 48) {
+            cur.hrLog = data.heartRateLog.map((val, i) =>
+              val >= 40 && val <= 200 ? val : prevLog[i] >= 40 && prevLog[i] <= 200 ? prevLog[i] : 0
+            );
+          } else {
+            const now = new Date();
+            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+            prevLog[curHalf] = data.heartRate!;
+            cur.hrLog = prevLog;
+          }
+
+          const validLog = (cur.hrLog || []).filter((v) => v >= 40 && v <= 200);
           if (data.minBpm && data.minBpm >= 40 && data.minBpm <= 200) {
-            cur.minBpm = data.minBpm;
+            cur.minBpm = validLog.length > 0 ? Math.min(data.minBpm, ...validLog) : data.minBpm;
+          } else if (validLog.length > 0) {
+            cur.minBpm = Math.min(...validLog);
           } else if (!cur.minBpm || cur.minBpm === 0 || data.heartRate! < cur.minBpm) {
             cur.minBpm = data.heartRate!;
           }
+
           if (data.maxBpm && data.maxBpm >= 40 && data.maxBpm <= 200) {
-            cur.maxBpm = data.maxBpm;
+            cur.maxBpm = validLog.length > 0 ? Math.max(data.maxBpm, ...validLog) : data.maxBpm;
+          } else if (validLog.length > 0) {
+            cur.maxBpm = Math.max(...validLog);
           } else if (!cur.maxBpm || data.heartRate! > cur.maxBpm) {
             cur.maxBpm = data.heartRate!;
           }
+
           if (data.restingBpm && data.restingBpm >= 40 && data.restingBpm <= 200) {
             cur.restingBpm = data.restingBpm;
+          } else if (validLog.length > 0) {
+            cur.restingBpm = Math.round(validLog.reduce((a, b) => a + b, 0) / validLog.length);
           } else if (!cur.restingBpm || cur.restingBpm === 0) {
             cur.restingBpm = data.heartRate!;
-          }
-
-          // Courbe réelle : 48 relevés de la bague, un par demi-heure
-          if (Array.isArray(data.heartRateLog) && data.heartRateLog.length === 48) {
-            cur.hrLog = [...data.heartRateLog];
           }
 
           next[idx] = cur;
@@ -406,7 +424,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          cur.glucose = { valueMmol: data.glucose!, stabilityScore: 92 };
+          cur.glucose = { valueMmol: data.glucose!, stabilityScore: 0 };
           next[idx] = cur;
           return next;
         });
@@ -445,23 +463,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          const totalMin = Math.round(data.sleepHours! * 60); // durée réelle envoyée par la bague
-          // NB : la bague ne transmet pas encore le détail des phases → répartition proportionnelle provisoire
-          const deepMin = Math.round(totalMin * 0.22);
-          const remMin = Math.round(totalMin * 0.20);
-          const lightMin = Math.round(totalMin * 0.50);
-          const awakeMin = Math.max(0, totalMin - (deepMin + remMin + lightMin));
-          const score = Math.min(100, Math.round(data.sleepHours! * 12.5));
+          const totalMin = Math.round(data.sleepHours! * 60); // durée réelle envoyée par la bague, 0 répartition inventée
           cur.sleep = {
-            score,
-            deepMin,
-            remMin,
-            lightMin,
-            awakeMin,
+            score: 0,
+            deepMin: 0,
+            remMin: 0,
+            lightMin: totalMin,
+            awakeMin: 0,
           };
-          if (cur.pillars) {
-            cur.pillars = { ...cur.pillars, sleep: score };
-          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -507,10 +516,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const v = localStorage.getItem('vyta_data_ver');
         // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
-        if (v !== 'v54_real_only') {
+        if (v !== 'v55_real_only') {
           localStorage.removeItem('vyta_week_data');
           localStorage.removeItem('vyta_simulated_date');
-          localStorage.setItem('vyta_data_ver', 'v54_real_only');
+          localStorage.setItem('vyta_data_ver', 'v55_real_only');
           return createEmptyWeekMetrics();
         }
         const saved = localStorage.getItem('vyta_week_data');

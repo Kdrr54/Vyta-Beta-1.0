@@ -928,14 +928,7 @@ class QRingBleService {
         }
       } catch (_) {}
 
-      // 4. Send Hardware Protocol Handshakes & Configuration
-      await this.sendTimeSync();
-      await this.stopRealTimeHeartRate(); // Ensure optical LED is completely extinguished
-      
-      // Program automatic periodic heart rate monitoring on the ring hardware (configured: 30 min or 60 min)
-      await this.setHeartRateInterval(this.configuredIntervalMinutes);
-
-      // Perform complete data synchronization of stored ring records
+      // 4. Send Hardware Protocol Handshakes & Configuration (Pure memory sync, 0 LED)
       await this.syncAllRingData();
 
       // 5. Start Keep-Alive Heartbeat (every 20s to prevent ring dormant sleep)
@@ -1097,21 +1090,37 @@ class QRingBleService {
    * We query both yesterday's midnight and today's midnight to capture overnight logs!
    */
   public async requestHeartRateLog(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting hourly heart rate logs from ring memory (Command 21 / 0x15)...');
+    console.log('[QRing BLE] Requesting full-day 30-min heart rate logs from ring memory (Command 21 / 0x15)...');
     this.hrLogReadings = [];
 
-    const todayMidnight = new Date();
-    todayMidnight.setHours(0, 0, 0, 0);
-    const todayMidnightSec = Math.floor(todayMidnight.getTime() / 1000);
+    const now = new Date();
+    // 1. Primary query: Local midnight (used when ring synced via iOS local epoch)
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const localMidnightSec = Math.floor(todayMidnight.getTime() / 1000);
 
-    const t0 = todayMidnightSec & 0xFF;
-    const t1 = (todayMidnightSec >> 8) & 0xFF;
-    const t2 = (todayMidnightSec >> 16) & 0xFF;
-    const t3 = (todayMidnightSec >> 24) & 0xFF;
+    const send0x15 = async (tsSec: number) => {
+      const t0 = tsSec & 0xFF;
+      const t1 = (tsSec >> 8) & 0xFF;
+      const t2 = (tsSec >> 16) & 0xFF;
+      const t3 = (tsSec >> 24) & 0xFF;
+      const pkt = this.makePacket(0x15, [t0, t1, t2, t3]);
+      return await this.writeBytes(pkt);
+    };
 
-    // Query today only: yesterday's response shares the same accumulator and would overwrite today's curve
-    const pToday = this.makePacket(0x15, [t0, t1, t2, t3]);
-    const ok = await this.writeBytes(pToday);
+    const ok = await send0x15(localMidnightSec);
+
+    // 2. Fallback query: If ring RTC uses UTC midnight (Colmi R02 BCD clock convention),
+    // automatically query UTC midnight after 550ms if no frames arrived for local midnight
+    setTimeout(async () => {
+      if (this.hrLogReadings.length === 0 && this.isConnected()) {
+        const utcMidnightSec = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0) / 1000);
+        if (utcMidnightSec !== localMidnightSec) {
+          console.log('[QRing BLE] Retrying Command 21 (0x15) with UTC midnight timestamp...');
+          await send0x15(utcMidnightSec);
+        }
+      }
+    }, 550);
+
     return ok;
   }
 
@@ -1213,8 +1222,17 @@ class QRingBleService {
     if (this.hrLogReadings.length === 0) return;
 
     const now = new Date();
-    // Slot duration announced by the ring in frame 0 (byte 3), default 5 min (288 slots / day)
-    const slotMin = this.hrLogRangeMinutes;
+    // Derive exact slot duration from actual array length returned by ring hardware:
+    // Colmi R02 / QRing sends 288 bytes (5 min per slot = 1440 min) across 23 frames even when interval is set to 30 min.
+    const rawLen = this.hrLogReadings.length;
+    const slotMin =
+      rawLen > 96
+        ? 5
+        : rawLen > 48
+        ? 15
+        : rawLen > 24
+        ? 30
+        : this.hrLogRangeMinutes || 5;
     const slotsPerDay = Math.floor(1440 / slotMin);
     const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
     const currentSlot = Math.min(slotsPerDay - 1, Math.max(0, Math.floor(minutesSinceMidnight / slotMin)));
@@ -1228,7 +1246,7 @@ class QRingBleService {
 
     // Find the latest valid pulse reading at or immediately before currentSlot (scanning backwards)
     let latestBpm = 0;
-    for (let s = currentSlot; s >= 0; s--) {
+    for (let s = Math.min(currentSlot, clampedLog.length - 1); s >= 0; s--) {
       if (clampedLog[s] >= 40 && clampedLog[s] <= 200) {
         latestBpm = clampedLog[s];
         break;
@@ -1243,7 +1261,7 @@ class QRingBleService {
       const maxBpm = Math.max(...validPulses);
       const restingBpm = Math.round(validPulses.reduce((a, b) => a + b, 0) / validPulses.length);
       console.log(
-        `[QRing BLE] Finalized Heart Rate Log (slot ${currentSlot} / ${now.getHours()}h${now.getMinutes()}): latest: ${latestBpm} bpm, resting: ${restingBpm} bpm, min: ${minBpm}, max: ${maxBpm}`
+        `[QRing BLE] Finalized Heart Rate Log (rawLen=${rawLen}, slotMin=${slotMin}, currentSlot=${currentSlot} at ${now.getHours()}h${now.getMinutes()}): latest=${latestBpm} bpm, resting=${restingBpm} bpm, min=${minBpm}, max=${maxBpm}`
       );
       // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
       // Each slot keeps the last real reading measured in that half hour, 0 = no measurement.
@@ -1254,7 +1272,7 @@ class QRingBleService {
         const half = Math.floor(minute / 30);
         if (half >= 0 && half < 48) halfHourLog[half] = bpm;
       });
-      console.log('[QRing BLE] Half-hour heart rate log:', halfHourLog.join(','));
+      console.log('[QRing BLE] Half-hour heart rate log (48 slots):', halfHourLog.join(','));
 
       this.notify({
         heartRate: latestBpm,
@@ -1270,13 +1288,11 @@ class QRingBleService {
   /**
    * Comprehensive Ring Synchronization:
    * 1. Synchronizes Real-Time Clock with BCD (Enables sleep engine & timestamps)
-   * 2. Enforces optical sensor OFF to preserve battery
-   * 3. Re-activates/verifies automatic hourly measurement (Command 22: 30/60 min)
-   * 4. Queries stored hourly heart rate logs (Command 21 at Midnight - purely memory read)
-   * 5. Queries sleep records (Command 68 and BigData 0xBC - purely memory read)
-   * 6. Queries steps, distance, calories (Command 67, 7 & 72)
-   * 7. Queries battery level (Command 3)
-   * 8. Ensures optical sensor remains completely OFF
+   * 2. Re-activates/verifies automatic 30-min measurement (Command 22)
+   * 3. Queries stored full-day heart rate logs FIRST (Command 21 - purely memory read, uninterrupted)
+   * 4. Queries sleep records (Command 68 and BigData 0xBC - purely memory read)
+   * 5. Queries steps, distance, calories (Command 67, 7 & 72)
+   * 6. Queries battery level (Command 3)
    */
   public async syncAllRingData(): Promise<boolean> {
     if (!this.isConnected()) {
@@ -1289,35 +1305,28 @@ class QRingBleService {
       await this.sendTimeSync();
       await new Promise((r) => setTimeout(r, 350));
 
-      // 2. Extinguish any active optical measurement immediately
-      await this.stopRealTimeHeartRate();
-      await new Promise((r) => setTimeout(r, 200));
-
-      // 3. Heart rate monitoring cadence
+      // 2. Heart rate monitoring cadence (every 30 min)
       await this.setHeartRateInterval(this.configuredIntervalMinutes);
       await new Promise((r) => setTimeout(r, 350));
 
-      // 4. Stored heart rate logs (both yesterday and today - flash memory only, 0 LEDs)
+      // 3. Stored full-day heart rate logs (flash memory only, 0 LEDs, given 1300ms to stream all 24 frames cleanly)
       await this.requestHeartRateLog();
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 1300));
 
-      // 5. Stored sleep logs (flash memory only, 0 LEDs)
+      // 4. Stored sleep logs (flash memory only, 0 LEDs)
       await this.requestSleepData();
       await new Promise((r) => setTimeout(r, 700));
 
-      // 6. Steps and activity detail
+      // 5. Steps and activity detail
       await this.requestStepsData(0);
       await new Promise((r) => setTimeout(r, 400));
 
-      // 7. Live sports counters
+      // 6. Live sports counters
       await this.requestTodaySports();
       await new Promise((r) => setTimeout(r, 350));
 
-      // 8. Battery status
+      // 7. Battery status
       await this.sendBatteryRequest();
-
-      // Guarantee the ring optical sensor is shut OFF and in low-power idle sleep
-      await this.stopRealTimeHeartRate();
 
       console.log('[QRing BLE] === Full Hardware Data Sync Completed (Optical Sensor Sleeping) ===');
       return true;
@@ -1586,7 +1595,7 @@ class QRingBleService {
         if (this.hrLogDebounceTimer) {
           clearTimeout(this.hrLogDebounceTimer);
         }
-        if (this.hrLogFramesExpected > 0 && index >= this.hrLogFramesExpected - 1) {
+        if (this.hrLogFramesExpected > 0 && index >= this.hrLogFramesExpected) {
           this.finalizeHeartRateLog();
         } else {
           this.hrLogDebounceTimer = setTimeout(() => {
@@ -1659,10 +1668,17 @@ class QRingBleService {
           const d2 = dataView.getUint8(8);
           const distMeters = (d0 << 16) | (d1 << 8) | d2;
           const distKm = parseFloat((distMeters / 1000).toFixed(2));
-          if (distMeters >= 0 && distMeters <= 150000 && distKm > 0) {
-            console.log('[QRing BLE] Cmd 0x07 (sub-packet 1) Big-Endian distance km:', distKm);
+
+          const sl0 = dataView.getUint8(11);
+          const sl1 = dataView.getUint8(12);
+          const sleepMin = (sl0 << 8) | sl1;
+          const realSleepHours = sleepMin >= 60 && sleepMin <= 960 ? parseFloat((sleepMin / 60).toFixed(2)) : undefined;
+
+          if ((distMeters >= 0 && distMeters <= 150000 && distKm > 0) || realSleepHours !== undefined) {
+            console.log('[QRing BLE] Cmd 0x07 (sub-packet 1) Big-Endian distance km:', distKm, 'sleepMin:', sleepMin);
             this.notify({
-              distanceKm: distKm,
+              ...(distMeters > 0 && distKm > 0 ? { distanceKm: distKm } : {}),
+              ...(realSleepHours !== undefined ? { sleepHours: realSleepHours } : {}),
               isConnected: true,
             });
             return;
