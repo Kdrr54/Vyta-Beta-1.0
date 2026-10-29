@@ -1266,16 +1266,12 @@ class QRingBleService {
   }
 
   /**
-   * Request HRV and Stress telemetry from ring memory
+   * Request HRV and Stress telemetry from ring memory (stored query only - never lights up LEDs)
    */
   public async requestHrvData(): Promise<boolean> {
     try {
-      console.log('[QRing BLE] Requesting HRV and Stress telemetry (Cmd 105 DataType 10 & Cmd 0x73)...');
-      // Command 105 (0x69) DataType 10 (0x0A) Action 1
-      const p105_10 = this.makePacket(0x69, [0x0A, 0x01]);
-      await this.writeBytes(p105_10);
-      await new Promise((r) => setTimeout(r, 200));
-      // Command 0x73 Stress request
+      console.log('[QRing BLE] Requesting HRV and Stress telemetry from memory (Cmd 0x73)...');
+      // Command 0x73: queries stored stress & autonomic balance without triggering live optical LEDs
       const p73 = this.makePacket(0x73, [0x01, 0x00]);
       await this.writeBytes(p73);
       return true;
@@ -1334,6 +1330,9 @@ class QRingBleService {
 
       // Ensure ring's known nocturnal HRV (26 ms from QRing) is propagated
       this.notify({ hrv: 26, isConnected: true });
+
+      // Always command the ring optical sensor to shut OFF and remain in low-power idle mode
+      await this.stopRealTimeHeartRate();
 
       console.log('[QRing BLE] === Full Hardware Data Sync Completed ===');
       return true;
@@ -1414,20 +1413,28 @@ class QRingBleService {
     const p30 = this.makePacket(0x1E, [0x00]);
     const ok = await this.writeBytes(p30);
 
-    // 2. Command 105 Stop (DataAction.Stop = 4)
+    // 2. Command 105 Stop (DataAction.Stop = 4) for all streaming types
     const p105_6_stop = this.makePacket(0x69, [0x06, 0x04]);
     await this.writeBytes(p105_6_stop);
 
     const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
     await this.writeBytes(p105_1_stop);
 
+    const p105_10_stop = this.makePacket(0x69, [0x0A, 0x04]);
+    await this.writeBytes(p105_10_stop);
 
+    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
+    await this.writeBytes(p105_3_stop);
 
     // 3. Command 106 Stop (0x6A)
-    const p106_stop = this.makePacket(0x6A, [0x06, 0x00, 0x00]);
-    await this.writeBytes(p106_stop);
+    const p106_stop_6 = this.makePacket(0x6A, [0x06, 0x00, 0x00]);
+    await this.writeBytes(p106_stop_6);
 
+    const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
+    await this.writeBytes(p106_stop_1);
 
+    const p106_stop_10 = this.makePacket(0x6A, [0x0A, 0x00, 0x00]);
+    await this.writeBytes(p106_stop_10);
 
     return ok;
   }
