@@ -1228,7 +1228,7 @@ export const HealthScreen: React.FC = () => {
         const effectiveMin = totalMin > 0 ? (totalMin - sleep.awakeMin) : 0;
         const efficiencyPct = totalMin > 0 ? Math.round((effectiveMin / totalMin) * 100) : 0;
         const sleepScore = sleep?.score || 0;
-        const hasSleepData = effectiveMin > 0;
+        const hasSleepData = totalMin > 0;
 
         return (
           <div
@@ -1326,7 +1326,7 @@ export const HealthScreen: React.FC = () => {
                     fontFamily: 'var(--font-display, -apple-system, BlinkMacSystemFont)',
                   }}
                 >
-                  {hasSleepData ? fmtDuration(effectiveMin) : '--'}
+                  {hasSleepData ? fmtDuration(totalMin) : '--'}
                 </span>
               </div>
 

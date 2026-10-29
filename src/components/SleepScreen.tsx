@@ -223,7 +223,7 @@ export const SleepScreen: React.FC = () => {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              {isZeroState || effectiveMin === 0 ? '--' : fmtDuration(effectiveMin)}
+              {isZeroState || totalMin === 0 ? '--' : fmtDuration(totalMin)}
             </span>
             <span
               style={{
@@ -234,8 +234,12 @@ export const SleepScreen: React.FC = () => {
               }}
             >
               {isEn
-                ? (isZeroState || totalMin === 0 ? 'Awaiting night' : `In bed ${fmtDuration(totalMin)}`)
-                : (isZeroState || totalMin === 0 ? 'En attente de la nuit' : `Au lit ${fmtDuration(totalMin)}`)}
+                ? isZeroState || totalMin === 0
+                  ? 'Awaiting night'
+                  : `Effective sleep ${fmtDuration(effectiveMin)}`
+                : isZeroState || totalMin === 0
+                  ? 'En attente de la nuit'
+                  : `Sommeil effectif ${fmtDuration(effectiveMin)}`}
             </span>
           </div>
         </div>
@@ -517,10 +521,10 @@ export const SleepScreen: React.FC = () => {
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                {isZeroState || effectiveMin === 0 ? '--' : fmtDuration(effectiveMin)}
+                {isZeroState || totalMin === 0 ? '--' : fmtDuration(totalMin)}
               </span>
               <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.6)' }}>
-                {isEn ? 'Eff. Sleep' : 'Sommeil'}
+                {isEn ? 'Total Sleep' : 'Sommeil total'}
               </span>
             </div>
           </div>
