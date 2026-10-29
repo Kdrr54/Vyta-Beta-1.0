@@ -257,8 +257,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             {/* Statut connectée ou pas */}
             <button
               type="button"
-              onClick={() => updateRing({ isConnected: !isConnected })}
-              title={isEn ? 'Click to toggle connection status' : 'Cliquer pour basculer le statut de connexion'}
+              onClick={async () => {
+                if (!isConnected) {
+                  const success = await qringBle.autoConnectSavedDevice();
+                  if (!success) {
+                    onClose();
+                    openModal('pairing');
+                  }
+                }
+              }}
+              title={
+                isEn
+                  ? isConnected
+                    ? 'Ring connected'
+                    : 'Click to connect ring'
+                  : isConnected
+                  ? 'Bague connectée'
+                  : 'Cliquer pour connecter la bague'
+              }
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

@@ -30,6 +30,30 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
   const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredBleDevice[]>([]);
 
   useEffect(() => {
+    // 1. Découverte instantanée d'une bague déjà connectée aux Réglages Bluetooth iOS
+    const detectSystemConnectedRing = async () => {
+      try {
+        const connectedRings = await qringBle.getSystemConnectedRings();
+        if (connectedRings && connectedRings.length > 0) {
+          setDiscoveredDevices((prev) => {
+            const next = [...prev];
+            for (const r of connectedRings) {
+              if (!next.some((p) => p.deviceId === r.deviceId)) {
+                next.unshift(r);
+              }
+            }
+            return next;
+          });
+          setStatusMessage(
+            `Bague ${connectedRings[0].name} déjà reliée au Bluetooth de l'iPhone. Appuyez sur Connecter.`
+          );
+        }
+      } catch (err) {
+        console.warn('[PairingModal] System ring query note:', err);
+      }
+    };
+    detectSystemConnectedRing();
+
     const unsub = qringBle.onDeviceDiscovered((dev) => {
       setDiscoveredDevices((prev) => {
         if (prev.some((p) => p.deviceId === dev.deviceId)) return prev;
@@ -512,8 +536,8 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           padding: '0 24px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 24px',
         }}
       >
-        {/* Bouton d'action principal : Blanc pur luxueux sur fond noir */}
-        {status === 'searching' && discoveredDevices.length > 0 && (
+        {/* Liste des périphériques détectés (y compris déjà connectés dans Réglages iOS) */}
+        {status !== 'found' && discoveredDevices.length > 0 && (
           <div
             style={{
               width: '100%',

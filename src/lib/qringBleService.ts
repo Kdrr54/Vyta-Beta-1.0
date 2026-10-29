@@ -258,8 +258,6 @@ class QRingBleService {
     if (this.isAutoReconnecting || this.userExplicitlyDisconnected || this.isConnected()) {
       return;
     }
-    const savedId = this.getSavedDeviceId();
-    if (!savedId) return;
 
     this.isAutoReconnecting = true;
     console.log('[QRing BLE AutoReconnect] Starting silent background auto-reconnect engine...');
@@ -297,15 +295,138 @@ class QRingBleService {
 
   /**
    * Attempts automatic connection to previously bonded/saved smart ring
+   * or a smart ring already connected to iOS System Bluetooth
    */
   public async autoConnectSavedDevice(): Promise<boolean> {
     if (this.isConnected() || this.userExplicitlyDisconnected) {
       return false;
     }
-    const savedId = this.getSavedDeviceId();
-    if (!savedId) return false;
     this.scheduleAutoReconnect();
     return true;
+  }
+
+  /**
+   * Discovers peripherals that are currently connected to iOS at the system level.
+   * On iOS, devices already paired in iPhone Settings > Bluetooth NEVER show up in LE scans;
+   * they MUST be retrieved via BleClient.getConnectedDevices([serviceUUIDs]).
+   */
+  public async getSystemConnectedRings(): Promise<DiscoveredBleDevice[]> {
+    if (!Capacitor.isNativePlatform()) return [];
+    try {
+      if (!this.isNativeInitialized) {
+        await BleClient.initialize();
+        this.isNativeInitialized = true;
+      }
+
+      // Query across all known smart ring & wearable service UUIDs
+      const serviceCandidates = [
+        QRING_SERVICE_UUID,
+        NORDIC_UART_SERVICE_UUID,
+        '0000fee7-0000-1000-8000-00805f9b34fb',
+        '0000180d-0000-1000-8000-00805f9b34fb',
+        '0000180f-0000-1000-8000-00805f9b34fb',
+        '0000180a-0000-1000-8000-00805f9b34fb',
+        '7905f431-b5ce-4e99-a40f-4b1e122d00d0',
+        '0000fee0-0000-1000-8000-00805f9b34fb',
+        '0000fee1-0000-1000-8000-00805f9b34fb',
+        '0000feea-0000-1000-8000-00805f9b34fb',
+        '00001812-0000-1000-8000-00805f9b34fb',
+      ];
+
+      let rawConnected: any[] = [];
+      try {
+        rawConnected = await BleClient.getConnectedDevices(serviceCandidates);
+      } catch (err) {
+        console.warn('[QRing BLE] Error in getConnectedDevices with primary services:', err);
+      }
+
+      // Fallback query with standard generic services if primary candidate query returned nothing
+      if (!rawConnected || rawConnected.length === 0) {
+        try {
+          rawConnected = await BleClient.getConnectedDevices([
+            '00001800-0000-1000-8000-00805f9b34fb',
+            '00001801-0000-1000-8000-00805f9b34fb',
+          ]);
+        } catch (_) {}
+      }
+
+      if (!rawConnected || rawConnected.length === 0) {
+        return [];
+      }
+
+      const savedId = this.getSavedDeviceId()?.toLowerCase();
+      const savedName = this.getSavedDeviceName()?.toLowerCase();
+
+      const results: DiscoveredBleDevice[] = [];
+      for (const dev of rawConnected) {
+        const name = (dev.name || '').trim();
+        const upper = name.toUpperCase();
+        const devId = dev.deviceId;
+
+        // Blacklist non-wearable audio/TV/apple peripherals
+        const isBlacklisted = [
+          'ELK-BLEDOM',
+          'OLED',
+          'TV',
+          'SAMSUNG',
+          'LG',
+          'SONY',
+          'APPLE',
+          'MACBOOK',
+          'IPAD',
+          'WATCH',
+          'AIRPOD',
+          'BEATS',
+          'BOSE',
+          'JBL',
+          'SPEAKER',
+        ].some((b) => upper.includes(b));
+
+        if (isBlacklisted) continue;
+
+        const isKnownSaved =
+          (savedId && devId.toLowerCase() === savedId) ||
+          (savedName && name.toLowerCase() === savedName);
+
+        const isRingName = [
+          'RING',
+          'QRING',
+          'VYTA',
+          'QC',
+          'R0',
+          'R1',
+          'R2',
+          'R3',
+          'R4',
+          'R5',
+          'R6',
+          'R7',
+          'R8',
+          'NOVA',
+          'COLMI',
+          'SMART',
+          'SOX',
+          'HEALTH',
+          'WEAR',
+          'JSTYLE',
+          'BAND',
+        ].some((k) => upper.includes(k));
+
+        if (isKnownSaved || isRingName || rawConnected.length === 1) {
+          results.push({
+            deviceId: devId,
+            name: name || savedName || 'Bague Vyta',
+            isRing: true,
+            rssi: -45,
+          });
+        }
+      }
+
+      return results;
+    } catch (e) {
+      console.warn('[QRing BLE] getSystemConnectedRings error:', e);
+      return [];
+    }
   }
 
   /**
@@ -315,10 +436,6 @@ class QRingBleService {
    * 3. Fast 3.5s LE scan fallback
    */
   private async attemptSilentReconnect(): Promise<boolean> {
-    const savedId = this.getSavedDeviceId();
-    const savedName = this.getSavedDeviceName() || 'Vyta One';
-    if (!savedId) return false;
-
     if (!Capacitor.isNativePlatform()) {
       return false;
     }
@@ -330,48 +447,55 @@ class QRingBleService {
       }
 
       // Step 1: Hook into already-connected iOS CoreBluetooth peripherals
-      try {
-        const connectedPeripherals = await BleClient.getConnectedDevices([
-          QRING_SERVICE_UUID,
-          NORDIC_UART_SERVICE_UUID,
-          STANDARD_BATTERY_SERVICE_UUID,
-          STANDARD_HEART_RATE_SERVICE_UUID,
-        ]);
+      // (Crucial: when ring is already connected in iPhone Settings > Bluetooth)
+      const systemRings = await this.getSystemConnectedRings();
+      if (systemRings && systemRings.length > 0) {
+        const savedId = this.getSavedDeviceId();
+        const match =
+          (savedId
+            ? systemRings.find((d) => d.deviceId.toLowerCase() === savedId.toLowerCase())
+            : null) || systemRings[0];
 
-        if (connectedPeripherals && connectedPeripherals.length > 0) {
-          const match = connectedPeripherals.find(
-            (d) => d.deviceId.toLowerCase() === savedId.toLowerCase()
-          ) || connectedPeripherals[0];
-
-          if (match) {
-            console.log('[QRing BLE AutoReconnect] Ring is already connected to iOS! Attaching GATT:', match.deviceId);
-            const res = await this.connectDirectly(match.deviceId, match.name || savedName);
-            if (res.success) return true;
-          }
+        if (match) {
+          console.log(
+            '[QRing BLE AutoReconnect] Ring is already connected to iOS! Attaching GATT:',
+            match.deviceId,
+            match.name
+          );
+          const res = await this.connectDirectly(match.deviceId, match.name);
+          if (res.success) return true;
         }
-      } catch (e) {
-        console.warn('[QRing BLE AutoReconnect] getConnectedDevices note:', e);
       }
 
       // Step 2: Direct connect using saved device UUID without scanning
-      try {
-        console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
-        const res = await this.connectDirectly(savedId, savedName);
-        if (res.success) return true;
-      } catch (e) {
-        console.warn('[QRing BLE AutoReconnect] Direct connect note:', e);
-      }
-
-      // Step 3: Fast 3.5s scan in case peripheral changed address or was power-cycled
-      try {
-        const scannedDevice = await this.scanQuickForSavedDevice(savedId, savedName, 3500);
-        if (scannedDevice) {
-          console.log('[QRing BLE AutoReconnect] Found ring via scan, connecting:', scannedDevice.deviceId);
-          const res = await this.connectDirectly(scannedDevice.deviceId, scannedDevice.name || savedName);
+      const savedId = this.getSavedDeviceId();
+      const savedName = this.getSavedDeviceName() || 'Vyta One';
+      if (savedId) {
+        try {
+          console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
+          const res = await this.connectDirectly(savedId, savedName);
           if (res.success) return true;
+        } catch (e) {
+          console.warn('[QRing BLE AutoReconnect] Direct connect note:', e);
         }
-      } catch (e) {
-        console.warn('[QRing BLE AutoReconnect] Quick scan note:', e);
+
+        // Step 3: Fast 3.5s scan in case peripheral changed address or was power-cycled
+        try {
+          const scannedDevice = await this.scanQuickForSavedDevice(savedId, savedName, 3500);
+          if (scannedDevice) {
+            console.log(
+              '[QRing BLE AutoReconnect] Found ring via scan, connecting:',
+              scannedDevice.deviceId
+            );
+            const res = await this.connectDirectly(
+              scannedDevice.deviceId,
+              scannedDevice.name || savedName
+            );
+            if (res.success) return true;
+          }
+        } catch (e) {
+          console.warn('[QRing BLE AutoReconnect] Quick scan note:', e);
+        }
       }
     } catch (err) {
       console.warn('[QRing BLE AutoReconnect] Attempt error:', err);
@@ -495,6 +619,23 @@ class QRingBleService {
     if (!this.isNativeInitialized) {
       await BleClient.initialize();
       this.isNativeInitialized = true;
+    }
+
+    // Step 0: Check if ring is ALREADY connected in iPhone Settings > Bluetooth
+    try {
+      const systemRings = await this.getSystemConnectedRings();
+      if (systemRings && systemRings.length > 0) {
+        const ring = systemRings[0];
+        console.log('[QRing BLE Native] Ring is already connected to iOS! Directly attaching to:', ring.name, ring.deviceId);
+        this.notifyDiscoveredDevice(ring);
+        const connRes = await this.connectDirectly(ring.deviceId, ring.name);
+        this.isConnecting = false;
+        if (connRes.success) {
+          return connRes;
+        }
+      }
+    } catch (e) {
+      console.warn('[QRing BLE Native] getSystemConnectedRings check in scan note:', e);
     }
 
     console.log('[QRing BLE Native] Starting background LE scan...');
@@ -669,8 +810,8 @@ class QRingBleService {
         for (const s of services) {
           const sUuid = s.uuid.toLowerCase();
           for (const c of s.characteristics) {
-            // Prioritize QRing vendor service 6e40fff0
-            if (sUuid.includes('fff0') || sUuid.includes('6e40') || sUuid.includes('7905') || sUuid.includes('fee7')) {
+            // Prioritize QRing vendor service 6e40fff0, Nordic UART 6e40, or Colmi/Tencent fee7
+            if (sUuid.includes('fff0') || sUuid.includes('6e40') || sUuid.includes('fee7')) {
               if (c.properties.write || c.properties.writeWithoutResponse) {
                 this.activeServiceUuid = s.uuid;
                 this.activeRxUuid = c.uuid;
