@@ -340,12 +340,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = data.heartRate!;
 
-          // Courbe réelle : fusionner les 48 relevés de la bague (un par demi-heure) sans écraser les mesures réelles déjà acquises
+          // Courbe réelle : utiliser directement les 48 relevés de la bague (0x15) pour aujourd'hui sans mélanger avec d'anciens caches
           const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
           if (Array.isArray(data.heartRateLog) && data.heartRateLog.length === 48) {
-            cur.hrLog = data.heartRateLog.map((val, i) =>
-              val >= 40 && val <= 200 ? val : prevLog[i] >= 40 && prevLog[i] <= 200 ? prevLog[i] : 0
-            );
+            cur.hrLog = data.heartRateLog.map((val) => (val >= 40 && val <= 200 ? val : 0));
           } else {
             const now = new Date();
             const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
@@ -564,14 +562,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return next;
         });
       }
-      if (data.minBpm !== undefined && data.minBpm > 0) {
+      if (data.minBpm !== undefined && data.minBpm > 0 && data.heartRate === undefined) {
         setWeekData((prev) => {
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          cur.minBpm = data.minBpm!;
-          if (data.maxBpm) cur.maxBpm = data.maxBpm!;
-          if (data.restingBpm) cur.restingBpm = data.restingBpm!;
+          const validLog = (cur.hrLog || []).filter((v) => v >= 40 && v <= 200);
+          cur.minBpm = validLog.length > 0 ? Math.min(data.minBpm!, ...validLog) : data.minBpm!;
+          if (data.maxBpm) cur.maxBpm = validLog.length > 0 ? Math.max(data.maxBpm, ...validLog) : data.maxBpm;
+          if (data.restingBpm) cur.restingBpm = data.restingBpm;
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -589,10 +588,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const v = localStorage.getItem('vyta_data_ver');
         // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
-        if (v !== 'v57_real_only') {
+        if (v !== 'v59_real_only') {
           localStorage.removeItem('vyta_week_data');
           localStorage.removeItem('vyta_simulated_date');
-          localStorage.setItem('vyta_data_ver', 'v57_real_only');
+          localStorage.setItem('vyta_data_ver', 'v59_real_only');
           return createEmptyWeekMetrics();
         }
         const saved = localStorage.getItem('vyta_week_data');

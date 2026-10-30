@@ -31,12 +31,25 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
   liveBpmRef.current = liveBpm;
 
   // BPM de la journée sélectionnée (ou BPM direct pendant une mesure active)
-  const dayBpm = dayData?.bpm || 0;
+  const validHrLog = useMemo(
+    () => (Array.isArray(dayData?.hrLog) ? dayData.hrLog.filter((v) => v >= 40 && v <= 200) : []),
+    [dayData?.hrLog]
+  );
+  const latestFromLog = validHrLog.length > 0 ? validHrLog[validHrLog.length - 1] : 0;
+  const dayBpm = dayData?.bpm || latestFromLog || 0;
   const rawBpm = isMeasuring ? (liveBpm > 0 ? liveBpm : dayBpm) : dayBpm;
   const displayBpm = rawBpm > 0 ? rawBpm : 0;
   const displayBpmText = displayBpm > 0 ? String(displayBpm) : (isMeasuring ? '...' : '--');
-  const minBpmText = (dayData?.minBpm && dayData.minBpm > 0) ? String(dayData.minBpm) : '--';
-  const maxBpmText = (dayData?.maxBpm && dayData.maxBpm > 0) ? String(dayData.maxBpm) : '--';
+  const effectiveMinBpm =
+    validHrLog.length > 0
+      ? Math.min(...validHrLog, ...(dayData?.minBpm && dayData.minBpm >= 40 ? [dayData.minBpm] : []))
+      : dayData?.minBpm || 0;
+  const effectiveMaxBpm =
+    validHrLog.length > 0
+      ? Math.max(...validHrLog, ...(dayData?.maxBpm && dayData.maxBpm >= 40 ? [dayData.maxBpm] : []))
+      : dayData?.maxBpm || 0;
+  const minBpmText = effectiveMinBpm > 0 ? String(effectiveMinBpm) : '--';
+  const maxBpmText = effectiveMaxBpm > 0 ? String(effectiveMaxBpm) : '--';
 
   const isResting = displayBpm > 0 && displayBpm <= 75;
 

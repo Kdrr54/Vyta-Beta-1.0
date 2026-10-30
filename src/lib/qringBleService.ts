@@ -1135,18 +1135,9 @@ class QRingBleService {
       return await this.writeBytes(pkt);
     };
 
-    // 1. Primary query: UTC midnight of today's calendar date (matches BCD clock epoch on QRing/Colmi)
+    // Primary query: UTC midnight of today's calendar date (matches BCD clock epoch on QRing/Colmi).
+    // Never send localMidnightSec in UTC+ timezones as it equals 23:00 UTC of yesterday and returns yesterday's log!
     const ok = await send0x15(utcMidnightSec);
-
-    // 2. Fallback query: only if ring returned 0 readings for UTC midnight after 650ms
-    setTimeout(async () => {
-      if (this.hrLogReadings.length === 0 && this.isConnected()) {
-        if (localMidnightSec !== utcMidnightSec) {
-          console.log('[QRing BLE] Retrying Command 21 (0x15) with local midnight timestamp...');
-          await send0x15(localMidnightSec);
-        }
-      }
-    }, 650);
 
     return ok;
   }
@@ -1301,8 +1292,19 @@ class QRingBleService {
     if (this.hrLogReadings.length === 0) return;
 
     const now = new Date();
+    // Derive exact slot duration from actual array length returned by ring hardware:
+    // Colmi R02 / QRing sends 288 bytes (5 min per slot = 1440 min) across 23 frames even when interval is set to 30 min.
     const rawLen = this.hrLogReadings.length;
-    const slotMin = this.hrLogRangeMinutes >= 1 && this.hrLogRangeMinutes <= 60 ? this.hrLogRangeMinutes : 5;
+    const slotMin =
+      rawLen > 96
+        ? 5
+        : rawLen > 48
+        ? 15
+        : rawLen > 24
+        ? 30
+        : this.hrLogRangeMinutes >= 1 && this.hrLogRangeMinutes <= 60
+        ? this.hrLogRangeMinutes
+        : 5;
     const slotsPerDay = Math.floor(1440 / slotMin);
     const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
     const currentSlot = Math.min(slotsPerDay - 1, Math.max(0, Math.floor(minutesSinceMidnight / slotMin)));
@@ -1313,16 +1315,34 @@ class QRingBleService {
       return bpm >= 40 && bpm <= 200 ? bpm : 0;
     });
 
-    // Find the latest valid pulse reading at or immediately before currentSlot
+    // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
+    // If a 30-min window has both a scheduled reading (minute % 30 === 0) and an intermediate reading,
+    // keep the exact scheduled reading (or the valid reading in that window).
+    const halfHourLog: number[] = new Array(48).fill(0);
+    clampedLog.forEach((bpm, slotIdx) => {
+      if (bpm < 40 || bpm > 200) return;
+      const minute = slotIdx * slotMin;
+      const half = Math.floor(minute / 30);
+      if (half >= 0 && half < 48) {
+        if (halfHourLog[half] === 0 || minute % 30 === 0) {
+          halfHourLog[half] = bpm;
+        }
+      }
+    });
+
+    const validHalfHourPulses = halfHourLog.filter((b) => b >= 40 && b <= 200);
+    const validPulses = validHalfHourPulses.length > 0
+      ? validHalfHourPulses
+      : clampedLog.slice(0, currentSlot + 1).filter((b) => b >= 40 && b <= 200);
+
+    // Find the latest valid pulse reading from halfHourLog so main card and 24h detail curve match 100%
     let latestBpm = 0;
-    for (let s = Math.min(currentSlot, clampedLog.length - 1); s >= 0; s--) {
-      if (clampedLog[s] >= 40 && clampedLog[s] <= 200) {
-        latestBpm = clampedLog[s];
+    for (let h = 47; h >= 0; h--) {
+      if (halfHourLog[h] >= 40 && halfHourLog[h] <= 200) {
+        latestBpm = halfHourLog[h];
         break;
       }
     }
-
-    const validPulses = clampedLog.slice(0, currentSlot + 1).filter((b) => b >= 40 && b <= 200);
 
     if (validPulses.length > 0) {
       if (!latestBpm) latestBpm = validPulses[validPulses.length - 1];
@@ -1332,14 +1352,6 @@ class QRingBleService {
       console.log(
         `[QRing BLE] Finalized Heart Rate Log (rawLen=${rawLen}, slotMin=${slotMin}, currentSlot=${currentSlot} at ${now.getHours()}h${now.getMinutes()}): latest=${latestBpm} bpm, resting=${restingBpm} bpm, min=${minBpm}, max=${maxBpm}`
       );
-      // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
-      const halfHourLog: number[] = new Array(48).fill(0);
-      clampedLog.forEach((bpm, slotIdx) => {
-        if (bpm < 40 || bpm > 200) return;
-        const minute = slotIdx * slotMin;
-        const half = Math.floor(minute / 30);
-        if (half >= 0 && half < 48) halfHourLog[half] = bpm;
-      });
 
       this.notify({
         heartRate: latestBpm,
