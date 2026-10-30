@@ -1570,7 +1570,7 @@ class QRingBleService {
     }
 
     // 2. SPO2 HISTORY (dataId = 0x2A / 42 or 0x5F / 95) — Gadgetbridge YawellRingPacketHandler.historicalSpo2 verbatim
-    if (dataId === 0x2A || dataId === 42 || dataId === 0x5F || dataId === 95) {
+    if (dataId === 0x2A || dataId === 0x5F) {
       const now = new Date();
       const currentHour = now.getHours();
       const spo2Log: number[] = new Array(48).fill(0);
@@ -1578,7 +1578,7 @@ class QRingBleService {
       let minSpo2 = 101;
       let maxSpo2 = 0;
 
-      if (dataId === 0x5F || dataId === 95) {
+      if (dataId === 0x5F) {
         for (let i = 10; i < bytes.length; i++) {
           const v = bytes[i] & 0xFF;
           if (v >= 70 && v <= 100) {
