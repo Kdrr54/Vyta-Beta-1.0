@@ -48,12 +48,21 @@ export interface DayMetrics {
   /** 48 releves reels de la bague, un par demi-heure (00:00 -> 23:30). 0 = pas de mesure. */
   hrLog?: number[];
   hrv: number;
+  hrvLog?: number[];
   hrvBaseline: number;
   tempDelta: number;
+  skinTemp?: number;
   spo2: number;
+  spo2Min?: number;
+  spo2Max?: number;
+  spo2Log?: number[];
   anomaly: { tempDelta: number; hrvDelta: number } | null;
   sleep: SleepSummary;
   stress?: number;
+  stressAvg?: number;
+  stressMin?: number;
+  stressMax?: number;
+  stressLog?: number[];
   stressLevel?: string;
   bloodPressure?: { sbp: number; dbp: number };
   glucose?: { valueMmol: number; stabilityScore: number };

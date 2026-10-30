@@ -391,6 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.hrv = data.hrv!;
+          if (Array.isArray(data.hrvLog) && data.hrvLog.length === 48) {
+            cur.hrvLog = data.hrvLog;
+          }
+          if (cur.pillars) {
+            const recScore = Math.min(100, Math.max(20, Math.round(50 + (data.hrv! - 30) * 0.9)));
+            cur.pillars = { ...cur.pillars, recovery: recScore };
+            const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+            cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -398,14 +407,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return next;
         });
       }
-      if (data.stress !== undefined) {
+      if (data.stress !== undefined && data.stress > 0) {
         setWeekData((prev) => {
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.stress = data.stress!;
-          cur.stressLevel = data.stress! < 30 ? 'Bas' : data.stress! < 60 ? 'Modéré' : 'Élevé';
+          if (data.stressAvg !== undefined) cur.stressAvg = data.stressAvg;
+          if (data.stressMin !== undefined) cur.stressMin = data.stressMin;
+          if (data.stressMax !== undefined) cur.stressMax = data.stressMax;
+          if (Array.isArray(data.stressLog) && data.stressLog.length === 48) {
+            cur.stressLog = data.stressLog;
+          }
+          cur.stressLevel = data.stress! < 30 ? 'Bas' : data.stress! < 60 ? 'Normal' : 'Stress';
+          if (cur.pillars) {
+            const recFromStress = Math.max(10, Math.min(100, 100 - (data.stressAvg || data.stress!) + 14));
+            if (!cur.pillars.recovery || cur.pillars.recovery === 0) {
+              cur.pillars = { ...cur.pillars, recovery: recFromStress };
+            }
+            const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+            cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+            cur.bodyEnergy = recFromStress;
+            if (cur.pillars.sleep > 0) cur.bodyEnergyWake = cur.pillars.sleep;
+          }
           next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.skinTemp !== undefined && data.skinTemp >= 30 && data.skinTemp <= 42) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const idx = Math.min(6, Math.max(0, selectedDay));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.skinTemp = data.skinTemp!;
+          cur.tempDelta = parseFloat((data.skinTemp! - 36.5).toFixed(2));
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
           return next;
         });
       }
@@ -447,9 +489,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (cur.pillars) {
             cur.pillars = {
               ...cur.pillars,
-              activity: Math.min(100, Math.round((safeSteps / 8000) * 100)),
+              activity: Math.min(100, Math.round((safeSteps / 10000) * 100)),
             };
-            cur.score = Math.round(cur.pillars.sleep * 0.4 + cur.pillars.recovery * 0.4 + cur.pillars.activity * 0.2);
+            const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+            cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
           next[idx] = cur;
           try {
@@ -463,14 +506,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const next = [...prev];
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          const totalMin = Math.round(data.sleepHours! * 60); // durée réelle envoyée par la bague, 0 répartition inventée
-          cur.sleep = {
-            score: 0,
-            deepMin: 0,
-            remMin: 0,
-            lightMin: totalMin,
-            awakeMin: 0,
-          };
+          const totalMin = Math.round(data.sleepHours! * 60);
+          const hasStages =
+            (data.sleepDeepMin !== undefined && data.sleepDeepMin > 0) ||
+            (data.sleepRemMin !== undefined && data.sleepRemMin > 0) ||
+            (data.sleepLightMin !== undefined && data.sleepLightMin > 0);
+          const sleepScore = data.sleepScore || Math.min(99, Math.round((totalMin / 480) * 90));
+          cur.sleep = hasStages
+            ? {
+                score: sleepScore,
+                deepMin: data.sleepDeepMin || 0,
+                remMin: data.sleepRemMin || 0,
+                lightMin: data.sleepLightMin || 0,
+                awakeMin: data.sleepAwakeMin || 0,
+              }
+            : {
+                score: sleepScore,
+                deepMin: cur.sleep?.deepMin || 0,
+                remMin: cur.sleep?.remMin || 0,
+                lightMin: totalMin - (cur.sleep?.deepMin || 0) - (cur.sleep?.remMin || 0) - (cur.sleep?.awakeMin || 0),
+                awakeMin: cur.sleep?.awakeMin || 0,
+              };
+          if (cur.pillars) {
+            cur.pillars = {
+              ...cur.pillars,
+              sleep: sleepScore,
+            };
+            const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+            cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+            cur.bodyEnergyWake = sleepScore;
+            if (!cur.bodyEnergy || cur.bodyEnergy === 0) {
+              cur.bodyEnergy = cur.score;
+            }
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -484,6 +552,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.min(6, Math.max(0, selectedDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.spo2 = data.spo2!;
+          if (data.spo2Min !== undefined) cur.spo2Min = data.spo2Min;
+          if (data.spo2Max !== undefined) cur.spo2Max = data.spo2Max;
+          if (Array.isArray(data.spo2Log) && data.spo2Log.length === 48) {
+            cur.spo2Log = data.spo2Log;
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -516,10 +589,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const v = localStorage.getItem('vyta_data_ver');
         // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
-        if (v !== 'v55_real_only') {
+        if (v !== 'v57_real_only') {
           localStorage.removeItem('vyta_week_data');
           localStorage.removeItem('vyta_simulated_date');
-          localStorage.setItem('vyta_data_ver', 'v55_real_only');
+          localStorage.setItem('vyta_data_ver', 'v57_real_only');
           return createEmptyWeekMetrics();
         }
         const saved = localStorage.getItem('vyta_week_data');

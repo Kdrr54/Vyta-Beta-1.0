@@ -420,10 +420,19 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
 
-  // Rafraîchir automatiquement les 48 relevés 30-min stockés dans la mémoire flash de la bague à l'ouverture (0 LED)
+  // Rafraîchir automatiquement les relevés stockés dans la mémoire flash de la bague à l'ouverture (0 LED)
   useEffect(() => {
-    if (metricId === 'bpm' && selectedDay === TODAY_INDEX) {
+    if (selectedDay !== TODAY_INDEX) return;
+    if (metricId === 'bpm') {
       qringBle.requestHeartRateLog();
+    } else if (metricId === 'hrv') {
+      qringBle.requestHrvLog();
+    } else if (metricId === 'spo2') {
+      qringBle.requestSpo2Data();
+    } else if (metricId === 'stress') {
+      qringBle.requestStressLog();
+    } else if (metricId === 'temp') {
+      qringBle.requestTemperatureData();
     }
   }, [metricId, selectedDay]);
 
@@ -553,19 +562,44 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         { label: isEn ? 'Average' : 'Moyenne', value: '--', sub: isEn ? 'Awaiting sync' : 'En attente' },
         { label: isEn ? 'Maximum' : 'Maximum', value: '--', sub: isEn ? 'Awaiting sync' : 'En attente' },
       ]
-    : (metricId === 'bpm' && dayData?.bpm && dayData.bpm > 0
-        ? [
-            { label: 'Minimum', value: `${dayData.minBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-            { label: 'Moyenne', value: `${dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-            { label: 'Maximum', value: `${dayData.maxBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          ]
-        : (displayStats.length > 0
-            ? displayStats
-            : [
-                { label: isEn ? 'Minimum' : 'Minimum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-                { label: isEn ? 'Average' : 'Moyenne', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-                { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-              ]));
+    : metricId === 'bpm' && dayData?.bpm && dayData.bpm > 0
+    ? [
+        { label: 'Minimum', value: `${dayData.minBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Moyenne', value: `${dayData.restingBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Maximum', value: `${dayData.maxBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+      ]
+    : metricId === 'spo2' && dayData?.spo2 && dayData.spo2 > 0
+    ? [
+        { label: 'Minimum', value: `${dayData.spo2Min || dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Moyenne', value: `${dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Maximum', value: `${dayData.spo2Max || dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+      ]
+    : metricId === 'stress' && dayData?.stress && dayData.stress > 0
+    ? [
+        { label: 'Minimum', value: `${dayData.stressMin || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Moyenne', value: `${dayData.stressAvg || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: 'Maximum', value: `${dayData.stressMax || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+      ]
+    : metricId === 'hrv' && dayData?.hrv && dayData.hrv > 0
+    ? (() => {
+        const validHrv = (dayData.hrvLog || []).filter((v) => v >= 5 && v < 250);
+        const minH = validHrv.length > 0 ? Math.min(...validHrv) : dayData.hrv;
+        const maxH = validHrv.length > 0 ? Math.max(...validHrv) : dayData.hrv;
+        const avgH =
+          validHrv.length > 0
+            ? Math.round(validHrv.reduce((a, b) => a + b, 0) / validHrv.length)
+            : dayData.hrv;
+        return [
+          { label: 'Minimum', value: `${minH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Moyenne', value: `${avgH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Maximum', value: `${maxH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        ];
+      })()
+    : [
+        { label: isEn ? 'Minimum' : 'Minimum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: isEn ? 'Average' : 'Moyenne', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+      ];
 
   // Active dataset based on selected day curve (48 créneaux de 30 min de 00:00 à 23h)
   const dataset: MetricDataPoint[] = React.useMemo(() => {
@@ -581,7 +615,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       }
     }
 
-    // Fréquence cardiaque : on trace les 48 relevés réels de la bague (un par demi-heure)
+    // Fréquence cardiaque : 48 relevés réels (0x15)
     if (metricId === 'bpm' && Array.isArray(dayData?.hrLog) && dayData!.hrLog!.length === 48) {
       dayData!.hrLog!.forEach((v, i) => {
         slots[i].value = v >= 40 && v <= 200 ? v : 0;
@@ -593,6 +627,30 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[curIdx].value = dayMetricValue;
         }
       }
+      return slots;
+    }
+
+    // VRC / HRV : 48 relevés réels de 30 min (0x39)
+    if (metricId === 'hrv' && Array.isArray(dayData?.hrvLog) && dayData!.hrvLog!.length === 48) {
+      dayData!.hrvLog!.forEach((v, i) => {
+        slots[i].value = v >= 5 && v < 250 ? v : 0;
+      });
+      return slots;
+    }
+
+    // SpO2 : relevés horaires de la bague (0xBC 0x2A)
+    if (metricId === 'spo2' && Array.isArray(dayData?.spo2Log) && dayData!.spo2Log!.length === 48) {
+      dayData!.spo2Log!.forEach((v, i) => {
+        slots[i].value = v >= 70 && v <= 100 ? v : 0;
+      });
+      return slots;
+    }
+
+    // Stress : 48 relevés réels de 30 min (0x37)
+    if (metricId === 'stress' && Array.isArray(dayData?.stressLog) && dayData!.stressLog!.length === 48) {
+      dayData!.stressLog!.forEach((v, i) => {
+        slots[i].value = v > 0 && v <= 100 ? v : 0;
+      });
       return slots;
     }
 

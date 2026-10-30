@@ -48,10 +48,18 @@ export const HealthScreen: React.FC = () => {
   const batteryAccent = isMono ? '#FAF7F2' : (isLowBattery ? '#FF5A52' : '#D9F970');
   const batteryAccentSoft = isMono ? 'rgba(255, 255, 255, 0.78)' : (isLowBattery ? 'rgba(255, 90, 82, 0.78)' : 'rgba(228, 255, 142, 0.78)');
   const neuralPct = dayData?.pillars?.recovery && dayData.pillars.recovery > 0 ? dayData.pillars.recovery : 0;
-  const skinTempAbs = dayData?.tempDelta !== undefined && dayData.tempDelta !== 0 ? (36.8 + dayData.tempDelta).toFixed(1) : '--';
+  const skinTempAbs =
+    dayData?.skinTemp && dayData.skinTemp >= 30
+      ? dayData.skinTemp.toFixed(1)
+      : dayData?.tempDelta !== undefined && dayData.tempDelta !== 0
+      ? (36.5 + dayData.tempDelta).toFixed(1)
+      : '--';
   const stepsProgress = Math.min(100, Math.round(((dayData.steps || 0) / 10000) * 100));
-  const prevDayData = selectedDay > 0 ? ((weekData && weekData[selectedDay - 1]) || (isFirstLaunch ? null : weekMetrics[selectedDay - 1])) : null;
-  const scoreDiffYesterday = prevDayData && prevDayData.score > 0 && dayData.score > 0 ? dayData.score - prevDayData.score : 0;
+  const prevDayData = selectedDay > 0 ? (weekData && weekData[selectedDay - 1]) : null;
+  const scoreDiffYesterday =
+    prevDayData && prevDayData.score > 0 && prevDayData.sleep?.score > 0 && dayData.score > 0
+      ? dayData.score - prevDayData.score
+      : 0;
 
   // Generate 60 radial tick marks for the circular HUD around the ring
   const ticks = Array.from({ length: 60 }, (_, i) => {
@@ -440,16 +448,15 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline' }}>
               <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
-                {neuralPct > 0 ? neuralPct : '--'}
+                {dayData.hrv && dayData.hrv > 0 ? dayData.hrv : '--'}
               </span>
-              {neuralPct > 0 && <span style={{ fontSize: '16px', fontWeight: 300, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#D9F970', marginLeft: '1px' }}>%</span>}
-            </div>
-            <span style={{ fontSize: '10px', color: isMono ? '#FAF7F2' : '#D9F970', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
               {dayData.hrv && dayData.hrv > 0 ? (
-                <>
-                  <span style={{ fontSize: '8px' }}>▲</span>
-                  <span>{dayData.hrv} ms VRC</span>
-                </>
+                <span style={{ fontSize: '15px', fontWeight: 400, color: isMono ? 'rgba(250, 247, 242, 0.8)' : '#D9F970', marginLeft: '3px' }}>ms</span>
+              ) : null}
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? '#FAF7F2' : '#D9F970', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
+              {dayData.hrv && dayData.hrv > 0 ? (
+                <span>{language === 'fr' ? 'VRC · Normal' : 'HRV · Normal'}</span>
               ) : (
                 <span>--</span>
               )}
@@ -628,7 +635,11 @@ export const HealthScreen: React.FC = () => {
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <span style={{ fontSize: '9.5px', color: isMono ? '#FAF7F2' : '#F0ABFC', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600 }}>
-                {dayData.spo2 && dayData.spo2 > 0 ? <><span style={{ fontSize: '7px' }}>▲</span> 0.7%</> : '--'}
+                {dayData.spo2 && dayData.spo2 > 0
+                  ? dayData.spo2Min && dayData.spo2Max
+                    ? `${dayData.spo2Min}-${dayData.spo2Max}%`
+                    : `${Math.round(dayData.spo2)}%`
+                  : '--'}
               </span>
               <svg width="68" height="36" viewBox="0 0 78 42" style={{ overflow: 'visible' }}>
                 <path d="M 10 38 A 29 29 0 0 1 68 38" fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(232, 121, 249, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
@@ -784,7 +795,11 @@ export const HealthScreen: React.FC = () => {
           {(() => {
             const hasStress = dayData.stress !== undefined && dayData.stress > 0;
             const sVal = hasStress ? dayData.stress : '--';
-            const sLevel = hasStress ? (dayData.stressLevel || (language === 'fr' ? 'Calme' : 'Calm')) : '--';
+            const sLevel = hasStress
+              ? `${dayData.stressLevel || (language === 'fr' ? 'Normal' : 'Normal')}${
+                  dayData.stressAvg ? ` · Moy. ${dayData.stressAvg}` : ''
+                }`
+              : '--';
 
             return (
               <>
@@ -1114,7 +1129,7 @@ export const HealthScreen: React.FC = () => {
               {language === "fr" ? "État général" : "General State"}
             </span>
           </div>
-          {selectedDay > 0 && dayData.score > 0 && (
+          {selectedDay > 0 && dayData.score > 0 && scoreDiffYesterday !== 0 && (
             <span
               style={{
                 fontSize: '11px',
@@ -1369,7 +1384,7 @@ export const HealthScreen: React.FC = () => {
         );
       })()}
 
-      <CardioAge score={dayData.score} />
+      <CardioAge score={dayData.hrv > 0 && dayData.restingBpm > 0 ? dayData.score : 0} />
       </div>
     </div>
   );
