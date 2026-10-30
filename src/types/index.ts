@@ -30,6 +30,8 @@ export interface SleepSummary {
   remMin: number;
   lightMin: number;
   awakeMin: number;
+  startMin?: number;
+  endMin?: number;
 }
 
 export interface DayMetrics {

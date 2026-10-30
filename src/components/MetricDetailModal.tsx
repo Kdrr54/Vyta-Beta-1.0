@@ -56,25 +56,25 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     tipPointsFr: [
       {
         title: 'Oxygénation cellulaire continue',
-        desc: 'Une saturation moyenne au-dessus de 98% garantit une diffusion parfaite de l’oxygène vers le cortex cérébral et les tissus musculaires profonds.',
+        desc: 'Une saturation élevée (95–100%) garantit une diffusion optimale de l’oxygène vers le cortex cérébral et les tissus musculaires profonds.',
       },
       {
         title: 'Qualité du sommeil & voies respiratoires',
-        desc: 'Zéro épisode de désaturation nocturne (<95%). Vos voies aériennes sont restées parfaitement dégagées tout au long des cycles de sommeil.',
+        desc: 'Le suivi nocturne permet de vérifier que vos voies aériennes restent bien dégagées tout au long des cycles de sommeil.',
       },
       {
         title: 'Recommandation bien-être',
-        desc: 'Maintenez une bonne ventilation de votre chambre à coucher avant le coucher afin de conserver un taux d’oxygène ambiant optimal.',
+        desc: 'Maintenez une bonne ventilation de votre chambre à coucher afin de conserver un taux d’oxygène ambiant optimal.',
       },
     ],
     tipPointsEn: [
       {
         title: 'Continuous cellular oxygenation',
-        desc: 'Average saturation above 98% ensures optimal oxygen delivery to cerebral cortex and deep muscle tissues.',
+        desc: 'Saturation between 95% and 100% ensures optimal oxygen delivery to cerebral cortex and deep muscle tissues.',
       },
       {
         title: 'Sleep quality & airway patency',
-        desc: 'Zero nocturnal desaturation events (<95%). Continuous and smooth airflow throughout all deep sleep cycles.',
+        desc: 'Nocturnal tracking monitors continuous airflow throughout your sleep cycles.',
       },
       {
         title: 'Optimal recovery tip',
@@ -96,30 +96,30 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Autonomic nervous system & HRV',
     tipPointsFr: [
       {
-        title: 'Dominance parasympathique élevée',
-        desc: 'Votre variabilité de fréquence cardiaque est haute (68 ms), signe d’un frein vagal actif favorisant la baisse du cortisol et la régénération.',
+        title: 'Tonus parasympathique & VRC',
+        desc: 'Une variabilité de fréquence cardiaque élevée témoigne d’un frein vagal actif favorisant la baisse du cortisol et la régénération.',
       },
       {
-        title: 'Excellente capacité de récupération',
-        desc: 'Votre système nerveux est prêt à tolérer un niveau de stress physique ou intellectuel important sans risquer le surentraînement.',
+        title: 'Capacité de récupération',
+        desc: 'La VRC mesure la capacité de votre système nerveux à absorber une charge physique ou intellectuelle sans surentraînement.',
       },
       {
         title: 'Recommandation performance',
-        desc: 'Journée idéale pour une séance de renforcement ou un effort soutenu, votre capital nerveux est au zénith.',
+        desc: 'Adaptez l’intensité de vos entraînements selon l’évolution de vos relevés de 30 minutes mesurés par la bague.',
       },
     ],
     tipPointsEn: [
       {
-        title: 'High parasympathetic tone',
-        desc: 'Elevated HRV (68 ms) reflects strong vagal stimulation, reducing stress hormones and accelerating cellular repair.',
+        title: 'Parasympathetic tone & HRV',
+        desc: 'Higher HRV reflects strong vagal stimulation, reducing stress hormones and accelerating cellular repair.',
       },
       {
-        title: 'High resilience reserve',
-        desc: 'Your autonomic nervous system is fully recharged and ready for demanding physical or mental tasks.',
+        title: 'Resilience reserve',
+        desc: 'HRV tracks how well your autonomic nervous system handles physical or mental load.',
       },
       {
         title: 'Performance advice',
-        desc: 'Ideal day for high-intensity training or productive focus sessions.',
+        desc: 'Adjust your training intensity according to your 30-minute ring readings.',
       },
     ],
   },
@@ -137,12 +137,12 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Circadian thermoregulation',
     tipPointsFr: [
       {
-        title: 'Creux thermique nocturne idéal',
-        desc: 'La baisse naturelle de température (-0,26 °C) en milieu de nuit permet la libération profonde de mélatonine et un sommeil lent profond.',
+        title: 'Creux thermique nocturne',
+        desc: 'La baisse naturelle de température en milieu de nuit favorise la libération de mélatonine et le sommeil lent profond.',
       },
       {
-        title: 'Homéostasie immunitaire stable',
-        desc: 'Aucun écart anormal détecté. L’absence d’élévation soutenue (>+0,4 °C) confirme l’absence d’infection virale ou d’inflammation aiguë.',
+        title: 'Homéostasie immunitaire',
+        desc: 'Le suivi thermique cutané permet de repérer rapidement toute variation par rapport à votre ligne de base personnelle.',
       },
       {
         title: 'Recommandation chambre',
@@ -151,12 +151,12 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     ],
     tipPointsEn: [
       {
-        title: 'Ideal nocturnal temperature drop',
-        desc: 'Natural dip (-0.26 °C) during deep sleep promotes melatonin release and restorative sleep architecture.',
+        title: 'Nocturnal temperature drop',
+        desc: 'Natural cooling during deep sleep promotes melatonin release and restorative sleep architecture.',
       },
       {
-        title: 'Stable immune homeostasis',
-        desc: 'No irregular temperature deviation. Absence of sustained heat spikes confirms zero systemic inflammation.',
+        title: 'Immune homeostasis',
+        desc: 'Skin temperature tracking helps detect deviations from your personal physiological baseline.',
       },
       {
         title: 'Room thermal advice',
@@ -178,26 +178,26 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Heart rate & electrocardiogram',
     tipPointsFr: [
       {
-        title: 'Fréquence au repos optimale',
-        desc: 'Un rythme de repos à 59 bpm reflète une excellente condition cardiorespiratoire et un volume d’éjection systolique élevé.',
+        title: 'Fréquence au repos',
+        desc: 'Un rythme cardiaque calme au repos reflète une bonne condition cardiorespiratoire et un volume d’éjection systolique efficace.',
       },
       {
         title: 'Réactivité et récupération',
-        desc: 'Votre cœur répond dynamiquement à l’effort (pic à 164 bpm) et redescend rapidement en zone de repos post-exercice.',
+        desc: 'La vitesse à laquelle votre fréquence cardiaque redescend après une activité est un indicateur direct de récupération.',
       },
       {
         title: 'Recommandation cardiovasculaire',
-        desc: 'Pensez à bien vous hydrater tout au long de la journée pour fluidifier la volémie et alléger la charge sur le ventricule gauche.',
+        desc: 'Pensez à bien vous hydrater tout au long de la journée pour fluidifier la volémie et alléger la charge cardiaque.',
       },
     ],
     tipPointsEn: [
       {
-        title: 'Optimal resting heart rate',
-        desc: 'Resting pulse around 59 bpm indicates high cardiorespiratory fitness and efficient stroke volume.',
+        title: 'Resting heart rate',
+        desc: 'A calm resting pulse indicates good cardiorespiratory fitness and efficient stroke volume.',
       },
       {
         title: 'Cardiac reactivity and recovery',
-        desc: 'Smooth escalation during physical exercise (peak 164 bpm) followed by swift recovery to resting baseline.',
+        desc: 'How quickly your heart rate returns to baseline after activity is a direct indicator of recovery.',
       },
       {
         title: 'Cardiovascular advice',
@@ -219,12 +219,12 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Respiratory rate & ventilation',
     tipPointsFr: [
       {
-        title: 'Cadence respiratoire sereine',
-        desc: 'Une fréquence au repos de 14 rpm témoigne d’une respiration diaphragmatique stable et d’une absence d’hyperventilation de stress.',
+        title: 'Cadence respiratoire au repos',
+        desc: 'Une fréquence respiratoire calme entre 12 et 20 cycles par minute témoigne d’une ventilation diaphragmatique régulière.',
       },
       {
         title: 'Stabilité des échanges gazeux',
-        desc: 'Les cycles respiratoires nocturnes sont restés d’une parfaite régularité, favorisant l’élimination efficace du CO2.',
+        desc: 'Des cycles respiratoires nocturnes réguliers favorisent l’oxygénation tissulaire et l’élimination efficace du CO2.',
       },
       {
         title: 'Recommandation détente',
@@ -233,8 +233,8 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     ],
     tipPointsEn: [
       {
-        title: 'Calm resting respiratory rate',
-        desc: 'Resting rhythm of 14 rpm reflects deep diaphragmatic breathing and low physiological anxiety.',
+        title: 'Resting respiratory rate',
+        desc: 'A steady resting rhythm between 12 and 20 rpm reflects calm diaphragmatic breathing.',
       },
       {
         title: 'Gas exchange efficiency',
@@ -259,30 +259,30 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Nervous tension & autonomic balance (SDK)',
     tipPointsFr: [
       {
-        title: 'Prédominance parasympathique',
-        desc: 'Le score de 24/100 confirme un tonus vagal actif favorisant la décompression physique et la détente cellulaire.',
+        title: 'Équilibre neuro-végétatif',
+        desc: 'L’indice de pression (1–100) est calculé toutes les 30 minutes par la bague à partir des variations de votre pouls optique.',
       },
       {
         title: 'Résilience au stress',
-        desc: 'Les épisodes d’activation diurne sont suivis d’un retour rapide à la ligne de base, signe d’une excellente flexibilité cardiaque.',
+        desc: 'Les épisodes d’activation diurne suivis d’un retour rapide au calme reflètent une bonne flexibilité nerveuse.',
       },
       {
         title: 'Conseil récupération',
-        desc: 'Conservez des micro-pauses sans écran pour maintenir ce niveau bas de tension nerveuse tout au long de la journée.',
+        desc: 'Conservez des micro-pauses respiratoires pour abaisser la tension nerveuse tout au long de la journée.',
       },
     ],
     tipPointsEn: [
       {
-        title: 'Parasympathetic dominance',
-        desc: 'Score of 24/100 confirms an active vagal tone supporting cellular rest and rapid physical recovery.',
+        title: 'Autonomic balance',
+        desc: 'The stress index (1–100) is computed every 30 minutes by the ring from your optical pulse variability.',
       },
       {
         title: 'Stress resilience',
-        desc: 'Daytime stress peaks are followed by swift baseline normalization, reflecting great nervous flexibility.',
+        desc: 'Daytime peaks followed by swift baseline normalization reflect healthy nervous flexibility.',
       },
       {
         title: 'Restoration tip',
-        desc: 'Keep taking screen-free micro-breaks to preserve this low autonomic stress baseline throughout the day.',
+        desc: 'Take short breathing breaks to lower autonomic tension throughout the day.',
       },
     ],
   },
@@ -300,30 +300,30 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Systolic & diastolic blood pressure (PPG)',
     tipPointsFr: [
       {
-        title: 'Conformité hémodynamique',
-        desc: 'Valeurs mesurées à 118/76 mmHg. La pression systolique (<120) et diastolique (<80) sont dans la zone optimale recommandée.',
+        title: 'Repères hémodynamiques',
+        desc: 'Une pression systolique inférieure à 120 mmHg et diastolique inférieure à 80 mmHg correspond à la zone de repos normale.',
       },
       {
-        title: 'Élasticité de l’arbre vasculaire',
-        desc: 'La propagation de l’onde de pouls estimée par le capteur optique reflète une compliance artérielle saine.',
+        title: 'Onde de pouls optique',
+        desc: 'La propagation de l’onde de pouls dépend du tonus vasculaire et de votre état de détente au moment de la mesure.',
       },
       {
         title: 'Conseil santé vasculaire',
-        desc: 'Une hydratation régulière et un apport équilibré en électrolytes soutiennent cette tension idéale.',
+        desc: 'Une hydratation régulière et un apport équilibré en électrolytes soutiennent l’équilibre tensionnel.',
       },
     ],
     tipPointsEn: [
       {
-        title: 'Hemodynamic compliance',
-        desc: 'Values at 118/76 mmHg. Both systolic (<120) and diastolic (<80) remain strictly within optimal health guidelines.',
+        title: 'Hemodynamic reference',
+        desc: 'Systolic pressure under 120 mmHg and diastolic under 80 mmHg represent the normal resting zone.',
       },
       {
-        title: 'Vascular elasticity',
-        desc: 'Optical pulse wave analysis indicates healthy arterial wall flexibility and smooth microvascular blood flow.',
+        title: 'Optical pulse wave',
+        desc: 'Pulse wave propagation reflects vascular tone and relaxation state at the time of measurement.',
       },
       {
         title: 'Cardiovascular tip',
-        desc: 'Regular hydration and mineral balance keep your arterial pressure in this smooth resting range.',
+        desc: 'Regular hydration and mineral balance support healthy arterial pressure.',
       },
     ],
   },
@@ -341,8 +341,8 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
     subtitleEn: 'Metabolic glucose stability & optical trend (SDK)',
     tipPointsFr: [
       {
-        title: 'Amortissement glycémique optimal',
-        desc: 'La courbe d’absorption montre une stabilité de 94%, sans pics d’insuline marqués ni variations brusques.',
+        title: 'Équilibre glycémique',
+        desc: 'Une glycémie stable évite les pics d’insuline marqués et les variations énergétiques brusques au cours de la journée.',
       },
       {
         title: 'Stabilité énergétique continue',
@@ -350,21 +350,21 @@ const METRIC_THEMES: Record<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' 
       },
       {
         title: 'Conseil nutritionnel',
-        desc: 'Privilégiez les fibres en début de repas pour maintenir cette courbe métabolique parfaitement régulière.',
+        desc: 'Privilégiez les fibres en début de repas pour maintenir une réponse métabolique régulière.',
       },
     ],
     tipPointsEn: [
       {
-        title: 'Optimal glucose buffering',
-        desc: 'Stability score of 94% indicates smooth post-meal carbohydrate management without insulin spikes.',
+        title: 'Glycemic balance',
+        desc: 'Steady blood glucose avoids sharp insulin spikes and sudden energy fluctuations during the day.',
       },
       {
         title: 'Continuous energy delivery',
-        desc: 'Absence of reactive glucose crashes protects brain energy and prevents afternoon sluggishness.',
+        desc: 'Avoiding reactive post-meal crashes protects focus and prevents afternoon fatigue.',
       },
       {
         title: 'Nutrition tip',
-        desc: 'Eating dietary fiber and protein prior to starches keeps your metabolic baseline steady.',
+        desc: 'Eating dietary fiber and protein prior to starches keeps your metabolic response steady.',
       },
     ],
   },

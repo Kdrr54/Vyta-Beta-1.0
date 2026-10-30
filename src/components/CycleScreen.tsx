@@ -47,8 +47,12 @@ export interface CalendarDayLog {
 }
 
 export const CycleScreen: React.FC = () => {
-  const { language, setTab, profile, simulatedDate } = useApp();
+  const { language, setTab, profile, simulatedDate, weekData, selectedDay } = useApp();
   const isEn = language === 'en';
+  const realTodayTemp =
+    weekData && weekData[selectedDay]?.skinTemp && (weekData[selectedDay].skinTemp ?? 0) >= 30
+      ? Number(weekData[selectedDay].skinTemp!.toFixed(2))
+      : 0;
 
   // --------------------------------------------------------------------------
   // CYCLE PREDICTION ONBOARDING & SETUP STATE
@@ -319,33 +323,23 @@ export const CycleScreen: React.FC = () => {
     } catch (e) {}
   };
 
-  // Generate realistic 28-day nocturnal basal body temperature curve
+  // Courbe de température basale strictement issue des mesures réelles de la bague (0 tant que non mesuré)
   const tempPoints: DayTempPoint[] = Array.from({ length: cycleLength }, (_, i) => {
     const day = i + 1;
     const ovuDay = cycleLength - 14;
-    let temp = 36.35;
     let phase: DayTempPoint['phase'] = 'follicular';
 
     if (day <= periodDuration) {
       phase = 'menstruation';
-      temp = 36.37 - (day - 1) * 0.02 + Math.sin(day * 1.5) * 0.015;
     } else if (day < ovuDay - 1) {
       phase = 'follicular';
-      temp = 36.31 + Math.sin(day * 0.8) * 0.025;
     } else if (day >= ovuDay - 1 && day <= ovuDay) {
       phase = 'ovulation';
-      temp = 36.24 + (day === ovuDay ? -0.03 : 0);
-    } else if (day === ovuDay + 1) {
-      phase = 'luteal';
-      temp = 36.52;
-    } else if (day < cycleLength - 2) {
-      phase = 'luteal';
-      temp = 36.73 + Math.sin((day - ovuDay) * 0.5) * 0.03;
     } else {
       phase = 'luteal';
-      temp = 36.46 - (day - (cycleLength - 2)) * 0.08;
     }
-    return { day, temp: Number(temp.toFixed(2)), phase };
+    const temp = isConfigured && day === computedCycleDay && realTodayTemp > 0 ? realTodayTemp : 0;
+    return { day, temp, phase };
   });
 
   const selectedPoint = tempPoints[selectedCycleDay - 1] || tempPoints[0];
@@ -459,7 +453,7 @@ export const CycleScreen: React.FC = () => {
   const markerX = orbitCenter + orbitRadius * Math.cos(markerRad);
   const markerY = orbitCenter + orbitRadius * Math.sin(markerRad);
 
-  const displayName = profile.firstName || 'Chloé';
+  const displayName = profile.firstName || (isEn ? 'Profile' : 'Profil');
   const initialLetter = displayName.charAt(0).toUpperCase();
 
   const currentCalLog = getDayLog(selectedCalDay);
@@ -1650,16 +1644,17 @@ export const CycleScreen: React.FC = () => {
 
         const getPtCoord = (pt: DayTempPoint, idx: number) => {
           const x = padX + (idx / Math.max(1, cycleLength - 1)) * graphW;
-          const ratio = (pt.temp - minT) / (maxT - minT);
+          const effTemp = pt.temp > 0 ? pt.temp : 36.35;
+          const ratio = (effTemp - minT) / (maxT - minT);
           const y = chartH - padBottom - ratio * graphH;
-          return { x, y };
+          return { x, y, hasTemp: pt.temp > 0 };
         };
 
         const pts = tempPoints.map((pt, i) => getPtCoord(pt, i));
 
-        // Separate real measured days (up to computedCycleDay) from upcoming future days
-        const measuredPts = pts.slice(0, computedCycleDay);
-        const projectedPts = pts.slice(Math.max(0, computedCycleDay - 1));
+        // Only plot real measured days
+        const measuredPts = pts.filter((p) => p.hasTemp);
+        const projectedPts: typeof pts = [];
 
         const buildSmoothPath = (points: { x: number; y: number }[]) => {
           if (points.length <= 1) return '';
@@ -1706,7 +1701,7 @@ export const CycleScreen: React.FC = () => {
               </span>
               <div style={{ marginTop: '3px' }}>
                 <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
-                  {selectedPoint.temp.toFixed(2).replace('.', ',')} °C
+                  {selectedPoint.temp > 0 ? `${selectedPoint.temp.toFixed(2).replace('.', ',')} °C` : '-- °C'}
                 </span>
               </div>
             </div>
@@ -1769,9 +1764,9 @@ export const CycleScreen: React.FC = () => {
                 <text x={chartW - padX + 2} y={chartH - padBottom + 3} fill="rgba(255, 255, 255, 0.3)" fontSize="8.5" textAnchor="start">36,2°</text>
 
                 {/* Area under curve */}
-                {fullCurvePath && (
+                {measuredCurvePath && measuredPts.length > 1 && (
                   <path
-                    d={`${fullCurvePath} L ${pts[pts.length - 1].x.toFixed(1)} ${chartH - padBottom} L ${pts[0].x.toFixed(1)} ${chartH - padBottom} Z`}
+                    d={`${measuredCurvePath} L ${measuredPts[measuredPts.length - 1].x.toFixed(1)} ${chartH - padBottom} L ${measuredPts[0].x.toFixed(1)} ${chartH - padBottom} Z`}
                     fill="url(#tempFillGrad)"
                   />
                 )}
@@ -1785,9 +1780,7 @@ export const CycleScreen: React.FC = () => {
                     strokeWidth="2.8"
                     strokeLinecap="round"
                   />
-                ) : (
-                  <circle cx={pts[0].x} cy={pts[0].y} r="3" fill="#FFFFFF" />
-                )}
+                ) : null}
 
                 {/* Measured Day Points */}
                 {measuredPts.map((p, idx) => (
@@ -1873,7 +1866,7 @@ export const CycleScreen: React.FC = () => {
                   transition: isDraggingChart ? 'none' : 'transform 120ms ease',
                 }}
               >
-                {`J${selectedCycleDay} · ${selectedPoint.temp.toFixed(2)} °C`}
+                {selectedPoint.temp > 0 ? `J${selectedCycleDay} · ${selectedPoint.temp.toFixed(2)} °C` : `J${selectedCycleDay} · -- °C`}
               </div>
             </div>
 
@@ -1943,20 +1936,20 @@ export const CycleScreen: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <TrendingUp size={13} color="#30D158" />
                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF' }}>
-                  {selectedCycleDay <= computedCycleDay
+                  {selectedPoint.temp > 0
                     ? (isEn ? `Day ${selectedCycleDay} · Measured Night Reading` : `Jour ${selectedCycleDay} · Donnée réelle mesurée par la bague`)
-                    : (isEn ? `Day ${selectedCycleDay} · Forecasted Day` : `Jour ${selectedCycleDay} · Projection théorique (jour futur)`)}
+                    : (isEn ? `Day ${selectedCycleDay} · Awaiting Ring Measurement` : `Jour ${selectedCycleDay} · En attente de mesure de la bague`)}
                 </span>
               </div>
 
               <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.8)', lineHeight: 1.45 }}>
-                {selectedCycleDay <= computedCycleDay
+                {selectedPoint.temp > 0
                   ? (isEn
-                      ? `The solid white line shows your actual night temperature (${selectedPoint.temp.toFixed(2)}°C). The dashed curve ahead illustrates the expected cycle trajectory until your period.`
-                      : `La ligne blanche continue correspond aux vraies mesures de la bague (${selectedPoint.temp.toFixed(2)} °C). Les pointillés à venir montrent la trajectoire thermique attendue pour votre cycle.`)
+                      ? `Real skin temperature measured by your ring (${selectedPoint.temp.toFixed(2)}°C).`
+                      : `Température cutanée réelle mesurée par votre bague (${selectedPoint.temp.toFixed(2)} °C).`)
                   : (isEn
-                      ? `This night has not happened yet! The dashed curve is a reference model: your Vyta ring will record and replace it with your true biological temperature after each night's sleep.`
-                      : `Cette nuit n'a pas encore eu lieu ! Les pointillés représentent le modèle de référence : votre bague Vyta One y inscrira votre vraie température biologique au réveil chaque matin.`)}
+                      ? `No temperature reading recorded for this day. Your Vyta ring only plots real measured nocturnal temperatures.`
+                      : `Aucune mesure thermique enregistrée pour ce jour. Votre bague Vyta affiche uniquement vos vraies mesures nocturnes.`)}
               </p>
             </div>
           </div>

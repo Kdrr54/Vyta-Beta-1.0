@@ -38,6 +38,27 @@ export const SleepScreen: React.FC = () => {
   const efficiency = totalMin > 0 ? Math.round((effectiveMin / totalMin) * 100) : 0;
   const isZeroState = totalMin === 0 || (isFirstLaunch && dayData.score === 0);
 
+  const fmtClockMin = (min?: number) => {
+    if (min === undefined || min === null || isNaN(min)) return '--:--';
+    const norm = ((Math.round(min) % 1440) + 1440) % 1440;
+    const h = Math.floor(norm / 60);
+    const m = norm % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const bedtimeStr = !isZeroState && sleep.startMin !== undefined ? fmtClockMin(sleep.startMin) : '--:--';
+  const wakeStr = !isZeroState && sleep.endMin !== undefined ? fmtClockMin(sleep.endMin) : '--:--';
+  const cycleCount = totalMin > 0 ? Math.max(1, Math.round(totalMin / 90)) : 0;
+
+  const hypnogramTimeLabels = (() => {
+    if (isZeroState || sleep.startMin === undefined || sleep.endMin === undefined) {
+      return ['--:--', '--:--', '--:--', '--:--', '--:--'];
+    }
+    const s = sleep.startMin > sleep.endMin ? sleep.startMin - 1440 : sleep.startMin;
+    const e = sleep.endMin;
+    return [0, 0.25, 0.5, 0.75, 1].map((t) => fmtClockMin(s + (e - s) * t));
+  })();
+
   const stages = [
     {
       id: 'deep',
@@ -259,7 +280,7 @@ export const SleepScreen: React.FC = () => {
               {isEn ? 'Bedtime' : 'Coucher'}
             </span>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-              {isZeroState ? '--:--' : '23:18'}
+              {bedtimeStr}
             </span>
           </div>
 
@@ -268,7 +289,7 @@ export const SleepScreen: React.FC = () => {
               {isEn ? 'Wake' : 'Réveil'}
             </span>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-              {isZeroState ? '--:--' : '07:04'}
+              {wakeStr}
             </span>
           </div>
 
@@ -283,10 +304,10 @@ export const SleepScreen: React.FC = () => {
 
           <div style={{ textAlign: 'center' }}>
             <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.55)', display: 'block' }}>
-              {isEn ? 'Latency' : 'Latence'}
+              {isEn ? 'Awake' : 'Éveil'}
             </span>
             <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-              {isZeroState ? '--' : '14 min'}
+              {isZeroState ? '--' : `${sleep.awakeMin} min`}
             </span>
           </div>
         </div>
@@ -313,7 +334,7 @@ export const SleepScreen: React.FC = () => {
             </span>
           </div>
           <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.6)' }}>
-            {isZeroState ? (isEn ? '0 Cycle' : '0 Cycle') : (isEn ? '5 Full Cycles' : '5 Cycles Complets')}
+            {isZeroState ? (isEn ? '0 Cycle' : '0 Cycle') : `${cycleCount} ${isEn ? 'Cycles' : 'Cycles'}`}
           </span>
         </div>
 
@@ -432,11 +453,9 @@ export const SleepScreen: React.FC = () => {
                 marginTop: '4px',
               }}
             >
-              <span>23:18</span>
-              <span>01:00</span>
-              <span>03:00</span>
-              <span>05:00</span>
-              <span>07:04</span>
+              {hypnogramTimeLabels.map((lbl, idx) => (
+                <span key={idx}>{lbl}</span>
+              ))}
             </div>
           )}
         </div>
@@ -646,7 +665,7 @@ export const SleepScreen: React.FC = () => {
               <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.55)' }}>
                 {isZeroState || !dayData.minBpm
                   ? (isEn ? 'No deep sleep recorded' : 'En attente de nuit')
-                  : (isEn ? 'at 03:15 (Deep sleep)' : 'à 03:15 (Sommeil profond)')}
+                  : (isEn ? 'Lowest recorded BPM' : 'Minimum mesuré')}
               </span>
             </div>
           </div>
@@ -793,8 +812,8 @@ export const SleepScreen: React.FC = () => {
                 ? 'No sleep session recorded yet. Wear your Vyta One ring tonight to analyze your sleep architecture, resting nadir and circadian rhythm.'
                 : 'Aucune session de sommeil enregistrée pour le moment. Portez votre bague Vyta One cette nuit pour analyser votre architecture de sommeil, vos creux cardiaques et votre rythme circadien.')
             : (isEn
-                ? 'Optimal sleep synchrony. Your bedtime at 23:18 aligned smoothly with your natural melatonin release window, ensuring 24% deep restorative recovery.'
-                : "Synchronisation circadienne idéale. Votre endormissement à 23:18 s'est calé avec précision sur votre pic naturel de mélatonine, garantissant un sommeil profond très réparateur (24%).")}
+                ? `Night session recorded (${bedtimeStr} – ${wakeStr}) with ${deepPct}% deep sleep and ${remPct}% REM sleep (${efficiency}% efficiency).`
+                : `Session nocturne mesurée par la bague (${bedtimeStr} – ${wakeStr}) avec ${deepPct}% de sommeil profond et ${remPct}% de sommeil paradoxal (${efficiency}% d'efficacité).`)}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>

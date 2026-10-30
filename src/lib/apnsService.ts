@@ -11,32 +11,7 @@ export interface PushNotificationPayload {
 
 const STORAGE_KEY = 'vyta_push_notifications';
 
-const DEFAULT_NOTIFICATIONS: PushNotificationPayload[] = [
-  {
-    id: 'notif-1',
-    title: '🔋 Bague Vyta One',
-    body: 'Charge terminée à 100%. Autonomie estimée : 7 jours.',
-    category: 'battery',
-    timestamp: Date.now() - 1000 * 60 * 45, // 45m ago
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    title: '🌙 Fenêtre de Sommeil Optimale',
-    body: 'Votre rythme circadien indique une fenêtre idéale d\'endormissement à 23h15.',
-    category: 'sleep',
-    timestamp: Date.now() - 1000 * 60 * 180,
-    read: true,
-  },
-  {
-    id: 'notif-3',
-    title: '⚡ Récupération Remarquable',
-    body: 'VRC nocturne à 62 ms (+8%). Votre potentiel physique est au sommet aujourd\'hui.',
-    category: 'vrc',
-    timestamp: Date.now() - 1000 * 60 * 420,
-    read: true,
-  },
-];
+const DEFAULT_NOTIFICATIONS: PushNotificationPayload[] = [];
 
 export const getStoredNotifications = (): PushNotificationPayload[] => {
   try {

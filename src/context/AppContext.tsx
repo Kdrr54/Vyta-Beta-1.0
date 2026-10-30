@@ -81,18 +81,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const initialSex = (params?.get('sex') as BiologicalSex) || (typeof window !== 'undefined' && localStorage.getItem('vyta_sex') === 'homme' ? 'homme' : 'femme');
   const initialModal = (params?.get('modal') as 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null) || null;
   const initialMetric = (params?.get('metric') as 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null) || null;
-  const initialStory = params?.get('story') === '1' ? {
-    mode: 'run',
-    title: 'Course Matinale',
-    dateStr: 'Jeu. 15 octobre · 07 h 10',
-    accentText: 'Nouveau Record 1 km (4:48)',
-    stats: [
-      { label: 'Distance', value: '8.12', unit: 'km' },
-      { label: 'Allure', value: '5:09', unit: '/km' },
-      { label: 'Temps', value: '41:52' },
-      { label: 'FC Moyenne', value: '156', unit: 'bpm' },
-    ],
-  } : null;
+  const initialStory = null;
 
   const initialDay = params?.get('day') ? parseInt(params.get('day')!, 10) : TODAY_INDEX;
 
@@ -517,6 +506,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 remMin: data.sleepRemMin || 0,
                 lightMin: data.sleepLightMin || 0,
                 awakeMin: data.sleepAwakeMin || 0,
+                startMin: data.sleepStartMin ?? cur.sleep?.startMin,
+                endMin: data.sleepEndMin ?? cur.sleep?.endMin,
               }
             : {
                 score: sleepScore,
@@ -524,6 +515,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 remMin: cur.sleep?.remMin || 0,
                 lightMin: totalMin - (cur.sleep?.deepMin || 0) - (cur.sleep?.remMin || 0) - (cur.sleep?.awakeMin || 0),
                 awakeMin: cur.sleep?.awakeMin || 0,
+                startMin: data.sleepStartMin ?? cur.sleep?.startMin,
+                endMin: data.sleepEndMin ?? cur.sleep?.endMin,
               };
           if (cur.pillars) {
             cur.pillars = {
@@ -588,10 +581,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const v = localStorage.getItem('vyta_data_ver');
         // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
-        if (v !== 'v59_real_only') {
+        if (v !== 'v60_real_only') {
           localStorage.removeItem('vyta_week_data');
           localStorage.removeItem('vyta_simulated_date');
-          localStorage.setItem('vyta_data_ver', 'v59_real_only');
+          localStorage.removeItem('vyta_stored_routes');
+          localStorage.removeItem('vyta_workout_exercises');
+          localStorage.removeItem('vyta_push_notifications');
+          localStorage.setItem('vyta_data_ver', 'v60_real_only');
           return createEmptyWeekMetrics();
         }
         const saved = localStorage.getItem('vyta_week_data');

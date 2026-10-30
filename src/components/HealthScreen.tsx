@@ -1231,7 +1231,11 @@ export const HealthScreen: React.FC = () => {
         bedtime={dayData.bodyEnergyBedtime}
       />
 
-      <ImmunityRadar anomaly={dayData.anomaly} />
+      <ImmunityRadar
+        anomaly={dayData.anomaly}
+        hasHrv={dayData.hrv > 0}
+        hasTemp={(dayData.skinTemp ?? 0) > 0 || dayData.tempDelta !== 0}
+      />
 
       {/* =====================================================================
           COMPACT SLEEP DURATION CARD ("Temps passé à dormir")

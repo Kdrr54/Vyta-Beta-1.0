@@ -65,44 +65,7 @@ export interface StoredRoute {
   progress?: number;
 }
 
-const initialStoredRoutes: StoredRoute[] = [
-  {
-    id: 'route-seine',
-    title: 'Quais de Seine · Tour Eiffel',
-    location: 'Paris 7e · Pont d\'Iéna',
-    distanceKm: 5.40,
-    durationSec: 1605,
-    elevationM: 28,
-    avgHr: 162,
-    dateStr: '12 oct. 2026 · 18:30',
-    pointsSvgPath: 'M 50 180 Q 120 160, 180 115 T 310 50',
-    progress: 0.66,
-  },
-  {
-    id: 'route-boulogne',
-    title: 'Bois de Boulogne · Tour du Lac',
-    location: 'Paris 16e · Lac Inférieur',
-    distanceKm: 10.25,
-    durationSec: 3198,
-    elevationM: 45,
-    avgHr: 150,
-    dateStr: '8 oct. 2026 · 09:15',
-    pointsSvgPath: 'M 180 45 Q 100 65, 75 125 T 140 190 Q 220 195, 285 135 T 240 55 Z',
-    progress: 1,
-  },
-  {
-    id: 'route-montmartre',
-    title: 'Montmartre · Dénivelé Sacré-Cœur',
-    location: 'Paris 18e · Place du Tertre',
-    distanceKm: 4.60,
-    durationSec: 1630,
-    elevationM: 120,
-    avgHr: 168,
-    dateStr: '3 oct. 2026 · 11:00',
-    pointsSvgPath: 'M 70 190 L 130 150 L 110 120 L 200 90 L 250 45',
-    progress: 0.57,
-  },
-];
+const initialStoredRoutes: StoredRoute[] = [];
 
 export interface GymSet {
   id: string;
@@ -117,35 +80,7 @@ export interface GymExercise {
   sets: GymSet[];
 }
 
-const initialWorkoutExercises: GymExercise[] = [
-  {
-    id: 'ex-1',
-    name: 'Développé couché (barre)',
-    sets: [
-      { id: 'ex-1-s1', weightKg: 80, reps: 8, done: true },
-      { id: 'ex-1-s2', weightKg: 80, reps: 8, done: true },
-      { id: 'ex-1-s3', weightKg: 82.5, reps: 6, done: true },
-    ],
-  },
-  {
-    id: 'ex-2',
-    name: 'Développé incliné haltères',
-    sets: [
-      { id: 'ex-2-s1', weightKg: 28, reps: 10, done: true },
-      { id: 'ex-2-s2', weightKg: 28, reps: 10, done: true },
-      { id: 'ex-2-s3', weightKg: 28, reps: 9, done: false },
-    ],
-  },
-  {
-    id: 'ex-3',
-    name: 'Extension triceps poulie',
-    sets: [
-      { id: 'ex-3-s1', weightKg: 30, reps: 12, done: false },
-      { id: 'ex-3-s2', weightKg: 30, reps: 12, done: false },
-      { id: 'ex-3-s3', weightKg: 27.5, reps: 12, done: false },
-    ],
-  },
-];
+const initialWorkoutExercises: GymExercise[] = [];
 
 export const FitScreen: React.FC = () => {
   const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm } = useApp();
@@ -432,14 +367,14 @@ export const FitScreen: React.FC = () => {
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
       title: cleanTitle,
-      location: newRouteLoc.trim() || 'Paris',
+      location: newRouteLoc.trim() || '',
       distanceKm: distNum,
-      durationSec: estSec,
-      elevationM: Math.round(distNum * 8),
-      avgHr: 154,
+      durationSec: 0,
+      elevationM: 0,
+      avgHr: 0,
       dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       pointsSvgPath: 'M 10 65 Q 35 50 50 35 T 90 20',
-      progress: 1,
+      progress: 0,
     };
 
     setStoredRoutes((prev) => [newRoute, ...prev]);
@@ -812,11 +747,12 @@ export const FitScreen: React.FC = () => {
   };
 
   const openGymStory = () => {
+    const completionPct = totalSetsCount > 0 ? Math.round((doneSetsCount / totalSetsCount) * 100) : 0;
     openStory({
       mode: 'gym',
       title: sessionTitle,
-      dateStr: 'Jeu. 15 octobre · 18 h 30',
-      tonnageKg: totalTonnageKg > 0 ? totalTonnageKg : 2300,
+      dateStr: new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }),
+      tonnageKg: totalTonnageKg,
       accentText: 'Séance Personnalisée Validée',
       stats: [
         {
@@ -826,7 +762,7 @@ export const FitScreen: React.FC = () => {
         },
         { label: 'Séries Validées', value: `${doneSetsCount} / ${totalSetsCount}` },
         { label: 'Temps Repos', value: `${targetRestSeconds}`, unit: 's' },
-        { label: 'Intensité', value: '89', unit: '%' },
+        { label: 'Complétion', value: `${completionPct}`, unit: '%' },
       ],
     });
   };

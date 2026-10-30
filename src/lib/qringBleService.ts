@@ -69,6 +69,8 @@ export interface BleRingData {
   sleepRemMin?: number;
   sleepAwakeMin?: number;
   sleepScore?: number;
+  sleepStartMin?: number;
+  sleepEndMin?: number;
   spo2?: number;
   spo2Min?: number;
   spo2Max?: number;
@@ -1565,8 +1567,10 @@ class QRingBleService {
             Math.round(durationScore * 0.55 + effRatio * 100 * 0.3 + Math.min(100, deepRemRatio * 200) * 0.15)
           )
         );
+        const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
+        const endClockMin = ((latestEnd % 1440) + 1440) % 1440;
         console.log(
-          `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${targetDaysAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}`
+          `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${targetDaysAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
         );
         this.notify({
           sleepHours,
@@ -1575,6 +1579,8 @@ class QRingBleService {
           sleepLightMin: totalLight,
           sleepAwakeMin: totalAwake,
           sleepScore,
+          sleepStartMin: startClockMin,
+          sleepEndMin: endClockMin,
           isConnected: true,
         });
       }

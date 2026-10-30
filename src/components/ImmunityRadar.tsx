@@ -4,14 +4,17 @@ import { Sparkles, ShieldCheck } from 'lucide-react';
 
 interface ImmunityRadarProps {
   anomaly: { tempDelta: number; hrvDelta: number } | null;
+  hasHrv?: boolean;
+  hasTemp?: boolean;
 }
 
-export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
-  const { covytaActive, openModal, t, isFirstLaunch, cardThemeMode } = useApp();
+export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = false, hasTemp = false }) => {
+  const { t, isFirstLaunch, cardThemeMode } = useApp();
   const isMono = cardThemeMode === 'monochrome';
 
+  const hasData = !isFirstLaunch && (hasHrv || hasTemp);
   // Une anomalie n'existe QUE si la bague a transmis des données et qu'un écart réel a été détecté
-  const hasAnomaly = !isFirstLaunch && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
+  const hasAnomaly = hasData && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
 
   return (
     <div
@@ -68,7 +71,7 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
           <span className="immunity-badge-alert">{t('immunity.anomaly_detected')}</span>
         ) : (
           <span className="immunity-shield-badge">
-            {isFirstLaunch ? 'Calibrage initial' : t('immunity.shield_active')}
+            {!hasData ? 'En attente de mesures' : t('immunity.shield_active')}
           </span>
         )}
       </div>
@@ -134,26 +137,30 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly }) => {
           </div>
         </>
       ) : (
-        /* État sain ou premier lancement : AUCUN faux diagnostic affiché */
+        /* État sain ou en attente : AUCUN faux diagnostic affiché */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
           <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-            {isFirstLaunch ? 'Calibrage de référence en cours' : t('immunity.no_anomaly')}
+            {!hasData ? 'En attente des relevés VRC et température' : t('immunity.no_anomaly')}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px', color: '#D1D1D6' }}>
-            {isFirstLaunch ? (
+            {!hasData ? (
               <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.65)', lineHeight: 1.45 }}>
-                Portez votre bague pendant 24h pour établir votre profil immunitaire de référence. Aucun diagnostic n'est émis tant que vos données réelles ne sont pas transmises.
+                Synchronisez votre bague pour analyser votre VRC et votre température cutanée. Aucune validation n'est affichée sans mesures réelles.
               </span>
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
-                  <span>{t('immunity.temp_normal')}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
-                  <span>{t('immunity.hrv_stable')}</span>
-                </div>
+                {hasTemp && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
+                    <span>{t('immunity.temp_normal')}</span>
+                  </div>
+                )}
+                {hasHrv && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
+                    <span>{t('immunity.hrv_stable')}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
                   <span>{t('immunity.immune_optimal')}</span>

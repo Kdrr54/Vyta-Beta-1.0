@@ -20,31 +20,28 @@ interface SleepStageInfo {
   maxPct: number;
 }
 
-// Polysomnographic ultradian cycle template:
-// Represents the natural architecture of a night:
-// Early night is dominated by slow-wave Deep sleep; late night is dominated by REM dreaming sleep.
 const CYCLE_TEMPLATE: Array<{ stage: 'deep' | 'rem' | 'light' | 'awake'; weight: number }> = [
-  { stage: 'awake', weight: 0.60 }, // Latency (falling asleep)
+  { stage: 'awake', weight: 0.60 },
   { stage: 'light', weight: 0.12 },
-  { stage: 'deep',  weight: 0.45 }, // Deep wave cycle 1
+  { stage: 'deep',  weight: 0.45 },
   { stage: 'light', weight: 0.10 },
-  { stage: 'rem',   weight: 0.15 }, // Brief first REM episode
+  { stage: 'rem',   weight: 0.15 },
 
   { stage: 'light', weight: 0.12 },
-  { stage: 'deep',  weight: 0.35 }, // Deep wave cycle 2
+  { stage: 'deep',  weight: 0.35 },
   { stage: 'light', weight: 0.10 },
-  { stage: 'rem',   weight: 0.25 }, // REM episode 2
-  { stage: 'awake', weight: 0.15 }, // Micro-arousal
+  { stage: 'rem',   weight: 0.25 },
+  { stage: 'awake', weight: 0.15 },
 
   { stage: 'light', weight: 0.18 },
-  { stage: 'deep',  weight: 0.20 }, // Moderate deep wave cycle 3
+  { stage: 'deep',  weight: 0.20 },
   { stage: 'light', weight: 0.14 },
-  { stage: 'rem',   weight: 0.32 }, // Longer REM episode 3
+  { stage: 'rem',   weight: 0.32 },
 
   { stage: 'light', weight: 0.14 },
-  { stage: 'rem',   weight: 0.28 }, // Morning REM peak
+  { stage: 'rem',   weight: 0.28 },
   { stage: 'light', weight: 0.10 },
-  { stage: 'awake', weight: 0.25 }, // Morning awakening
+  { stage: 'awake', weight: 0.25 },
 ];
 
 export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
@@ -63,12 +60,11 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
   const lightPct = totalMin > 0 ? Math.round((sleep.lightMin / totalMin) * 100) : 0;
   const awakePct = totalMin > 0 ? Math.max(0, 100 - (deepPct + remPct + lightPct)) : 0;
 
-  // Colors refined for high-end luxury aesthetic:
   const stageColors = {
-    deep: isMono ? '#FFFFFF' : '#818CF8',    // Deep Royal Indigo
-    rem: isMono ? '#D4D4D8' : '#C084FC',     // Luminous Purple / REM
-    light: isMono ? '#71717A' : '#38BDF8',   // Crisp Sky Blue
-    awake: isMono ? 'rgba(255,255,255,0.32)' : '#F59E0B', // Amber
+    deep: isMono ? '#FFFFFF' : '#818CF8',
+    rem: isMono ? '#D4D4D8' : '#C084FC',
+    light: isMono ? '#71717A' : '#38BDF8',
+    awake: isMono ? 'rgba(255,255,255,0.32)' : '#F59E0B',
   };
 
   const stages: SleepStageInfo[] = [
@@ -122,7 +118,24 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
   const restorativeMin = sleep.deepMin + sleep.remMin;
   const restorativePct = totalMin > 0 ? Math.round((restorativeMin / totalMin) * 100) : 0;
 
-  // Build the hypnogram intervals dynamically matching exact minutes
+  const fmtClockMin = (min?: number) => {
+    if (min === undefined || min === null || isNaN(min)) return '--:--';
+    const norm = ((Math.round(min) % 1440) + 1440) % 1440;
+    const h = Math.floor(norm / 60);
+    const m = norm % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+  const bedtimeStr = totalMin > 0 && sleep.startMin !== undefined ? fmtClockMin(sleep.startMin) : '--:--';
+  const wakeStr = totalMin > 0 && sleep.endMin !== undefined ? fmtClockMin(sleep.endMin) : '--:--';
+  const hypnogramTicks = (() => {
+    if (totalMin <= 0 || sleep.startMin === undefined || sleep.endMin === undefined) {
+      return ['--:--', '--:--', '--:--', '--:--', '--:--'];
+    }
+    const s = sleep.startMin > sleep.endMin ? sleep.startMin - 1440 : sleep.startMin;
+    const e = sleep.endMin;
+    return [0, 0.25, 0.5, 0.75, 1].map((t) => fmtClockMin(s + (e - s) * t));
+  })();
+
   const hypnogramBlocks = useMemo(() => {
     if (totalMin <= 0) return [];
 
@@ -147,8 +160,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
     });
   }, [sleep, stageColors, totalMin]);
 
-
-  // Hypnogram layout constants
   const chartW = 310;
   const chartH = 92;
   const stageY: Record<'awake' | 'rem' | 'light' | 'deep', number> = {
@@ -208,7 +219,7 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
               {t('sleep.title')}
             </span>
             <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
-              {totalMin > 0 ? (isFr ? '23:15 – 06:52 · 7 h 37 au lit' : '11:15 PM – 06:52 AM · 7h 37 in bed') : '--'}
+              {totalMin > 0 ? `${bedtimeStr} – ${wakeStr} · ${fmtDuration(totalMin)} ${isFr ? 'au lit' : 'in bed'}` : '--'}
             </span>
           </div>
         </div>
@@ -266,7 +277,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
       {/* 3. Main Visualizer: Apple-style Hypnogram */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', zIndex: 2 }}>
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {/* Hypnogram SVG Chart */}
             <div style={{ position: 'relative', width: '100%' }}>
               <svg
                 width="100%"
@@ -275,7 +285,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                 style={{ overflow: 'visible', display: 'block' }}
               >
                 <defs>
-                  {/* Subtle vertical marker lines */}
                   <pattern id="sleepGrid" width="60" height="92" patternUnits="userSpaceOnUse">
                     <line x1="0" y1="0" x2="0" y2="92" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
                   </pattern>
@@ -283,7 +292,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
 
                 <rect width={chartW} height={chartH} fill="url(#sleepGrid)" rx="10" />
 
-                {/* 4 Horizontal guidelines for each sleep stage */}
                 {(['awake', 'rem', 'light', 'deep'] as const).map((stageKey) => {
                   const y = stageY[stageKey];
                   const isHighlighted = activeStage?.id === stageKey;
@@ -320,7 +328,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                   );
                 })}
 
-                {/* Hypnogram Stage Blocks */}
                 {totalMin > 0 &&
                   hypnogramBlocks.map((blk) => {
                     const blockX = 38 + (blk.startMin / totalMin) * (chartW - 42);
@@ -352,7 +359,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                   })}
               </svg>
 
-              {/* Time tick labels under the timeline */}
               <div
                 style={{
                   display: 'flex',
@@ -362,17 +368,17 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                   marginTop: '4px',
                 }}
               >
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>23:15</span>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>01:10</span>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>03:05</span>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>05:00</span>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>06:52</span>
+                {hypnogramTicks.map((lbl, idx) => (
+                  <span key={idx} style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                    {lbl}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
       </div>
 
-      {/* 4. Proportional Segment Bar (Apple Health style continuous ribbon) */}
+      {/* 4. Proportional Segment Bar */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', zIndex: 2 }}>
         <div
           style={{
@@ -409,7 +415,7 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
         </div>
       </div>
 
-      {/* 5. Integrated Luxury Glass Stage Breakdown (Replacing the 4 clunky boxes) */}
+      {/* 5. Integrated Luxury Glass Stage Breakdown */}
       <div
         style={{
           display: 'flex',
@@ -442,7 +448,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                 transition: 'all 0.16s ease',
               }}
             >
-              {/* Left: Indicator dot + Phase Name */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span
                   style={{
@@ -477,7 +482,6 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
                 </span>
               </div>
 
-              {/* Right: Duration + Percentage */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
                 <span
                   style={{
@@ -520,9 +524,13 @@ export const SleepPhases: React.FC<SleepPhasesProps> = ({ sleep }) => {
       >
         <Sparkles size={12} color={isMono ? "#FAF7F2" : "#C084FC"} style={{ flexShrink: 0 }} />
         <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.72)', lineHeight: 1.35 }}>
-          {isFr
-            ? 'Architecture optimale : 47% de sommeil réparateur (profond + REM) garantissant la régénération musculaire et mnésique.'
-            : 'Optimal architecture: 47% restorative sleep (deep + REM) supporting muscular and cognitive recovery.'}
+          {totalMin > 0
+            ? (isFr
+                ? `Architecture nocturne : ${restorativePct}% de sommeil réparateur (profond + REM) garantissant la régénération musculaire et mnésique.`
+                : `Night architecture: ${restorativePct}% restorative sleep (deep + REM) supporting muscular and cognitive recovery.`)
+            : (isFr
+                ? 'En attente des mesures nocturnes de votre bague.'
+                : 'Awaiting nocturnal readings from your ring.')}
         </span>
       </div>
     </div>
