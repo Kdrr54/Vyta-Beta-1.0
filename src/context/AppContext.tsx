@@ -311,8 +311,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Synchronisation globale télémétrie BLE de la bague physique
   useEffect(() => {
-    // Reconnexion automatique silencieuse en arrière-plan
-    qringBle.autoConnectSavedDevice();
+    // Reconnexion automatique silencieuse en arrière-plan & synchronisation immédiate si déjà connectée
+    if (qringBle.isConnected()) {
+      qringBle.syncAllRingData();
+    } else {
+      qringBle.autoConnectSavedDevice();
+    }
 
     const unsubscribe = qringBle.subscribe((data: BleRingData) => {
       if (data.batteryPct !== undefined) {
@@ -325,7 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLiveBpm(data.heartRate);
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = data.heartRate!;
 
@@ -375,7 +379,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.hrv !== undefined && data.hrv > 0) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.hrv = data.hrv!;
           if (Array.isArray(data.hrvLog) && data.hrvLog.length === 48) {
@@ -397,7 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.stress !== undefined && data.stress > 0) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.stress = data.stress!;
           if (data.stressAvg !== undefined) cur.stressAvg = data.stressAvg;
@@ -427,7 +431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.skinTemp !== undefined && data.skinTemp >= 30 && data.skinTemp <= 42) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.skinTemp = data.skinTemp!;
           cur.tempDelta = parseFloat((data.skinTemp! - 36.5).toFixed(2));
@@ -441,7 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.bloodPressure !== undefined) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bloodPressure = data.bloodPressure!;
           next[idx] = cur;
@@ -451,7 +455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.glucose !== undefined) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.glucose = { valueMmol: data.glucose!, stabilityScore: 0 };
           next[idx] = cur;
@@ -468,7 +472,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : data.steps;
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.steps = safeSteps;
           if (data.calories && data.calories > 0) cur.activeKcal = data.calories;
@@ -491,7 +495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.sleepHours !== undefined && data.sleepHours > 0) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           const totalMin = Math.round(data.sleepHours! * 60);
           const hasStages =
@@ -540,7 +544,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.spo2 !== undefined && data.spo2 > 0) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.spo2 = data.spo2!;
           if (data.spo2Min !== undefined) cur.spo2Min = data.spo2Min;
@@ -558,7 +562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.minBpm !== undefined && data.minBpm > 0 && data.heartRate === undefined) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           const validLog = (cur.hrLog || []).filter((v) => v >= 40 && v <= 200);
           cur.minBpm = validLog.length > 0 ? Math.min(data.minBpm!, ...validLog) : data.minBpm!;
@@ -573,7 +577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
     return () => unsubscribe();
-  }, [selectedDay]);
+  }, []);
 
   // Données biométriques réelles de la semaine (strictement réelles ou 0)
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {

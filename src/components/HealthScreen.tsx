@@ -6,7 +6,7 @@ import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
 import { CardioAge } from './CardioAge';
 import { HeartRateCard } from './HeartRateCard';
-import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon } from 'lucide-react';
+import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
@@ -41,6 +41,12 @@ export const HealthScreen: React.FC = () => {
       setTimeout(() => setSyncFeedback(null), 3000);
     }, 1800);
   };
+
+  React.useEffect(() => {
+    if (ring.isConnected && qringBle.isConnected()) {
+      qringBle.syncAllRingData();
+    }
+  }, [ring.isConnected]);
 
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[3]));
   const batteryPct = ring.batteryRing || 0;
@@ -351,13 +357,13 @@ export const HealthScreen: React.FC = () => {
       <HeartRateCard onClick={() => openMetricDetail('bpm')} />
 
       {/* =====================================================================
-          4. SECTION HEADER: "Mon activité (5)"
+          4. SECTION HEADER: "Mon activité (5)" & Bouton Synchroniser Bague
           ===================================================================== */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           padding: '2px 4px 0 4px',
           marginTop: '6px',
           marginBottom: '2px',
@@ -385,6 +391,37 @@ export const HealthScreen: React.FC = () => {
             (5)
           </span>
         </div>
+
+        {/* Bouton Synchroniser direct et accessible */}
+        <button
+          type="button"
+          onClick={handleSyncRing}
+          disabled={isSyncingRing}
+          aria-label={language === 'fr' ? 'Synchroniser les données de la bague' : 'Sync ring data'}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 12px',
+            borderRadius: '16px',
+            background: ring.isConnected ? 'rgba(217, 249, 112, 0.12)' : 'rgba(255, 255, 255, 0.08)',
+            border: ring.isConnected ? '1px solid rgba(217, 249, 112, 0.35)' : '1px solid rgba(255, 255, 255, 0.15)',
+            color: ring.isConnected ? '#D9F970' : 'rgba(250, 247, 242, 0.7)',
+            fontSize: '12px',
+            fontWeight: 500,
+            cursor: isSyncingRing ? 'wait' : 'pointer',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          <RefreshCw
+            size={12}
+            style={{
+              animation: isSyncingRing ? 'spin 1s linear infinite' : 'none',
+              transformOrigin: 'center',
+            }}
+          />
+          <span>{isSyncingRing ? (language === 'fr' ? 'Synchronisation...' : 'Syncing...') : (language === 'fr' ? 'Synchroniser' : 'Sync')}</span>
+        </button>
       </div>
 
       {/* =====================================================================
