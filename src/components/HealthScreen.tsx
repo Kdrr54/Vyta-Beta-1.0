@@ -6,7 +6,7 @@ import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
 import { CardioAge } from './CardioAge';
 import { HeartRateCard } from './HeartRateCard';
-import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw } from 'lucide-react';
+import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
@@ -388,7 +388,7 @@ export const HealthScreen: React.FC = () => {
               fontFamily: 'var(--font-mono, monospace)',
             }}
           >
-            (5)
+            (6)
           </span>
         </div>
 
@@ -777,7 +777,6 @@ export const HealthScreen: React.FC = () => {
 
         {/* -----------------------------------------------------------------
             CARD 5: "Niveau de Stress & Émotion" (SDK QC 0x73) - EMERALD MINT
-            Spans full width across 2 columns as the featured autonomic recovery metric
             ----------------------------------------------------------------- */}
         <div
           onClick={() => openMetricDetail('stress')}
@@ -786,9 +785,8 @@ export const HealthScreen: React.FC = () => {
           title="Ouvrir le suivi détaillé du stress et de l'équilibre émotionnel"
           style={{
             position: 'relative',
-            gridColumn: '1 / -1',
-            minHeight: '148px',
-            padding: '16px 18px 14px 18px',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
             borderRadius: '26px',
             overflow: 'hidden',
             cursor: 'pointer',
@@ -810,8 +808,8 @@ export const HealthScreen: React.FC = () => {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.95)', lineHeight: 1.25 }}>
-              {language === 'fr' ? 'Niveau de stress' : 'Nervous Stress'}
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Niveau de<br />stress</> : <>Nervous<br />Stress</>}
             </span>
             <div
               style={{
@@ -844,20 +842,20 @@ export const HealthScreen: React.FC = () => {
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
-                    <span style={{ fontSize: '34px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-1px' }}>
+                    <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
                       {sVal}
                     </span>
-                    {hasStress ? <span style={{ fontSize: '13px', color: isMono ? 'rgba(250, 247, 242, 0.6)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
+                    {hasStress ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#34D399', fontWeight: 600 }}>/100</span> : null}
                   </div>
                   <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#6EE7B7', marginTop: '2px', fontWeight: 600 }}>
                     {sLevel}
                   </span>
                 </div>
 
-                <svg width="100%" height="22" viewBox="0 0 280 22" fill="none" style={{ overflow: 'visible' }}>
-                  <path d={!hasStress ? "M 0 11 L 280 11" : "M 0 11 Q 35 4, 70 11 T 140 11 T 210 11 T 280 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
+                <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+                  <path d={!hasStress ? "M 0 11 L 140 11" : "M 0 11 Q 20 4, 40 11 T 80 11 T 120 11 T 140 11"} stroke={isMono ? "rgba(250, 247, 242, 0.25)" : "rgba(52, 211, 153, 0.25)"} strokeWidth="1.2" fill="none" />
                   <path
-                    d={!hasStress ? "M 0 11 L 280 11" : "M 0 11 Q 35 18, 70 11 T 140 11 T 210 11 T 280 7"}
+                    d={!hasStress ? "M 0 11 L 140 11" : "M 0 11 Q 20 18, 40 11 T 80 11 T 120 11 T 140 7"}
                     stroke={isMono ? '#FAF7F2' : '#34D399'}
                     strokeWidth="1.8"
                     fill="none"
@@ -867,6 +865,83 @@ export const HealthScreen: React.FC = () => {
               </>
             );
           })()}
+        </div>
+
+        {/* -----------------------------------------------------------------
+            CARD 6: "Fréquence Respiratoire" (Biométrie Nocturne RSA) - SKY BLUE
+            ----------------------------------------------------------------- */}
+        <div
+          onClick={() => openMetricDetail('resp')}
+          role="button"
+          tabIndex={0}
+          title="Ouvrir le suivi détaillé de la fréquence respiratoire & ventilation nocturne"
+          style={{
+            position: 'relative',
+            minHeight: '160px',
+            padding: '16px 15px 14px 15px',
+            borderRadius: '26px',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 108%, rgba(56, 189, 248, 0.36) 0%, rgba(2, 132, 199, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+            backdropFilter: 'blur(26px)',
+            WebkitBackdropFilter: 'blur(26px)',
+            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(56, 189, 248, 0.75)',
+            boxShadow: isMono
+              ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(56, 189, 248, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+              {language === 'fr' ? <>Fréquence<br />respiratoire</> : <>Respiratory<br />Rate</>}
+            </span>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(56, 189, 248, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(56, 189, 248, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(56, 189, 248, 0.28)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Wind size={16} color={isMono ? "#FAF7F2" : "#38BDF8"} strokeWidth={1.8} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+              <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
+                {dayData.resp && dayData.resp > 0 ? dayData.resp : '--'}
+              </span>
+              {dayData.resp && dayData.resp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span> : null}
+            </div>
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#7DD3FC', marginTop: '2px', fontWeight: 600 }}>
+              {dayData.resp && dayData.resp > 0 ? (language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady') : '--'}
+            </span>
+          </div>
+
+          <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
+            <path
+              d={!dayData.resp || dayData.resp === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 25 3, 50 11 T 100 11 T 140 11"}
+              stroke={isMono ? '#FAF7F2' : '#38BDF8'}
+              strokeWidth="1.8"
+              fill="none"
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(56, 189, 248, 0.85))' }}
+            />
+          </svg>
         </div>
       </div>
 

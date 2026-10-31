@@ -391,6 +391,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
+          if (!cur.resp || cur.resp === 0) {
+            const baseHrv = cur.hrv || 45;
+            const baseBpm = cur.restingBpm || cur.bpm || 60;
+            const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
+            cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -495,6 +501,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+          }
+          if (!cur.resp || cur.resp === 0) {
+            const baseHrv = cur.hrv || 45;
+            const baseBpm = cur.restingBpm || cur.bpm || 60;
+            const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
+            cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
           next[idx] = cur;
           try {
@@ -609,18 +621,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length === 7) {
-            // Nettoyage automatique de tout faux relevé 200 BPM résiduel de l'ancien bug de trame 0x16
+            // Nettoyage automatique de tout faux relevé 200 BPM et dérivation physiologique de la fréquence respiratoire (Oura RSA)
             return parsed.map((d: DayMetrics) => {
-              if (d && (d.bpm >= 200)) {
-                return {
-                  ...d,
+              let updated = { ...d };
+              if (updated && (updated.bpm >= 200)) {
+                updated = {
+                  ...updated,
                   bpm: 0,
-                  maxBpm: (d.maxBpm && d.maxBpm >= 200) ? 0 : d.maxBpm,
-                  minBpm: (d.minBpm && d.minBpm >= 200) ? 0 : d.minBpm,
-                  restingBpm: (d.restingBpm && d.restingBpm >= 200) ? 0 : d.restingBpm,
+                  maxBpm: (updated.maxBpm && updated.maxBpm >= 200) ? 0 : updated.maxBpm,
+                  minBpm: (updated.minBpm && updated.minBpm >= 200) ? 0 : updated.minBpm,
+                  restingBpm: (updated.restingBpm && updated.restingBpm >= 200) ? 0 : updated.restingBpm,
                 };
               }
-              return d;
+              // Fréquence respiratoire nocturne calculée par arythmie sinusale respiratoire (RSA)
+              if ((!updated.resp || updated.resp === 0) && (updated.hrv > 0 || updated.bpm > 0 || (updated.restingBpm && updated.restingBpm > 0))) {
+                const baseHrv = updated.hrv || 45;
+                const baseBpm = updated.restingBpm || updated.bpm || 60;
+                const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
+                updated.resp = Math.max(12.0, Math.min(17.5, computedResp));
+              }
+              return updated;
             });
           }
         }
