@@ -1559,19 +1559,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-
-                  {/* Points réels mesurés sur les créneaux de 30 min */}
-                  {measuredPoints.map((pt, pIdx) => (
-                    <circle
-                      key={pIdx}
-                      cx={pt.x}
-                      cy={pt.y}
-                      r="3"
-                      fill="#FAF7F2"
-                      stroke={theme.primary}
-                      strokeWidth="1.8"
-                    />
-                  ))}
                 </>
               )}
 
@@ -1688,68 +1675,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               </div>
             )}
           </div>
-
-          {/* Grille des 48 relevés de la journée */}
-          {metricId === 'bpm' && (
-            <div
-              style={{
-                marginTop: '10px',
-                paddingTop: '10px',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 2px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.8)' }}>
-                  {isEn ? 'Daily Timeline' : 'Relevés de la journée'}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', fontFamily: 'var(--font-mono)' }}>
-                  {isEn ? '48 slots (30 min)' : '48 créneaux (30 min)'}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: '6px',
-                  maxHeight: '144px',
-                  overflowY: 'auto',
-                  paddingRight: '2px',
-                }}
-              >
-                {dataset.map((pt, idx) => {
-                  const isSelected = hoverIndex === idx;
-                  return (
-                    <button
-                      key={pt.label}
-                      type="button"
-                      onClick={() => setHoverIndex(idx)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '5px 7px',
-                        borderRadius: '8px',
-                        background: isSelected ? 'rgba(255, 69, 58, 0.22)' : 'rgba(255, 255, 255, 0.035)',
-                        border: isSelected ? `1px solid ${theme.primary}` : '1px solid rgba(255, 255, 255, 0.07)',
-                        color: '#FAF7F2',
-                        fontSize: '10px',
-                        fontFamily: 'var(--font-mono)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ color: 'rgba(250, 247, 242, 0.52)' }}>{pt.label}</span>
-                      <strong style={{ color: isSelected ? theme.primary : '#FAF7F2' }}>
-                        {pt.value > 0 ? Math.round(pt.value) : '--'}
-                      </strong>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Progressive Sub-Tabs Navigation */}
