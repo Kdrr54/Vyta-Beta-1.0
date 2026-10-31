@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { weekMetrics, statusFor, finishes, emptyDayMetrics } from '../data/health';
+import { weekMetrics, statusFor, finishes, emptyDayMetrics, TODAY_INDEX, WEEK } from '../data/health';
 import { WeekSelector } from './WeekSelector';
 import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
@@ -11,7 +11,7 @@ import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
+  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
@@ -41,6 +41,13 @@ export const HealthScreen: React.FC = () => {
       setTimeout(() => setSyncFeedback(null), 3000);
     }, 1800);
   };
+
+  // Synchroniser automatiquement à l'affichage ou au retour sur l'onglet Santé
+  React.useEffect(() => {
+    if (qringBle.isConnected()) {
+      qringBle.syncAllRingData();
+    }
+  }, []);
 
   React.useEffect(() => {
     if (ring.isConnected && qringBle.isConnected()) {
@@ -356,6 +363,48 @@ export const HealthScreen: React.FC = () => {
           ===================================================================== */}
       <HeartRateCard onClick={() => openMetricDetail('bpm')} />
 
+      {/* Bannière visuelle claire si un jour passé est sélectionné, avec bouton de retour instantané à Aujourd'hui */}
+      {selectedDay !== TODAY_INDEX && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            borderRadius: '16px',
+            background: 'rgba(217, 249, 112, 0.08)',
+            border: '1px solid rgba(217, 249, 112, 0.28)',
+            marginTop: '4px',
+            marginBottom: '4px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px' }}>📅</span>
+            <span style={{ fontSize: '12.5px', color: '#FAF7F2', fontWeight: 500 }}>
+              {language === 'fr'
+                ? `Relevés du ${WEEK[selectedDay]?.long || ''} ${WEEK[selectedDay]?.date || ''} ${WEEK[selectedDay]?.month || ''}`
+                : `Records for ${WEEK[selectedDay]?.long || ''} ${WEEK[selectedDay]?.date || ''} ${WEEK[selectedDay]?.month || ''}`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedDay(TODAY_INDEX)}
+            style={{
+              padding: '5px 12px',
+              borderRadius: '12px',
+              background: '#D9F970',
+              border: 'none',
+              color: '#0A0A0C',
+              fontSize: '11.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {language === 'fr' ? "Aujourd'hui" : 'Today'}
+          </button>
+        </div>
+      )}
+
       {/* =====================================================================
           4. SECTION HEADER: "Mon activité (5)" & Bouton Synchroniser Bague
           ===================================================================== */}
@@ -546,7 +595,9 @@ export const HealthScreen: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
-              {language === 'fr' ? <>Pas effectués<br />aujourd'hui</> : <>Steps Taken<br />Today</>}
+              {selectedDay === TODAY_INDEX
+                ? (language === 'fr' ? <>Pas effectués<br />aujourd'hui</> : <>Steps Taken<br />Today</>)
+                : (language === 'fr' ? <>Pas effectués<br />{WEEK[selectedDay]?.long || ''}</> : <>Steps ·<br />{WEEK[selectedDay]?.long || ''}</>)}
             </span>
             <div
               style={{

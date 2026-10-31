@@ -2,23 +2,24 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 import { WEEK, TODAY_INDEX } from '../data/health';
 
-const dayKeys: Record<string, 'week.mon' | 'week.tue' | 'week.wed' | 'week.thu' | 'week.fri' | 'week.sat' | 'week.sun'> = {
-  L: 'week.mon',
-  M: 'week.tue',
-  J: 'week.thu',
-  V: 'week.fri',
-  S: 'week.sat',
-  D: 'week.sun',
-};
+interface WeekSelectorProps {
+  selectedDay?: number;
+  onSelectDay?: (day: number) => void;
+}
 
-export const WeekSelector: React.FC = () => {
-  const { selectedDay, setSelectedDay, t, language } = useApp();
+export const WeekSelector: React.FC<WeekSelectorProps> = ({
+  selectedDay: propSelectedDay,
+  onSelectDay: propOnSelectDay,
+}) => {
+  const { selectedDay: contextSelectedDay, setSelectedDay: contextSetSelectedDay, t, language } = useApp();
+  const activeSelectedDay = propSelectedDay !== undefined ? propSelectedDay : contextSelectedDay;
+  const handleSelectDay = propOnSelectDay || contextSetSelectedDay;
 
   return (
     <div className="week-selector" role="group" aria-label={t('week.selector_label')}>
       {WEEK.map((day, idx) => {
         const isToday = idx === TODAY_INDEX;
-        const isSelected = idx === selectedDay;
+        const isSelected = idx === activeSelectedDay;
         const isFuture = idx > TODAY_INDEX;
 
         const dayLetter = language === 'en'
@@ -30,7 +31,7 @@ export const WeekSelector: React.FC = () => {
             key={`${day.short}-${day.date}`}
             type="button"
             className={`week-day-btn ${isSelected ? 'selected' : ''} ${isToday ? 'is-today' : ''}`}
-            onClick={() => !isFuture && setSelectedDay(idx)}
+            onClick={() => !isFuture && handleSelectDay(idx)}
             disabled={isFuture}
             title={`${day.long} ${day.date}${isToday ? ` (${t('week.today')})` : ''}`}
           >

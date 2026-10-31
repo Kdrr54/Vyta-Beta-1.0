@@ -20,6 +20,7 @@ import { GeneralStateModal } from './components/GeneralStateModal';
 import { FindMyRingModal } from './components/FindMyRingModal';
 import { PrismModal } from './components/PrismModal';
 import { AppleNotificationBanner } from './components/AppleNotificationBanner';
+import { TODAY_INDEX } from './data/health';
 
 const AppInner: React.FC = () => {
   const {
@@ -37,6 +38,7 @@ const AppInner: React.FC = () => {
     isPaired,
     setIsPaired,
     isLiveRunningViewOpen,
+    setSelectedDay,
   } = useApp();
 
   React.useEffect(() => {
@@ -44,7 +46,10 @@ const AppInner: React.FC = () => {
     if (tab === 'covyta') {
       setTab('health');
     }
-  }, [tab, setTab]);
+    if (tab === 'health') {
+      setSelectedDay(TODAY_INDEX);
+    }
+  }, [tab, setTab, setSelectedDay]);
 
   // Réinitialiser immédiatement le défilement tout en haut lors d'un changement d'onglet
   React.useLayoutEffect(() => {

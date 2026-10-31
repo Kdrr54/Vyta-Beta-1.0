@@ -405,7 +405,9 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal } = useApp();
-  const dayData = (weekData && weekData[selectedDay]) || emptyDayMetrics;
+  // Jour inspecte local a la modale : isole completement l'ecran d'accueil Sante
+  const [modalDay, setModalDay] = useState<number>(() => (selectedDay !== undefined ? selectedDay : TODAY_INDEX));
+  const dayData = (weekData && weekData[modalDay]) || emptyDayMetrics;
   const detail: MetricDetailItem = METRIC_DETAILS[metricId];
   const theme: MetricTheme = METRIC_THEMES[metricId];
 
@@ -422,7 +424,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   // Rafraîchir automatiquement les relevés stockés dans la mémoire flash de la bague à l'ouverture (0 LED)
   useEffect(() => {
-    if (selectedDay !== TODAY_INDEX) return;
+    if (modalDay !== TODAY_INDEX) return;
     if (metricId === 'bpm') {
       qringBle.requestHeartRateLog();
     } else if (metricId === 'hrv') {
@@ -434,7 +436,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     } else if (metricId === 'temp') {
       qringBle.requestTemperatureData();
     }
-  }, [metricId, selectedDay]);
+  }, [metricId, modalDay]);
 
   const handleStopMeasure = useCallback((completed = false) => {
     setIsMeasuring(false);
@@ -448,7 +450,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         setTimeout(() => setMeasureFeedback(null), 4500);
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = Math.min(6, Math.max(0, selectedDay));
+          const idx = Math.min(6, Math.max(0, modalDay));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = finalBpm;
           const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
@@ -470,7 +472,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         setTimeout(() => setMeasureFeedback(null), 4500);
       }
     }
-  }, [language, selectedDay, setWeekData]);
+  }, [language, modalDay, setWeekData]);
 
   const handleStartMeasure = () => {
     setLiveBpm(0);
@@ -489,7 +491,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   // Value for the selected day in WeekSelector
   const dayMetricValue = React.useMemo(() => {
     if (metricId === 'bpm') {
-      if (selectedDay === TODAY_INDEX && isMeasuring && liveBpm) return liveBpm;
+      if (modalDay === TODAY_INDEX && isMeasuring && liveBpm) return liveBpm;
       return dayData?.bpm || 0;
     }
     if (metricId === 'hrv') {
@@ -513,7 +515,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.glucose?.valueMmol || 0;
     }
     return 0;
-  }, [metricId, selectedDay, dayData, isMeasuring, liveBpm]);
+  }, [metricId, modalDay, dayData, isMeasuring, liveBpm]);
 
   useEffect(() => {
     if (!isMeasuring || metricId !== 'bpm') return;
@@ -547,8 +549,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const displayTitle = isEn ? detail.titleEn : detail.title;
   const displaySubtitle = isEn ? theme.subtitleEn : theme.subtitleFr;
   const displayBadge = isEn ? detail.badgeEn : detail.badge;
-  const selectedDayInfo = WEEK[selectedDay] || WEEK[TODAY_INDEX];
-  const displayPeriodText = `${selectedDayInfo?.long} ${selectedDayInfo?.date}${selectedDay === TODAY_INDEX ? (isEn ? " (Today)" : " (Aujourd'hui)") : ""}`;
+  const selectedDayInfo = WEEK[modalDay] || WEEK[TODAY_INDEX];
+  const displayPeriodText = `${selectedDayInfo?.long} ${selectedDayInfo?.date}${modalDay === TODAY_INDEX ? (isEn ? " (Today)" : " (Aujourd'hui)") : ""}`;
   const displaySummary = isEn ? detail.summaryEn : detail.summary;
   const displayAdvice = isEn ? detail.adviceEn : detail.advice;
   const displayStats = isEn ? detail.statsEn : detail.stats;
@@ -659,7 +661,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dayData!.hrLog!.forEach((v, i) => {
         slots[i].value = v >= 40 && v <= 200 ? v : 0;
       });
-      if (selectedDay === TODAY_INDEX && dayMetricValue >= 40 && dayMetricValue <= 200) {
+      if (modalDay === TODAY_INDEX && dayMetricValue >= 40 && dayMetricValue <= 200) {
         const now = new Date();
         const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
         if (slots[curIdx].value === 0) {
@@ -759,7 +761,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     if (!isZeroState && dayMetricValue > 0) {
-      if (selectedDay === TODAY_INDEX) {
+      if (modalDay === TODAY_INDEX) {
         const now = new Date();
         const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
         slots[curIdx].value = dayMetricValue;
@@ -769,7 +771,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, selectedDay, metricId, dayData]);
+  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData]);
 
   const isValidPoint = (v: number) => {
     if (metricId === 'temp') {
@@ -875,7 +877,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       ? (isValidPoint(activePoint.value)
           ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
           : '--')
-      : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
+      : metricId === 'bpm' && modalDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
       : metricId === 'bp'
       ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--')
@@ -927,7 +929,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
         {/* Week Selector (Photo 2) replacing the 24h/7j/30j tabs */}
         <div style={{ padding: '0 2px', marginTop: '2px', marginBottom: '2px' }}>
-          <WeekSelector />
+          <WeekSelector selectedDay={modalDay} onSelectDay={setModalDay} />
         </div>
 
         {/* Hero Dynamic Value Card matching the Home Card Theme */}
@@ -1380,7 +1382,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               </div>
 
               {/* Bouton de mesure optique en direct 20 secondes si Fréquence Cardiaque aujourd'hui */}
-              {selectedDay === TODAY_INDEX && (
+              {modalDay === TODAY_INDEX && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
                   {isMeasuring ? (
                     <button
@@ -1455,7 +1457,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </div>
               )}
 
-              {selectedDay === TODAY_INDEX && measureFeedback && (
+              {modalDay === TODAY_INDEX && measureFeedback && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
                   <div
                     style={{

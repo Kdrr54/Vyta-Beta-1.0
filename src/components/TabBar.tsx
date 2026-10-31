@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeartPulse, Moon, Flower2, Dumbbell, Settings } from 'lucide-react';
+import { TODAY_INDEX } from '../data/health';
 
 export const TabBar: React.FC = () => {
-  const { tab, setTab, t, profile, modal, openModal, closeModal } = useApp();
+  const { tab, setTab, t, profile, modal, openModal, closeModal, setSelectedDay } = useApp();
   const isFemale = profile.sex === 'femme';
   const isSettingsOpen = modal === 'settings';
 
@@ -21,6 +22,9 @@ export const TabBar: React.FC = () => {
     } catch (e) {}
     if (modal) {
       closeModal();
+    }
+    if (targetTab === 'health') {
+      setSelectedDay(TODAY_INDEX);
     }
     if (targetTab === tab) {
       const el = document.querySelector('.app-scroll-container') as HTMLElement | null;

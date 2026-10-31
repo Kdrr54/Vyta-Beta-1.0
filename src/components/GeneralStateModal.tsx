@@ -396,7 +396,6 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                   onClick={() => {
                     if (hasData) {
                       setInspectedDay(idx);
-                      setSelectedDay(idx);
                     }
                   }}
                   style={{
@@ -498,7 +497,6 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
                   key={idx}
                   onClick={() => {
                     setInspectedDay(idx);
-                    setSelectedDay(idx);
                   }}
                   style={{
                     display: 'flex',
