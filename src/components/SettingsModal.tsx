@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { SensorIntervalOption } from '../types';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
 import { qringBle } from '../lib/qringBleService';
@@ -21,18 +20,12 @@ import {
   Minus,
   Plus,
   Volume2,
-  HeartPulse,
-  Thermometer,
-  Wind,
-  Droplets,
-  Activity,
   Sliders,
   Zap,
   RefreshCw,
   Play,
   Pause,
   RotateCcw,
-  TrendingUp,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -854,7 +847,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   {isEn ? 'Sensor Measurement Intervals' : 'Intervalles de Mesure des Capteurs'}
                 </span>
                 <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
-                  {isEn ? '8 Biometrics Autonomous Sampling' : 'Échantillonnage autonome des 8 biométries'}
+                  {isEn ? 'Autonomous Ring Sampling' : 'Fréquence de relevé autonome'}
                 </span>
               </div>
             </div>
@@ -974,191 +967,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             ))}
           </div>
 
-          {/* 8 Biometric Sensor Rows */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {[
-              {
-                key: 'heartRate' as const,
-                nameFr: 'Fréquence Cardiaque (BPM)',
-                nameEn: 'Heart Rate (BPM)',
-                descFr: 'Cardiofréquencemètre PPG optique vert',
-                descEn: 'Continuous green optical PPG sensor',
-                icon: HeartPulse,
-                color: '#FF453A',
-              },
-              {
-                key: 'hrv' as const,
-                nameFr: 'Variabilité Cardiaque (VRC)',
-                nameEn: 'Heart Rate Variability (HRV)',
-                descFr: 'Équilibre nerveux & indice SDNN/RMSSD',
-                descEn: 'Autonomic nervous recovery index',
-                icon: Activity,
-                color: '#A78BFA',
-              },
-              {
-                key: 'spo2' as const,
-                nameFr: 'Oxygénation Sanguine (SpO2)',
-                nameEn: 'Blood Oxygen (SpO2)',
-                descFr: 'Saturation artérielle & LED infrarouge',
-                descEn: 'Arterial saturation & infrared LEDs',
-                icon: Droplets,
-                color: '#38BDF8',
-              },
-              {
-                key: 'temperature' as const,
-                nameFr: 'Température Cutanée (NTC)',
-                nameEn: 'Skin Temperature (NTC)',
-                descFr: 'Thermistance différentielle médicale',
-                descEn: 'Medical differential thermistor',
-                icon: Thermometer,
-                color: '#FBBF24',
-              },
-              {
-                key: 'stress' as const,
-                nameFr: 'Niveau de Stress & Émotion',
-                nameEn: 'Stress Level & Emotion',
-                descFr: 'Charge mentale & tension autonome (0x73)',
-                descEn: 'Mental strain & autonomic tension (0x73)',
-                icon: Zap,
-                color: '#EC4899',
-              },
-              {
-                key: 'bloodPressure' as const,
-                nameFr: 'Pression Artérielle (Tension)',
-                nameEn: 'Blood Pressure Estimation',
-                descFr: 'Analyse PTT & dynamique onde de pouls',
-                descEn: 'Pulse transit time & arterial wave',
-                icon: Heart,
-                color: '#F43F5E',
-              },
-              {
-                key: 'glucose' as const,
-                nameFr: 'Stabilité Glycémique (Métabolisme)',
-                nameEn: 'Metabolic Glucose Stability',
-                descFr: 'Oscillation glucidique & stabilité métabolique',
-                descEn: 'Glucose oscillation & metabolic stability',
-                icon: TrendingUp,
-                color: '#6366F1',
-              },
-              {
-                key: 'respiratory' as const,
-                nameFr: 'Fréquence Respiratoire (RPM)',
-                nameEn: 'Respiratory Rate (RPM)',
-                descFr: 'Ventilation & cycles respiratoires',
-                descEn: 'Breathing rate & chest amplitude',
-                icon: Wind,
-                color: '#34D399',
-              },
-            ].map((sensor) => {
-              const currentVal: SensorIntervalOption = (sensorIntervals?.[sensor.key] as SensorIntervalOption) || '1h';
-
-              const formatValLabel = (val: SensorIntervalOption) => {
-                if (val === '30min' || val === '15min') return isEn ? '30 min' : 'Toutes les 30 min';
-                return isEn ? '1 hour' : 'Toutes les heures (1h)';
-              };
-
-              return (
-                <div
-                  key={sensor.key}
-                  style={{
-                    padding: '11px 12px',
-                    borderRadius: '16px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    transition: 'all 0.16s ease',
-                  }}
-                >
-                  {/* Top: Icon + Name + Description + Current Value Badge */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div
-                        style={{
-                          width: '26px',
-                          height: '26px',
-                          borderRadius: '8px',
-                          background: `${sensor.color}18`,
-                          border: `1px solid ${sensor.color}35`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <sensor.icon size={13} color={sensor.color} />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2', lineHeight: 1.2 }}>
-                          {isEn ? sensor.nameEn : sensor.nameFr}
-                        </span>
-                        <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.44)', marginTop: '1px' }}>
-                          {isEn ? sensor.descEn : sensor.descFr}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        color: sensor.color,
-                        padding: '2px 8px',
-                        borderRadius: '999px',
-                        background: `${sensor.color}15`,
-                        border: `1px solid ${sensor.color}30`,
-                        fontFamily: 'var(--font-mono, monospace)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {formatValLabel(currentVal)}
-                    </span>
-                  </div>
-
-                  {/* Standardized 2 Interval Options: 30 min vs 1 h */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                    {(
-                      [
-                        { id: '30min', label: isEn ? 'Toutes les 30 min' : 'Toutes les 30 min' },
-                        { id: '1h', label: isEn ? 'Toutes les heures (1h)' : 'Toutes les heures (1h)' },
-                      ] as const
-                    ).map((opt) => {
-                      const active = currentVal === opt.id || (opt.id === '1h' && (currentVal === '2h' || !currentVal)) || (opt.id === '30min' && currentVal === '15min');
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            updateSensorIntervals({ [sensor.key]: opt.id });
-                            if (sensor.key === 'heartRate') {
-                              qringBle.setHeartRateInterval(opt.id === '30min' ? 30 : 60);
-                            }
-                          }}
-                          style={{
-                            padding: '7px 0',
-                            borderRadius: '10px',
-                            background: active ? sensor.color : 'rgba(255, 255, 255, 0.04)',
-                            border: active ? `1px solid ${sensor.color}` : '1px solid rgba(255, 255, 255, 0.08)',
-                            color: active ? '#0A0A0C' : 'rgba(250, 247, 242, 0.78)',
-                            fontSize: '11px',
-                            fontWeight: active ? 700 : 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            textAlign: 'center',
-                            boxShadow: active ? `0 0 10px ${sensor.color}66` : 'none',
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
           </div>
-        </div>
 
         {/* ====================================================================
             3. PROFIL BIOMÉTRIQUE & CALIBRAGE
