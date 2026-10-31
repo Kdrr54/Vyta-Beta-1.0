@@ -199,38 +199,158 @@ export const FitScreen: React.FC = () => {
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>([]);
   const [instantSpeedKmh, setInstantSpeedKmh] = useState<number>(0);
   const lastGpsFixRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const runStartTimeRef = useRef<number>(0);
+  const accumulatedDurRef = useRef<number>(initialRunDur);
   // isLiveRunningViewOpen hoisted to AppContext
+
+  const notifyNativeWorkout = (action: 'start' | 'pause' | 'stop' | 'sync') => {
+    try {
+      const webkit = (window as any).webkit;
+      if (webkit && webkit.messageHandlers && webkit.messageHandlers.vytaWorkoutTracker) {
+        webkit.messageHandlers.vytaWorkoutTracker.postMessage({ action });
+      }
+    } catch (err) {
+      console.log('[Vyta Native Bridge] Workout message error:', err);
+    }
+  };
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>([]);
 
-  // Minuteur d'entraînement & télémétrie réelle (distance GPS et cardio bague réel)
+  // Empêcher l'extinction de l'écran pendant la course active (Screen WakeLock API)
+  useEffect(() => {
+    let sentinel: any = null;
+    if (runState === 'running' && typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      (navigator as any).wakeLock.request('screen').then((lock: any) => {
+        sentinel = lock;
+      }).catch(() => {});
+    }
+    return () => {
+      if (sentinel) {
+        sentinel.release().catch(() => {});
+      }
+    };
+  }, [runState]);
+
+  // Minuteur d'entraînement & télémétrie réelle (calcul basé sur horloge réelle / reprise en arrière-plan)
   useEffect(() => {
     if (runState !== 'running') return;
 
     const interval = setInterval(() => {
-      setRunDurationSec((prevDur) => {
-        const nextDur = prevDur + 1;
+      if (runStartTimeRef.current > 0) {
+        const elapsed = Math.floor((Date.now() - runStartTimeRef.current) / 1000);
+        setRunDurationSec(elapsed);
+
         const curSpeed = instantSpeedKmh;
         const curHr = liveBpm > 0 ? liveBpm : 0;
 
-        setTelemetryHistory((prevHistory) => [
-          ...prevHistory,
-          {
-            timeSec: nextDur,
-            distanceKm: runDistanceKm,
-            speedKmh: Math.round(curSpeed * 10) / 10,
-            hrBpm: curHr,
-          },
-        ]);
-
-        return nextDur;
-      });
+        setTelemetryHistory((prevHistory) => {
+          if (prevHistory.length > 0 && prevHistory[prevHistory.length - 1].timeSec === elapsed) {
+            return prevHistory;
+          }
+          return [
+            ...prevHistory,
+            {
+              timeSec: elapsed,
+              distanceKm: runDistanceKm,
+              speedKmh: Math.round(curSpeed * 10) / 10,
+              hrBpm: curHr,
+            },
+          ];
+        });
+      }
     }, 1000);
 
-    return () => clearInterval(interval);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && runStartTimeRef.current > 0) {
+        const elapsed = Math.floor((Date.now() - runStartTimeRef.current) / 1000);
+        setRunDurationSec(elapsed);
+        notifyNativeWorkout('sync');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
   }, [runState, instantSpeedKmh, runDistanceKm, liveBpm]);
 
-  // Surveillance GPS temps réel haute précision (Distance & Vitesse réelles du coureur)
+  // Traitement universel des coordonnées GPS (Foreground + Native Background iOS CoreLocation)
+  const processGpsFix = (latitude: number, longitude: number, speed: number | null, accuracy: number, timestamp?: number) => {
+    if (accuracy > 35) return;
+    const coords: [number, number] = [latitude, longitude];
+    const now = timestamp || Date.now();
+
+    setUserPosition(coords);
+    try {
+      localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
+    } catch (e) {}
+
+    // Resynchronisation du temps écoulé au cas où iOS a mis le timer en veille
+    if (runStartTimeRef.current > 0) {
+      const elapsed = Math.floor((Date.now() - runStartTimeRef.current) / 1000);
+      setRunDurationSec(elapsed);
+    }
+
+    if (!lastGpsFixRef.current) {
+      lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+      setRealGpsPoints([coords]);
+      return;
+    }
+
+    const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
+    if (dtSec < 1.2) return;
+
+    const distMeters = calculateGpsDistanceMeters(
+      lastGpsFixRef.current.lat,
+      lastGpsFixRef.current.lng,
+      latitude,
+      longitude
+    );
+
+    const hasHardwareSpeed = speed !== null && !isNaN(speed) && speed >= 0;
+    const isStationary = hasHardwareSpeed ? speed < 0.7 : distMeters < 5.0;
+
+    if (isStationary) {
+      setInstantSpeedKmh(0);
+      return;
+    }
+
+    if (distMeters >= 5.0 && distMeters < 100) {
+      let instantKmh = 0;
+      if (hasHardwareSpeed && speed > 0.3) {
+        instantKmh = speed * 3.6;
+      } else {
+        instantKmh = (distMeters / dtSec) * 3.6;
+      }
+
+      if (instantKmh > 25.0) {
+        setInstantSpeedKmh(0);
+        return;
+      }
+
+      if (instantKmh < 2.0) {
+        instantKmh = 0;
+      } else {
+        const distKm = distMeters / 1000;
+        setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
+
+        setInstantSpeedKmh((prev) => {
+          const smoothed = prev > 0 ? (prev * 0.7 + instantKmh * 0.3) : instantKmh;
+          return Math.round(smoothed * 10) / 10;
+        });
+
+        lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+        setRealGpsPoints((prev) => [...prev, coords]);
+      }
+    } else if (distMeters < 5.0) {
+      setInstantSpeedKmh(0);
+    }
+  };
+
+  // Surveillance GPS temps réel haute précision (Hybride Web + Native iOS Background)
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
 
@@ -257,89 +377,37 @@ export const FitScreen: React.FC = () => {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, speed, accuracy } = pos.coords;
-        const coords: [number, number] = [latitude, longitude];
-        const now = Date.now();
-
-        setUserPosition(coords);
-        try {
-          localStorage.setItem('vyta_last_user_location', JSON.stringify(coords));
-        } catch (e) {}
-
-        // 1. Filtrage anti-dérive GPS : ignorer les signaux imprécis (> 25m)
-        if (accuracy > 25) {
-          return;
-        }
-
-        if (!lastGpsFixRef.current) {
-          lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
-          setRealGpsPoints([coords]);
-          return;
-        }
-
-        const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
-        // Exiger au moins 2 secondes entre les calculs pour éliminer les micro-sauts de position
-        if (dtSec < 2.0) {
-          return;
-        }
-
-        const distMeters = calculateGpsDistanceMeters(
-          lastGpsFixRef.current.lat,
-          lastGpsFixRef.current.lng,
-          latitude,
-          longitude
-        );
-
-        // 2. Détection de l'immobilité stricte (Doppler CoreLocation ou dérive < 7.5m)
-        const hasHardwareSpeed = speed !== null && !isNaN(speed) && speed >= 0;
-        const isStationary = hasHardwareSpeed ? speed < 0.8 : distMeters < 7.5;
-
-        if (isStationary) {
-          setInstantSpeedKmh(0);
-          return;
-        }
-
-        // 3. Déplacement humain réel avéré (au moins 7.5 mètres et vitesse < 22 km/h)
-        if (distMeters >= 7.5 && distMeters < 80) {
-          let instantKmh = 0;
-          if (hasHardwareSpeed) {
-            instantKmh = speed * 3.6; // Vitesse Doppler réelle CoreLocation
-          } else {
-            instantKmh = (distMeters / dtSec) * 3.6;
-          }
-
-          // Éliminer les artefacts impossibles (> 22 km/h)
-          if (instantKmh > 22.0) {
-            setInstantSpeedKmh(0);
-            return;
-          }
-
-          // Seuil d'allure : si inférieur à 2.5 km/h, considérer à l'arrêt
-          if (instantKmh < 2.5) {
-            instantKmh = 0;
-          } else {
-            const distKm = distMeters / 1000;
-            setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
-
-            // Lissage exponentiel doux
-            setInstantSpeedKmh((prev) => {
-              const smoothed = prev > 0 ? (prev * 0.7 + instantKmh * 0.3) : instantKmh;
-              return Math.round(smoothed * 10) / 10;
-            });
-
-            lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
-            setRealGpsPoints((prev) => [...prev, coords]);
-          }
-        } else if (distMeters < 7.5) {
-          // Utilisateur à l'arrêt
-          setInstantSpeedKmh(0);
-        }
+        processGpsFix(pos.coords.latitude, pos.coords.longitude, pos.coords.speed, pos.coords.accuracy);
       },
       (err) => console.log('GPS watch error:', err.message),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
     );
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    // Écoute des points GPS natifs iOS en arrière-plan (quand l'écran est éteint)
+    const handleNativeGps = (e: any) => {
+      const { latitude, longitude, speed, accuracy, time } = e.detail || {};
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        processGpsFix(latitude, longitude, speed, accuracy, time);
+      }
+    };
+
+    const handleNativeBatch = (e: any) => {
+      const points = e.detail;
+      if (Array.isArray(points)) {
+        points.forEach((pt: any) => {
+          processGpsFix(pt.latitude, pt.longitude, pt.speed, pt.accuracy, pt.time);
+        });
+      }
+    };
+
+    window.addEventListener('nativeGpsUpdate', handleNativeGps);
+    window.addEventListener('nativeGpsBatchSync', handleNativeBatch);
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      window.removeEventListener('nativeGpsUpdate', handleNativeGps);
+      window.removeEventListener('nativeGpsBatchSync', handleNativeBatch);
+    };
   }, [runState]);
 
   // Support du scroll direct vers la section cardio/télémétrie
@@ -371,23 +439,33 @@ export const FitScreen: React.FC = () => {
       setRealGpsPoints(initPoints);
       lastGpsFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
       setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
+      accumulatedDurRef.current = 0;
+      runStartTimeRef.current = Date.now();
+    } else {
+      runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     }
     setRunState('running');
+    notifyNativeWorkout('start');
     setIsLiveRunningViewOpen(true);
   };
 
   const pauseRun = () => {
     setRunState('paused');
+    accumulatedDurRef.current = runDurationSec;
     setInstantSpeedKmh(0);
+    notifyNativeWorkout('pause');
   };
 
   const resumeRun = () => {
+    runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     setRunState('running');
+    notifyNativeWorkout('start');
     setIsLiveRunningViewOpen(true);
   };
 
   const stopRun = () => {
     setRunState('finished');
+    notifyNativeWorkout('stop');
     saveCurrentRunToTrajets();
     openRunStory();
     setIsLiveRunningViewOpen(false);
@@ -395,12 +473,15 @@ export const FitScreen: React.FC = () => {
 
   const resetRun = () => {
     setRunState('idle');
+    notifyNativeWorkout('stop');
     setRunDurationSec(0);
     setRunDistanceKm(0);
     setInstantSpeedKmh(0);
     setRealGpsPoints([]);
     lastGpsFixRef.current = null;
     setTelemetryHistory([]);
+    accumulatedDurRef.current = 0;
+    runStartTimeRef.current = 0;
   };
 
   const saveCurrentRunToTrajets = () => {

@@ -53,11 +53,15 @@
 	<array>
 		<string>bluetooth-central</string>
 		<string>fetch</string>
+		<string>location</string>
+		<string>processing</string>
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Vyta enregistre votre parcours et vitesse d'entraînement GPS avec précision pendant vos séances de course.</string>
+	<string>Vyta enregistre votre parcours et vitesse d'entraînement GPS avec précision pendant vos séances de course, même en arrière-plan.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Vyta utilise votre géolocalisation pour mesurer vos distances et tracer votre itinéraire d'entraînement.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Vyta continue d'enregistrer votre tracé GPS, distance et vitesse de course même lorsque votre téléphone est verrouillé ou en veille.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
