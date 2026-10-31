@@ -14,6 +14,8 @@
     <dict>
         <key>lt.manodrabuziai.fr.ZCU3WN2ZW4</key>
         <string>Vyta TestFlight AppStore Profile</string>
+        <key>lt.manodrabuziai.fr.ZCU3WN2ZW4.WorkoutLiveActivity</key>
+        <string>Vyta Workout Widget Profile</string>
     </dict>
     <key>manageAppVersionAndBuildNumber</key>
     <true/>

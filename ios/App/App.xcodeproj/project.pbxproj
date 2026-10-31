@@ -16,6 +16,14 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		9F3B7560147C459893FE1CCF /* WorkoutLiveActivity.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = D77DC11C8D194CD0934CE1EA /* WorkoutLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F1047E3EA38148FEABB086A6 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE9A47205CF495E8003C942 /* WorkoutActivityAttributes.swift */; };
+		B24BE701EA064F6891069C9E /* WorkoutLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC319C49CF04FB6915F7FE6 /* WorkoutLiveActivityWidget.swift */; };
+		687C257726D24DAEA55D6F91 /* WorkoutWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644E7285AD43441B875F26AF /* WorkoutWidgetBundle.swift */; };
+		28E18892A44D4B3FBB795952 /* WorkoutActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8D2E46515C4F00AE47D8E4 /* WorkoutActivityAttributes.swift */; };
+		ABCAABFD30DE4CEC8DCCD5FE /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 83CD1BF046684399B7B804F5 /* ActivityKit.framework */; };
+		541345BF7C41477C812EA03E /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D92897F817A420AA3B79B87 /* WidgetKit.framework */; };
+		85F312FE1AE64A00BBCC9962 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 237463E366BB4C9DB7D8641F /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +38,14 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		D77DC11C8D194CD0934CE1EA /* WorkoutLiveActivity.appex */ = {isa = PBXFileReference; name = "WorkoutLiveActivity.appex"; path = "WorkoutLiveActivity.appex"; sourceTree = BUILT_PRODUCTS_DIR; fileEncoding = undefined; lastKnownFileType = undefined; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
+		1DE9A47205CF495E8003C942 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; name = "WorkoutActivityAttributes.swift"; path = "WorkoutLiveActivity/WorkoutActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		2CC319C49CF04FB6915F7FE6 /* WorkoutLiveActivityWidget.swift */ = {isa = PBXFileReference; name = "WorkoutLiveActivityWidget.swift"; path = "WorkoutLiveActivity/WorkoutLiveActivityWidget.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		644E7285AD43441B875F26AF /* WorkoutWidgetBundle.swift */ = {isa = PBXFileReference; name = "WorkoutWidgetBundle.swift"; path = "WorkoutLiveActivity/WorkoutWidgetBundle.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		7B8D2E46515C4F00AE47D8E4 /* WorkoutActivityAttributes.swift */ = {isa = PBXFileReference; name = "WorkoutActivityAttributes.swift"; path = "App/WorkoutActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		83CD1BF046684399B7B804F5 /* ActivityKit.framework */ = {isa = PBXFileReference; name = "ActivityKit.framework"; path = "System/Library/Frameworks/ActivityKit.framework"; sourceTree = SDKROOT; fileEncoding = undefined; lastKnownFileType = wrapper.framework; explicitFileType = undefined; includeInIndex = 0; };
+		4D92897F817A420AA3B79B87 /* WidgetKit.framework */ = {isa = PBXFileReference; name = "WidgetKit.framework"; path = "System/Library/Frameworks/WidgetKit.framework"; sourceTree = SDKROOT; fileEncoding = undefined; lastKnownFileType = wrapper.framework; explicitFileType = undefined; includeInIndex = 0; };
+		237463E366BB4C9DB7D8641F /* SwiftUI.framework */ = {isa = PBXFileReference; name = "SwiftUI.framework"; path = "System/Library/Frameworks/SwiftUI.framework"; sourceTree = SDKROOT; fileEncoding = undefined; lastKnownFileType = wrapper.framework; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,6 +54,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		328DAFDB6F464C62831547E1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABCAABFD30DE4CEC8DCCD5FE /* ActivityKit.framework in Frameworks */,
+				541345BF7C41477C812EA03E /* WidgetKit.framework in Frameworks */,
+				85F312FE1AE64A00BBCC9962 /* SwiftUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				D77DC11C8D194CD0934CE1EA /* WorkoutLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +104,17 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		9C5A72CB861142E78773115C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				83CD1BF046684399B7B804F5 /* ActivityKit.framework */,
+				4D92897F817A420AA3B79B87 /* WidgetKit.framework */,
+				237463E366BB4C9DB7D8641F /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			path = undefined;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -87,10 +125,13 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				D8C51044703C4392A49F8607 /* Copy Files */,
+				930A5195B1974519BA73ABE9 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				3C5AC75FD77A47BBA970C23A /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -100,14 +141,31 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		7459B723DA924A7A87BD8686 /* "WorkoutLiveActivity" */ = {
+			isa = PBXNativeTarget;
+			name = "WorkoutLiveActivity";
+			productName = "WorkoutLiveActivity";
+			productReference = D77DC11C8D194CD0934CE1EA;
+			productType = "com.apple.product-type.app-extension";
+			buildConfigurationList = 2216C789FC6A45C8A0AC7B78;
+			buildPhases = (
+				9478418ABE21467D947E92A7 /* Sources */,
+				328DAFDB6F464C62831547E1 /* Frameworks */,
+				9C4E0D4411404375AD209148 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 920;
+				LastUpgradeCheck = 920;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
@@ -133,6 +191,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				7459B723DA924A7A87BD8686 /* "WorkoutLiveActivity" */,
 			);
 		};
 /* End PBXProject section */
@@ -151,6 +210,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9C4E0D4411404375AD209148 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -160,6 +226,17 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				28E18892A44D4B3FBB795952 /* WorkoutActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9478418ABE21467D947E92A7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1047E3EA38148FEABB086A6 /* WorkoutActivityAttributes.swift in Sources */,
+				B24BE701EA064F6891069C9E /* WorkoutLiveActivityWidget.swift in Sources */,
+				687C257726D24DAEA55D6F91 /* WorkoutWidgetBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -299,7 +376,7 @@
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -315,6 +392,8 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				PROVISIONING_PROFILE_SPECIFIER = "Vyta TestFlight AppStore Profile";
 			};
 			name = Debug;
 		};
@@ -322,7 +401,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -337,8 +416,56 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				PROVISIONING_PROFILE_SPECIFIER = "Vyta TestFlight AppStore Profile";
 			};
 			name = Release;
+		};
+		C100DB3D785143779ED45516 /* Debug */ = {
+			name = Debug;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = WorkoutLiveActivity/WorkoutLiveActivity-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = WorkoutLiveActivity;
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = lt.manodrabuziai.fr.ZCU3WN2ZW4.WorkoutLiveActivity;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				DEVELOPMENT_TEAM = ZCU3WN2ZW4;
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				PROVISIONING_PROFILE_SPECIFIER = "Vyta Workout Widget Profile";
+				MARKETING_VERSION = 1.0;
+				CURRENT_PROJECT_VERSION = 1;
+				TARGETED_DEVICE_FAMILY = "1";
+				GENERATE_INFOPLIST_FILE = NO;
+			};
+		};
+		4B3A14ABB7AF4EF59B913D4D /* Release */ = {
+			name = Release;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = WorkoutLiveActivity/WorkoutLiveActivity-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = WorkoutLiveActivity;
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = lt.manodrabuziai.fr.ZCU3WN2ZW4.WorkoutLiveActivity;
+				SWIFT_VERSION = 5.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				DEVELOPMENT_TEAM = ZCU3WN2ZW4;
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				PROVISIONING_PROFILE_SPECIFIER = "Vyta Workout Widget Profile";
+				MARKETING_VERSION = 1.0;
+				CURRENT_PROJECT_VERSION = 1;
+				TARGETED_DEVICE_FAMILY = "1";
+				GENERATE_INFOPLIST_FILE = NO;
+			};
 		};
 /* End XCBuildConfiguration section */
 
@@ -361,6 +488,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		2216C789FC6A45C8A0AC7B78 /* Build configuration list for PBXNativeTarget "WorkoutLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C100DB3D785143779ED45516 /* Debug */,
+				4B3A14ABB7AF4EF59B913D4D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -377,6 +513,49 @@
 			productName = "CapApp-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D8C51044703C4392A49F8607 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F3B7560147C459893FE1CCF /* WorkoutLiveActivity.appex in Copy Files */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Copy Files";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+		930A5195B1974519BA73ABE9 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F3B7560147C459893FE1CCF /* "WorkoutLiveActivity.appex" in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Embed App Extensions";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3C5AC75FD77A47BBA970C23A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7459B723DA924A7A87BD8686 /* "WorkoutLiveActivity" */;
+			targetProxy = 642BB89DC96348E0B27AE4EF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		642BB89DC96348E0B27AE4EF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7459B723DA924A7A87BD8686;
+			remoteInfo = "WorkoutLiveActivity";
+		};
+/* End PBXContainerItemProxy section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }

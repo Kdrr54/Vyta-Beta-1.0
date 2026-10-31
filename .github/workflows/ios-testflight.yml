@@ -37,9 +37,11 @@ jobs:
         run: npm run build
 
       - name: 🍏 Synchronisation du projet iOS natif
-        run: npx cap sync ios
+        run: |
+          npx cap sync ios
+          node scripts/add_widget_target.cjs
 
-      - name: 🛠️ Vérification de Xcode 26 (iOS 26 SDK requis par App Store Connect)
+      - name: 🛠️ Vérification de Xcode 16 (iOS 18 SDK requis par App Store Connect)
         run: |
           echo "Versions de Xcode disponibles sur le runner :"
           ls -d /Applications/Xcode* || true
@@ -76,7 +78,8 @@ jobs:
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $RUNNER_TEMP/build_pp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          echo "Certificat Apple Distribution et profil installés avec succès !"
+          cp ios/App/Vyta_Workout_Widget_Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "Certificat Apple Distribution et profils installés avec succès !"
 
       - name: 📦 Compilation de l'archive iOS
         run: |
@@ -91,7 +94,6 @@ jobs:
               CODE_SIGN_STYLE="Manual" \
               DEVELOPMENT_TEAM="ZCU3WN2ZW4" \
               CODE_SIGN_IDENTITY="Apple Distribution" \
-              PROVISIONING_PROFILE_SPECIFIER="Vyta TestFlight AppStore Profile" \
               CURRENT_PROJECT_VERSION=${{ github.run_number }} \
               archive
           else

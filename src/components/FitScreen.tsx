@@ -203,11 +203,21 @@ export const FitScreen: React.FC = () => {
   const accumulatedDurRef = useRef<number>(initialRunDur);
   // isLiveRunningViewOpen hoisted to AppContext
 
-  const notifyNativeWorkout = (action: 'start' | 'pause' | 'stop' | 'sync') => {
+  const notifyNativeWorkout = (
+    action: 'start' | 'pause' | 'resume' | 'stop' | 'sync' | 'update',
+    extra?: {
+      elapsedTime?: number;
+      distanceKm?: number;
+      paceText?: string;
+      currentHeartRate?: number;
+      workoutTitle?: string;
+      isPaused?: boolean;
+    }
+  ) => {
     try {
       const webkit = (window as any).webkit;
       if (webkit && webkit.messageHandlers && webkit.messageHandlers.vytaWorkoutTracker) {
-        webkit.messageHandlers.vytaWorkoutTracker.postMessage({ action });
+        webkit.messageHandlers.vytaWorkoutTracker.postMessage({ action, ...extra });
       }
     } catch (err) {
       console.log('[Vyta Native Bridge] Workout message error:', err);
@@ -256,6 +266,17 @@ export const FitScreen: React.FC = () => {
               hrBpm: curHr,
             },
           ];
+        });
+
+        // Mise à jour de l'Activité en direct (Dynamic Island / Écran verrouillé iOS)
+        const curPaceSec = runDistanceKm > 0.01 ? Math.round(elapsed / runDistanceKm) : 0;
+        const curPaceStr = curPaceSec > 0 ? fmtMMSS(curPaceSec) : '--:--';
+        notifyNativeWorkout('update', {
+          elapsedTime: elapsed,
+          distanceKm: Math.round(runDistanceKm * 100) / 100,
+          paceText: curPaceStr,
+          currentHeartRate: curHr,
+          isPaused: false,
         });
       }
     }, 1000);
@@ -445,7 +466,14 @@ export const FitScreen: React.FC = () => {
       runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     }
     setRunState('running');
-    notifyNativeWorkout('start');
+    notifyNativeWorkout('start', {
+      workoutTitle: 'Course à pied',
+      elapsedTime: 0,
+      distanceKm: 0,
+      paceText: '--:--',
+      currentHeartRate: liveBpm > 0 ? liveBpm : 0,
+      isPaused: false,
+    });
     setIsLiveRunningViewOpen(true);
   };
 
@@ -453,13 +481,27 @@ export const FitScreen: React.FC = () => {
     setRunState('paused');
     accumulatedDurRef.current = runDurationSec;
     setInstantSpeedKmh(0);
-    notifyNativeWorkout('pause');
+    const pSec = runDistanceKm > 0.01 ? Math.round(runDurationSec / runDistanceKm) : 0;
+    notifyNativeWorkout('pause', {
+      elapsedTime: runDurationSec,
+      distanceKm: Math.round(runDistanceKm * 100) / 100,
+      paceText: pSec > 0 ? fmtMMSS(pSec) : '--:--',
+      currentHeartRate: liveBpm > 0 ? liveBpm : 0,
+      isPaused: true,
+    });
   };
 
   const resumeRun = () => {
     runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     setRunState('running');
-    notifyNativeWorkout('start');
+    const pSec = runDistanceKm > 0.01 ? Math.round(accumulatedDurRef.current / runDistanceKm) : 0;
+    notifyNativeWorkout('resume', {
+      elapsedTime: accumulatedDurRef.current,
+      distanceKm: Math.round(runDistanceKm * 100) / 100,
+      paceText: pSec > 0 ? fmtMMSS(pSec) : '--:--',
+      currentHeartRate: liveBpm > 0 ? liveBpm : 0,
+      isPaused: false,
+    });
     setIsLiveRunningViewOpen(true);
   };
 

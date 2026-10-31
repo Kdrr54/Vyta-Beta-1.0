@@ -2,6 +2,95 @@ import UIKit
 import Capacitor
 import WebKit
 import CoreLocation
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
+
+#if canImport(ActivityKit)
+@available(iOS 16.1, *)
+class WorkoutLiveActivityManager {
+    static let shared = WorkoutLiveActivityManager()
+    private var currentActivity: Activity<WorkoutActivityAttributes>?
+
+    func start(workoutTitle: String = "Course à pied") {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            print("[Vyta LiveActivity] Live Activities not enabled on device")
+            return
+        }
+
+        // End any active one first
+        end()
+
+        let attributes = WorkoutActivityAttributes(workoutTitle: workoutTitle)
+        let initialContentState = WorkoutActivityAttributes.ContentState(
+            elapsedTime: 0,
+            paceText: "--:--",
+            distanceKm: 0.0,
+            currentHeartRate: 0,
+            isPaused: false,
+            startDate: Date()
+        )
+
+        do {
+            if #available(iOS 16.2, *) {
+                let content = ActivityContent(state: initialContentState, staleDate: nil)
+                currentActivity = try Activity.request(attributes: attributes, content: content, pushType: nil)
+            } else {
+                currentActivity = try Activity.request(attributes: attributes, contentState: initialContentState, pushType: nil)
+            }
+            print("[Vyta LiveActivity] Activity started: \(currentActivity?.id ?? "")")
+        } catch {
+            print("[Vyta LiveActivity] Error starting activity: \(error.localizedDescription)")
+        }
+    }
+
+    func update(elapsedTime: Int, paceText: String, distanceKm: Double, currentHeartRate: Int, isPaused: Bool) {
+        guard let activity = currentActivity else { return }
+
+        let calculatedStartDate = Date().addingTimeInterval(-Double(elapsedTime))
+        let updatedState = WorkoutActivityAttributes.ContentState(
+            elapsedTime: elapsedTime,
+            paceText: paceText,
+            distanceKm: distanceKm,
+            currentHeartRate: currentHeartRate,
+            isPaused: isPaused,
+            startDate: calculatedStartDate
+        )
+
+        Task {
+            if #available(iOS 16.2, *) {
+                let content = ActivityContent(state: updatedState, staleDate: nil)
+                await activity.update(content)
+            } else {
+                await activity.update(using: updatedState)
+            }
+        }
+    }
+
+    func pause(elapsedTime: Int, paceText: String, distanceKm: Double, currentHeartRate: Int) {
+        update(elapsedTime: elapsedTime, paceText: paceText, distanceKm: distanceKm, currentHeartRate: currentHeartRate, isPaused: true)
+    }
+
+    func resume(elapsedTime: Int, paceText: String, distanceKm: Double, currentHeartRate: Int) {
+        update(elapsedTime: elapsedTime, paceText: paceText, distanceKm: distanceKm, currentHeartRate: currentHeartRate, isPaused: false)
+    }
+
+    func end() {
+        guard let activity = currentActivity else { return }
+        let finalState = activity.content.state
+        Task {
+            if #available(iOS 16.2, *) {
+                let content = ActivityContent(state: finalState, staleDate: nil)
+                await activity.end(content, dismissalPolicy: .immediate)
+            } else {
+                await activity.end(using: finalState, dismissalPolicy: .immediate)
+            }
+            print("[Vyta LiveActivity] Activity ended")
+        }
+        currentActivity = nil
+    }
+}
+#endif
 
 class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler {
     private weak var defaultUIDelegate: WKUIDelegate?
@@ -64,17 +153,84 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             UIApplication.shared.isIdleTimerDisabled = true
             print("[Vyta Native] Background Workout GPS tracking started")
 
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                let title = (dict["workoutTitle"] as? String) ?? "Course à pied"
+                WorkoutLiveActivityManager.shared.start(workoutTitle: title)
+            }
+            #endif
+
+        case "update":
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                let elapsed = (dict["elapsedTime"] as? Int) ?? 0
+                let pace = (dict["paceText"] as? String) ?? "--:--"
+                let dist = (dict["distanceKm"] as? Double) ?? 0.0
+                let hr = (dict["currentHeartRate"] as? Int) ?? 0
+                let isPaused = (dict["isPaused"] as? Bool) ?? false
+                WorkoutLiveActivityManager.shared.update(
+                    elapsedTime: elapsed,
+                    paceText: pace,
+                    distanceKm: dist,
+                    currentHeartRate: hr,
+                    isPaused: isPaused
+                )
+            }
+            #endif
+
         case "pause":
             isWorkoutActive = false
             locationManager.stopUpdatingLocation()
             UIApplication.shared.isIdleTimerDisabled = false
             print("[Vyta Native] Workout GPS tracking paused")
 
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                let elapsed = (dict["elapsedTime"] as? Int) ?? 0
+                let pace = (dict["paceText"] as? String) ?? "--:--"
+                let dist = (dict["distanceKm"] as? Double) ?? 0.0
+                let hr = (dict["currentHeartRate"] as? Int) ?? 0
+                WorkoutLiveActivityManager.shared.pause(
+                    elapsedTime: elapsed,
+                    paceText: pace,
+                    distanceKm: dist,
+                    currentHeartRate: hr
+                )
+            }
+            #endif
+
+        case "resume":
+            isWorkoutActive = true
+            locationManager.startUpdatingLocation()
+            UIApplication.shared.isIdleTimerDisabled = true
+            print("[Vyta Native] Workout GPS tracking resumed")
+
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                let elapsed = (dict["elapsedTime"] as? Int) ?? 0
+                let pace = (dict["paceText"] as? String) ?? "--:--"
+                let dist = (dict["distanceKm"] as? Double) ?? 0.0
+                let hr = (dict["currentHeartRate"] as? Int) ?? 0
+                WorkoutLiveActivityManager.shared.resume(
+                    elapsedTime: elapsed,
+                    paceText: pace,
+                    distanceKm: dist,
+                    currentHeartRate: hr
+                )
+            }
+            #endif
+
         case "stop":
             isWorkoutActive = false
             locationManager.stopUpdatingLocation()
             UIApplication.shared.isIdleTimerDisabled = false
             print("[Vyta Native] Workout GPS tracking stopped")
+
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) {
+                WorkoutLiveActivityManager.shared.end()
+            }
+            #endif
 
         case "sync":
             flushBufferedPointsToWeb()
