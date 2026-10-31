@@ -568,6 +568,64 @@ export const CycleScreen: React.FC = () => {
         </div>
       </div>
 
+      {/* -----------------------------------------------------------------------
+          ONBOARDING BANNER (WHEN 0 INFOS CONFIGURED) - PLACED AT THE VERY TOP
+          ----------------------------------------------------------------------- */}
+      {!isConfigured && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(43, 4, 4, 0.75) 0%, rgba(20, 2, 2, 0.95) 100%)',
+            border: '1.5px solid #2b0404',
+            borderRadius: '20px',
+            padding: '14px 16px',
+            marginTop: '8px',
+            marginBottom: '4px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            animation: 'fadeIn 240ms ease-out',
+            boxShadow: '0 8px 30px rgba(43, 4, 4, 0.5)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={16} color="#C44558" />
+            <h3 style={{ fontSize: '14.5px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+              {isEn ? 'Predict your menstrual cycle' : 'Prédire votre cycle menstruel'}
+            </h3>
+          </div>
+
+          <p style={{ margin: 0, fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.4 }}>
+            {isEn
+              ? 'No cycle data recorded yet. Provide 3 quick details so Vyta can predict your phases, ovulation, and next period.'
+              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Vyta prévoie vos phases, votre ovulation et vos prochaines règles.'}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setShowConfigModal(true)}
+            style={{
+              alignSelf: 'flex-start',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'linear-gradient(135deg, #420808 0%, #2b0404 100%)',
+              border: '1px solid #731724',
+              borderRadius: '999px',
+              padding: '7px 14px',
+              color: '#FFFFFF',
+              fontSize: '11.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(43, 4, 4, 0.6)',
+              transition: 'transform 160ms ease',
+            }}
+          >
+            <span>{isEn ? 'Setup & Predict Cycle ✨' : 'Renseigner mes infos & Prédire ✨'}</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 2. Le Tableau de Cycle à Prédire : Cadran Rotatif Orbital & Orbe Organique TOUT EN HAUT */}
       <div
         ref={dialContainerRef}
@@ -776,65 +834,6 @@ export const CycleScreen: React.FC = () => {
           {getCycleDayDateLabel(selectedCycleDay)}
         </span>
       </div>
-
-      {/* -----------------------------------------------------------------------
-          ONBOARDING BANNER (WHEN 0 INFOS CONFIGURED)
-          ----------------------------------------------------------------------- */}
-      {!isConfigured && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, rgba(43, 4, 4, 0.75) 0%, rgba(20, 2, 2, 0.95) 100%)',
-            border: '1.5px solid #2b0404',
-            borderRadius: '20px',
-            padding: '16px 18px',
-            marginTop: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            animation: 'fadeIn 240ms ease-out',
-            boxShadow: '0 8px 30px rgba(43, 4, 4, 0.5)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={18} color="#C44558" />
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              {isEn ? 'Predict your menstrual cycle' : 'Prédire votre cycle menstruel'}
-            </h3>
-          </div>
-
-          <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45 }}>
-            {isEn
-              ? 'No cycle data recorded yet. Provide 3 quick details so Vyta can predict your phases, ovulation, and next period.'
-              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Vyta prévoie vos phases, votre ovulation et vos prochaines règles.'}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setShowConfigModal(true)}
-            style={{
-              alignSelf: 'flex-start',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'linear-gradient(135deg, #420808 0%, #2b0404 100%)',
-              border: '1px solid #731724',
-              borderRadius: '999px',
-              padding: '8px 16px',
-              color: '#FFFFFF',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(43, 4, 4, 0.6)',
-              transition: 'transform 160ms ease',
-            }}
-          >
-            <span>{isEn ? 'Setup & Predict Cycle ✨' : 'Renseigner mes infos & Prédire ✨'}</span>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
-
-
 
       {/* =========================================================================
           6. CALENDRIER INTERACTIF : RÈGLES, GLAIRE & SPOTTING (0 INFOS PAR DÉFAUT)
@@ -1379,13 +1378,17 @@ export const CycleScreen: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(0, 0, 0, 0.85)',
             backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             zIndex: 100,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
+            justifyContent: 'flex-start',
+            padding: 'calc(env(safe-area-inset-top, 24px) + 10px) 16px calc(env(safe-area-inset-bottom, 24px) + 20px) 16px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
             animation: 'fadeIn 200ms ease-out',
           }}
         >
@@ -1393,8 +1396,8 @@ export const CycleScreen: React.FC = () => {
             style={{
               width: '100%',
               maxWidth: '380px',
-              maxHeight: '88vh',
-              overflowY: 'auto',
+              maxHeight: 'none',
+              marginTop: '0',
               background: 'linear-gradient(180deg, #180303 0%, #0d0101 100%)',
               border: '1.5px solid #2b0404',
               borderRadius: '24px',
