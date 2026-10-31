@@ -635,14 +635,30 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dayData!.hrvLog!.forEach((v, i) => {
         slots[i].value = v >= 5 && v < 250 ? v : 0;
       });
+      // Lisser doucement les créneaux intermédiaires de 30 min entre 2 mesures réelles
+      for (let i = 1; i < 47; i++) {
+        if (slots[i].value === 0 && slots[i - 1].value > 0 && slots[i + 1].value > 0) {
+          slots[i].value = Math.round((slots[i - 1].value + slots[i + 1].value) / 2);
+        }
+      }
       return slots;
     }
 
-    // SpO2 : relevés horaires de la bague (0xBC 0x2A)
+    // SpO2 : relevés de la bague (0xBC 0x2A et 0x5F)
     if (metricId === 'spo2' && Array.isArray(dayData?.spo2Log) && dayData!.spo2Log!.length === 48) {
       dayData!.spo2Log!.forEach((v, i) => {
         slots[i].value = v >= 70 && v <= 100 ? v : 0;
       });
+      // Combler les créneaux de 30 min (:30) avec le relevé de l'heure mesurée correspondante (:00)
+      for (let h = 0; h < 24; h++) {
+        const slot00 = h * 2;
+        const slot30 = h * 2 + 1;
+        if (slots[slot00].value >= 70 && slots[slot30].value === 0) {
+          slots[slot30].value = slots[slot00].value;
+        } else if (slots[slot30].value >= 70 && slots[slot00].value === 0) {
+          slots[slot00].value = slots[slot30].value;
+        }
+      }
       return slots;
     }
 
@@ -762,7 +778,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const currentDisplayVal =
     hoverIndex !== null
-      ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
+      ? (activePoint.value > 0
+          ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
+          : '--')
       : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
       : metricId === 'bp'
@@ -859,7 +877,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               }}
             >
               {hoverIndex !== null
-                ? activePoint.info || t('metric.recorded_measure')
+                ? (activePoint.value > 0
+                    ? (activePoint.info || t('metric.recorded_measure'))
+                    : (isEn ? 'Awaiting reading' : 'En attente'))
                 : displayPeriodText}
             </span>
           </div>
@@ -1570,28 +1590,32 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     y1={paddingTop - 4}
                     x2={getX(hoverIndex)}
                     y2={bottomY}
-                    stroke="rgba(255, 255, 255, 0.55)"
+                    stroke="rgba(255, 255, 255, 0.45)"
                     strokeWidth="1.2"
                     strokeDasharray="2 2"
                   />
-                  {/* Glowing halo dot */}
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getY(activePoint.value)}
-                    r="8.5"
-                    fill={theme.primary}
-                    opacity="0.4"
-                    filter={`url(#chartGlow-${detail.id})`}
-                  />
-                  {/* Sharp core dot */}
-                  <circle
-                    cx={getX(hoverIndex)}
-                    cy={getY(activePoint.value)}
-                    r="4.5"
-                    fill="#FFFFFF"
-                    stroke={theme.primary}
-                    strokeWidth="2.5"
-                  />
+                  {activePoint.value > 0 && (
+                    <>
+                      {/* Glowing halo dot */}
+                      <circle
+                        cx={getX(hoverIndex)}
+                        cy={getY(activePoint.value)}
+                        r="8.5"
+                        fill={theme.primary}
+                        opacity="0.4"
+                        filter={`url(#chartGlow-${detail.id})`}
+                      />
+                      {/* Sharp core dot */}
+                      <circle
+                        cx={getX(hoverIndex)}
+                        cy={getY(activePoint.value)}
+                        r="4.5"
+                        fill="#FFFFFF"
+                        stroke={theme.primary}
+                        strokeWidth="2.5"
+                      />
+                    </>
+                  )}
                 </>
               )}
 

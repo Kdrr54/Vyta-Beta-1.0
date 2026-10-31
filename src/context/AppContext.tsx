@@ -172,7 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = { ...prev, ...partial };
       if (partial.heartRate) {
         const mins = partial.heartRate === '30min' ? 30 : 60;
-        qringBle.setHeartRateInterval(mins);
+        qringBle.setAllSensorIntervals(mins);
       }
       try {
         localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));

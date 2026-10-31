@@ -911,7 +911,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     glucose: '1h',
                     respiratory: '1h',
                   });
-                  qringBle.setHeartRateInterval(60);
+                  qringBle.setAllSensorIntervals(60);
                 },
               },
               {
@@ -932,7 +932,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     glucose: '30min',
                     respiratory: '30min',
                   });
-                  qringBle.setHeartRateInterval(30);
+                  qringBle.setAllSensorIntervals(30);
                 },
               },
             ].map((preset) => (

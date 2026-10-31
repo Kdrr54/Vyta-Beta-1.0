@@ -1044,7 +1044,7 @@ class QRingBleService {
       });
 
       await this.sendTimeSync();
-      await this.setHeartRateInterval(this.configuredIntervalMinutes);
+      await this.setAllSensorIntervals(this.configuredIntervalMinutes);
       await this.syncAllRingData();
       this.startHeartbeat();
     } catch (e) {
@@ -1096,7 +1096,10 @@ class QRingBleService {
    * Configure the ring's automatic heart rate measurement interval
    * Command 22 (0x16): struct HeartRate { commandId=22; action=WRITE(2); isEnabled=1; heartInterval=minutes; }
    */
-  public async setHeartRateInterval(minutes?: number): Promise<boolean> {
+  /**
+   * Configure all ring autonomous sensors measurement intervals (Heart Rate, SpO2, HRV, Stress)
+   */
+  public async setAllSensorIntervals(minutes?: number): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
     this.configuredIntervalMinutes = mins;
     try {
@@ -1104,11 +1107,31 @@ class QRingBleService {
         localStorage.setItem('vyta_ring_interval', String(mins));
       }
     } catch (_) {}
-    console.log('[QRing BLE] Programming ring automatic periodic monitoring to every', mins, 'minutes (Command 22)...');
-    const packet = this.makePacket(0x16, [0x02, 0x01, mins & 0xFF]);
-    const ok = await this.writeBytes(packet);
-    console.log('[QRing BLE] Sent HeartRate Auto Monitoring Config (Command 22):', ok ? 'OK' : 'Failed');
-    return ok;
+    console.log('[QRing BLE] Programming all ring sensor monitoring intervals to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
+
+    // 1. Heart rate interval (Command 0x16: [0x02, 0x01, mins])
+    await this.writeBytes(this.makePacket(0x16, [0x02, 0x01, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 100));
+
+    // 2. SpO2 periodic interval (Command 0x2C: [0x02, 0x01, mins] and [0x05, 0x01, mins])
+    await this.writeBytes(this.makePacket(0x2C, [0x02, 0x01, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x2C, [0x05, 0x01, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 100));
+
+    // 3. HRV periodic monitoring & interval (Command 0x38: [0x02, 0x01, mins] and [0x02, 0x01])
+    await this.writeBytes(this.makePacket(0x38, [0x02, 0x01, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x38, [0x02, 0x01]));
+    await new Promise((r) => setTimeout(r, 100));
+
+    // 4. Stress periodic monitoring & interval (Command 0x36: [0x02, 0x01, mins])
+    await this.writeBytes(this.makePacket(0x36, [0x02, 0x01, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 100));
+
+    return true;
+  }
+
+  public async setHeartRateInterval(minutes?: number): Promise<boolean> {
+    return this.setAllSensorIntervals(minutes);
   }
 
   /**
@@ -1597,13 +1620,16 @@ class QRingBleService {
       let maxSpo2 = 0;
 
       if (dataId === 0x5F) {
-        for (let i = 10; i < bytes.length; i++) {
+        let slot = 0;
+        for (let i = 10; i < bytes.length && slot < 48; i++) {
           const v = bytes[i] & 0xFF;
           if (v >= 70 && v <= 100) {
             latestSpo2 = v;
             if (v < minSpo2) minSpo2 = v;
             if (v > maxSpo2) maxSpo2 = v;
+            spo2Log[slot] = v;
           }
+          slot++;
         }
       } else {
         let index = 6;
@@ -1619,6 +1645,12 @@ class QRingBleService {
                 if (sMin < minSpo2) minSpo2 = sMin;
                 if (sMax > maxSpo2) maxSpo2 = sMax;
                 spo2Log[hour * 2] = pct;
+                // Populer aussi le créneau de 30 min pour l'heure mesurée
+                const halfSlot = hour * 2 + 1;
+                const nowHalf = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
+                if (halfSlot <= nowHalf) {
+                  spo2Log[halfSlot] = pct;
+                }
               } else if (latestSpo2 === 0) {
                 latestSpo2 = pct;
               }
