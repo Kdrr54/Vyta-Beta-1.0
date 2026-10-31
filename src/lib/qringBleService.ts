@@ -83,6 +83,7 @@ export interface BleRingData {
   hrv?: number;
   hrvLog?: number[];
   skinTemp?: number;
+  tempLog?: number[];
   bloodPressure?: { sbp: number; dbp: number };
   glucose?: number;
   deviceName?: string;
@@ -1678,6 +1679,7 @@ class QRingBleService {
     // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25, 0x26, 0x74)
     if (dataId === 0x25 || dataId === 0x26 || dataId === 0x74) {
       let latestTemp = 0;
+      const tempLog: number[] = new Array(48).fill(0);
       if (dataId === 0x25) {
         let idx = 6;
         while (idx - 6 < payloadLen && idx < bytes.length) {
@@ -1689,22 +1691,37 @@ class QRingBleService {
               const raw = bytes[idx++] & 0xFF;
               if (raw >= 100 && raw <= 220) {
                 const t = Math.round((raw / 10 + 20) * 10) / 10;
-                if (t >= 30 && t <= 42) latestTemp = t;
+                if (t >= 30 && t <= 42) {
+                  latestTemp = t;
+                  if (daysAgo === 0) {
+                    tempLog[h * 2 + half] = t;
+                  }
+                }
               }
             }
           }
           if (daysAgo === 0) break;
         }
       } else {
-        for (let i = 10; i + 1 < bytes.length; i += 2) {
+        let slot = 0;
+        for (let i = 10; i + 1 < bytes.length && slot < 48; i += 2) {
           const le = bytes[i] | (bytes[i + 1] << 8);
           const t = le / 10;
-          if (t >= 30 && t <= 42) latestTemp = Math.round(t * 10) / 10;
+          if (t >= 30 && t <= 42) {
+            const rounded = Math.round(t * 10) / 10;
+            latestTemp = rounded;
+            tempLog[slot] = rounded;
+          }
+          slot++;
         }
       }
       if (latestTemp >= 30 && latestTemp <= 42) {
-        console.log('[QRing BLE] Parsed BigData Skin Temperature:', latestTemp, '°C');
-        this.notify({ skinTemp: latestTemp, isConnected: true });
+        console.log('[QRing BLE] Parsed BigData Skin Temperature:', latestTemp, '°C', tempLog.filter((v) => v > 0).length, 'slots');
+        this.notify({
+          skinTemp: latestTemp,
+          tempLog: tempLog.some((v) => v > 0) ? tempLog : undefined,
+          isConnected: true,
+        });
       }
     }
   }

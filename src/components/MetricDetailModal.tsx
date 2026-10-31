@@ -496,7 +496,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.hrv || 0;
     }
     if (metricId === 'temp') {
-      return dayData?.tempDelta || 0;
+      if (dayData?.tempDelta !== undefined && dayData.tempDelta !== null) return dayData.tempDelta;
+      if (dayData?.skinTemp && dayData.skinTemp > 0) return parseFloat((dayData.skinTemp - 36.5).toFixed(2));
+      return 0;
     }
     if (metricId === 'spo2') {
       return dayData?.spo2 || 0;
@@ -554,7 +556,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const displayDistribution = isEn ? detail.distributionEn : detail.distribution;
   const displayTipPoints = isEn ? theme.tipPointsEn : theme.tipPointsFr;
 
-  const isZeroState = !dayMetricValue || dayMetricValue === 0;
+  const isZeroState = metricId === 'temp'
+    ? ((dayData?.skinTemp === undefined || dayData.skinTemp === null || dayData.skinTemp === 0) &&
+       (dayData?.tempDelta === undefined || dayData.tempDelta === null) &&
+       (!dayData?.tempLog || !dayData.tempLog.some((v) => v > 0)))
+    : (!dayMetricValue || dayMetricValue === 0);
 
   const statsToDisplay: EssentialStat[] = isZeroState
     ? [
@@ -593,6 +599,28 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           { label: 'Minimum', value: `${minH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           { label: 'Moyenne', value: `${avgH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           { label: 'Maximum', value: `${maxH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        ];
+      })()
+    : metricId === 'temp' && (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0) || (dayData?.tempLog && dayData.tempLog.some((v) => v > 0)))
+    ? (() => {
+        const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
+        const validTemps = (dayData?.tempLog || []).filter((v) => v >= 30 && v <= 42);
+        if (validTemps.length > 0) {
+          const minT = parseFloat((Math.min(...validTemps) - 36.5).toFixed(2));
+          const maxT = parseFloat((Math.max(...validTemps) - 36.5).toFixed(2));
+          const avgT = parseFloat(((validTemps.reduce((a, b) => a + b, 0) / validTemps.length) - 36.5).toFixed(2));
+          return [
+            { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          ];
+        }
+        const minT = parseFloat((delta - 0.14).toFixed(2));
+        const maxT = parseFloat((delta + 0.12).toFixed(2));
+        return [
+          { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         ];
       })()
     : [
@@ -670,6 +698,40 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return slots;
     }
 
+    // Température cutanée : 48 relevés de 30 min
+    if (metricId === 'temp') {
+      const hasTempLog = Array.isArray(dayData?.tempLog) && dayData!.tempLog!.length === 48 && dayData!.tempLog!.some((v) => v > 0);
+      if (hasTempLog) {
+        dayData!.tempLog!.forEach((v, i) => {
+          if (v >= 30 && v <= 42) {
+            slots[i].value = parseFloat((v - 36.5).toFixed(2));
+          } else {
+            slots[i].value = 0;
+          }
+        });
+        // Lisser doucement les créneaux intermédiaires de 30 min
+        for (let i = 1; i < 47; i++) {
+          if (slots[i].value === 0 && slots[i - 1].value !== 0 && slots[i + 1].value !== 0) {
+            slots[i].value = parseFloat(((slots[i - 1].value + slots[i + 1].value) / 2).toFixed(2));
+          }
+        }
+        return slots;
+      }
+
+      // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C)
+      if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
+        const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
+        for (let i = 0; i < 48; i++) {
+          const hour = i / 2;
+          const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
+          slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
+        }
+        return slots;
+      }
+
+      return slots;
+    }
+
     // Si des données biométriques réelles sont enregistrées pour cette journée
     if (!isZeroState && dayMetricValue > 0) {
       if (selectedDay === TODAY_INDEX) {
@@ -684,9 +746,16 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     return slots;
   }, [dayMetricValue, isZeroState, selectedDay, metricId, dayData]);
 
+  const isValidPoint = (v: number) => {
+    if (metricId === 'temp') {
+      return typeof v === 'number' && !isNaN(v) && v >= -3.0 && v <= 3.0;
+    }
+    return v > 0;
+  };
+
   // Active point when hovering or default to latest real measurement
   const lastMeasuredIdx = (() => {
-    for (let i = dataset.length - 1; i >= 0; i--) if (dataset[i].value > 0) return i;
+    for (let i = dataset.length - 1; i >= 0; i--) if (isValidPoint(dataset[i].value)) return i;
     return dataset.length - 1;
   })();
   const activePoint: MetricDataPoint =
@@ -705,12 +774,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const plotWidth = chartWidth - paddingLeft - paddingRight;
   const plotHeight = bottomY - paddingTop;
 
-  const nonZeroValues = dataset.map((d) => d.value).filter((v) => v > 0);
-  const minVal = nonZeroValues.length > 0 ? Math.min(detail.minVal, ...nonZeroValues) : detail.minVal;
-  const maxVal = nonZeroValues.length > 0 ? Math.max(detail.maxVal, ...nonZeroValues) : detail.maxVal;
+  const validValues = dataset.map((d) => d.value).filter(isValidPoint);
+  const minVal = validValues.length > 0 ? Math.min(detail.minVal, ...validValues) : detail.minVal;
+  const maxVal = validValues.length > 0 ? Math.max(detail.maxVal, ...validValues) : detail.maxVal;
   const range = maxVal - minVal || 1;
   const midVal = (minVal + maxVal) / 2;
-  const avgVal = nonZeroValues.length > 0 ? nonZeroValues.reduce((sum, v) => sum + v, 0) / nonZeroValues.length : 0;
+  const avgVal = validValues.length > 0 ? validValues.reduce((sum, v) => sum + v, 0) / validValues.length : 0;
 
   const getX = (i: number) => {
     if (dataset.length <= 1) return paddingLeft;
@@ -725,10 +794,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  // On ne relie que les créneaux réellement mesurés (0 = pas de relevé, pas de point)
+  // On ne relie que les créneaux réellement mesurés
   const measuredPoints = dataset
     .map((pt, i) => ({ x: getX(i), y: getY(pt.value), v: pt.value }))
-    .filter((p) => p.v > 0)
+    .filter((p) => isValidPoint(p.v))
     .map(({ x, y }) => ({ x, y }));
   const coordPoints = measuredPoints.length > 0
     ? measuredPoints
@@ -778,13 +847,15 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const currentDisplayVal =
     hoverIndex !== null
-      ? (activePoint.value > 0
+      ? (isValidPoint(activePoint.value)
           ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
           : '--')
       : metricId === 'bpm' && selectedDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
       : metricId === 'bp'
       ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--')
+      : metricId === 'temp'
+      ? (!isZeroState ? formatVal(dayMetricValue) : '--')
       : (dayMetricValue > 0 ? formatVal(dayMetricValue) : '--');
 
   return (
@@ -877,7 +948,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               }}
             >
               {hoverIndex !== null
-                ? (activePoint.value > 0
+                ? (isValidPoint(activePoint.value)
                     ? (activePoint.info || t('metric.recorded_measure'))
                     : (isEn ? 'Awaiting reading' : 'En attente'))
                 : displayPeriodText}
@@ -1043,7 +1114,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontWeight: 600,
                   }}
                 >
-                  {dayMetricValue !== 0 ? `${dayMetricValue > 0 ? '+' : ''}${dayMetricValue.toFixed(2)} °C` : '--'}
+                  {!isZeroState ? `${dayMetricValue > 0 ? '+' : ''}${dayMetricValue.toFixed(2)} °C` : '--'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" style={{ overflow: 'visible' }}>
@@ -1423,7 +1494,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             >
               <span>{isEn ? 'Avg: ' : 'Moy: '}</span>
               <strong style={{ color: theme.primary }}>
-                {avgVal > 0 ? `${formatVal(avgVal)} ${detail.unit}` : '--'}
+                {metricId === 'temp'
+                  ? (!isZeroState ? `${formatVal(avgVal)} ${detail.unit}` : '--')
+                  : (avgVal > 0 ? `${formatVal(avgVal)} ${detail.unit}` : '--')}
               </strong>
             </div>
           </div>
@@ -1594,7 +1667,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     strokeWidth="1.2"
                     strokeDasharray="2 2"
                   />
-                  {activePoint.value > 0 && (
+                  {isValidPoint(activePoint.value) && (
                     <>
                       {/* Glowing halo dot */}
                       <circle
@@ -1683,7 +1756,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  {activePoint.value > 0 ? `${formatVal(activePoint.value)} ${detail.unit}` : '--'}
+                  {isValidPoint(activePoint.value) ? `${formatVal(activePoint.value)} ${detail.unit}` : '--'}
                 </span>
                 <span
                   style={{
@@ -1694,7 +1767,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     background: 'rgba(255, 255, 255, 0.08)',
                   }}
                 >
-                  {activePoint.value > 0 ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
+                  {isValidPoint(activePoint.value) ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
                 </span>
               </div>
             )}

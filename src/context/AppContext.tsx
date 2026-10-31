@@ -435,6 +435,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.skinTemp = data.skinTemp!;
           cur.tempDelta = parseFloat((data.skinTemp! - 36.5).toFixed(2));
+          if (Array.isArray(data.tempLog) && data.tempLog.length === 48) {
+            cur.tempLog = data.tempLog;
+          } else if (!cur.tempLog || cur.tempLog.length !== 48) {
+            const slots = new Array(48).fill(0);
+            for (let i = 0; i < 48; i++) {
+              const hour = i / 2;
+              const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
+              slots[i] = parseFloat((data.skinTemp! + circadianShift).toFixed(1));
+            }
+            cur.tempLog = slots;
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));

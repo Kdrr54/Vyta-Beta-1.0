@@ -757,9 +757,9 @@ export const HealthScreen: React.FC = () => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             <svg width="100%" height="20" viewBox="0 0 140 22" style={{ overflow: 'visible' }}>
-              <path d={dayData?.tempDelta === undefined || dayData.tempDelta === 0 ? "M 4 11 L 136 11" : "M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12"} fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(251, 191, 36, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
+              <path d={dayData?.tempDelta === undefined && (!dayData?.skinTemp || dayData.skinTemp === 0) ? "M 4 11 L 136 11" : "M 4 16 C 35 16, 55 4, 85 4 C 110 4, 125 10, 136 12"} fill="none" stroke={isMono ? "rgba(255, 255, 255, 0.25)" : "rgba(251, 191, 36, 0.25)"} strokeWidth="1" strokeDasharray="2 2.5" />
               <path
-                d={dayData?.tempDelta === undefined || dayData.tempDelta === 0 ? "M 4 11 L 136 11" : "M 4 18 C 35 18, 52 10, 74 10 C 96 10, 115 16, 136 16"}
+                d={dayData?.tempDelta === undefined && (!dayData?.skinTemp || dayData.skinTemp === 0) ? "M 4 11 L 136 11" : "M 4 18 C 35 18, 52 10, 74 10 C 96 10, 115 16, 136 16"}
                 fill="none"
                 stroke={isMono ? '#FAF7F2' : '#FBBF24'}
                 strokeWidth="1.8"
@@ -769,7 +769,7 @@ export const HealthScreen: React.FC = () => {
               <circle cx="74" cy="10" r="1.8" fill="#FFFFFF" />
             </svg>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: isMono ? 'rgba(250, 247, 242, 0.58)' : '#FCD34D', fontWeight: 600 }}>
-              <span>{dayData?.tempDelta !== undefined && dayData.tempDelta !== 0 ? (language === 'fr' ? `Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C` : `Delta ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C`) : (language === 'fr' ? 'Écart --' : 'Delta --')}</span>
+              <span>{dayData?.tempDelta !== undefined ? (language === 'fr' ? `Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C` : `Delta ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C`) : (language === 'fr' ? 'Écart --' : 'Delta --')}</span>
               <span>{language === 'fr' ? 'Stable' : 'Stable'}</span>
             </div>
           </div>

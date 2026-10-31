@@ -54,6 +54,7 @@ export interface DayMetrics {
   hrvBaseline: number;
   tempDelta: number;
   skinTemp?: number;
+  tempLog?: number[];
   spo2: number;
   spo2Min?: number;
   spo2Max?: number;
