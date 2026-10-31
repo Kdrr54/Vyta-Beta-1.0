@@ -82,6 +82,74 @@ export interface GymExercise {
 
 const initialWorkoutExercises: GymExercise[] = [];
 
+
+export function getRouteThumbnailSvg(route: StoredRoute): {
+  pathD: string;
+  viewBox: string;
+  startPoint: { x: number; y: number };
+  endPoint: { x: number; y: number };
+  isSinglePoint: boolean;
+} {
+  // 1. If real GPS points exist with at least 2 points: compute custom 100x100 path
+  if (route.realGpsPoints && route.realGpsPoints.length >= 2) {
+    const converted = convertGpsPointsToSvgPath(route.realGpsPoints, 100, 100, 14);
+    return {
+      pathD: converted.pathD,
+      viewBox: '0 0 100 100',
+      startPoint: converted.startPoint,
+      endPoint: converted.endPoint,
+      isSinglePoint: false,
+    };
+  }
+
+  // 2. If exactly 1 real GPS point exists
+  if (route.realGpsPoints && route.realGpsPoints.length === 1) {
+    return {
+      pathD: '',
+      viewBox: '0 0 100 100',
+      startPoint: { x: 50, y: 50 },
+      endPoint: { x: 50, y: 50 },
+      isSinglePoint: true,
+    };
+  }
+
+  // 3. Parse existing pointsSvgPath
+  const rawPath = (route.pointsSvgPath || '').trim();
+  const numbers = (rawPath.match(/[-+]?\d*\.?\d+/g) || []).map(Number);
+  const maxCoord = numbers.length > 0 ? Math.max(...numbers) : 0;
+
+  // If path was generated in 360x230 coordinate space (e.g. DEFAULT_ROUTE_PATH_D where coords exceed 100)
+  if (maxCoord > 100) {
+    return {
+      pathD: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
+      viewBox: '0 0 100 100',
+      startPoint: { x: 14, y: 74 },
+      endPoint: { x: 88, y: 26 },
+      isSinglePoint: false,
+    };
+  }
+
+  // If path is already in 100x100 space and has valid commands
+  if (rawPath && numbers.length >= 4) {
+    return {
+      pathD: rawPath,
+      viewBox: '0 0 100 100',
+      startPoint: { x: numbers[0], y: numbers[1] },
+      endPoint: { x: numbers[numbers.length - 2], y: numbers[numbers.length - 1] },
+      isSinglePoint: false,
+    };
+  }
+
+  // 4. Default clean route circuit
+  return {
+    pathD: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
+    viewBox: '0 0 100 100',
+    startPoint: { x: 14, y: 74 },
+    endPoint: { x: 88, y: 26 },
+    isSinglePoint: false,
+  };
+}
+
 export const FitScreen: React.FC = () => {
   const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm } = useApp();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -351,7 +419,7 @@ export const FitScreen: React.FC = () => {
       elevationM: Math.round(finalDist * 8),
       avgHr: finalHr,
       dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      pointsSvgPath: pathInfo ? pathInfo.pathD : DEFAULT_ROUTE_PATH_D,
+      pointsSvgPath: pathInfo ? pathInfo.pathD : 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
       realGpsPoints: hasGps ? realGpsPoints : undefined,
       progress: 1,
     };
@@ -373,7 +441,7 @@ export const FitScreen: React.FC = () => {
       elevationM: 0,
       avgHr: 0,
       dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      pointsSvgPath: 'M 10 65 Q 35 50 50 35 T 90 20',
+      pointsSvgPath: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
       progress: 0,
     };
 
@@ -1087,33 +1155,80 @@ export const FitScreen: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   {/* Mini SVG Trajectory Preview */}
-                  <div
-                    style={{
-                      width: '68px',
-                      height: '68px',
-                      borderRadius: '14px',
-                      background: '#151518',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      boxShadow: 'inset 0 0 12px rgba(0,0,0,0.8)',
-                    }}
-                  >
-                    <svg viewBox="0 0 100 100" style={{ width: '56px', height: '56px' }}>
-                      <path
-                        d={route.pointsSvgPath}
-                        fill="none"
-                        stroke="#FFFFFF"
-                        strokeWidth="3.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        filter="drop-shadow(0 0 4px rgba(255,255,255,0.5))"
-                      />
-                      <circle cx="15" cy="20" r="3" fill="#FFFFFF" stroke="#000000" strokeWidth="1" />
-                    </svg>
-                  </div>
+                  {(() => {
+                    const visual = getRouteThumbnailSvg(route);
+                    return (
+                      <div
+                        style={{
+                          width: '68px',
+                          height: '68px',
+                          borderRadius: '16px',
+                          background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.06) 0%, rgba(12, 12, 16, 0.98) 100%)',
+                          border: '1px solid rgba(255, 255, 255, 0.16)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          position: 'relative',
+                          overflow: 'hidden',
+                          boxShadow: 'inset 0 0 14px rgba(0,0,0,0.8), 0 4px 14px rgba(0,0,0,0.4)',
+                        }}
+                      >
+                        <svg viewBox={visual.viewBox} style={{ width: '54px', height: '54px', overflow: 'visible' }}>
+                          {/* Faint Tactical Radar Crosshair Grid */}
+                          <line x1="12" y1="50" x2="88" y2="50" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
+                          <line x1="50" y1="12" x2="50" y2="88" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
+
+                          {visual.isSinglePoint ? (
+                            <>
+                              <circle cx="50" cy="50" r="16" fill="rgba(48, 209, 88, 0.12)" stroke="rgba(48, 209, 88, 0.35)" strokeWidth="1" strokeDasharray="2 2" />
+                              <circle cx="50" cy="50" r="5" fill="#30D158" stroke="#000000" strokeWidth="1.5" />
+                            </>
+                          ) : (
+                            <>
+                              {/* Ambient Glowing Under-Trace */}
+                              <path
+                                d={visual.pathD}
+                                fill="none"
+                                stroke="rgba(255, 255, 255, 0.3)"
+                                strokeWidth="5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={{ filter: 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.6))' }}
+                              />
+                              {/* Crisp Core Route Line */}
+                              <path
+                                d={visual.pathD}
+                                fill="none"
+                                stroke="#FAF7F2"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              {/* Start Pin: Green Dot */}
+                              <circle
+                                cx={visual.startPoint.x}
+                                cy={visual.startPoint.y}
+                                r="3.5"
+                                fill="#30D158"
+                                stroke="#0A0A0C"
+                                strokeWidth="1.5"
+                              />
+                              {/* Finish Pin: High-Contrast White Pin */}
+                              <circle
+                                cx={visual.endPoint.x}
+                                cy={visual.endPoint.y}
+                                r="3.5"
+                                fill="#FFFFFF"
+                                stroke="#0A0A0C"
+                                strokeWidth="1.5"
+                              />
+                            </>
+                          )}
+                        </svg>
+                      </div>
+                    );
+                  })()}
 
                   {/* Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1133,7 +1248,7 @@ export const FitScreen: React.FC = () => {
                         ⏱ {fmtClockSec(route.durationSec)}
                       </span>
                       <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                        ⚡ {fmtMMSS(Math.round(route.durationSec / route.distanceKm))} /km
+                        ⚡ {route.distanceKm > 0 && route.durationSec > 0 ? `${fmtMMSS(Math.round(route.durationSec / route.distanceKm))} /km` : '--:-- /km'}
                       </span>
                     </div>
                   </div>
