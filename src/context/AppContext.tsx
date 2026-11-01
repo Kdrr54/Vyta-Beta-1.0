@@ -322,11 +322,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.batteryPct !== undefined) {
         updateRing({ batteryRing: data.batteryPct, isConnected: true });
       }
+      if (data.isCharging !== undefined) {
+        updateRing({ isCharging: data.isCharging });
+        if (data.isCharging) {
+          setLiveBpm(0);
+        }
+      }
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
       }
+      if (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 200) {
+        setLiveBpm(data.liveHeartRate);
+      }
       if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
-        setLiveBpm(data.heartRate);
         setWeekData((prev) => {
           const next = [...prev];
           const idx = TODAY_INDEX;

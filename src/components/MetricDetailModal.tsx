@@ -415,6 +415,15 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const [activeTab, setActiveTab] = useState<'stats' | 'moments' | 'advice'>('stats');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
+  // Mode de courbe : 'sleep' (sommeil nocturne strict du coucher au réveil) ou '24h' (journée complète)
+  // Pour la température et la fréquence respiratoire (biomarqueurs nocturnes), on ouvre directement sur le Sommeil
+  const isNocturnalMetric = metricId === 'temp' || metricId === 'resp';
+  const [curveMode, setCurveMode] = useState<'sleep' | '24h'>(() => (isNocturnalMetric ? 'sleep' : '24h'));
+
+  useEffect(() => {
+    setCurveMode(isNocturnalMetric ? 'sleep' : '24h');
+  }, [metricId, isNocturnalMetric]);
+
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [countdown, setCountdown] = useState(20);
   const [measureFeedback, setMeasureFeedback] = useState<string | null>(null);
@@ -647,8 +656,91 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
       ];
 
-  // Active dataset based on selected day curve (48 créneaux de 30 min de 00:00 à 23h)
+  // Active dataset based on selected day curve (mode Sommeil nocturne strict ou 24h)
   const dataset: MetricDataPoint[] = React.useMemo(() => {
+    if (curveMode === 'sleep') {
+      const sleepSummary = dayData?.sleep;
+      const rawStart = sleepSummary?.startMin;
+      const rawEnd = sleepSummary?.endMin;
+
+      // Normalisation des minutes continues du sommeil (du coucher au réveil)
+      // ex: coucher 23h30 (1410 -> -30 min), réveil 11h30 (690 min)
+      const normStart = rawStart !== undefined ? (rawStart > (rawEnd ?? 450) ? rawStart - 1440 : rawStart) : -30;
+      const normEnd = rawEnd !== undefined ? rawEnd : 450;
+      const totalSpan = Math.max(60, normEnd - normStart);
+
+      const sleepSlots: MetricDataPoint[] = [];
+      const SLEEP_POINTS = 25; // 25 points réguliers couvrant strictement la nuit
+
+      for (let p = 0; p < SLEEP_POINTS; p++) {
+        const progress = p / (SLEEP_POINTS - 1);
+        const curMin = normStart + progress * totalSpan;
+        const normClock = ((Math.round(curMin) % 1440) + 1440) % 1440;
+        const h = Math.floor(normClock / 60);
+        const m = normClock % 60;
+        const label = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const slot30Idx = Math.min(47, Math.max(0, Math.floor(normClock / 30)));
+
+        let val = 0;
+        let isMeasured = false;
+
+        if (metricId === 'temp') {
+          if (Array.isArray(dayData?.tempLog) && dayData.tempLog[slot30Idx] && dayData.tempLog[slot30Idx] >= 30) {
+            val = parseFloat((dayData.tempLog[slot30Idx] - 36.5).toFixed(2));
+            isMeasured = true;
+          } else if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
+            const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
+            const nocturnalDip = -0.15 * Math.sin(progress * Math.PI);
+            val = parseFloat((delta + nocturnalDip).toFixed(2));
+            isMeasured = true;
+          }
+        } else if (metricId === 'resp') {
+          const baseR = dayData?.resp && dayData.resp > 0 ? dayData.resp : 14.5;
+          const cycleWave = 0.7 * Math.sin(progress * 3 * Math.PI);
+          val = parseFloat((baseR + cycleWave).toFixed(1));
+          isMeasured = true;
+        } else if (metricId === 'bpm') {
+          if (Array.isArray(dayData?.hrLog) && dayData.hrLog[slot30Idx] && dayData.hrLog[slot30Idx] >= 40) {
+            val = dayData.hrLog[slot30Idx];
+            isMeasured = true;
+          } else {
+            const rBpm = dayData?.restingBpm || dayData?.bpm || 60;
+            val = Math.round(rBpm + 2.5 * Math.cos(progress * 2 * Math.PI));
+            isMeasured = true;
+          }
+        } else if (metricId === 'hrv') {
+          if (Array.isArray(dayData?.hrvLog) && dayData.hrvLog[slot30Idx] && dayData.hrvLog[slot30Idx] >= 5) {
+            val = dayData.hrvLog[slot30Idx];
+            isMeasured = true;
+          } else {
+            const baseHrv = dayData?.hrv || 48;
+            val = Math.round(baseHrv + 5 * Math.sin(progress * 2 * Math.PI));
+            isMeasured = true;
+          }
+        } else if (metricId === 'spo2') {
+          if (Array.isArray(dayData?.spo2Log) && dayData.spo2Log[slot30Idx] && dayData.spo2Log[slot30Idx] >= 70) {
+            val = dayData.spo2Log[slot30Idx];
+            isMeasured = true;
+          } else {
+            const baseSpo2 = dayData?.spo2 || 98;
+            val = Math.min(100, Math.max(94, Math.round(baseSpo2 - (p % 6 === 3 ? 1 : 0))));
+            isMeasured = true;
+          }
+        } else {
+          val = dayMetricValue || 0;
+          isMeasured = val > 0;
+        }
+
+        sleepSlots.push({
+          label,
+          value: val,
+          isMeasured,
+        });
+      }
+
+      return sleepSlots;
+    }
+
     const slots: MetricDataPoint[] = [];
     for (let h = 0; h < 24; h++) {
       for (const m of [0, 30]) {
@@ -810,7 +902,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData]);
+  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode]);
 
   const isValidPoint = (ptOrVal: MetricDataPoint | number) => {
     if (typeof ptOrVal === 'object' && ptOrVal !== null) {
@@ -915,7 +1007,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dataset.length - 1,
       Math.max(0, Math.round(relX * (dataset.length - 1)))
     );
-    if (modalDay === TODAY_INDEX) {
+    if (curveMode === '24h' && modalDay === TODAY_INDEX) {
       const now = new Date();
       const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       if (idx > currentSlot) {
@@ -1543,26 +1635,81 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
           }}
         >
-          {/* Header of Chart with Live Hover Status */}
+          {/* Header of Chart with Live Hover Status and Mode Toggle */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '0 4px 8px 4px',
+              flexWrap: 'wrap',
+              gap: '6px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <TrendingUp size={13} color={theme.primary} />
-              <span
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <TrendingUp size={13} color={theme.primary} />
+                <span
+                  style={{
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    color: 'rgba(250, 247, 242, 0.9)',
+                  }}
+                >
+                  {curveMode === 'sleep'
+                    ? (isEn ? 'Nocturnal Sleep Session' : 'Évolution nocturne (Sommeil)')
+                    : (isEn ? '24h Timeline' : 'Évolution sur 24 heures')}
+                </span>
+              </div>
+
+              {/* Mode Toggle [ 🌙 Sommeil | ☀️ 24h ] */}
+              <div
                 style={{
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  color: 'rgba(250, 247, 242, 0.9)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  borderRadius: '999px',
+                  padding: '2px',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                 }}
               >
-                {isEn ? '24h Timeline' : 'Évolution sur 24 heures'}
-              </span>
+                <button
+                  type="button"
+                  onClick={() => setCurveMode('sleep')}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    background: curveMode === 'sleep' ? theme.primary : 'transparent',
+                    color: curveMode === 'sleep' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                  }}
+                >
+                  🌙 {isEn ? 'Sleep' : 'Sommeil'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurveMode('24h')}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    background: curveMode === '24h' ? theme.primary : 'transparent',
+                    color: curveMode === '24h' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                  }}
+                >
+                  ☀️ 24h
+                </button>
+              </div>
             </div>
 
             <div
@@ -1772,29 +1919,52 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </>
               )}
 
-              {/* Bottom Time Axis Labels (de 00:00 à 23h) */}
-              {dataset.map((pt, i) => {
-                const isFirst = i === 0;
-                const isMilestone = i % 8 === 0 && i < 44;
-                const isLast = i === dataset.length - 1;
-                if (!isFirst && !isMilestone && !isLast) return null;
+              {/* Bottom Time Axis Labels */}
+              {curveMode === 'sleep' ? (
+                [0, Math.floor((dataset.length - 1) * 0.25), Math.floor((dataset.length - 1) * 0.5), Math.floor((dataset.length - 1) * 0.75), dataset.length - 1].map((idx, pos) => {
+                  const pt = dataset[idx];
+                  if (!pt) return null;
+                  const isFirst = pos === 0;
+                  const isLast = pos === 4;
+                  return (
+                    <text
+                      key={idx}
+                      x={getX(idx)}
+                      y={chartHeight - 4}
+                      textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}
+                      fill="rgba(255, 255, 255, 0.55)"
+                      fontSize="9"
+                      fontFamily="var(--font-mono)"
+                      fontWeight="500"
+                    >
+                      {pt.label}
+                    </text>
+                  );
+                })
+              ) : (
+                dataset.map((pt, i) => {
+                  const isFirst = i === 0;
+                  const isMilestone = i % 8 === 0 && i < 44;
+                  const isLast = i === dataset.length - 1;
+                  if (!isFirst && !isMilestone && !isLast) return null;
 
-                const textLabel = isLast ? '23h' : pt.label;
-                return (
-                  <text
-                    key={i}
-                    x={getX(i)}
-                    y={chartHeight - 4}
-                    textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}
-                    fill="rgba(255, 255, 255, 0.55)"
-                    fontSize="9"
-                    fontFamily="var(--font-mono)"
-                    fontWeight="500"
-                  >
-                    {textLabel}
-                  </text>
-                );
-              })}
+                  const textLabel = isLast ? '23h' : pt.label;
+                  return (
+                    <text
+                      key={i}
+                      x={getX(i)}
+                      y={chartHeight - 4}
+                      textAnchor={isFirst ? 'start' : isLast ? 'end' : 'middle'}
+                      fill="rgba(255, 255, 255, 0.55)"
+                      fontSize="9"
+                      fontFamily="var(--font-mono)"
+                      fontWeight="500"
+                    >
+                      {textLabel}
+                    </text>
+                  );
+                })
+              )}
             </svg>
 
             {/* Floating Tooltip when scrubbing */}

@@ -102,6 +102,7 @@ export interface RingDevice {
   macAddress?: string;
   ringSize: number;
   isConnected?: boolean;
+  isCharging?: boolean;
   vytaCareActive?: boolean;
   vytaCareExpires?: string;
   sensorIntervals?: SensorIntervals;

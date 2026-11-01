@@ -77,12 +77,13 @@ class WorkoutLiveActivityManager {
 
     func end() {
         guard let activity = currentActivity else { return }
-        let finalState = activity.content.state
         Task {
             if #available(iOS 16.2, *) {
+                let finalState = activity.content.state
                 let content = ActivityContent(state: finalState, staleDate: nil)
                 await activity.end(content, dismissalPolicy: .immediate)
             } else {
+                let finalState = activity.contentState
                 await activity.end(using: finalState, dismissalPolicy: .immediate)
             }
             print("[Vyta LiveActivity] Activity ended")

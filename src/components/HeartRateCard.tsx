@@ -99,6 +99,11 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
 
   const handleStartMeasure = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (ring?.isCharging) {
+      setMeasureFeedback(language === 'fr' ? 'Bague en charge sur son socle' : 'Ring is charging on dock');
+      setTimeout(() => setMeasureFeedback(null), 3500);
+      return;
+    }
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate([18, 30, 22]); } catch (_) {}
     }
@@ -574,7 +579,26 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
             {language === 'fr' ? 'Fréquence Cardiaque' : 'Heart Rate'}
           </span>
 
-          {isPastDay ? (
+          {ring?.isCharging && isToday ? (
+            <span
+              style={{
+                fontSize: '9px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                padding: '2px 7.5px',
+                borderRadius: '999px',
+                color: '#FFB340',
+                background: 'rgba(255, 179, 64, 0.12)',
+                border: '1px solid rgba(255, 179, 64, 0.35)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              ⚡ {language === 'fr' ? 'En charge' : 'Charging'}
+            </span>
+          ) : isPastDay ? (
             <span
               style={{
                 fontSize: '9px',
@@ -596,8 +620,27 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
           ) : null}
         </div>
 
-        {/* Top-Right: Calm Orb for Past Days / Measure Button for Today */}
-        {isPastDay ? (
+        {/* Top-Right: Calm Orb for Past Days / Charging Pill / Measure Button for Today */}
+        {ring?.isCharging && isToday ? (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 11px',
+              borderRadius: '999px',
+              background: 'rgba(255, 179, 64, 0.12)',
+              border: '1px solid rgba(255, 179, 64, 0.4)',
+              color: '#FFB340',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'default',
+            }}
+            title={language === 'fr' ? 'Bague posée sur le chargeur' : 'Ring placed on dock'}
+          >
+            <span>⚡ {language === 'fr' ? 'Sur socle' : 'On dock'}</span>
+          </div>
+        ) : isPastDay ? (
           <div
             style={{
               width: '32px',
@@ -771,6 +814,18 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
           >
             BPM
           </span>
+          {ring?.isCharging && isToday && (
+            <span
+              style={{
+                fontSize: '10px',
+                color: '#FFB340',
+                marginLeft: '3px',
+                fontStyle: 'italic',
+              }}
+            >
+              ({language === 'fr' ? 'Dernier relevé' : 'Last reading'})
+            </span>
+          )}
         </div>
 
         {/* Right side: Min & Peak for all days (including today), perfectly aligned on the same baseline */}

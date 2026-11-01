@@ -55,7 +55,9 @@ export const STANDARD_HEART_RATE_MEASUREMENT_UUID = '00002a37-0000-1000-8000-008
 
 export interface BleRingData {
   batteryPct?: number;
+  isCharging?: boolean;
   heartRate?: number;
+  liveHeartRate?: number;
   heartRateLog?: number[];
   minBpm?: number;
   maxBpm?: number;
@@ -1571,11 +1573,12 @@ class QRingBleService {
       const spanMin = latestEnd - earliestStart;
       const stageSum = totalLight + totalDeep + totalRem + totalAwake;
 
-      // QRing computes total night duration from earliest sleepStart (e.g. 2:21 AM = 141) to latest sleepEnd (e.g. 10:28 AM = 628 => 487 min = 08h07m)
-      const finalTotalMin = spanMin >= 60 && spanMin <= 960 && spanMin >= stageSum ? spanMin : stageSum;
-      if (finalTotalMin > stageSum) {
-        totalLight += finalTotalMin - stageSum;
-      }
+      // Correction du réveil : si les stades physiques de sommeil se sont arrêtés (stageSum),
+      // le réveil réel a eu lieu à (earliestStart + stageSum). L'écart entre latestEnd et la fin des stades
+      // correspond au moment où l'utilisateur s'est levé avant d'ouvrir l'app / de synchroniser la bague.
+      const hasStages = stageSum >= 60;
+      const finalTotalMin = hasStages ? stageSum : (spanMin >= 60 && spanMin <= 960 ? spanMin : stageSum);
+      const realEndNorm = hasStages ? earliestStart + stageSum : latestEnd;
 
       if (finalTotalMin >= 60 && finalTotalMin <= 960) {
         this.hasBigDataSleepToday = true;
@@ -1592,7 +1595,7 @@ class QRingBleService {
           )
         );
         const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
-        const endClockMin = ((latestEnd % 1440) + 1440) % 1440;
+        const endClockMin = ((realEndNorm % 1440) + 1440) % 1440;
         console.log(
           `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${targetDaysAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
         );
@@ -1965,11 +1968,14 @@ class QRingBleService {
       const b1 = dataView.getUint8(1);
       const b2 = len >= 3 ? dataView.getUint8(2) : 0;
       let realBat: number | null = null;
+      let isCharging = false;
 
       if ((b1 === 0 || b1 === 1 || b1 === 2) && b2 >= 1 && b2 <= 100) {
         realBat = b2;
+        isCharging = b1 === 1 || b1 === 2;
       } else if (b1 >= 1 && b1 <= 100 && (b2 === 0 || b2 === 1 || b2 === 2)) {
         realBat = b1;
+        isCharging = b2 === 1 || b2 === 2;
       } else if (b1 >= 1 && b1 <= 100) {
         realBat = b1;
       } else if (b2 >= 1 && b2 <= 100) {
@@ -1977,8 +1983,8 @@ class QRingBleService {
       }
 
       if (realBat !== null) {
-        console.log('[QRing BLE] Real Battery Level Received from Ring:', realBat, '% (b1:', b1, 'b2:', b2, ')');
-        this.notify({ batteryPct: realBat, isConnected: true });
+        console.log('[QRing BLE] Real Battery Level Received from Ring:', realBat, '% charging:', isCharging, '(b1:', b1, 'b2:', b2, ')');
+        this.notify({ batteryPct: realBat, isCharging, isConnected: true });
         return;
       }
     }
@@ -2240,7 +2246,7 @@ class QRingBleService {
       if (dataType === 0x01 && errCode === 0) {
         if (val >= 40 && val <= 200) {
           console.log('[QRing BLE] Command 105 (0x69, type=1) Real PPG Heart Rate Received:', val, 'bpm');
-          this.notify({ heartRate: val, isConnected: true });
+          this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
           return;
         }
       } else if (dataType === 0x03 && errCode === 0) {
