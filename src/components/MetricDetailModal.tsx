@@ -404,7 +404,7 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
-  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal } = useApp();
+  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab } = useApp();
   // Jour inspecte local a la modale : isole completement l'ecran d'accueil Sante
   const [modalDay, setModalDay] = useState<number>(() => (selectedDay !== undefined ? selectedDay : TODAY_INDEX));
   const dayData = (weekData && weekData[modalDay]) || emptyDayMetrics;
@@ -415,14 +415,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const [activeTab, setActiveTab] = useState<'stats' | 'moments' | 'advice'>('stats');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  // Mode de courbe : 'sleep' (sommeil nocturne strict du coucher au réveil) ou '24h' (journée complète)
-  // Pour la température et la fréquence respiratoire (biomarqueurs nocturnes), on ouvre directement sur le Sommeil
-  const isNocturnalMetric = metricId === 'temp' || metricId === 'resp';
-  const [curveMode, setCurveMode] = useState<'sleep' | '24h'>(() => (isNocturnalMetric ? 'sleep' : '24h'));
+  // L'onglet / mode Sommeil nocturne est accessible UNIQUEMENT depuis la page Sommeil
+  const isSleepPage = tab === 'sleep';
+  const [curveMode, setCurveMode] = useState<'sleep' | '24h'>(() => (isSleepPage ? 'sleep' : '24h'));
 
   useEffect(() => {
-    setCurveMode(isNocturnalMetric ? 'sleep' : '24h');
-  }, [metricId, isNocturnalMetric]);
+    setCurveMode(isSleepPage ? 'sleep' : '24h');
+  }, [metricId, isSleepPage]);
 
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [countdown, setCountdown] = useState(20);
@@ -656,9 +655,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         { label: isEn ? 'Maximum' : 'Maximum', value: `${dayMetricValue} ${detail.unit}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
       ];
 
-  // Active dataset based on selected day curve (mode Sommeil nocturne strict ou 24h)
+  // Active dataset based on selected day curve (mode Sommeil nocturne strict si page Sommeil, ou 24h)
   const dataset: MetricDataPoint[] = React.useMemo(() => {
-    if (curveMode === 'sleep') {
+    if (isSleepPage && curveMode === 'sleep') {
       const sleepSummary = dayData?.sleep;
       const rawStart = sleepSummary?.startMin;
       const rawEnd = sleepSummary?.endMin;
@@ -902,7 +901,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode]);
+  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode, isSleepPage]);
 
   const isValidPoint = (ptOrVal: MetricDataPoint | number) => {
     if (typeof ptOrVal === 'object' && ptOrVal !== null) {
@@ -1007,7 +1006,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dataset.length - 1,
       Math.max(0, Math.round(relX * (dataset.length - 1)))
     );
-    if (curveMode === '24h' && modalDay === TODAY_INDEX) {
+    if ((!isSleepPage || curveMode === '24h') && modalDay === TODAY_INDEX) {
       const now = new Date();
       const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       if (idx > currentSlot) {
@@ -1656,60 +1655,62 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     color: 'rgba(250, 247, 242, 0.9)',
                   }}
                 >
-                  {curveMode === 'sleep'
+                  {isSleepPage && curveMode === 'sleep'
                     ? (isEn ? 'Nocturnal Sleep Session' : 'Évolution nocturne (Sommeil)')
                     : (isEn ? '24h Timeline' : 'Évolution sur 24 heures')}
                 </span>
               </div>
 
-              {/* Mode Toggle [ 🌙 Sommeil | ☀️ 24h ] */}
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  borderRadius: '999px',
-                  padding: '2px',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setCurveMode('sleep')}
+              {/* Mode Toggle [ 🌙 Sommeil | ☀️ 24h ] - Accessible UNIQUEMENT depuis la page Sommeil */}
+              {isSleepPage && (
+                <div
                   style={{
-                    border: 'none',
-                    outline: 'none',
-                    background: curveMode === 'sleep' ? theme.primary : 'transparent',
-                    color: curveMode === 'sleep' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
-                    fontSize: '9.5px',
-                    fontWeight: 600,
-                    padding: '2px 7px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    background: 'rgba(255, 255, 255, 0.06)',
                     borderRadius: '999px',
-                    cursor: 'pointer',
-                    transition: 'all 0.18s ease',
+                    padding: '2px',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
                   }}
                 >
-                  🌙 {isEn ? 'Sleep' : 'Sommeil'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurveMode('24h')}
-                  style={{
-                    border: 'none',
-                    outline: 'none',
-                    background: curveMode === '24h' ? theme.primary : 'transparent',
-                    color: curveMode === '24h' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
-                    fontSize: '9.5px',
-                    fontWeight: 600,
-                    padding: '2px 7px',
-                    borderRadius: '999px',
-                    cursor: 'pointer',
-                    transition: 'all 0.18s ease',
-                  }}
-                >
-                  ☀️ 24h
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurveMode('sleep')}
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      background: curveMode === 'sleep' ? theme.primary : 'transparent',
+                      color: curveMode === 'sleep' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
+                      fontSize: '9.5px',
+                      fontWeight: 600,
+                      padding: '2px 7px',
+                      borderRadius: '999px',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    🌙 {isEn ? 'Sleep' : 'Sommeil'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurveMode('24h')}
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      background: curveMode === '24h' ? theme.primary : 'transparent',
+                      color: curveMode === '24h' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
+                      fontSize: '9.5px',
+                      fontWeight: 600,
+                      padding: '2px 7px',
+                      borderRadius: '999px',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    ☀️ 24h
+                  </button>
+                </div>
+              )}
             </div>
 
             <div
@@ -1920,7 +1921,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               )}
 
               {/* Bottom Time Axis Labels */}
-              {curveMode === 'sleep' ? (
+              {isSleepPage && curveMode === 'sleep' ? (
                 [0, Math.floor((dataset.length - 1) * 0.25), Math.floor((dataset.length - 1) * 0.5), Math.floor((dataset.length - 1) * 0.75), dataset.length - 1].map((idx, pos) => {
                   const pt = dataset[idx];
                   if (!pt) return null;
