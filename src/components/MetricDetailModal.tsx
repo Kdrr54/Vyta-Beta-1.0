@@ -617,7 +617,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     : metricId === 'temp' && (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0) || (dayData?.tempLog && dayData.tempLog.some((v) => v > 0)))
     ? (() => {
         const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-        const validTemps = (dayData?.tempLog || []).filter((v) => v >= 30 && v <= 42);
+        const rawTemps = dayData?.tempLog || [];
+        const now = new Date();
+        const maxSlot = modalDay === TODAY_INDEX
+          ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
+          : 47;
+        const validTemps = rawTemps.slice(0, maxSlot + 1).filter((v) => v >= 30 && v <= 42);
         if (validTemps.length > 0) {
           const minT = parseFloat((Math.min(...validTemps) - 36.5).toFixed(2));
           const maxT = parseFloat((Math.max(...validTemps) - 36.5).toFixed(2));
@@ -652,14 +657,26 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         slots.push({
           label: `${hStr}:${mStr}`,
           value: 0,
+          isMeasured: false,
         });
       }
     }
 
+    const now = new Date();
+    const currentSlotToday = modalDay === TODAY_INDEX
+      ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
+      : 47;
+
     // Fréquence cardiaque : 48 relevés réels (0x15)
     if (metricId === 'bpm' && Array.isArray(dayData?.hrLog) && dayData!.hrLog!.length === 48) {
       dayData!.hrLog!.forEach((v, i) => {
-        slots[i].value = v >= 40 && v <= 200 ? v : 0;
+        if (i <= currentSlotToday && v >= 40 && v <= 200) {
+          slots[i].value = v;
+          slots[i].isMeasured = true;
+        } else {
+          slots[i].value = 0;
+          slots[i].isMeasured = false;
+        }
       });
       return slots;
     }
@@ -667,12 +684,19 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     // VRC / HRV : 48 relevés réels de 30 min (0x39)
     if (metricId === 'hrv' && Array.isArray(dayData?.hrvLog) && dayData!.hrvLog!.length === 48) {
       dayData!.hrvLog!.forEach((v, i) => {
-        slots[i].value = v >= 5 && v < 250 ? v : 0;
+        if (i <= currentSlotToday && v >= 5 && v < 250) {
+          slots[i].value = v;
+          slots[i].isMeasured = true;
+        } else {
+          slots[i].value = 0;
+          slots[i].isMeasured = false;
+        }
       });
       // Lisser doucement les créneaux intermédiaires de 30 min entre 2 mesures réelles
-      for (let i = 1; i < 47; i++) {
-        if (slots[i].value === 0 && slots[i - 1].value > 0 && slots[i + 1].value > 0) {
+      for (let i = 1; i < Math.min(47, currentSlotToday); i++) {
+        if (!slots[i].isMeasured && slots[i - 1].isMeasured && slots[i + 1].isMeasured) {
           slots[i].value = Math.round((slots[i - 1].value + slots[i + 1].value) / 2);
+          slots[i].isMeasured = true;
         }
       }
       return slots;
@@ -681,16 +705,26 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     // SpO2 : relevés de la bague (0xBC 0x2A et 0x5F)
     if (metricId === 'spo2' && Array.isArray(dayData?.spo2Log) && dayData!.spo2Log!.length === 48) {
       dayData!.spo2Log!.forEach((v, i) => {
-        slots[i].value = v >= 70 && v <= 100 ? v : 0;
+        if (i <= currentSlotToday && v >= 70 && v <= 100) {
+          slots[i].value = v;
+          slots[i].isMeasured = true;
+        } else {
+          slots[i].value = 0;
+          slots[i].isMeasured = false;
+        }
       });
       // Combler les créneaux de 30 min (:30) avec le relevé de l'heure mesurée correspondante (:00)
       for (let h = 0; h < 24; h++) {
         const slot00 = h * 2;
         const slot30 = h * 2 + 1;
-        if (slots[slot00].value >= 70 && slots[slot30].value === 0) {
-          slots[slot30].value = slots[slot00].value;
-        } else if (slots[slot30].value >= 70 && slots[slot00].value === 0) {
-          slots[slot00].value = slots[slot30].value;
+        if (slot00 <= currentSlotToday && slot30 <= currentSlotToday) {
+          if (slots[slot00].isMeasured && !slots[slot30].isMeasured) {
+            slots[slot30].value = slots[slot00].value;
+            slots[slot30].isMeasured = true;
+          } else if (slots[slot30].isMeasured && !slots[slot00].isMeasured) {
+            slots[slot00].value = slots[slot30].value;
+            slots[slot00].isMeasured = true;
+          }
         }
       }
       return slots;
@@ -699,26 +733,35 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     // Stress : 48 relevés réels de 30 min (0x37)
     if (metricId === 'stress' && Array.isArray(dayData?.stressLog) && dayData!.stressLog!.length === 48) {
       dayData!.stressLog!.forEach((v, i) => {
-        slots[i].value = v > 0 && v <= 100 ? v : 0;
+        if (i <= currentSlotToday && v > 0 && v <= 100) {
+          slots[i].value = v;
+          slots[i].isMeasured = true;
+        } else {
+          slots[i].value = 0;
+          slots[i].isMeasured = false;
+        }
       });
       return slots;
     }
 
     // Température cutanée : 48 relevés de 30 min
     if (metricId === 'temp') {
-      const hasTempLog = Array.isArray(dayData?.tempLog) && dayData!.tempLog!.length === 48 && dayData!.tempLog!.some((v) => v > 0);
+      const hasTempLog = Array.isArray(dayData?.tempLog) && dayData!.tempLog!.length === 48 && dayData!.tempLog!.some((v, idx) => idx <= currentSlotToday && v > 0);
       if (hasTempLog) {
         dayData!.tempLog!.forEach((v, i) => {
-          if (v >= 30 && v <= 42) {
+          if (i <= currentSlotToday && v >= 30 && v <= 42) {
             slots[i].value = parseFloat((v - 36.5).toFixed(2));
+            slots[i].isMeasured = true;
           } else {
             slots[i].value = 0;
+            slots[i].isMeasured = false;
           }
         });
         // Lisser doucement les créneaux intermédiaires de 30 min
-        for (let i = 1; i < 47; i++) {
-          if (slots[i].value === 0 && slots[i - 1].value !== 0 && slots[i + 1].value !== 0) {
+        for (let i = 1; i < Math.min(47, currentSlotToday); i++) {
+          if (!slots[i].isMeasured && slots[i - 1].isMeasured && slots[i + 1].isMeasured) {
             slots[i].value = parseFloat(((slots[i - 1].value + slots[i + 1].value) / 2).toFixed(2));
+            slots[i].isMeasured = true;
           }
         }
         return slots;
@@ -727,10 +770,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C)
       if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
         const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-        for (let i = 0; i < 48; i++) {
+        for (let i = 0; i <= currentSlotToday; i++) {
           const hour = i / 2;
           const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
           slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
+          slots[i].isMeasured = true;
         }
         return slots;
       }
@@ -743,38 +787,53 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     // Fréquence respiratoire : exclusivement nocturne (sommeil 00:00 - 07:30)
     if (metricId === 'resp' && dayData?.resp && dayData.resp > 0) {
       const baseR = dayData.resp;
-      for (let i = 0; i < 48; i++) {
+      for (let i = 0; i <= currentSlotToday; i++) {
         const hour = i / 2;
         if (hour >= 0 && hour <= 7.5) {
           const circ = -0.8 * Math.cos(((hour - 3.5) / 7.5) * Math.PI);
           slots[i].value = parseFloat((baseR + circ).toFixed(1));
+          slots[i].isMeasured = true;
         } else {
           slots[i].value = 0;
+          slots[i].isMeasured = false;
         }
       }
       return slots;
     }
 
+    // GARANTIE ABSOLUE TEMPORELLE : Si c'est aujourd'hui, TOUS les créneaux futurs sont strictement nuls et non mesurés
+    if (modalDay === TODAY_INDEX) {
+      for (let i = currentSlotToday + 1; i < 48; i++) {
+        slots[i].value = 0;
+        slots[i].isMeasured = false;
+      }
+    }
 
     return slots;
   }, [dayMetricValue, isZeroState, modalDay, metricId, dayData]);
 
-  const isValidPoint = (v: number) => {
-    if (metricId === 'temp') {
-      return typeof v === 'number' && !isNaN(v) && v >= -3.0 && v <= 3.0;
+  const isValidPoint = (ptOrVal: MetricDataPoint | number) => {
+    if (typeof ptOrVal === 'object' && ptOrVal !== null) {
+      if (ptOrVal.isMeasured !== undefined) return ptOrVal.isMeasured;
+      if (metricId === 'temp') return typeof ptOrVal.value === 'number' && !isNaN(ptOrVal.value) && ptOrVal.value !== 0;
+      return typeof ptOrVal.value === 'number' && !isNaN(ptOrVal.value) && ptOrVal.value > 0;
     }
-    return v > 0;
+    const v = ptOrVal;
+    if (metricId === 'temp') {
+      return typeof v === 'number' && !isNaN(v) && v !== 0 && v >= -3.0 && v <= 3.0;
+    }
+    return typeof v === 'number' && !isNaN(v) && v > 0;
   };
 
   // Active point when hovering or default to latest real measurement
   const lastMeasuredIdx = (() => {
-    for (let i = dataset.length - 1; i >= 0; i--) if (isValidPoint(dataset[i].value)) return i;
-    return dataset.length - 1;
+    for (let i = dataset.length - 1; i >= 0; i--) if (isValidPoint(dataset[i])) return i;
+    return 0;
   })();
   const activePoint: MetricDataPoint =
     hoverIndex !== null && dataset[hoverIndex]
       ? dataset[hoverIndex]
-      : dataset[lastMeasuredIdx];
+      : dataset[lastMeasuredIdx] || dataset[0];
 
   // SVG Chart Dimensions & Offsets
   const chartHeight = 160;
@@ -787,7 +846,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const plotWidth = chartWidth - paddingLeft - paddingRight;
   const plotHeight = bottomY - paddingTop;
 
-  const validValues = dataset.map((d) => d.value).filter(isValidPoint);
+  const validPoints = dataset.filter(isValidPoint);
+  const validValues = validPoints.map((d) => d.value);
   const minVal = validValues.length > 0 ? Math.min(detail.minVal, ...validValues) : detail.minVal;
   const maxVal = validValues.length > 0 ? Math.max(detail.maxVal, ...validValues) : detail.maxVal;
   const range = maxVal - minVal || 1;
@@ -807,14 +867,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  // On ne relie que les créneaux réellement mesurés
+  // On ne relie que les créneaux réellement mesurés (la courbe s'arrête strictement à l'heure courante sans tracer vers le futur)
   const measuredPoints = dataset
-    .map((pt, i) => ({ x: getX(i), y: getY(pt.value), v: pt.value }))
-    .filter((p) => isValidPoint(p.v))
+    .map((pt, i) => ({ x: getX(i), y: getY(pt.value), pt }))
+    .filter((p) => isValidPoint(p.pt))
     .map(({ x, y }) => ({ x, y }));
   const coordPoints = measuredPoints.length > 0
     ? measuredPoints
-    : dataset.map((pt, i) => ({ x: getX(i), y: getY(pt.value) }));
+    : [];
   const linePath = getSmoothPath(coordPoints);
   const areaPath = getSmoothArea(coordPoints, bottomY);
 
@@ -851,16 +911,23 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     const plotLeft = rect.left + (paddingLeft / chartWidth) * rect.width;
     const plotW = (plotWidth / chartWidth) * rect.width;
     const relX = Math.max(0, Math.min(1, (clientX - plotLeft) / plotW));
-    const idx = Math.min(
+    let idx = Math.min(
       dataset.length - 1,
       Math.max(0, Math.round(relX * (dataset.length - 1)))
     );
+    if (modalDay === TODAY_INDEX) {
+      const now = new Date();
+      const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+      if (idx > currentSlot) {
+        idx = currentSlot;
+      }
+    }
     setHoverIndex(idx);
   };
 
   const currentDisplayVal =
     hoverIndex !== null
-      ? (isValidPoint(activePoint.value)
+      ? (isValidPoint(activePoint)
           ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
           : '--')
       : metricId === 'bpm' && modalDay === TODAY_INDEX && isMeasuring && liveBpm
@@ -961,7 +1028,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               }}
             >
               {hoverIndex !== null
-                ? (isValidPoint(activePoint.value)
+                ? (isValidPoint(activePoint)
                     ? (activePoint.info || t('metric.recorded_measure'))
                     : (isEn ? 'Awaiting reading' : 'En attente'))
                 : displayPeriodText}
@@ -1680,7 +1747,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     strokeWidth="1.2"
                     strokeDasharray="2 2"
                   />
-                  {isValidPoint(activePoint.value) && (
+                  {isValidPoint(activePoint) && (
                     <>
                       {/* Glowing halo dot */}
                       <circle
@@ -1769,7 +1836,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  {isValidPoint(activePoint.value) ? `${formatVal(activePoint.value)} ${detail.unit}` : '--'}
+                  {isValidPoint(activePoint) ? `${formatVal(activePoint.value)} ${detail.unit}` : '--'}
                 </span>
                 <span
                   style={{
@@ -1780,7 +1847,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     background: 'rgba(255, 255, 255, 0.08)',
                   }}
                 >
-                  {isValidPoint(activePoint.value) ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
+                  {isValidPoint(activePoint) ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
                 </span>
               </div>
             )}

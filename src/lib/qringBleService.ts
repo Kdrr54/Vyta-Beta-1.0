@@ -1614,7 +1614,7 @@ class QRingBleService {
     // 2. SPO2 HISTORY (dataId = 0x2A / 42 or 0x5F / 95) — Gadgetbridge YawellRingPacketHandler.historicalSpo2 verbatim
     if (dataId === 0x2A || dataId === 0x5F) {
       const now = new Date();
-      const currentHour = now.getHours();
+      const currentHalfSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       const spo2Log: number[] = new Array(48).fill(0);
       let latestSpo2 = 0;
       let minSpo2 = 101;
@@ -1623,6 +1623,7 @@ class QRingBleService {
       if (dataId === 0x5F) {
         let slot = 0;
         for (let i = 10; i < bytes.length && slot < 48; i++) {
+          if (slot > currentHalfSlot) break; // Verrou temporel : pas de créneau futur pour aujourd'hui
           const v = bytes[i] & 0xFF;
           if (v >= 70 && v <= 100) {
             latestSpo2 = v;
@@ -1641,15 +1642,15 @@ class QRingBleService {
             const sMax = bytes[index++] & 0xFF;
             if (sMin >= 70 && sMin <= 100 && sMax >= 70 && sMax <= 100) {
               const pct = Math.round((sMin + sMax) / 2);
-              if (daysAgo === 0 && hour <= currentHour) {
+              const hourHalfSlot = hour * 2;
+              if (daysAgo === 0 && hourHalfSlot <= currentHalfSlot) {
                 latestSpo2 = pct;
                 if (sMin < minSpo2) minSpo2 = sMin;
                 if (sMax > maxSpo2) maxSpo2 = sMax;
-                spo2Log[hour * 2] = pct;
-                // Populer aussi le créneau de 30 min pour l'heure mesurée
+                spo2Log[hourHalfSlot] = pct;
+                // Populer aussi le créneau de 30 min pour l'heure mesurée si écoulé
                 const halfSlot = hour * 2 + 1;
-                const nowHalf = now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0);
-                if (halfSlot <= nowHalf) {
+                if (halfSlot <= currentHalfSlot) {
                   spo2Log[halfSlot] = pct;
                 }
               } else if (latestSpo2 === 0) {
@@ -1678,6 +1679,8 @@ class QRingBleService {
 
     // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25, 0x26, 0x74)
     if (dataId === 0x25 || dataId === 0x26 || dataId === 0x74) {
+      const now = new Date();
+      const currentHalfSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       let latestTemp = 0;
       const tempLog: number[] = new Array(48).fill(0);
       if (dataId === 0x25) {
@@ -1689,12 +1692,16 @@ class QRingBleService {
           for (let h = 0; h < 24 && idx - 6 < payloadLen && idx < bytes.length; h++) {
             for (let half = 0; half < 2 && idx - 6 < payloadLen && idx < bytes.length; half++) {
               const raw = bytes[idx++] & 0xFF;
+              const slotIdx = h * 2 + half;
+              if (daysAgo === 0 && slotIdx > currentHalfSlot) {
+                continue; // Verrou temporel : pas de relevé dans le futur
+              }
               if (raw >= 100 && raw <= 220) {
                 const t = Math.round((raw / 10 + 20) * 10) / 10;
                 if (t >= 30 && t <= 42) {
                   latestTemp = t;
                   if (daysAgo === 0) {
-                    tempLog[h * 2 + half] = t;
+                    tempLog[slotIdx] = t;
                   }
                 }
               }
@@ -1705,6 +1712,7 @@ class QRingBleService {
       } else {
         let slot = 0;
         for (let i = 10; i + 1 < bytes.length && slot < 48; i += 2) {
+          if (slot > currentHalfSlot) break; // Verrou temporel : pas de créneau futur
           const le = bytes[i] | (bytes[i + 1] << 8);
           const t = le / 10;
           if (t >= 30 && t <= 42) {

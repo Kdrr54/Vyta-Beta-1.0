@@ -2,6 +2,7 @@ export interface MetricDataPoint {
   label: string; // e.g. "02h", "Mar", "J-5"
   value: number;
   info?: string;
+  isMeasured?: boolean;
 }
 
 export interface EssentialStat {

@@ -442,10 +442,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cur.skinTemp = data.skinTemp!;
           cur.tempDelta = parseFloat((data.skinTemp! - 36.5).toFixed(2));
           if (Array.isArray(data.tempLog) && data.tempLog.length === 48) {
-            cur.tempLog = data.tempLog;
+            const now = new Date();
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const clamped = [...data.tempLog];
+            for (let i = currentSlot + 1; i < 48; i++) {
+              clamped[i] = 0;
+            }
+            cur.tempLog = clamped;
           } else if (!cur.tempLog || cur.tempLog.length !== 48) {
+            const now = new Date();
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
             const slots = new Array(48).fill(0);
-            for (let i = 0; i < 48; i++) {
+            for (let i = 0; i <= currentSlot; i++) {
               const hour = i / 2;
               const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
               slots[i] = parseFloat((data.skinTemp! + circadianShift).toFixed(1));
@@ -627,7 +635,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length === 7) {
             // Nettoyage automatique de tout faux relevé 200 BPM et dérivation physiologique de la fréquence respiratoire (Oura RSA)
-            return parsed.map((d: DayMetrics) => {
+            return parsed.map((d: DayMetrics, dayIdx: number) => {
               let updated = { ...d };
               if (updated && (updated.bpm >= 200)) {
                 updated = {
@@ -637,6 +645,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   minBpm: (updated.minBpm && updated.minBpm >= 200) ? 0 : updated.minBpm,
                   restingBpm: (updated.restingBpm && updated.restingBpm >= 200) ? 0 : updated.restingBpm,
                 };
+              }
+              // Verrou temporel : Élimination stricte des faux créneaux futurs pour aujourd'hui
+              if (dayIdx === TODAY_INDEX) {
+                const now = new Date();
+                const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+                const clampLog = (arr?: number[]) => {
+                  if (Array.isArray(arr) && arr.length === 48) {
+                    return arr.map((v, i) => (i <= currentSlot ? v : 0));
+                  }
+                  return arr;
+                };
+                if (updated.tempLog) updated.tempLog = clampLog(updated.tempLog);
+                if (updated.spo2Log) updated.spo2Log = clampLog(updated.spo2Log);
+                if (updated.hrLog) updated.hrLog = clampLog(updated.hrLog);
+                if (updated.hrvLog) updated.hrvLog = clampLog(updated.hrvLog);
+                if (updated.stressLog) updated.stressLog = clampLog(updated.stressLog);
               }
               // Fréquence respiratoire nocturne calculée par arythmie sinusale respiratoire (RSA)
               if ((!updated.resp || updated.resp === 0) && (updated.hrv > 0 || updated.bpm > 0 || (updated.restingBpm && updated.restingBpm > 0))) {
