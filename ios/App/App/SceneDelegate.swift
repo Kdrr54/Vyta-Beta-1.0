@@ -272,7 +272,9 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
 
     func flushBufferedPointsToWeb() {
         guard !recordedPoints.isEmpty else { return }
-        guard let data = try? JSONSerialization.data(withJSONObject: recordedPoints, options: []),
+        let pointsToSend = recordedPoints
+        recordedPoints.removeAll()
+        guard let data = try? JSONSerialization.data(withJSONObject: pointsToSend, options: []),
               let jsonString = String(data: data, encoding: .utf8) else { return }
 
         let script = "window.dispatchEvent(new CustomEvent('nativeGpsBatchSync', { detail: \(jsonString) }));"

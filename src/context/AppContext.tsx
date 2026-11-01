@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption } from '../types';
-import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays } from '../data/health';
+import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { DayMetrics } from '../types';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
@@ -607,16 +607,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window !== 'undefined') {
       try {
         const v = localStorage.getItem('vyta_data_ver');
-        // Si ancien cache ou version antérieure contenant de fausses données, purger immédiatement
-        if (v !== 'v60_real_only') {
+        const currentCal = computeRealCurrentWeek();
+        const storedWeekId = localStorage.getItem('vyta_week_id');
+
+        // Si ancien cache ou nouvelle semaine civile débutée, initialiser une semaine vierge
+        if (v !== 'v60_real_only' || (storedWeekId && storedWeekId !== currentCal.weekId)) {
           localStorage.removeItem('vyta_week_data');
           localStorage.removeItem('vyta_simulated_date');
           localStorage.removeItem('vyta_stored_routes');
           localStorage.removeItem('vyta_workout_exercises');
           localStorage.removeItem('vyta_push_notifications');
           localStorage.setItem('vyta_data_ver', 'v60_real_only');
+          localStorage.setItem('vyta_week_id', currentCal.weekId);
           return createEmptyWeekMetrics();
         }
+        localStorage.setItem('vyta_week_id', currentCal.weekId);
         const saved = localStorage.getItem('vyta_week_data');
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -691,6 +696,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const closeMetricDetail = () => setMetricDetail(null);
   const openStory = (data: any) => setStoryData(data);
   const closeStory = () => setStoryData(null);
+
+  // Surveillance active du passage de minuit et de la semaine civile
+  useEffect(() => {
+    let lastKnownDay = TODAY_INDEX;
+    let lastKnownWeekId = computeRealCurrentWeek().weekId;
+
+    const checkMidnightAndRollover = () => {
+      const cal = refreshCalendar();
+      if (cal.weekId !== lastKnownWeekId) {
+        lastKnownWeekId = cal.weekId;
+        lastKnownDay = cal.todayIndex;
+        localStorage.setItem('vyta_week_id', cal.weekId);
+        localStorage.removeItem('vyta_week_data');
+        setWeekData(createEmptyWeekMetrics());
+        setSelectedDay(cal.todayIndex);
+      } else if (cal.todayIndex !== lastKnownDay) {
+        lastKnownDay = cal.todayIndex;
+        setSelectedDay((prev) => (prev === lastKnownDay - 1 ? cal.todayIndex : prev));
+      }
+    };
+
+    document.addEventListener('visibilitychange', checkMidnightAndRollover);
+    window.addEventListener('focus', checkMidnightAndRollover);
+    const interval = setInterval(checkMidnightAndRollover, 60000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', checkMidnightAndRollover);
+      window.removeEventListener('focus', checkMidnightAndRollover);
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <AppContext.Provider

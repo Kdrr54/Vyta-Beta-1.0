@@ -4,8 +4,8 @@ export type { DayMetrics };
 export const RING_IMAGE = '/assets/ring/ring-front.png';
 
 /** Semaine civile réelle en cours (du Lundi au Dimanche basée sur la date réelle) */
-function computeRealCurrentWeek() {
-  const now = new Date();
+export function computeRealCurrentWeek(baseDate: Date = new Date()) {
+  const now = baseDate;
   const dayIndex = (now.getDay() + 6) % 7; // 0 = Lundi, 6 = Dimanche
   const monday = new Date(now);
   monday.setDate(now.getDate() - dayIndex);
@@ -26,17 +26,28 @@ function computeRealCurrentWeek() {
     };
   });
 
+  const weekId = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
   return {
     week: weekList,
     todayIndex: dayIndex,
     month: months[now.getMonth()],
+    weekId,
   };
 }
 
-const realCalendar = computeRealCurrentWeek();
-export const TODAY_INDEX = realCalendar.todayIndex;
-export const MONTH = realCalendar.month;
-export const WEEK = realCalendar.week;
+let realCalendar = computeRealCurrentWeek();
+export let TODAY_INDEX = realCalendar.todayIndex;
+export let MONTH = realCalendar.month;
+export let WEEK = realCalendar.week;
+
+export function refreshCalendar(baseDate: Date = new Date()) {
+  realCalendar = computeRealCurrentWeek(baseDate);
+  TODAY_INDEX = realCalendar.todayIndex;
+  MONTH = realCalendar.month;
+  WEEK = realCalendar.week;
+  return realCalendar;
+}
 
 export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 

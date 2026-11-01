@@ -661,13 +661,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dayData!.hrLog!.forEach((v, i) => {
         slots[i].value = v >= 40 && v <= 200 ? v : 0;
       });
-      if (modalDay === TODAY_INDEX && dayMetricValue >= 40 && dayMetricValue <= 200) {
-        const now = new Date();
-        const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
-        if (slots[curIdx].value === 0) {
-          slots[curIdx].value = dayMetricValue;
-        }
-      }
       return slots;
     }
 
@@ -747,28 +740,21 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
     // Si des données biométriques réelles sont enregistrées pour cette journée
     // Fréquence respiratoire : 48 créneaux sur 24h
+    // Fréquence respiratoire : exclusivement nocturne (sommeil 00:00 - 07:30)
     if (metricId === 'resp' && dayData?.resp && dayData.resp > 0) {
       const baseR = dayData.resp;
       for (let i = 0; i < 48; i++) {
         const hour = i / 2;
-        const isNight = hour >= 0 && hour <= 7.5;
-        const circ = isNight
-          ? -0.8 * Math.cos(((hour - 3.5) / 7.5) * Math.PI)
-          : 0.6 * Math.sin(((hour - 8) / 15) * Math.PI);
-        slots[i].value = parseFloat((baseR + circ).toFixed(1));
+        if (hour >= 0 && hour <= 7.5) {
+          const circ = -0.8 * Math.cos(((hour - 3.5) / 7.5) * Math.PI);
+          slots[i].value = parseFloat((baseR + circ).toFixed(1));
+        } else {
+          slots[i].value = 0;
+        }
       }
       return slots;
     }
 
-    if (!isZeroState && dayMetricValue > 0) {
-      if (modalDay === TODAY_INDEX) {
-        const now = new Date();
-        const curIdx = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
-        slots[curIdx].value = dayMetricValue;
-      } else {
-        slots[24].value = dayMetricValue;
-      }
-    }
 
     return slots;
   }, [dayMetricValue, isZeroState, modalDay, metricId, dayData]);
