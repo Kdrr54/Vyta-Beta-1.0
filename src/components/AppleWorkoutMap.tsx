@@ -148,7 +148,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
     const stopCleaner = cleanMapAttributions(containerRef.current);
 
     const setupMap = async () => {
-      const initialCenter: [number, number] = userPosition || DEFAULT_MAP_CENTER;
+      const initialCenter: [number, number] = (propRealGpsPoints && propRealGpsPoints.length > 0 ? propRealGpsPoints[0] : userPosition) || DEFAULT_MAP_CENTER;
       const mapkit = (window as any).mapkit;
       if (mapkit) {
         const ok = await initAppleMapKit();
@@ -242,6 +242,17 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         leafletRunnerRef.current = runnerMarker;
 
         leafletMapRef.current = map;
+
+        // Auto-refresh layout and fit bounds for modal / dynamically mounted maps
+        setTimeout(() => {
+          if (!cancelled && leafletMapRef.current) {
+            leafletMapRef.current.invalidateSize();
+            const trail = getActiveTrailPoints();
+            if (trail.length >= 2) {
+              leafletMapRef.current.fitBounds(L.latLngBounds(trail), { padding: [36, 36], animate: true });
+            }
+          }
+        }, 220);
       } catch (err) {
         console.warn('Leaflet map init warning:', err);
       }

@@ -178,6 +178,7 @@ export const FitScreen: React.FC = () => {
   const [newRouteTitle, setNewRouteTitle] = useState<string>('');
   const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
   const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
+  const [viewingRouteForMap, setViewingRouteForMap] = useState<StoredRoute | null>(null);
 
   // ------------------ COURSE & CARDIO (SESSION GPS VYTA LIVE) ------------------
   const initialRunState = (params?.get('run_state') as 'idle' | 'running' | 'paused' | 'finished') || 'idle';
@@ -583,6 +584,48 @@ export const FitScreen: React.FC = () => {
   const loadAndStartRoute = (route: StoredRoute) => {
     resetRun();
     setSubTab('run');
+  };
+
+  const getRouteEffectivePoints = (route: StoredRoute): [number, number][] => {
+    if (route.realGpsPoints && route.realGpsPoints.length >= 2) {
+      return route.realGpsPoints;
+    }
+    const baseLat = userPosition ? userPosition[0] : 48.8566;
+    const baseLng = userPosition ? userPosition[1] : 2.3522;
+    const radius = Math.max(0.0035, (route.distanceKm || 3) * 0.0018);
+    const pts: [number, number][] = [];
+    const count = 32;
+    for (let i = 0; i <= count; i++) {
+      const theta = (i / count) * 2 * Math.PI;
+      const r = radius * (1 + 0.24 * Math.sin(theta * 3) + 0.16 * Math.cos(theta * 2));
+      const lat = baseLat + r * Math.sin(theta);
+      const lng = baseLng + (r * 1.35) * Math.cos(theta);
+      pts.push([lat, lng]);
+    }
+    return pts;
+  };
+
+  const openInNativeAppleMaps = (route: StoredRoute, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    let url = 'https://maps.apple.com/';
+    const pts = getRouteEffectivePoints(route);
+    if (pts.length >= 2) {
+      const start = pts[0];
+      const end = pts[pts.length - 1];
+      url = `https://maps.apple.com/?saddr=${start[0]},${start[1]}&daddr=${end[0]},${end[1]}&dirflg=w`;
+    } else if (pts.length === 1) {
+      const pt = pts[0];
+      url = `https://maps.apple.com/?q=${pt[0]},${pt[1]}`;
+    } else if (route.location) {
+      url = `https://maps.apple.com/?q=${encodeURIComponent(route.location)}`;
+    } else {
+      url = `https://maps.apple.com/?q=${encodeURIComponent(route.title)}`;
+    }
+    try {
+      window.open(url, '_system');
+    } catch (_) {
+      window.location.href = url;
+    }
   };
 
   const shareStoredRoute = (route: StoredRoute, e?: React.MouseEvent) => {
@@ -1277,11 +1320,20 @@ export const FitScreen: React.FC = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  {/* Mini SVG Trajectory Preview */}
+                  {/* Mini SVG Trajectory Preview (Toucher pour ouvrir sur Apple Maps) */}
                   {(() => {
                     const visual = getRouteThumbnailSvg(route);
                     return (
                       <div
+                        onClick={() => {
+                          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                            try { navigator.vibrate(25); } catch (_) {}
+                          }
+                          setViewingRouteForMap(route);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        title="Toucher pour voir le trajet sur Apple Maps"
                         style={{
                           width: '68px',
                           height: '68px',
@@ -1295,6 +1347,8 @@ export const FitScreen: React.FC = () => {
                           position: 'relative',
                           overflow: 'hidden',
                           boxShadow: 'inset 0 0 14px rgba(0,0,0,0.8), 0 4px 14px rgba(0,0,0,0.4)',
+                          cursor: 'pointer',
+                          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
                         }}
                       >
                         <svg viewBox={visual.viewBox} style={{ width: '54px', height: '54px', overflow: 'visible' }}>
@@ -1349,6 +1403,27 @@ export const FitScreen: React.FC = () => {
                             </>
                           )}
                         </svg>
+
+                        {/* Mini Apple Maps indicator pill */}
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: '3px',
+                            right: '3px',
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '6px',
+                            background: 'rgba(10, 10, 14, 0.88)',
+                            border: '1px solid rgba(255, 255, 255, 0.22)',
+                            backdropFilter: 'blur(6px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                          }}
+                        >
+                          <MapPin size={10} color="#30D158" />
+                        </div>
                       </div>
                     );
                   })()}
@@ -2285,6 +2360,205 @@ export const FitScreen: React.FC = () => {
             />
           );
         })()
+      )}
+
+      {/* Modal Dédiée : Visualisation du trajet sur Apple Maps */}
+      {viewingRouteForMap && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setViewingRouteForMap(null)}
+          style={{
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'flex-end',
+            padding: 0,
+            background: 'rgba(0, 0, 0, 0.76)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              margin: '0 auto',
+              background: 'rgba(18, 18, 22, 0.98)',
+              borderTopLeftRadius: '28px',
+              borderTopRightRadius: '28px',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderBottom: 'none',
+              padding: '16px 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Grabber Handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+            </div>
+
+            {/* Header: Title, Location & Close */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MapPin size={14} color="#30D158" />
+                  <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#30D158' }}>
+                    Trajet Apple Maps
+                  </span>
+                </div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FAF7F2', margin: '4px 0 2px 0', letterSpacing: '-0.3px' }}>
+                  {viewingRouteForMap.title}
+                </h3>
+                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                  {viewingRouteForMap.location || 'Course extérieure'} · {viewingRouteForMap.dateStr}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewingRouteForMap(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FAF7F2',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Interactive Apple Workout Map */}
+            <div
+              style={{
+                width: '100%',
+                height: '310px',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                position: 'relative',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              <AppleWorkoutMap
+                runState="finished"
+                realGpsPoints={getRouteEffectivePoints(viewingRouteForMap)}
+                distanceKm={viewingRouteForMap.distanceKm}
+              />
+            </div>
+
+            {/* Telemetry Strip: 4 Key Metrics */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '16px',
+                padding: '12px 6px',
+                textAlign: 'center',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  {viewingRouteForMap.distanceKm.toFixed(2)} <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km</span>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  {fmtClockSec(viewingRouteForMap.durationSec)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Allure</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
+                    ? fmtMMSS(Math.round(viewingRouteForMap.durationSec / viewingRouteForMap.distanceKm))
+                    : '--:--'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  +{viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)}m
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => openInNativeAppleMaps(viewingRouteForMap)}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '13px 14px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.22)',
+                  color: '#FAF7F2',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
+                <Compass size={16} color="#30D158" />
+                <span>Ouvrir dans Plans</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const r = viewingRouteForMap;
+                  setViewingRouteForMap(null);
+                  loadAndStartRoute(r);
+                }}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '13px 14px',
+                  borderRadius: '14px',
+                  background: '#FFFFFF',
+                  border: 'none',
+                  color: '#000000',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.25)',
+                }}
+              >
+                <Play size={14} fill="#000000" />
+                <span>Lancer ce trajet</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </div>
 
