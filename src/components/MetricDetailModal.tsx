@@ -936,15 +936,17 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     // Fréquence respiratoire : exclusivement nocturne (sommeil 00:00 - 07:30)
     if (metricId === 'resp' && dayData?.resp && dayData.resp > 0) {
       const baseR = dayData.resp;
-      for (let i = 0; i <= currentSlotToday; i++) {
+      for (let i = 0; i < 48; i++) {
         const hour = i / 2;
-        if (hour >= 0 && hour <= 7.5) {
+        if (i <= currentSlotToday && hour >= 0 && hour <= 7.5) {
           const circ = -0.8 * Math.cos(((hour - 3.5) / 7.5) * Math.PI);
           slots[i].value = parseFloat((baseR + circ).toFixed(1));
           slots[i].isMeasured = true;
+          slots[i].info = isEn ? 'Nocturnal sleep reading' : 'Mesure nocturne (sommeil)';
         } else {
           slots[i].value = 0;
           slots[i].isMeasured = false;
+          slots[i].info = isEn ? 'Awake (Sleep only)' : 'Éveil (Sommeil uniquement)';
         }
       }
       return slots;
@@ -959,7 +961,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode, isSleepPage]);
+  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode, isSleepPage, isEn]);
 
   const isValidPoint = (ptOrVal: MetricDataPoint | number) => {
     if (typeof ptOrVal === 'object' && ptOrVal !== null) {
@@ -1181,7 +1183,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               {hoverIndex !== null
                 ? (isValidPoint(activePoint)
                     ? (activePoint.info || t('metric.recorded_measure'))
-                    : (isEn ? 'Awaiting reading' : 'En attente'))
+                    : (activePoint.info || (metricId === 'resp' ? (isEn ? 'Sleep only (Awake)' : 'Éveil (Sommeil uniquement)') : (isEn ? 'Awaiting reading' : 'En attente'))))
                 : displayPeriodText}
             </span>
           </div>
@@ -1224,7 +1226,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 }}
               >
                 {hoverIndex !== null
-                  ? isEn ? 'Inspected data point' : 'Point inspecté sur la courbe'
+                  ? (isValidPoint(activePoint)
+                      ? (isEn ? 'Inspected data point' : 'Point inspecté sur la courbe')
+                      : (metricId === 'resp' ? (isEn ? 'Awake daytime period' : 'Période d’éveil en journée') : (isEn ? 'Inspected data point' : 'Point inspecté sur la courbe')))
                   : displayBadge}
               </span>
             </div>
@@ -1731,7 +1735,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 >
                   {isSleepPage && curveMode === 'sleep'
                     ? (isEn ? 'Nocturnal Sleep Session' : 'Évolution nocturne (Sommeil)')
-                    : (isEn ? '24h Timeline' : 'Évolution sur 24 heures')}
+                    : metricId === 'resp'
+                      ? (isEn ? 'Nocturnal Tracking (Sleep 00h - 08h)' : 'Suivi nocturne (Sommeil 00h - 08h)')
+                      : (isEn ? '24h Timeline' : 'Évolution sur 24 heures')}
                 </span>
               </div>
 
@@ -1894,6 +1900,31 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 strokeWidth="1"
                 opacity="0.5"
               />
+
+              {/* Shaded nocturnal sleep window for respiratory rate */}
+              {metricId === 'resp' && !isZeroState && (
+                <g>
+                  <rect
+                    x={getX(0)}
+                    y={paddingTop}
+                    width={Math.max(10, getX(15) - getX(0))}
+                    height={plotHeight}
+                    fill="rgba(56, 189, 248, 0.08)"
+                    rx="6"
+                  />
+                  <text
+                    x={getX(7.5)}
+                    y={paddingTop + 14}
+                    textAnchor="middle"
+                    fill="rgba(56, 189, 248, 0.85)"
+                    fontSize="9.5"
+                    fontFamily="var(--font-mono)"
+                    fontWeight="600"
+                  >
+                    🌙 {isEn ? 'Sleep Window' : 'Fenêtre Sommeil'}
+                  </text>
+                </g>
+              )}
 
               {/* Chart Curve or Zero State Notice */}
               {isZeroState ? (
@@ -2092,12 +2123,67 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     background: 'rgba(255, 255, 255, 0.08)',
                   }}
                 >
-                  {isValidPoint(activePoint) ? (activePoint.info || t('metric.recorded_measure')) : (isEn ? 'Awaiting reading' : 'En attente')}
+                  {isValidPoint(activePoint) ? (activePoint.info || t('metric.recorded_measure')) : (activePoint.info || (metricId === 'resp' ? (isEn ? 'Sleep only' : 'Sommeil uniq.') : (isEn ? 'Awaiting reading' : 'En attente')))}
                 </span>
               </div>
             )}
           </div>
         </div>
+
+        {/* Nocturnal Biomarker Banner for Respiratory Rate */}
+        {metricId === 'resp' && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '12px 14px',
+              borderRadius: '16px',
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.22)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+            }}
+          >
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '10px',
+                background: 'rgba(56, 189, 248, 0.16)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: '16px',
+              }}
+            >
+              🌙
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#38BDF8',
+                  marginBottom: '3px',
+                }}
+              >
+                {isEn ? 'Biomarker measured strictly during sleep' : 'Biomarqueur mesuré uniquement la nuit'}
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: 'rgba(250, 247, 242, 0.82)',
+                  lineHeight: 1.45,
+                }}
+              >
+                {isEn
+                  ? "Smart rings track respiratory rate via Respiratory Sinus Arrhythmia (RSA) during deep physiological stillness. Daytime hand motion naturally prevents reliable optical breath detection, so tracking stops at wake-up (after 07:30)."
+                  : "Les bagues connectées mesurent la fréquence respiratoire par arythmie sinusale respiratoire (RSA) au repos absolu. En journée, les mouvements des mains empêchent la détection optique : l'enregistrement s'arrête donc naturellement au réveil (après 07h30)."}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progressive Sub-Tabs Navigation */}
         <div className="metric-subtabs-nav">
