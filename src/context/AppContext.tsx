@@ -534,7 +534,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.sleepHours !== undefined && data.sleepHours > 0) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = TODAY_INDEX;
+          const daysAgo = data.daysAgo ?? 0;
+          const targetDayIdx = TODAY_INDEX - daysAgo;
+          if (targetDayIdx < 0 || targetDayIdx >= 7) return prev; // En dehors de la semaine affichée
+          const idx = targetDayIdx;
+
+          // Verrou temporel strict pour AUJOURD'HUI :
+          // Si le réveil indiqué est dans le futur par rapport à l'heure courante (ex: 12h06 alors qu'il est 02h37),
+          // ce relevé appartient au passé et ne doit JAMAIS polluer aujourd'hui !
+          if (idx === TODAY_INDEX) {
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            if (data.sleepEndMin !== undefined && data.sleepEndMin > nowMin) {
+              console.warn(`[AppContext] Rejected future wake-up (${data.sleepEndMin} min) for today at ${nowMin} min`);
+              return prev;
+            }
+            if (nowMin < 360 && data.sleepHours! * 60 > nowMin + 120) {
+              console.warn(`[AppContext] Rejected impossible sleep duration (${data.sleepHours}h) at ${nowMin} min`);
+              return prev;
+            }
+          }
+
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           const totalMin = Math.round(data.sleepHours! * 60);
           const hasStages =
@@ -643,7 +663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length === 7) {
             // Nettoyage automatique de tout faux relevé 200 BPM et dérivation physiologique de la fréquence respiratoire (Oura RSA)
-            return parsed.map((d: DayMetrics, dayIdx: number) => {
+            const sanitized = parsed.map((d: DayMetrics, dayIdx: number) => {
               let updated = { ...d };
               if (updated && (updated.bpm >= 200)) {
                 updated = {
@@ -657,7 +677,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Verrou temporel : Élimination stricte des faux créneaux futurs pour aujourd'hui
               if (dayIdx === TODAY_INDEX) {
                 const now = new Date();
-                const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+                const nowMin = now.getHours() * 60 + now.getMinutes();
+                const currentSlot = Math.min(47, Math.max(0, Math.floor(nowMin / 30)));
                 const clampLog = (arr?: number[]) => {
                   if (Array.isArray(arr) && arr.length === 48) {
                     return arr.map((v, i) => (i <= currentSlot ? v : 0));
@@ -669,6 +690,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (updated.hrLog) updated.hrLog = clampLog(updated.hrLog);
                 if (updated.hrvLog) updated.hrvLog = clampLog(updated.hrvLog);
                 if (updated.stressLog) updated.stressLog = clampLog(updated.stressLog);
+
+                // Verrou sommeil pour aujourd'hui :
+                // Si le réveil enregistré est dans le futur par rapport à l'heure courante (ex: 12h06 alors qu'il est 02h37),
+                // ou si une durée de sommeil est enregistrée en pleine nuit avant que l'utilisateur n'ait dormi,
+                // réinitialiser le sommeil à zéro pour aujourd'hui !
+                const hasFutureEnd = updated.sleep?.endMin !== undefined && updated.sleep.endMin > nowMin;
+                const totalSleepMin = updated.sleep
+                  ? (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0) + (updated.sleep.awakeMin || 0)
+                  : 0;
+                const isImpossibleEarlySleep = nowMin < 360 && totalSleepMin > 0 && hasFutureEnd;
+                if (hasFutureEnd || isImpossibleEarlySleep) {
+                  updated.sleep = { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
+                  if (updated.pillars) {
+                    updated.pillars = { ...updated.pillars, sleep: 0 };
+                    const activePillars = [updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
+                    updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+                  }
+                  updated.bodyEnergyWake = 0;
+                  if (updated.bodyEnergy && updated.score > 0) {
+                    updated.bodyEnergy = updated.score;
+                  }
+                }
               }
               // Fréquence respiratoire nocturne calculée par arythmie sinusale respiratoire (RSA)
               if ((!updated.resp || updated.resp === 0) && (updated.hrv > 0 || updated.bpm > 0 || (updated.restingBpm && updated.restingBpm > 0))) {
@@ -679,6 +722,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               return updated;
             });
+            try {
+              localStorage.setItem('vyta_week_data', JSON.stringify(sanitized));
+            } catch (_) {}
+            return sanitized;
           }
         }
       } catch (e) {}

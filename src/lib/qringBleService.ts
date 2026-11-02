@@ -65,6 +65,7 @@ export interface BleRingData {
   steps?: number;
   calories?: number;
   distanceKm?: number;
+  daysAgo?: number;
   sleepHours?: number;
   sleepDeepMin?: number;
   sleepLightMin?: number;
@@ -1557,59 +1558,77 @@ class QRingBleService {
 
       if (records.length === 0) return;
 
-      // Prefer today's sleep (daysAgo === 0); if none, fall back to most recent daysAgo
-      const minDaysAgo = Math.min(...records.map((r) => r.daysAgo));
-      const targetDaysAgo = records.some((r) => r.daysAgo === 0) ? 0 : minDaysAgo;
-      if (targetDaysAgo > 1) return; // Do not populate today's card with sleep older than yesterday
+      // Traiter chaque journée (daysAgo) présente dans les paquets historiques de la bague :
+      // daysAgo === 0 : aujourd'hui (uniquement si le réveil est réellement terminé et antérieur à l'heure courante)
+      // daysAgo > 0   : journées antérieures (ex: hier = 1). Ne doit JAMAIS être attribué à aujourd'hui !
+      const uniqueDaysAgo = Array.from(new Set(records.map((r) => r.daysAgo)));
+      for (const dAgo of uniqueDaysAgo) {
+        const dayBlocks = records.filter((r) => r.daysAgo === dAgo);
+        let totalLight = dayBlocks.reduce((s, b) => s + b.lightMin, 0);
+        const totalDeep = dayBlocks.reduce((s, b) => s + b.deepMin, 0);
+        const totalRem = dayBlocks.reduce((s, b) => s + b.remMin, 0);
+        const totalAwake = dayBlocks.reduce((s, b) => s + b.awakeMin, 0);
 
-      const dayBlocks = records.filter((r) => r.daysAgo === targetDaysAgo);
-      let totalLight = dayBlocks.reduce((s, b) => s + b.lightMin, 0);
-      const totalDeep = dayBlocks.reduce((s, b) => s + b.deepMin, 0);
-      const totalRem = dayBlocks.reduce((s, b) => s + b.remMin, 0);
-      const totalAwake = dayBlocks.reduce((s, b) => s + b.awakeMin, 0);
+        const earliestStart = Math.min(...dayBlocks.map((b) => b.normStart));
+        const latestEnd = Math.max(...dayBlocks.map((b) => b.normEnd));
+        const spanMin = latestEnd - earliestStart;
+        const stageSum = totalLight + totalDeep + totalRem + totalAwake;
 
-      const earliestStart = Math.min(...dayBlocks.map((b) => b.normStart));
-      const latestEnd = Math.max(...dayBlocks.map((b) => b.normEnd));
-      const spanMin = latestEnd - earliestStart;
-      const stageSum = totalLight + totalDeep + totalRem + totalAwake;
+        // Correction du réveil : si les stades physiques de sommeil se sont arrêtés (stageSum),
+        // le réveil réel a eu lieu à (earliestStart + stageSum). L'écart entre latestEnd et la fin des stades
+        // correspond au moment où l'utilisateur s'est levé avant d'ouvrir l'app / de synchroniser la bague.
+        const hasStages = stageSum >= 60;
+        const finalTotalMin = hasStages ? stageSum : (spanMin >= 60 && spanMin <= 960 ? spanMin : stageSum);
+        const realEndNorm = hasStages ? earliestStart + stageSum : latestEnd;
 
-      // Correction du réveil : si les stades physiques de sommeil se sont arrêtés (stageSum),
-      // le réveil réel a eu lieu à (earliestStart + stageSum). L'écart entre latestEnd et la fin des stades
-      // correspond au moment où l'utilisateur s'est levé avant d'ouvrir l'app / de synchroniser la bague.
-      const hasStages = stageSum >= 60;
-      const finalTotalMin = hasStages ? stageSum : (spanMin >= 60 && spanMin <= 960 ? spanMin : stageSum);
-      const realEndNorm = hasStages ? earliestStart + stageSum : latestEnd;
+        if (finalTotalMin >= 60 && finalTotalMin <= 960) {
+          const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
+          const endClockMin = ((realEndNorm % 1440) + 1440) % 1440;
 
-      if (finalTotalMin >= 60 && finalTotalMin <= 960) {
-        this.hasBigDataSleepToday = true;
-        const sleepHours = parseFloat((finalTotalMin / 60).toFixed(4));
-        // Compute QRing sleep quality score from real duration & sleep efficiency
-        const durationScore = Math.min(100, Math.round((finalTotalMin / 480) * 100));
-        const effRatio = finalTotalMin > 0 ? (finalTotalMin - totalAwake) / finalTotalMin : 1;
-        const deepRemRatio = finalTotalMin > 0 ? (totalDeep + totalRem) / finalTotalMin : 0.4;
-        const sleepScore = Math.min(
-          99,
-          Math.max(
-            50,
-            Math.round(durationScore * 0.55 + effRatio * 100 * 0.3 + Math.min(100, deepRemRatio * 200) * 0.15)
-          )
-        );
-        const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
-        const endClockMin = ((realEndNorm % 1440) + 1440) % 1440;
-        console.log(
-          `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${targetDaysAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
-        );
-        this.notify({
-          sleepHours,
-          sleepDeepMin: totalDeep,
-          sleepRemMin: totalRem,
-          sleepLightMin: totalLight,
-          sleepAwakeMin: totalAwake,
-          sleepScore,
-          sleepStartMin: startClockMin,
-          sleepEndMin: endClockMin,
-          isConnected: true,
-        });
+          // Verrou temporel strict pour AUJOURD'HUI (dAgo === 0) :
+          // L'heure de réveil ne peut pas être dans le futur par rapport à l'heure courante
+          if (dAgo === 0) {
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            if (endClockMin > nowMin && (realEndNorm > 0 || nowMin < 720)) {
+              console.warn(
+                `[QRing BLE] Sleep end (${endClockMin} min) is in the future compared to now (${nowMin} min). Ignored for today.`
+              );
+              continue;
+            }
+            this.hasBigDataSleepToday = true;
+          }
+
+          const sleepHours = parseFloat((finalTotalMin / 60).toFixed(4));
+          // Calcul du score de qualité de sommeil d'après durée réelle & efficacité
+          const durationScore = Math.min(100, Math.round((finalTotalMin / 480) * 100));
+          const effRatio = finalTotalMin > 0 ? (finalTotalMin - totalAwake) / finalTotalMin : 1;
+          const deepRemRatio = finalTotalMin > 0 ? (totalDeep + totalRem) / finalTotalMin : 0.4;
+          const sleepScore = Math.min(
+            99,
+            Math.max(
+              50,
+              Math.round(durationScore * 0.55 + effRatio * 100 * 0.3 + Math.min(100, deepRemRatio * 200) * 0.15)
+            )
+          );
+
+          console.log(
+            `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${dAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
+          );
+
+          this.notify({
+            daysAgo: dAgo,
+            sleepHours,
+            sleepDeepMin: totalDeep,
+            sleepRemMin: totalRem,
+            sleepLightMin: totalLight,
+            sleepAwakeMin: totalAwake,
+            sleepScore,
+            sleepStartMin: startClockMin,
+            sleepEndMin: endClockMin,
+            isConnected: true,
+          });
+        }
       }
       return;
     }
@@ -2043,13 +2062,19 @@ class QRingBleService {
     if (header === 68 || header === 0x44) {
       if (len >= 6 && !this.hasBigDataSleepToday) {
         console.log('[QRing BLE] Command 68 (0x44) Sleep log packet received');
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        if (nowMin < 360) {
+          // En pleine nuit avant 6h du matin, ne pas attribuer de sommeil hérité de la veille
+          return;
+        }
         const b4 = dataView.getUint8(4);
         const b5 = dataView.getUint8(5);
         const totalMin = (b4 << 8) | b5;
-        if (totalMin >= 90 && totalMin <= 900) {
+        if (totalMin >= 90 && totalMin <= 900 && totalMin <= nowMin + 120) {
           const hours = parseFloat((totalMin / 60).toFixed(4));
           console.log('[QRing BLE] Command 68 parsed sleep duration:', hours, 'hours (', totalMin, 'min )');
-          this.notify({ sleepHours: hours, isConnected: true });
+          this.notify({ daysAgo: 0, sleepHours: hours, isConnected: true });
           return;
         }
       }
@@ -2171,8 +2196,11 @@ class QRingBleService {
           const sl0 = dataView.getUint8(11);
           const sl1 = dataView.getUint8(12);
           const sleepMin = (sl0 << 8) | sl1;
+          const now = new Date();
+          const nowMin = now.getHours() * 60 + now.getMinutes();
+          const isPhysicallyPossible = nowMin >= 360 && sleepMin <= nowMin + 120;
           const realSleepHours =
-            !this.hasBigDataSleepToday && sleepMin >= 60 && sleepMin <= 960
+            !this.hasBigDataSleepToday && sleepMin >= 60 && sleepMin <= 960 && isPhysicallyPossible
               ? parseFloat((sleepMin / 60).toFixed(4))
               : undefined;
 
@@ -2180,7 +2208,7 @@ class QRingBleService {
             console.log('[QRing BLE] Cmd 0x07 (sub-packet 1) Big-Endian distance km:', distKm, 'sleepMin:', sleepMin);
             this.notify({
               ...(distMeters > 0 && distKm > 0 ? { distanceKm: distKm } : {}),
-              ...(realSleepHours !== undefined ? { sleepHours: realSleepHours } : {}),
+              ...(realSleepHours !== undefined ? { daysAgo: 0, sleepHours: realSleepHours } : {}),
               isConnected: true,
             });
             return;
