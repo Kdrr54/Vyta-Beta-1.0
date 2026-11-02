@@ -90,7 +90,19 @@ export function getRouteThumbnailSvg(route: StoredRoute): {
   endPoint: { x: number; y: number };
   isSinglePoint: boolean;
 } {
-  // 1. If real GPS points exist with at least 2 points: compute custom 100x100 path
+  // 1. Session stationnaire / Aucun déplacement (distance < 50m ex: 0.00 km, ou moins de 2 points GPS réels)
+  const isStationary = !route.distanceKm || route.distanceKm < 0.05 || (!route.realGpsPoints || route.realGpsPoints.length < 2);
+  if (isStationary) {
+    return {
+      pathD: '',
+      viewBox: '0 0 100 100',
+      startPoint: { x: 50, y: 50 },
+      endPoint: { x: 50, y: 50 },
+      isSinglePoint: true,
+    };
+  }
+
+  // 2. Trajet réel avec au moins 2 coordonnées GPS
   if (route.realGpsPoints && route.realGpsPoints.length >= 2) {
     const converted = convertGpsPointsToSvgPath(route.realGpsPoints, 100, 100, 14);
     return {
@@ -102,35 +114,10 @@ export function getRouteThumbnailSvg(route: StoredRoute): {
     };
   }
 
-  // 2. If exactly 1 real GPS point exists
-  if (route.realGpsPoints && route.realGpsPoints.length === 1) {
-    return {
-      pathD: '',
-      viewBox: '0 0 100 100',
-      startPoint: { x: 50, y: 50 },
-      endPoint: { x: 50, y: 50 },
-      isSinglePoint: true,
-    };
-  }
-
-  // 3. Parse existing pointsSvgPath
+  // 3. Trajet créé manuellement avec tracé SVG valide (distance >= 50m)
   const rawPath = (route.pointsSvgPath || '').trim();
   const numbers = (rawPath.match(/[-+]?\d*\.?\d+/g) || []).map(Number);
-  const maxCoord = numbers.length > 0 ? Math.max(...numbers) : 0;
-
-  // If path was generated in 360x230 coordinate space (e.g. DEFAULT_ROUTE_PATH_D where coords exceed 100)
-  if (maxCoord > 100) {
-    return {
-      pathD: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
-      viewBox: '0 0 100 100',
-      startPoint: { x: 14, y: 74 },
-      endPoint: { x: 88, y: 26 },
-      isSinglePoint: false,
-    };
-  }
-
-  // If path is already in 100x100 space and has valid commands
-  if (rawPath && numbers.length >= 4) {
+  if (rawPath && numbers.length >= 4 && route.distanceKm >= 0.05) {
     return {
       pathD: rawPath,
       viewBox: '0 0 100 100',
@@ -140,14 +127,48 @@ export function getRouteThumbnailSvg(route: StoredRoute): {
     };
   }
 
-  // 4. Default clean route circuit
+  // 4. Par défaut : point stationnaire
   return {
-    pathD: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
+    pathD: '',
     viewBox: '0 0 100 100',
-    startPoint: { x: 14, y: 74 },
-    endPoint: { x: 88, y: 26 },
-    isSinglePoint: false,
+    startPoint: { x: 50, y: 50 },
+    endPoint: { x: 50, y: 50 },
+    isSinglePoint: true,
   };
+}
+
+export function formatRouteDateStr(route: StoredRoute): string {
+  let ts = 0;
+  if (route.id && route.id.startsWith('route-')) {
+    const parsedTs = parseInt(route.id.replace('route-', ''), 10);
+    if (!isNaN(parsedTs) && parsedTs > 1600000000000) {
+      ts = parsedTs;
+    }
+  }
+
+  if (ts > 0) {
+    const routeDate = new Date(ts);
+    const now = new Date();
+    const isToday = routeDate.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = routeDate.toDateString() === yesterday.toDateString();
+
+    const timeStr = routeDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Aujourd'hui · ${timeStr}`;
+    if (isYesterday) return `Hier · ${timeStr}`;
+    return `${routeDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} · ${timeStr}`;
+  }
+
+  if (route.dateStr && route.dateStr.includes("Aujourd'hui") && route.title) {
+    const titleMatch = route.title.match(/·\s*(.+)$/);
+    if (titleMatch && !route.title.toLowerCase().includes("aujourd'hui")) {
+      const timePart = route.dateStr.split('·')[1]?.trim() || '';
+      return `${titleMatch[1].trim()}${timePart ? ' · ' + timePart : ''}`;
+    }
+  }
+
+  return route.dateStr || 'Récent';
 }
 
 export const FitScreen: React.FC = () => {
@@ -160,7 +181,24 @@ export const FitScreen: React.FC = () => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('vyta_stored_routes');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            // Nettoyage immédiat des faux tracés sur les sessions stationnaires (0.00 km)
+            return parsed.map((r: StoredRoute) => {
+              const isStationary = !r.distanceKm || r.distanceKm < 0.05 || (!r.realGpsPoints || r.realGpsPoints.length < 2);
+              if (isStationary) {
+                return {
+                  ...r,
+                  pointsSvgPath: '',
+                  realGpsPoints: r.realGpsPoints && r.realGpsPoints.length === 1 ? r.realGpsPoints : undefined,
+                  location: (!r.distanceKm || r.distanceKm < 0.05) ? 'Session statique' : r.location,
+                };
+              }
+              return r;
+            });
+          }
+        }
       } catch (e) {}
     }
     return initialStoredRoutes;
@@ -531,20 +569,21 @@ export const FitScreen: React.FC = () => {
     const finalDist = Math.round(runDistanceKm * 100) / 100;
     const finalDur = runDurationSec;
     const finalHr = liveHr > 40 ? liveHr : 0;
-    const hasGps = realGpsPoints && realGpsPoints.length >= 2;
+    const hasGps = realGpsPoints && realGpsPoints.length >= 2 && finalDist >= 0.05;
     const pathInfo = hasGps ? convertGpsPointsToSvgPath(realGpsPoints) : null;
+    const now = new Date();
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
-      title: `Course Vyta · ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
-      location: 'Course extérieure',
+      title: `Course Vyta · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
+      location: finalDist >= 0.05 ? 'Course extérieure' : 'Session statique',
       distanceKm: finalDist,
       durationSec: finalDur,
-      elevationM: Math.round(finalDist * 8),
+      elevationM: finalDist >= 0.05 ? Math.round(finalDist * 8) : 0,
       avgHr: finalHr,
-      dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      pointsSvgPath: pathInfo ? pathInfo.pathD : 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
-      realGpsPoints: hasGps ? realGpsPoints : undefined,
+      dateStr: `Aujourd'hui · ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      pointsSvgPath: pathInfo ? pathInfo.pathD : '',
+      realGpsPoints: hasGps ? realGpsPoints : (realGpsPoints.length === 1 ? [realGpsPoints[0]] : (userPosition ? [userPosition] : undefined)),
       progress: 1,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);
@@ -554,18 +593,18 @@ export const FitScreen: React.FC = () => {
   const handleCreateRoute = () => {
     const cleanTitle = newRouteTitle.trim() || 'Mon Nouveau Parcours';
     const distNum = parseFloat(newRouteDist) || 5.0;
-    const estSec = Math.round(distNum * 315);
+    const now = new Date();
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
       title: cleanTitle,
-      location: newRouteLoc.trim() || '',
+      location: newRouteLoc.trim() || 'Parcours personnalisé',
       distanceKm: distNum,
       durationSec: 0,
       elevationM: 0,
       avgHr: 0,
-      dateStr: `Aujourd'hui · ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
-      pointsSvgPath: 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26',
+      dateStr: `Aujourd'hui · ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+      pointsSvgPath: distNum >= 0.05 ? 'M 14 74 Q 31 70, 44 52 T 72 39 T 88 26' : '',
       progress: 0,
     };
 
@@ -587,22 +626,26 @@ export const FitScreen: React.FC = () => {
   };
 
   const getRouteEffectivePoints = (route: StoredRoute): [number, number][] => {
+    // Session stationnaire (0.00 km ou moins de 50m) : un seul point (ou vide), JAMAIS de fausse boucle circulaire !
+    if (!route.distanceKm || route.distanceKm < 0.05) {
+      if (route.realGpsPoints && route.realGpsPoints.length > 0) {
+        return [route.realGpsPoints[0]];
+      }
+      if (userPosition) return [userPosition];
+      return [];
+    }
+
     if (route.realGpsPoints && route.realGpsPoints.length >= 2) {
       return route.realGpsPoints;
     }
+
+    if (route.realGpsPoints && route.realGpsPoints.length === 1) {
+      return [route.realGpsPoints[0]];
+    }
+
     const baseLat = userPosition ? userPosition[0] : 48.8566;
     const baseLng = userPosition ? userPosition[1] : 2.3522;
-    const radius = Math.max(0.0035, (route.distanceKm || 3) * 0.0018);
-    const pts: [number, number][] = [];
-    const count = 32;
-    for (let i = 0; i <= count; i++) {
-      const theta = (i / count) * 2 * Math.PI;
-      const r = radius * (1 + 0.24 * Math.sin(theta * 3) + 0.16 * Math.cos(theta * 2));
-      const lat = baseLat + r * Math.sin(theta);
-      const lng = baseLng + (r * 1.35) * Math.cos(theta);
-      pts.push([lat, lng]);
-    }
-    return pts;
+    return [[baseLat, baseLng]];
   };
 
   const openInNativeAppleMaps = (route: StoredRoute, e?: React.MouseEvent) => {
@@ -1358,8 +1401,12 @@ export const FitScreen: React.FC = () => {
 
                           {visual.isSinglePoint ? (
                             <>
-                              <circle cx="50" cy="50" r="16" fill="rgba(48, 209, 88, 0.12)" stroke="rgba(48, 209, 88, 0.35)" strokeWidth="1" strokeDasharray="2 2" />
-                              <circle cx="50" cy="50" r="5" fill="#30D158" stroke="#000000" strokeWidth="1.5" />
+                              <circle cx="50" cy="50" r="22" fill="none" stroke="rgba(48, 209, 88, 0.16)" strokeWidth="1" strokeDasharray="3 3" />
+                              <circle cx="50" cy="50" r="13" fill="rgba(48, 209, 88, 0.12)" stroke="rgba(48, 209, 88, 0.4)" strokeWidth="1" />
+                              <circle cx="50" cy="50" r="4.5" fill="#30D158" stroke="#000000" strokeWidth="1.5" />
+                              <text x="50" y="80" textAnchor="middle" fill="rgba(250, 247, 242, 0.55)" fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)" letterSpacing="0.06em">
+                                FIXE
+                              </text>
                             </>
                           ) : (
                             <>
@@ -1434,7 +1481,7 @@ export const FitScreen: React.FC = () => {
                       {route.title}
                     </span>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      {route.location} · {route.dateStr}
+                      {route.location} · {formatRouteDateStr(route)}
                     </div>
 
                     {/* Specs row */}
@@ -2418,7 +2465,7 @@ export const FitScreen: React.FC = () => {
                   {viewingRouteForMap.title}
                 </h3>
                 <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                  {viewingRouteForMap.location || 'Course extérieure'} · {viewingRouteForMap.dateStr}
+                  {viewingRouteForMap.location || (viewingRouteForMap.distanceKm < 0.05 ? 'Session statique' : 'Course extérieure')} · {formatRouteDateStr(viewingRouteForMap)}
                 </span>
               </div>
 
