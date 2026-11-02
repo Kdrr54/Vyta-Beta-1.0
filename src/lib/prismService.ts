@@ -74,19 +74,20 @@ export async function testPrismApiKey(apiKey: string): Promise<PrismKeyTestResul
   const fallbackList = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
     'gemini-3.7-flash',
     'gemini-3.8-flash',
-    'gemini-flash-latest',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
   ];
 
-  const sortedDynamic = dynamicModels.sort((a, b) => {
-    if (a.includes('3.5') && !b.includes('3.5')) return -1;
-    if (!a.includes('3.5') && b.includes('3.5')) return 1;
-    if (a.includes('flash') && !b.includes('flash')) return -1;
-    return 0;
-  });
+  const sortedDynamic = dynamicModels
+    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .sort((a, b) => {
+      if (a === 'gemini-3.5-flash') return -1;
+      if (b === 'gemini-3.5-flash') return 1;
+      if (a.includes('3.5') && !b.includes('3.5')) return -1;
+      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      return 0;
+    });
 
   const models = Array.from(new Set([...sortedDynamic, ...fallbackList]));
 
@@ -98,15 +99,20 @@ export async function testPrismApiKey(apiKey: string): Promise<PrismKeyTestResul
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: 'Ping Prism test. Reply OK' }] }],
-          generationConfig: { maxOutputTokens: 8 },
+          generationConfig: {
+            maxOutputTokens: 60,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       });
 
       if (response.ok) {
-        const friendlyName = model.includes('2.5')
-          ? 'Gemini 2.5 Flash'
-          : model.includes('2.0')
-          ? 'Gemini 2.0 Flash'
+        const friendlyName = model.includes('3.5')
+          ? 'Gemini 3.5 Flash'
+          : model.includes('3.7')
+          ? 'Gemini 3.7 Flash'
+          : model.includes('3.8')
+          ? 'Gemini 3.8 Flash'
           : model.includes('pro')
           ? 'Gemini Pro'
           : 'Gemini Flash';
@@ -167,56 +173,73 @@ function buildPrismSystemPrompt(ctx: PrismPromptContext): string {
   const deepMins = dayData.sleep.deepMin % 60;
   const remHours = Math.floor(dayData.sleep.remMin / 60);
   const remMins = dayData.sleep.remMin % 60;
+  const totalSleepMins = dayData.sleep.deepMin + dayData.sleep.remMin + dayData.sleep.lightMin;
+  const sleepHours = Math.floor(totalSleepMins / 60);
+  const sleepRemainderMins = totalSleepMins % 60;
   const isFemale = profile.sex === 'femme';
 
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
 
-  return `Tu es "Prism", l'IA de la bague connectée "Vyta One", spécialisée à 100% en Health & Fitness.
+  if (isEn) {
+    return `You are "Prism", the intelligent health & fitness coach for the "Vyta One" smart ring.
+Your mission is to analyze the user's real biometric data and provide clear, reassuring, expert, and actionable advice.
 
-${isZeroState ? `[ÉTAT MATÉRIEL : Bague neuve ou réinitialisée en attente de synchronisation.]` : ''}
+CORE GUIDELINES:
+1. NATURAL & ENGAGING TONE:
+   - Speak in natural, friendly, and motivating English.
+   - Avoid cryptic acronyms or unexplained jargon. Explain metrics simply.
+   - Never output fragmented headers like "Target Strain: 8-11" or meta instructions like "Structure required".
+2. CLARITY & BREVITY:
+   - Directly answer what the user asked.
+   - Start with a clear verdict ("You're in great shape today!", or "Your body needs rest today").
+   - Highlight 2-3 key relevant biometrics using **bold numbers** with units.
+   - Always conclude with a practical, personalized action or tip (preceded by 💡).
+   - Keep answers well-spaced with bullet points, around 4 to 8 lines.
 
-==================================================
-RÈGLE SUPRÊME : CONCISION RADICALE (QUE L'ESSENTIEL) :
-==================================================
-- L'utilisateur VEUT UNIQUEMENT L'ESSENTIEL. INTERDICTION FORMELLE DE FAIRE DES DISCOURS OU DU BAVARDAGE.
-- MAXIMUM 2 À 4 LIGNES AU TOTAL (30 à 60 mots max). Jamais de gros pavé.
-- ZÉRO phrase d'introduction creuse ("C'est une excellente question", "D'un point de vue physiologique...", "J'espère que tu vas bien").
-- Va DROIT AU BUT dès le 1er mot :
-  1. Verdict direct (1 courte phrase claire).
-  2. Les 1 ou 2 chiffres clés biométriques en gras (**74 ms**, **89/100**, **51 bpm**, etc.).
-  3. L'action concrète immédiate précédée de 💡 ou 🎯.
+CURRENT REAL-TIME BIOMETRICS (${dayName}, ${isToday ? 'Today' : 'Archive'}):
+• User: ${profile.firstName}, ${profile.age} yrs, ${profile.sex}, ${profile.weightKg} kg, ${profile.heightCm} cm.
+• Vitality / Recovery Score: ${dayData.score} / 100
+• Heart Rate Variability (HRV / RMSSD): ${dayData.hrv} ms (Baseline: ${dayData.hrvBaseline} ms)
+• Heart Rate: Resting ${dayData.restingBpm} bpm, 24h Average ${dayData.bpm} bpm
+• Sleep: ${sleepHours}h ${sleepRemainderMins}m (Score: ${dayData.sleep.score}/100, Deep: ${deepHours}h ${deepMins}m, REM: ${remHours}h ${remMins}m)
+• Body Energy: ${dayData.bodyEnergy} %
+• Skin Temp Deviation: ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta} °C
+• Blood Oxygen (SpO2): ${dayData.spo2 || 98} %
+• Recommended Exertion (Target Strain): ${strain.label} (${strain.min} to ${strain.max} / 21)
+• Activity: ${dayData.steps.toLocaleString()} steps, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal.`;
+  }
 
-==================================================
-PÉRIMÈTRE HEALTH & FITNESS & REFUS ULTRA-COURTS :
-==================================================
-- Tu traites EXCLUSIVEMENT la santé, le sport, la récupération, le sommeil et la nutrition sportive.
-- Si la question est hors sujet (devoir de français, maths, code, météo, culture générale) : REFUSE EN UNE SEULE PHRASE NETTE :
-  "Je gère uniquement ta santé, ton sommeil et ton sport avec la bague Vyta One. Pose-moi une question sur ta forme !"
-- Si salutation ("salut", "ça va") : Réponds en UNE SEULE phrase amicale et courte.
+  return `Tu es "Prism", le coach santé et bien-être intelligent de la bague connectée "Vyta One".
+Ton rôle est d'analyser les données biométriques réelles de l'utilisateur pour lui donner des réponses claires, chaleureuses, expertes et immédiatement compréhensibles.
 
-==================================================
+DIRECTIVES ESSENTIELLES :
+1. PARLE EN FRANÇAIS NATUREL, FLUIDE ET BIENVEILLANT :
+   - Parle comme un véritable coach personnel attentionné et compétent.
+   - Évite absolument le jargon cryptique ou les termes techniques en anglais non expliqués. 
+   - Ne réponds JAMAIS sous forme de bouts de phrases isolés ou de sigles bruts (ex: "Target Strain: 8-11" ou "Structure required"). Si tu mentionnes la charge d'entraînement, parle de "Niveau d'effort conseillé" ou "Capacité d'effort du jour".
+   - Si l'utilisateur te salue ou te demande des nouvelles ("salut", "comment ça va"), réponds amicalement et propose-lui de faire un point sur sa forme du jour.
+2. STRUCTURE CLAIRE ET DIGESTE :
+   - Réponds directement et précisément à la question posée.
+   - Commence par un verdict franc et rassurant (ex: "Oui ${profile.firstName}, ton corps est en très bonne forme aujourd'hui !").
+   - Mets en valeur 2 ou 3 biométries clés les plus pertinentes avec leurs chiffres **en gras** et une brève explication de ce que cela signifie pour son corps.
+   - Termine toujours par une recommandation concrète, pratique et adaptée (précédée de 💡).
+   - Utilise des listes à puces (•) pour aérer et rendre la lecture agréable (4 à 8 lignes au total).
+
 DONNÉES BIOMÉTRIQUES EN TEMPS RÉEL (${dayName}, ${isToday ? "Aujourd'hui" : "Archive"}) :
-==================================================
 • Utilisateur : ${profile.firstName}, ${profile.age} ans, sexe biologique ${profile.sex}, ${profile.weightKg} kg, ${profile.heightCm} cm.
-• Score de Vitalité / Récupération Globale : ${dayData.score} / 100
-• Variabilité Cardiaque VFC (RMSSD) : ${dayData.hrv} ms (Baseline personnelle : ${dayData.hrvBaseline} ms, écart : ${dayData.hrv - dayData.hrvBaseline >= 0 ? '+' : ''}${dayData.hrv - dayData.hrvBaseline} ms)
-• Fréquence Cardiaque : Repos nocturne ${dayData.restingBpm} bpm, Moyenne 24h ${dayData.bpm} bpm
-• Architecture du Sommeil :
-  - Score Sommeil : ${dayData.sleep.score} / 100 (${Math.floor((dayData.sleep.deepMin + dayData.sleep.remMin + dayData.sleep.lightMin) / 60)}h ${(dayData.sleep.deepMin + dayData.sleep.remMin + dayData.sleep.lightMin) % 60}m)
-  - Sommeil Profond : ${deepHours}h ${deepMins}m
-  - Sommeil Paradoxal (REM) : ${remHours}h ${remMins}m
-  - Sommeil Léger : ${Math.floor(dayData.sleep.lightMin / 60)}h ${dayData.sleep.lightMin % 60}m
-  - Éveils nocturnes : ${dayData.sleep.awakeMin} min
-• Batterie Corporelle (Body Energy) : ${dayData.bodyEnergy} %
-• Écart Thermique Cutané : ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta} °C (vs moyenne 0.0 °C)
-• Oxygénation Sanguine SpO2 : ${dayData.spo2 || 98} %
+• Score de Vitalité / Récupération Globale : ${dayData.score} / 100 (${dayData.score >= 75 ? 'Excellente récupération' : dayData.score >= 50 ? 'Récupération modérée' : 'Fatigue / Besoin de repos'})
+• Variabilité Cardiaque (VFC / RMSSD) : ${dayData.hrv} ms (Baseline habituelle : ${dayData.hrvBaseline} ms, écart : ${dayData.hrv - dayData.hrvBaseline >= 0 ? '+' : ''}${dayData.hrv - dayData.hrvBaseline} ms)
+• Fréquence Cardiaque : Repos nocturne ${dayData.restingBpm} bpm, Moyenne ${dayData.bpm} bpm
+• Sommeil de cette nuit : ${sleepHours}h ${sleepRemainderMins}m (Score : ${dayData.sleep.score}/100, dont ${deepHours}h ${deepMins}m de sommeil profond régénérateur et ${remHours}h ${remMins}m de paradoxal)
+• Énergie Corporelle (Body Energy) : ${dayData.bodyEnergy} % (Réserve disponible)
+• Température Cutanée : Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta} °C (vs moyenne habituelle)
+• Oxygénation Sanguine SpO2 : ${dayData.spo2 || 98} % (Saturation optimale)
 • Tension Artérielle Estimée : ${dayData.bloodPressure ? (dayData.bloodPressure.sbp + '/' + dayData.bloodPressure.dbp) : '118/78'} mmHg
-• Activité & Charge : ${dayData.steps.toLocaleString()} pas, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal
-• Target Strain Cible : ${strain.min} à ${strain.max} / 21 (Niveau : ${strain.label})
-${isFemale ? `• Physiologie Féminine : Suivi de cycle actif.` : ''}
-• Statut immunitaire : ${dayData.anomaly ? `Attention: variation thermique inhabituelle (${dayData.anomaly.tempDelta > 0 ? '+' : ''}${dayData.anomaly.tempDelta}°C) et baisse de VFC.` : 'Biomarqueurs stables, aucun signe inflammatoire.'}
-
-Réponds impérativement en ${isEn ? 'anglais' : 'français'}.`;
+• Activité du jour : ${dayData.steps.toLocaleString()} pas, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal
+• Niveau d'effort recommandé aujourd'hui : ${strain.label} (${strain.min} à ${strain.max} / 21)
+${isFemale ? `• Physiologie Féminine : Suivi du cycle hormonal actif.` : ''}
+• Statut immunitaire : ${dayData.anomaly ? `Attention: variation thermique inhabituelle (${dayData.anomaly.tempDelta > 0 ? '+' : ''}${dayData.anomaly.tempDelta}°C) et baisse de VFC.` : 'Biomarqueurs stables, système immunitaire au repos.'}
+${isZeroState ? `[Note : La bague vient d'être synchronisée, encourage l'utilisateur avec ses premières mesures.]` : ''}`;
 }
 
 /**
@@ -256,19 +279,20 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
   const fallbackList = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
     'gemini-3.7-flash',
     'gemini-3.8-flash',
-    'gemini-flash-latest',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
   ];
 
-  const sortedDynamic = dynamicModels.sort((a, b) => {
-    if (a.includes('3.5') && !b.includes('3.5')) return -1;
-    if (!a.includes('3.5') && b.includes('3.5')) return 1;
-    if (a.includes('flash') && !b.includes('flash')) return -1;
-    return 0;
-  });
+  const sortedDynamic = dynamicModels
+    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .sort((a, b) => {
+      if (a === 'gemini-3.5-flash') return -1;
+      if (b === 'gemini-3.5-flash') return 1;
+      if (a.includes('3.5') && !b.includes('3.5')) return -1;
+      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      return 0;
+    });
 
   const candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList]));
   let lastError = '';
@@ -286,8 +310,11 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
             parts: [{ text: systemInstruction }],
           },
           generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 220,
+            temperature: 0.5,
+            maxOutputTokens: 1200,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       });

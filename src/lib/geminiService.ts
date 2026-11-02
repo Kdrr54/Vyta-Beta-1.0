@@ -73,24 +73,24 @@ export async function testGeminiApiKey(apiKey: string): Promise<GeminiKeyTestRes
   // 1. Découverte dynamique des modèles sur le compte de l'utilisateur
   const dynamicModels = await fetchActiveGeminiModels(clean);
 
-  // 2. Modèles prioritaires (gemini-2.5-flash en premier comme demandé par Google)
+  // 2. Modèles prioritaires (gemini-3.5-flash en premier)
   const fallbackList = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-latest',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
   ];
 
-  const sortedDynamic = dynamicModels.sort((a, b) => {
-    if (a.includes('2.5') && !b.includes('2.5')) return -1;
-    if (!a.includes('2.5') && b.includes('2.5')) return 1;
-    if (a.includes('flash') && !b.includes('flash')) return -1;
-    if (!a.includes('flash') && b.includes('flash')) return 1;
-    return 0;
-  });
+  const sortedDynamic = dynamicModels
+    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .sort((a, b) => {
+      if (a === 'gemini-3.5-flash') return -1;
+      if (b === 'gemini-3.5-flash') return 1;
+      if (a.includes('3.5') && !b.includes('3.5')) return -1;
+      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      return 0;
+    });
 
   const models = Array.from(new Set([...sortedDynamic, ...fallbackList]));
 
@@ -102,15 +102,20 @@ export async function testGeminiApiKey(apiKey: string): Promise<GeminiKeyTestRes
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: 'Ping test. Reply: OK' }] }],
-          generationConfig: { maxOutputTokens: 10 },
+          generationConfig: {
+            maxOutputTokens: 60,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       });
 
       if (response.ok) {
-        const friendlyName = model.includes('2.5')
-          ? 'Gemini 2.5 Flash'
-          : model.includes('2.0')
-          ? 'Gemini 2.0 Flash'
+        const friendlyName = model.includes('3.5')
+          ? 'Gemini 3.5 Flash'
+          : model.includes('3.7')
+          ? 'Gemini 3.7 Flash'
+          : model.includes('3.8')
+          ? 'Gemini 3.8 Flash'
           : model.includes('pro')
           ? 'Gemini Pro'
           : 'Gemini Flash';
@@ -187,7 +192,7 @@ TÉLÉMÉTRIE BIOMÉTRIQUE RÉELLE DE L'UTILISATEUR (${dayName}) :
 • Profil : ${profile.firstName}, ${profile.age} ans, sexe biologique ${profile.sex}, ${profile.weightKg} kg, ${profile.heightCm} cm.
 • Date analysée : ${dayName} ${isToday ? "(Aujourd'hui - temps réel)" : "(Journée passée)"}
 • Score de Vitalité / Récupération : ${dayData.score} / 100
-• Target Strain Bevel Cible : ${strain.min} à ${strain.max} / 21 (Niveau : ${strain.label})
+• Target Strain Cible (Niveau d'effort recommandé) : ${strain.min} à ${strain.max} / 21 (Niveau : ${strain.label})
 • Body Energy (Batterie Corporelle) : ${dayData.bodyEnergy} % (démarré à ${dayData.bodyEnergyWake} % au réveil)
 • Variabilité Cardiaque VFC (RMSSD) : ${dayData.hrv} ms (Ligne de base : ${dayData.hrvBaseline} ms)
 • Fréquence Cardiaque : Repos ${dayData.restingBpm} bpm, Moyenne 24h ${dayData.bpm} bpm
@@ -262,22 +267,22 @@ export async function queryGeminiBiometricAI(ctx: BiometricPromptContext): Promi
   const dynamicModels = await fetchActiveGeminiModels(apiKey);
 
   const fallbackList = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-latest',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-pro',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-3.7-flash',
+    'gemini-3.8-flash',
   ];
 
-  const sortedDynamic = dynamicModels.sort((a, b) => {
-    if (a.includes('2.5') && !b.includes('2.5')) return -1;
-    if (!a.includes('2.5') && b.includes('2.5')) return 1;
-    if (a.includes('flash') && !b.includes('flash')) return -1;
-    if (!a.includes('flash') && b.includes('flash')) return 1;
-    return 0;
-  });
+  const sortedDynamic = dynamicModels
+    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .sort((a, b) => {
+      if (a === 'gemini-3.5-flash') return -1;
+      if (b === 'gemini-3.5-flash') return 1;
+      if (a.includes('3.5') && !b.includes('3.5')) return -1;
+      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      return 0;
+    });
 
   const candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList]));
 
@@ -298,8 +303,11 @@ export async function queryGeminiBiometricAI(ctx: BiometricPromptContext): Promi
             parts: [{ text: systemInstruction }],
           },
           generationConfig: {
-            temperature: 0.7,
+            temperature: 0.6,
             maxOutputTokens: 1200,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       });
