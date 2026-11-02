@@ -2138,7 +2138,9 @@ class QRingBleService {
           const c1 = dataView.getUint8(13);
           const c2 = dataView.getUint8(14);
           const rawCal = (c0 << 16) | (c1 << 8) | c2;
-          const cal = rawCal > 5000 ? Math.round(rawCal / 1000) : rawCal;
+          // Le firmware QRing envoie les calories en petites calories (cal). 1 kcal = 1000 cal.
+          // Ex: 103 pas = 3438 cal = 3 kcal
+          const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
 
           if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
             console.log('[QRing BLE] Cmd 0x07 (sub-packet 0) Big-Endian activity: steps:', steps, 'kcal:', cal);
@@ -2196,7 +2198,8 @@ class QRingBleService {
         const c1 = dataView.getUint8(8);
         const c2 = dataView.getUint8(9);
         const rawCal = (c0 << 16) | (c1 << 8) | c2;
-        const cal = rawCal > 5000 ? Math.round(rawCal / 1000) : rawCal;
+        // Le firmware QRing envoie les calories en petites calories (cal). 1 kcal = 1000 cal.
+        const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
 
         const d0 = dataView.getUint8(10);
         const d1 = dataView.getUint8(11);

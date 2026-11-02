@@ -406,71 +406,30 @@ export const HealthScreen: React.FC = () => {
       )}
 
       {/* =====================================================================
-          4. SECTION HEADER: "Mon activité (5)" & Bouton Synchroniser Bague
+          4. SECTION HEADER: "Mon activité" (Centré)
           ===================================================================== */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '2px 4px 0 4px',
+          justifyContent: 'center',
+          padding: '4px 0',
           marginTop: '6px',
           marginBottom: '2px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-          <h2
-            style={{
-              fontSize: '17px',
-              fontWeight: 500,
-              color: '#FAF7F2',
-              margin: 0,
-              letterSpacing: '-0.25px',
-            }}
-          >
-            {language === 'fr' ? 'Mon activité' : 'My activity'}
-          </h2>
-          <span
-            style={{
-              fontSize: '11px',
-              color: 'rgba(250, 247, 242, 0.45)',
-              fontFamily: 'var(--font-mono, monospace)',
-            }}
-          >
-            (6)
-          </span>
-        </div>
-
-        {/* Bouton Synchroniser direct et accessible */}
-        <button
-          type="button"
-          onClick={handleSyncRing}
-          disabled={isSyncingRing}
-          aria-label={language === 'fr' ? 'Synchroniser les données de la bague' : 'Sync ring data'}
+        <h2
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '5px 12px',
-            borderRadius: '16px',
-            background: ring.isConnected ? 'rgba(217, 249, 112, 0.12)' : 'rgba(255, 255, 255, 0.08)',
-            border: ring.isConnected ? '1px solid rgba(217, 249, 112, 0.35)' : '1px solid rgba(255, 255, 255, 0.15)',
-            color: ring.isConnected ? '#D9F970' : 'rgba(250, 247, 242, 0.7)',
-            fontSize: '12px',
+            fontSize: '17px',
             fontWeight: 500,
-            cursor: isSyncingRing ? 'wait' : 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            color: '#FAF7F2',
+            margin: 0,
+            letterSpacing: '-0.25px',
+            textAlign: 'center',
           }}
         >
-          <RefreshCw
-            size={12}
-            style={{
-              animation: isSyncingRing ? 'spin 1s linear infinite' : 'none',
-              transformOrigin: 'center',
-            }}
-          />
-          <span>{isSyncingRing ? (language === 'fr' ? 'Synchronisation...' : 'Syncing...') : (language === 'fr' ? 'Synchroniser' : 'Sync')}</span>
-        </button>
+          {language === 'fr' ? 'Mon activité' : 'My activity'}
+        </h2>
       </div>
 
       {/* =====================================================================

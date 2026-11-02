@@ -508,7 +508,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.steps = safeSteps;
-          if (data.calories && data.calories > 0) cur.activeKcal = data.calories;
+          if (data.calories !== undefined && data.calories > 0) {
+            const safeKcal = data.calories > 1500 && safeSteps < 10000 ? Math.round(data.calories / 1000) : data.calories;
+            cur.activeKcal = safeKcal > 0 ? safeKcal : Math.max(1, Math.round(safeSteps * 0.04));
+          } else if (safeSteps > 0 && (!cur.activeKcal || cur.activeKcal === 0 || cur.activeKcal > 1500)) {
+            cur.activeKcal = Math.max(1, Math.round(safeSteps * 0.04));
+          }
           if (data.distanceKm && data.distanceKm > 0) cur.distanceKm = data.distanceKm;
           if (cur.pillars) {
             cur.pillars = {
@@ -712,6 +717,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     updated.bodyEnergy = updated.score;
                   }
                 }
+              }
+              // Correction automatique des calories aberrantes (ex: 3438 cal enregistrées au lieu de 3 ou 4 kcal pour 103 pas)
+              if (updated.activeKcal && ((updated.activeKcal > 1000 && (updated.steps || 0) < 10000) || updated.activeKcal > (updated.steps || 0) * 0.5)) {
+                updated.activeKcal = Math.round(updated.activeKcal / 1000) || Math.max(1, Math.round((updated.steps || 0) * 0.04));
+              }
+              if ((!updated.activeKcal || updated.activeKcal === 0) && updated.steps && updated.steps > 0) {
+                updated.activeKcal = Math.max(1, Math.round(updated.steps * 0.04));
               }
               // Fréquence respiratoire nocturne calculée par arythmie sinusale respiratoire (RSA)
               if ((!updated.resp || updated.resp === 0) && (updated.hrv > 0 || updated.bpm > 0 || (updated.restingBpm && updated.restingBpm > 0))) {
