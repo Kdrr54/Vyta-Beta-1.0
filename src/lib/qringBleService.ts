@@ -1275,16 +1275,16 @@ class QRingBleService {
   }
 
   /**
-   * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25 & 0x74, 0 LEDs)
+   * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25, 0 LEDs)
    */
   public async requestTemperatureData(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x74 / 0x25)...');
+    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25)...');
     await this.writeBytes(this.makePacket(0x3A, [0x03, 0x02, 0x01]));
     await new Promise((r) => setTimeout(r, 120));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
-      await this.writeBigDataBytes([0xBC, 0x74, 0x02, 0x00, 0xFF, 0xFF, 0x00, 0x00]);
-      await new Promise((r) => setTimeout(r, 250));
       await this.writeBigDataBytes([0xBC, 0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
+    } else {
+      await this.writeBytes(this.makePacket(0xBC, [0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
     }
     return true;
   }
@@ -1461,7 +1461,7 @@ class QRingBleService {
       chunk[0] === 0xBC &&
       chunk.length >= 6 &&
       (this.bigDataBuffer.length === 0 ||
-        [0x27, 0x2A, 0x5F, 0x25, 0x26, 0x74].includes(chunk[1]))
+        [0x27, 0x2A, 0x5F, 0x25].includes(chunk[1]))
     ) {
       // If a previous packet was sitting in buffer, flush it before starting the new 0xBC header
       if (this.bigDataBuffer.length >= 7) {
@@ -1699,51 +1699,34 @@ class QRingBleService {
       return;
     }
 
-    // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25, 0x26, 0x74)
-    if (dataId === 0x25 || dataId === 0x26 || dataId === 0x74) {
+    // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25) — Gadgetbridge Yawell verbatim
+    if (dataId === 0x25) {
       const now = new Date();
       const currentHalfSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       let latestTemp = 0;
       const tempLog: number[] = new Array(48).fill(0);
-      if (dataId === 0x25) {
-        let idx = 6;
-        while (idx - 6 < payloadLen && idx < bytes.length) {
-          const daysAgo = bytes[idx++] & 0xFF;
-          if (idx >= bytes.length) break;
-          idx++; // interval marker 0x1e
-          for (let h = 0; h < 24 && idx - 6 < payloadLen && idx < bytes.length; h++) {
-            for (let half = 0; half < 2 && idx - 6 < payloadLen && idx < bytes.length; half++) {
-              const raw = bytes[idx++] & 0xFF;
-              const slotIdx = h * 2 + half;
-              if (daysAgo === 0 && slotIdx > currentHalfSlot) {
-                continue; // Verrou temporel : pas de relevé dans le futur
-              }
+      let idx = 6;
+      while (idx - 6 < payloadLen && idx < bytes.length) {
+        const daysAgo = bytes[idx++] & 0xFF;
+        if (idx >= bytes.length) break;
+        idx++; // interval marker 0x1e
+        for (let h = 0; h < 24 && idx - 6 < payloadLen && idx < bytes.length; h++) {
+          for (let half = 0; half < 2 && idx - 6 < payloadLen && idx < bytes.length; half++) {
+            const raw = bytes[idx++] & 0xFF;
+            const slotIdx = h * 2 + half;
+            // Pour aujourd'hui (daysAgo === 0), enregistrer uniquement les créneaux réels jusqu'à l'heure courante
+            if (daysAgo === 0 && slotIdx <= currentHalfSlot) {
               if (raw >= 100 && raw <= 220) {
                 const t = Math.round((raw / 10 + 20) * 10) / 10;
                 if (t >= 30 && t <= 42) {
                   latestTemp = t;
-                  if (daysAgo === 0) {
-                    tempLog[slotIdx] = t;
-                  }
+                  tempLog[slotIdx] = t;
                 }
               }
             }
           }
-          if (daysAgo === 0) break;
         }
-      } else {
-        let slot = 0;
-        for (let i = 10; i + 1 < bytes.length && slot < 48; i += 2) {
-          if (slot > currentHalfSlot) break; // Verrou temporel : pas de créneau futur
-          const le = bytes[i] | (bytes[i + 1] << 8);
-          const t = le / 10;
-          if (t >= 30 && t <= 42) {
-            const rounded = Math.round(t * 10) / 10;
-            latestTemp = rounded;
-            tempLog[slot] = rounded;
-          }
-          slot++;
-        }
+        if (daysAgo === 0) break;
       }
       if (latestTemp >= 30 && latestTemp <= 42) {
         console.log('[QRing BLE] Parsed BigData Skin Temperature:', latestTemp, '°C', tempLog.filter((v) => v > 0).length, 'slots');
@@ -1803,7 +1786,7 @@ class QRingBleService {
       await this.requestStressLog();
       await new Promise((r) => setTimeout(r, 450));
 
-      // 8. Stored Skin Temperature logs (BigData 0xBC 0x74 / 0x25 flash memory only, 0 LEDs)
+      // 8. Stored Skin Temperature logs (BigData 0xBC 0x25 flash memory only, 0 LEDs)
       await this.requestTemperatureData();
       await new Promise((r) => setTimeout(r, 350));
 
