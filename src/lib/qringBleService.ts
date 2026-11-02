@@ -1230,7 +1230,7 @@ class QRingBleService {
   }
 
   /**
-   * Request stored SpO2 history via Big Data protocol (0xBC 0x2A & 0x5F, 0 LEDs)
+   * Request stored SpO2 history via Big Data protocol (0xBC 0x2A, 0 LEDs)
    */
   public async requestSpo2Data(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored SpO2 history from ring memory (BigData 0xBC 0x2A, 0 LEDs)...');
@@ -1241,9 +1241,6 @@ class QRingBleService {
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       // Gadgetbridge YawellRingDeviceSupport verbatim: { 0xBC, 0x2A, 0x01, 0x00, 0xFF, 0x00, 0xFF }
       await this.writeBigDataBytes([0xBC, 0x2A, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
-      await new Promise((r) => setTimeout(r, 350));
-      // Also query interval SpO2 (0x5F) if supported by newer firmware
-      await this.writeBigDataBytes([0xBC, 0x5F, 0x02, 0x00, 0xFF, 0xFF, 0x00, 0x00]);
     } else {
       await this.writeBytes(this.makePacket(0xBC, [0x2A, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
     }
@@ -1461,7 +1458,7 @@ class QRingBleService {
       chunk[0] === 0xBC &&
       chunk.length >= 6 &&
       (this.bigDataBuffer.length === 0 ||
-        [0x27, 0x2A, 0x5F, 0x25].includes(chunk[1]))
+        [0x27, 0x2A, 0x25].includes(chunk[1]))
     ) {
       // If a previous packet was sitting in buffer, flush it before starting the new 0xBC header
       if (this.bigDataBuffer.length >= 7) {
@@ -1633,8 +1630,8 @@ class QRingBleService {
       return;
     }
 
-    // 2. SPO2 HISTORY (dataId = 0x2A / 42 or 0x5F / 95) — Gadgetbridge YawellRingPacketHandler.historicalSpo2 verbatim
-    if (dataId === 0x2A || dataId === 0x5F) {
+    // 2. SPO2 HISTORY (dataId = 0x2A) — Gadgetbridge YawellRingPacketHandler.historicalSpo2 verbatim
+    if (dataId === 0x2A) {
       const now = new Date();
       const currentHalfSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
       const spo2Log: number[] = new Array(48).fill(0);
@@ -1642,46 +1639,29 @@ class QRingBleService {
       let minSpo2 = 101;
       let maxSpo2 = 0;
 
-      if (dataId === 0x5F) {
-        let slot = 0;
-        for (let i = 10; i < bytes.length && slot < 48; i++) {
-          if (slot > currentHalfSlot) break; // Verrou temporel : pas de créneau futur pour aujourd'hui
-          const v = bytes[i] & 0xFF;
-          if (v >= 70 && v <= 100) {
-            latestSpo2 = v;
-            if (v < minSpo2) minSpo2 = v;
-            if (v > maxSpo2) maxSpo2 = v;
-            spo2Log[slot] = v;
-          }
-          slot++;
-        }
-      } else {
-        let index = 6;
-        while (index - 6 < payloadLen && index < bytes.length) {
-          const daysAgo = bytes[index++] & 0xFF;
-          for (let hour = 0; hour < 24 && index + 1 < bytes.length && index - 6 < payloadLen; hour++) {
-            const sMin = bytes[index++] & 0xFF;
-            const sMax = bytes[index++] & 0xFF;
-            if (sMin >= 70 && sMin <= 100 && sMax >= 70 && sMax <= 100) {
-              const pct = Math.round((sMin + sMax) / 2);
-              const hourHalfSlot = hour * 2;
-              if (daysAgo === 0 && hourHalfSlot <= currentHalfSlot) {
-                latestSpo2 = pct;
-                if (sMin < minSpo2) minSpo2 = sMin;
-                if (sMax > maxSpo2) maxSpo2 = sMax;
-                spo2Log[hourHalfSlot] = pct;
-                // Populer aussi le créneau de 30 min pour l'heure mesurée si écoulé
-                const halfSlot = hour * 2 + 1;
-                if (halfSlot <= currentHalfSlot) {
-                  spo2Log[halfSlot] = pct;
-                }
-              } else if (latestSpo2 === 0) {
-                latestSpo2 = pct;
+      let index = 6;
+      while (index - 6 < payloadLen && index < bytes.length) {
+        const daysAgo = bytes[index++] & 0xFF;
+        for (let hour = 0; hour < 24 && index + 1 < bytes.length && index - 6 < payloadLen; hour++) {
+          const sMin = bytes[index++] & 0xFF;
+          const sMax = bytes[index++] & 0xFF;
+          if (sMin >= 70 && sMin <= 100 && sMax >= 70 && sMax <= 100) {
+            const pct = Math.round((sMin + sMax) / 2);
+            const hourHalfSlot = hour * 2;
+            if (daysAgo === 0 && hourHalfSlot <= currentHalfSlot) {
+              latestSpo2 = pct;
+              if (sMin < minSpo2) minSpo2 = sMin;
+              if (sMax > maxSpo2) maxSpo2 = sMax;
+              spo2Log[hourHalfSlot] = pct;
+              // Populer aussi le créneau de 30 min pour l'heure mesurée si écoulé
+              const halfSlot = hour * 2 + 1;
+              if (halfSlot <= currentHalfSlot) {
+                spo2Log[halfSlot] = pct;
               }
             }
           }
-          if (daysAgo === 0) break;
         }
+        if (daysAgo === 0) break;
       }
 
       if (latestSpo2 >= 70 && latestSpo2 <= 100) {

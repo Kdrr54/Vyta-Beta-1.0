@@ -427,6 +427,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const [countdown, setCountdown] = useState(20);
   const [measureFeedback, setMeasureFeedback] = useState<string | null>(null);
 
+  const [liveSpo2, setLiveSpo2] = useState<number | null>(null);
+  const liveSpo2Ref = useRef(liveSpo2);
+  liveSpo2Ref.current = liveSpo2;
+
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
 
@@ -449,41 +453,78 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const handleStopMeasure = useCallback((completed = false) => {
     setIsMeasuring(false);
     setCountdown(20);
-    qringBle.stopRealTimeHeartRate();
+    if (metricId === 'bpm') {
+      qringBle.stopRealTimeHeartRate();
+    } else if (metricId === 'spo2') {
+      qringBle.stopRealTimeBloodOxygen();
+    }
 
     const finalBpm = liveBpmRef.current;
+    const finalSpo2 = liveSpo2Ref.current;
     if (completed) {
-      if (finalBpm > 35) {
-        setMeasureFeedback(language === 'fr' ? `✓ ${finalBpm} BPM mesuré et enregistré` : `✓ ${finalBpm} BPM measured & saved`);
-        setTimeout(() => setMeasureFeedback(null), 4500);
-        setWeekData((prev) => {
-          const next = [...prev];
-          const idx = Math.min(6, Math.max(0, modalDay));
-          const cur = { ...(next[idx] || {}) } as DayMetrics;
-          cur.bpm = finalBpm;
-          const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
-          const now = new Date();
-          const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
-          prevLog[curHalf] = finalBpm;
-          cur.hrLog = prevLog;
-          cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
-          cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
-          if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
-          next[idx] = cur;
-          try {
-            localStorage.setItem('vyta_week_data', JSON.stringify(next));
-          } catch (_) {}
-          return next;
-        });
-      } else {
-        setMeasureFeedback(language === 'fr' ? 'Pouls non détecté (gardez la bague bien serrée au doigt)' : 'No pulse detected (keep ring snug on finger)');
-        setTimeout(() => setMeasureFeedback(null), 4500);
+      if (metricId === 'bpm') {
+        if (finalBpm > 35) {
+          setMeasureFeedback(language === 'fr' ? `✓ ${finalBpm} BPM mesuré et enregistré` : `✓ ${finalBpm} BPM measured & saved`);
+          setTimeout(() => setMeasureFeedback(null), 4500);
+          setWeekData((prev) => {
+            const next = [...prev];
+            const idx = Math.min(6, Math.max(0, modalDay));
+            const cur = { ...(next[idx] || {}) } as DayMetrics;
+            cur.bpm = finalBpm;
+            const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
+            const now = new Date();
+            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+            prevLog[curHalf] = finalBpm;
+            cur.hrLog = prevLog;
+            cur.minBpm = cur.minBpm && cur.minBpm > 0 ? Math.min(cur.minBpm, finalBpm) : finalBpm;
+            cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
+            if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
+            next[idx] = cur;
+            try {
+              localStorage.setItem('vyta_week_data', JSON.stringify(next));
+            } catch (_) {}
+            return next;
+          });
+        } else {
+          setMeasureFeedback(language === 'fr' ? 'Pouls non détecté (gardez la bague bien serrée au doigt)' : 'No pulse detected (keep ring snug on finger)');
+          setTimeout(() => setMeasureFeedback(null), 4500);
+        }
+      } else if (metricId === 'spo2') {
+        if (finalSpo2 && finalSpo2 >= 70 && finalSpo2 <= 100) {
+          setMeasureFeedback(language === 'fr' ? `✓ ${finalSpo2}% SpO2 mesuré et enregistré` : `✓ ${finalSpo2}% SpO2 measured & saved`);
+          setTimeout(() => setMeasureFeedback(null), 4500);
+          setWeekData((prev) => {
+            const next = [...prev];
+            const idx = Math.min(6, Math.max(0, modalDay));
+            const cur = { ...(next[idx] || {}) } as DayMetrics;
+            cur.spo2 = finalSpo2;
+            const prevLog = Array.isArray(cur.spo2Log) && cur.spo2Log.length === 48 ? [...cur.spo2Log] : new Array(48).fill(0);
+            const now = new Date();
+            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+            prevLog[curHalf] = finalSpo2;
+            if (curHalf % 2 === 0 && curHalf + 1 < 48) {
+              prevLog[curHalf + 1] = finalSpo2;
+            }
+            cur.spo2Log = prevLog;
+            cur.spo2Min = cur.spo2Min && cur.spo2Min > 0 ? Math.min(cur.spo2Min, finalSpo2) : finalSpo2;
+            cur.spo2Max = cur.spo2Max && cur.spo2Max > 0 ? Math.max(cur.spo2Max, finalSpo2) : finalSpo2;
+            next[idx] = cur;
+            try {
+              localStorage.setItem('vyta_week_data', JSON.stringify(next));
+            } catch (_) {}
+            return next;
+          });
+        } else {
+          setMeasureFeedback(language === 'fr' ? 'Signal SpO2 faible (restez parfaitement immobile)' : 'Weak SpO2 signal (remain perfectly still)');
+          setTimeout(() => setMeasureFeedback(null), 4500);
+        }
       }
     }
-  }, [language, modalDay, setWeekData]);
+  }, [language, modalDay, metricId, setWeekData]);
 
   const handleStartMeasure = () => {
-    setLiveBpm(0);
+    if (metricId === 'bpm') setLiveBpm(0);
+    if (metricId === 'spo2') setLiveSpo2(null);
     setCountdown(20);
     setIsMeasuring(true);
   };
@@ -511,6 +552,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return 0;
     }
     if (metricId === 'spo2') {
+      if (modalDay === TODAY_INDEX && isMeasuring && liveSpo2) return liveSpo2;
       return dayData?.spo2 || 0;
     }
     if (metricId === 'resp') {
@@ -523,18 +565,29 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.glucose?.valueMmol || 0;
     }
     return 0;
-  }, [metricId, modalDay, dayData, isMeasuring, liveBpm]);
+  }, [metricId, modalDay, dayData, isMeasuring, liveBpm, liveSpo2]);
 
   useEffect(() => {
-    if (!isMeasuring || metricId !== 'bpm') return;
+    if (!isMeasuring) return;
+    if (metricId !== 'bpm' && metricId !== 'spo2') return;
 
     const unsubscribe = qringBle.subscribe((data) => {
-      if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
-        setLiveBpm(data.heartRate);
+      if (metricId === 'bpm') {
+        if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
+          setLiveBpm(data.heartRate);
+        }
+      } else if (metricId === 'spo2') {
+        if (data.spo2 && data.spo2 >= 70 && data.spo2 <= 100) {
+          setLiveSpo2(data.spo2);
+        }
       }
     });
 
-    qringBle.startRealTimeHeartRate();
+    if (metricId === 'bpm') {
+      qringBle.startRealTimeHeartRate();
+    } else if (metricId === 'spo2') {
+      qringBle.startRealTimeBloodOxygen();
+    }
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -549,7 +602,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     return () => {
       clearInterval(timer);
       unsubscribe();
-      qringBle.stopRealTimeHeartRate();
+      if (metricId === 'bpm') {
+        qringBle.stopRealTimeHeartRate();
+      } else if (metricId === 'spo2') {
+        qringBle.stopRealTimeBloodOxygen();
+      }
     };
   }, [isMeasuring, metricId, handleStopMeasure, setLiveBpm]);
 
@@ -858,12 +915,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         return slots;
       }
 
-      // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C)
+      // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C) sans journal 48 créneaux
+      // L'écart thermique nocturne n'est capté que pendant la période de sommeil (00:00 - 08:00)
       if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
         const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-        for (let i = 0; i <= currentSlotToday; i++) {
+        for (let i = 0; i <= Math.min(16, currentSlotToday); i++) {
           const hour = i / 2;
-          const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
+          const circadianShift = -0.14 * Math.cos(((hour - 4) / 8) * Math.PI);
           slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
           slots[i].isMeasured = true;
         }
@@ -1023,6 +1081,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           : '--')
       : metricId === 'bpm' && modalDay === TODAY_INDEX && isMeasuring && liveBpm
       ? liveBpm
+      : metricId === 'spo2' && modalDay === TODAY_INDEX && isMeasuring && liveSpo2
+      ? liveSpo2
       : metricId === 'bp'
       ? (dayData?.bloodPressure && dayData.bloodPressure.sbp > 0 ? `${dayData.bloodPressure.sbp}/${dayData.bloodPressure.dbp}` : '--/--')
       : metricId === 'temp'
@@ -1524,99 +1584,113 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   )}
                 </svg>
               </div>
+            </div>
+          )}
 
-              {/* Bouton de mesure optique en direct 20 secondes si Fréquence Cardiaque aujourd'hui */}
-              {modalDay === TODAY_INDEX && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
-                  {isMeasuring ? (
-                    <button
-                      type="button"
-                      onClick={handleToggleMeasure}
+          {/* Bouton de mesure optique en direct 20 secondes si Fréquence Cardiaque ou SpO2 aujourd'hui */}
+          {modalDay === TODAY_INDEX && (metricId === 'bpm' || metricId === 'spo2') && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 6px 0', gap: '6px' }}>
+              {isMeasuring ? (
+                <button
+                  type="button"
+                  onClick={handleToggleMeasure}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 14px',
+                    borderRadius: '999px',
+                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.22)' : 'rgba(217, 70, 239, 0.22)',
+                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.65)' : 'rgba(217, 70, 239, 0.65)'}`,
+                    color: '#FAF7F2',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    boxShadow: `0 0 14px ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : 'rgba(217, 70, 239, 0.45)'}`,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '7px',
+                      height: '7px',
+                      borderRadius: '50%',
+                      backgroundColor: metricId === 'bpm' ? '#FF453A' : '#D946EF',
+                      animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
+                    }}
+                  />
+                  <span style={{ color: metricId === 'bpm' ? '#FF5A52' : '#F0ABFC', fontFamily: 'var(--font-mono)' }}>
+                    {metricId === 'bpm' && liveBpm ? `${liveBpm} BPM • ` : ''}
+                    {metricId === 'spo2' && liveSpo2 ? `${liveSpo2}% • ` : ''}
+                    {countdown}s
+                  </span>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.8)' }}>
+                    {language === 'fr' ? 'Arrêter' : 'Stop'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleToggleMeasure}
+                  title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 14px',
+                    borderRadius: '999px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#FAF7F2',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    outline: 'none',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                    transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                >
+                  {metricId === 'bpm' ? (
+                    <Heart
+                      size={12}
+                      color="#FF453A"
+                      fill="#FF453A"
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '5px 14px',
-                        borderRadius: '999px',
-                        background: 'rgba(255, 69, 58, 0.22)',
-                        border: '1px solid rgba(255, 69, 58, 0.65)',
-                        color: '#FAF7F2',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        outline: 'none',
-                        boxShadow: '0 0 14px rgba(255, 69, 58, 0.45)',
+                        filter: 'drop-shadow(0 0 4px rgba(255, 69, 58, 0.6))',
+                        animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
                       }}
-                    >
-                      <span
-                        style={{
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          backgroundColor: '#FF453A',
-                          animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
-                        }}
-                      />
-                      <span style={{ color: '#FF5A52', fontFamily: 'var(--font-mono)' }}>{countdown}s</span>
-                      <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.8)' }}>
-                        {language === 'fr' ? 'Arrêter' : 'Stop'}
-                      </span>
-                    </button>
+                    />
                   ) : (
-                    <button
-                      type="button"
-                      onClick={handleToggleMeasure}
-                      title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+                    <Droplets
+                      size={12}
+                      color="#D946EF"
+                      fill="#D946EF"
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '5px 14px',
-                        borderRadius: '999px',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        color: '#FAF7F2',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        outline: 'none',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        filter: 'drop-shadow(0 0 4px rgba(217, 70, 239, 0.6))',
+                        animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
                       }}
-                    >
-                      <Heart
-                        size={12}
-                        color="#FF453A"
-                        fill="#FF453A"
-                        style={{
-                          filter: 'drop-shadow(0 0 4px rgba(255, 69, 58, 0.6))',
-                          animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
-                        }}
-                      />
-                      <span>{language === 'fr' ? 'Mesurer en direct (20s)' : 'Live Measure (20s)'}</span>
-                    </button>
+                    />
                   )}
-                </div>
+                  <span>{language === 'fr' ? 'Mesurer en direct (20s)' : 'Live Measure (20s)'}</span>
+                </button>
               )}
 
-              {modalDay === TODAY_INDEX && measureFeedback && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
-                  <div
-                    style={{
-                      padding: '4px 12px',
-                      borderRadius: '999px',
-                      background: 'rgba(255, 69, 58, 0.16)',
-                      border: '1px solid rgba(255, 69, 58, 0.45)',
-                      color: '#FF5A52',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {measureFeedback}
-                  </div>
+              {measureFeedback && (
+                <div
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '999px',
+                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.16)' : 'rgba(217, 70, 239, 0.16)',
+                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : 'rgba(217, 70, 239, 0.45)'}`,
+                    color: metricId === 'bpm' ? '#FF5A52' : '#F0ABFC',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
+                  {measureFeedback}
                 </div>
               )}
             </div>
