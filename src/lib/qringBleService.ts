@@ -1512,6 +1512,10 @@ class QRingBleService {
       const daysInPacket = bytes[6] & 0xFF;
       let index = 7;
 
+      interface StageItem {
+        type: number;
+        minutes: number;
+      }
       interface SleepDayRecord {
         daysAgo: number;
         normStart: number;
@@ -1520,12 +1524,14 @@ class QRingBleService {
         deepMin: number;
         remMin: number;
         awakeMin: number;
+        stages: StageItem[];
       }
       const records: SleepDayRecord[] = [];
 
       for (let i = 0; i < daysInPacket && index + 6 <= bytes.length; i++) {
         const daysAgo = bytes[index++] & 0xFF;
         const dayBytes = bytes[index++] & 0xFF;
+        const recordStart = index;
         const sleepStart = bytes[index] | (bytes[index + 1] << 8);
         index += 2;
         const sleepEnd = bytes[index] | (bytes[index + 1] << 8);
@@ -1538,19 +1544,22 @@ class QRingBleService {
         let deepMin = 0;
         let remMin = 0;
         let awakeMin = 0;
+        const stages: StageItem[] = [];
 
         for (let j = 4; j < dayBytes && index + 1 < bytes.length; j += 2) {
           const stageType = bytes[index++] & 0xFF;
           const stageMinutes = bytes[index++] & 0xFF;
           if (stageMinutes > 0) {
+            stages.push({ type: stageType, minutes: stageMinutes });
             if (stageType === 0x02) lightMin += stageMinutes;
             else if (stageType === 0x03) deepMin += stageMinutes;
             else if (stageType === 0x04) remMin += stageMinutes;
             else if (stageType === 0x05) awakeMin += stageMinutes;
           }
         }
+        index = Math.max(index, recordStart + dayBytes);
 
-        records.push({ daysAgo, normStart, normEnd, lightMin, deepMin, remMin, awakeMin });
+        records.push({ daysAgo, normStart, normEnd, lightMin, deepMin, remMin, awakeMin, stages });
       }
 
       if (records.length === 0) return;
@@ -1561,22 +1570,66 @@ class QRingBleService {
       const uniqueDaysAgo = Array.from(new Set(records.map((r) => r.daysAgo)));
       for (const dAgo of uniqueDaysAgo) {
         const dayBlocks = records.filter((r) => r.daysAgo === dAgo);
-        let totalLight = dayBlocks.reduce((s, b) => s + b.lightMin, 0);
+        dayBlocks.sort((a, b) => a.normStart - b.normStart);
+
+        const totalLight = dayBlocks.reduce((s, b) => s + b.lightMin, 0);
         const totalDeep = dayBlocks.reduce((s, b) => s + b.deepMin, 0);
         const totalRem = dayBlocks.reduce((s, b) => s + b.remMin, 0);
-        const totalAwake = dayBlocks.reduce((s, b) => s + b.awakeMin, 0);
+        let totalAwake = dayBlocks.reduce((s, b) => s + b.awakeMin, 0);
 
-        const earliestStart = Math.min(...dayBlocks.map((b) => b.normStart));
-        const latestEnd = Math.max(...dayBlocks.map((b) => b.normEnd));
-        const spanMin = latestEnd - earliestStart;
-        const stageSum = totalLight + totalDeep + totalRem + totalAwake;
+        const earliestStart = dayBlocks[0].normStart;
+        const lastBlock = dayBlocks[dayBlocks.length - 1];
 
-        // Correction du réveil : si les stades physiques de sommeil se sont arrêtés (stageSum),
-        // le réveil réel a eu lieu à (earliestStart + stageSum). L'écart entre latestEnd et la fin des stades
-        // correspond au moment où l'utilisateur s'est levé avant d'ouvrir l'app / de synchroniser la bague.
-        const hasStages = stageSum >= 60;
-        const finalTotalMin = hasStages ? stageSum : (spanMin >= 60 && spanMin <= 960 ? spanMin : stageSum);
-        const realEndNorm = hasStages ? earliestStart + stageSum : latestEnd;
+        // Détection fine du réveil physiologique réel :
+        // 1. Détecter les éventuels stades d'éveil terminaux (0x05) à la fin du dernier bloc
+        //    (quand l'utilisateur est réveillé mais que la bague continue d'enregistrer jusqu'à la synchronisation app)
+        let trailingAwakeMin = 0;
+        if (lastBlock.stages.length > 0) {
+          for (let k = lastBlock.stages.length - 1; k >= 0; k--) {
+            if (lastBlock.stages[k].type === 0x05) {
+              trailingAwakeMin += lastBlock.stages[k].minutes;
+            } else {
+              break;
+            }
+          }
+        }
+
+        const lastBlockStageSum = lastBlock.lightMin + lastBlock.deepMin + lastBlock.remMin + lastBlock.awakeMin;
+        const totalStageSum = totalLight + totalDeep + totalRem + totalAwake;
+        const hasStages = totalStageSum >= 60;
+
+        let realEndNorm: number;
+        if (hasStages) {
+          if (lastBlock.stages.length > 0) {
+            // Le réveil physiologique a eu lieu à la fin du dernier stade de sommeil physique (profond/rem/léger),
+            // juste avant les stades d'éveil terminaux (trailingAwakeMin).
+            realEndNorm = lastBlock.normStart + (lastBlockStageSum - trailingAwakeMin);
+          } else {
+            realEndNorm = earliestStart + (totalStageSum - trailingAwakeMin);
+          }
+          // L'éveil terminal après réveil n'est pas un micro-réveil nocturne
+          totalAwake = Math.max(0, totalAwake - trailingAwakeMin);
+        } else {
+          const spanMin = lastBlock.normEnd - earliestStart;
+          realEndNorm = spanMin >= 60 && spanMin <= 960 ? lastBlock.normEnd : earliestStart + 480;
+        }
+
+        // Si pour aujourd'hui l'heure de fin calculée coïncide avec l'heure exacte de connexion de l'app (maintenant)
+        // alors que la durée réelle de sommeil indique un réveil antérieur :
+        if (dAgo === 0) {
+          const now = new Date();
+          const nowMin = now.getHours() * 60 + now.getMinutes();
+          const clockEnd = ((realEndNorm % 1440) + 1440) % 1440;
+          const physioSleepMin = totalDeep + totalRem + totalLight + totalAwake;
+          if (Math.abs(clockEnd - nowMin) <= 3 && physioSleepMin >= 60 && (earliestStart + physioSleepMin) < nowMin - 10) {
+            console.log(`[QRing BLE] Sleep end was dragged to app sync time (${clockEnd} min). Corrected to physiological wake-up: ${earliestStart + physioSleepMin} min`);
+            realEndNorm = earliestStart + physioSleepMin;
+          }
+        }
+
+        const finalTotalMin = hasStages
+          ? (totalLight + totalDeep + totalRem + totalAwake)
+          : Math.min(960, Math.max(60, realEndNorm - earliestStart));
 
         if (finalTotalMin >= 60 && finalTotalMin <= 960) {
           const startClockMin = ((earliestStart % 1440) + 1440) % 1440;

@@ -886,10 +886,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       }
 
       // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C) sans journal 48 créneaux
-      // L'écart thermique nocturne n'est capté que pendant la période de sommeil (00:00 - 08:00)
+      // L'écart thermique nocturne n'est capté que pendant la période de sommeil
       if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
         const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-        for (let i = 0; i <= Math.min(16, currentSlotToday); i++) {
+        const endSlot = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0 ? Math.min(47, Math.floor(dayData.sleep.endMin / 30)) : 16;
+        for (let i = 0; i <= Math.min(endSlot, currentSlotToday); i++) {
           const hour = i / 2;
           const circadianShift = -0.14 * Math.cos(((hour - 4) / 8) * Math.PI);
           slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
@@ -903,13 +904,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
     // Si des données biométriques réelles sont enregistrées pour cette journée
     // Fréquence respiratoire : 48 créneaux sur 24h
-    // Fréquence respiratoire : exclusivement nocturne (sommeil 00:00 - 07:30)
+    // Fréquence respiratoire : exclusivement nocturne (durant le sommeil jusqu'au réveil)
     if (metricId === 'resp' && dayData?.resp && dayData.resp > 0) {
       const baseR = dayData.resp;
+      const sleepEndHour = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0 ? dayData.sleep.endMin / 60 : 7.5;
       for (let i = 0; i < 48; i++) {
         const hour = i / 2;
-        if (i <= currentSlotToday && hour >= 0 && hour <= 7.5) {
-          const circ = -0.8 * Math.cos(((hour - 3.5) / 7.5) * Math.PI);
+        if (i <= currentSlotToday && hour >= 0 && hour <= sleepEndHour) {
+          const circ = -0.8 * Math.cos(((hour - (sleepEndHour / 2)) / sleepEndHour) * Math.PI);
           slots[i].value = parseFloat((baseR + circ).toFixed(1));
           slots[i].isMeasured = true;
           slots[i].info = isEn ? 'Nocturnal sleep reading' : 'Mesure nocturne (sommeil)';
@@ -2162,8 +2164,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 }}
               >
                 {isEn
-                  ? "Smart rings track respiratory rate via Respiratory Sinus Arrhythmia (RSA) during deep physiological stillness. Daytime hand motion naturally prevents reliable optical breath detection, so tracking stops at wake-up (after 07:30)."
-                  : "Les bagues connectées mesurent la fréquence respiratoire par arythmie sinusale respiratoire (RSA) au repos absolu. En journée, les mouvements des mains empêchent la détection optique : l'enregistrement s'arrête donc naturellement au réveil (après 07h30)."}
+                  ? "Smart rings track respiratory rate via Respiratory Sinus Arrhythmia (RSA) during deep physiological stillness. Daytime hand motion naturally prevents reliable optical breath detection, so tracking stops at wake-up."
+                  : "Les bagues connectées mesurent la fréquence respiratoire par arythmie sinusale respiratoire (RSA) au repos absolu. En journée, les mouvements des mains empêchent la détection optique : l'enregistrement s'arrête donc naturellement au réveil."}
               </div>
             </div>
           </div>

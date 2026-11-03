@@ -601,6 +601,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             (data.sleepRemMin !== undefined && data.sleepRemMin > 0) ||
             (data.sleepLightMin !== undefined && data.sleepLightMin > 0);
           const sleepScore = data.sleepScore || Math.min(99, Math.round((totalMin / 480) * 90));
+
+          let startMin = data.sleepStartMin ?? cur.sleep?.startMin;
+          let endMin = data.sleepEndMin ?? cur.sleep?.endMin;
+
+          // Détection et correction si l'heure de fin a été étirée jusqu'à l'heure exacte d'ouverture de l'app
+          if (idx === TODAY_INDEX && startMin !== undefined && totalMin > 0) {
+            const expectedEnd = (startMin + totalMin) % 1440;
+            const now = new Date();
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            if (endMin !== undefined && Math.abs(endMin - nowMin) <= 3 && expectedEnd < nowMin - 10) {
+              console.log(`[AppContext] Corrected sleep end dragged to app sync time (${endMin} min -> ${expectedEnd} min)`);
+              endMin = expectedEnd;
+            }
+          }
+
+          if (endMin === undefined && startMin !== undefined && totalMin > 0) {
+            endMin = (startMin + totalMin) % 1440;
+          }
+          if (startMin === undefined && endMin !== undefined && totalMin > 0) {
+            startMin = (endMin - totalMin + 1440) % 1440;
+          }
+
           cur.sleep = hasStages
             ? {
                 score: sleepScore,
@@ -608,8 +630,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 remMin: data.sleepRemMin || 0,
                 lightMin: data.sleepLightMin || 0,
                 awakeMin: data.sleepAwakeMin || 0,
-                startMin: data.sleepStartMin ?? cur.sleep?.startMin,
-                endMin: data.sleepEndMin ?? cur.sleep?.endMin,
+                startMin,
+                endMin,
               }
             : {
                 score: sleepScore,
@@ -617,8 +639,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 remMin: cur.sleep?.remMin || 0,
                 lightMin: totalMin - (cur.sleep?.deepMin || 0) - (cur.sleep?.remMin || 0) - (cur.sleep?.awakeMin || 0),
                 awakeMin: cur.sleep?.awakeMin || 0,
-                startMin: data.sleepStartMin ?? cur.sleep?.startMin,
-                endMin: data.sleepEndMin ?? cur.sleep?.endMin,
+                startMin,
+                endMin,
               };
           if (cur.pillars) {
             cur.pillars = {
@@ -749,6 +771,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   updated.bodyEnergyWake = 0;
                   if (updated.bodyEnergy && updated.score > 0) {
                     updated.bodyEnergy = updated.score;
+                  }
+                } else if (updated.sleep && updated.sleep.startMin !== undefined && updated.sleep.endMin !== undefined) {
+                  // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
+                  const sMin = updated.sleep.startMin;
+                  const eMin = updated.sleep.endMin;
+                  const totStages = (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0);
+                  if (totStages >= 60) {
+                    const expectedE = (sMin + totStages) % 1440;
+                    if (eMin > expectedE && (eMin - expectedE >= 15 && eMin - expectedE <= 240)) {
+                      updated.sleep.endMin = expectedE;
+                    }
                   }
                 }
               }
