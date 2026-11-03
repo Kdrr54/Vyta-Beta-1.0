@@ -903,22 +903,26 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     // Si des données biométriques réelles sont enregistrées pour cette journée
-    // Fréquence respiratoire : 48 créneaux sur 24h
-    // Fréquence respiratoire : exclusivement nocturne (durant le sommeil jusqu'au réveil)
+    // Fréquence respiratoire : exclusivement nocturne et siestes (repos absolu)
     if (metricId === 'resp' && dayData?.resp && dayData.resp > 0) {
       const baseR = dayData.resp;
       const sleepEndHour = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0 ? dayData.sleep.endMin / 60 : 7.5;
       for (let i = 0; i < 48; i++) {
         const hour = i / 2;
-        if (i <= currentSlotToday && hour >= 0 && hour <= sleepEndHour) {
+        const inNap = dayData?.naps?.some(
+          (nap) => hour >= nap.startMin / 60 && hour <= nap.endMin / 60
+        );
+        if (i <= currentSlotToday && ((hour >= 0 && hour <= sleepEndHour) || inNap)) {
           const circ = -0.8 * Math.cos(((hour - (sleepEndHour / 2)) / sleepEndHour) * Math.PI);
           slots[i].value = parseFloat((baseR + circ).toFixed(1));
           slots[i].isMeasured = true;
-          slots[i].info = isEn ? 'Nocturnal sleep reading' : 'Mesure nocturne (sommeil)';
+          slots[i].info = inNap
+            ? (isEn ? 'Restful nap reading' : 'Mesure sieste (repos)')
+            : (isEn ? 'Nocturnal sleep reading' : 'Mesure nocturne (sommeil)');
         } else {
           slots[i].value = 0;
           slots[i].isMeasured = false;
-          slots[i].info = isEn ? 'Awake (Sleep only)' : 'Éveil (Sommeil uniquement)';
+          slots[i].info = isEn ? 'Awake (Sleep only)' : 'Éveil (Sommeil & siestes uniquement)';
         }
       }
       return slots;
@@ -2164,8 +2168,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 }}
               >
                 {isEn
-                  ? "Smart rings track respiratory rate via Respiratory Sinus Arrhythmia (RSA) during deep physiological stillness. Daytime hand motion naturally prevents reliable optical breath detection, so tracking stops at wake-up."
-                  : "Les bagues connectées mesurent la fréquence respiratoire par arythmie sinusale respiratoire (RSA) au repos absolu. En journée, les mouvements des mains empêchent la détection optique : l'enregistrement s'arrête donc naturellement au réveil."}
+                  ? "Smart rings track respiratory rate via Respiratory Sinus Arrhythmia (RSA) during sleep and restful naps. During active wakefulness, hand movement naturally prevents optical breath detection, so tracking focuses on sleep periods."
+                  : "Les bagues connectées mesurent la fréquence respiratoire par arythmie sinusale respiratoire (RSA) durant le sommeil et les siestes. En éveil actif, les mouvements des mains empêchent la détection optique : l'enregistrement se concentre donc sur vos plages de repos."}
               </div>
             </div>
           </div>

@@ -34,6 +34,19 @@ export interface SleepSummary {
   endMin?: number;
 }
 
+export interface NapRecord {
+  id: string;
+  startMin: number; // Minute dans la journée (0-1439, ex: 850 pour 14h10)
+  endMin: number;   // Minute dans la journée (ex: 885 pour 14h45)
+  durationMin: number; // Durée en minutes (ex: 35)
+  deepMin: number;
+  lightMin: number;
+  remMin?: number;
+  score: number;       // Score de récupération (ex: 85/100)
+  energyBonus: number; // Gain en % de Body Energy (ex: +8%)
+  source: 'ring' | 'manual';
+}
+
 export interface DayMetrics {
   score: number;
   pillars: { sleep: number; recovery: number; activity: number };
@@ -61,6 +74,7 @@ export interface DayMetrics {
   spo2Log?: number[];
   anomaly: { tempDelta: number; hrvDelta: number } | null;
   sleep: SleepSummary;
+  naps?: NapRecord[];
   stress?: number;
   stressAvg?: number;
   stressMin?: number;

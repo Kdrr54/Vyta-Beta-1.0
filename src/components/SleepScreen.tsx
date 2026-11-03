@@ -15,15 +15,24 @@ import {
   ShieldCheck,
   ChevronRight,
   Info,
+  Sun,
+  Plus,
+  Trash2,
+  X,
 } from 'lucide-react';
 
 export const SleepScreen: React.FC = () => {
-  const { selectedDay, language, openMetricDetail, weekData, isFirstLaunch } = useApp();
+  const { selectedDay, language, openMetricDetail, weekData, isFirstLaunch, addManualNap, deleteNap } = useApp();
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
   const sleep = dayData.sleep;
+  const naps = dayData.naps || [];
+  const totalNapMin = naps.reduce((sum, n) => sum + n.durationMin, 0);
 
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [hoverBlockIndex, setHoverBlockIndex] = useState<number | null>(null);
+  const [isAddNapModalOpen, setIsAddNapModalOpen] = useState<boolean>(false);
+  const [napStartStr, setNapStartStr] = useState<string>('14:00');
+  const [napEndStr, setNapEndStr] = useState<string>('14:35');
 
   const isEn = language === 'en';
 
@@ -313,7 +322,189 @@ export const SleepScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. INTERACTIVE HYPNOGRAM TIMELINE (LE TRACÉ DES CYCLES DE NUIT) */}
+      {/* 3. SIESTES & RÉCUPÉRATION DIURNE (NAPS) */}
+      {naps.length > 0 ? (
+        <div
+          style={{
+            background: 'radial-gradient(ellipse at top left, rgba(251, 146, 60, 0.14) 0%, rgba(18, 18, 22, 0.88) 70%), #0D0D12',
+            border: '1px solid rgba(251, 146, 60, 0.32)',
+            borderRadius: '24px',
+            padding: '16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(251, 146, 60, 0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  background: 'rgba(251, 146, 60, 0.22)',
+                  border: '1px solid rgba(251, 146, 60, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Sun size={13} color="#FB923C" />
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
+                {isEn ? 'Restful Naps' : 'Siestes & Récupération'}
+              </span>
+              <span
+                style={{
+                  fontSize: '9.5px',
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: '12px',
+                  background: 'rgba(251, 146, 60, 0.2)',
+                  color: '#FB923C',
+                  border: '1px solid rgba(251, 146, 60, 0.35)',
+                }}
+              >
+                {naps.length} {naps.length > 1 ? (isEn ? 'naps' : 'siestes') : (isEn ? 'sieste' : 'sieste')}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAddNapModalOpen(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: '14px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#FAF7F2',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={12} color="#FAF7F2" />
+              <span>{isEn ? 'Add' : 'Ajouter'}</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {naps.map((nap) => {
+              const startStr = fmtClockMin(nap.startMin);
+              const endStr = fmtClockMin(nap.endMin);
+              return (
+                <div
+                  key={nap.id}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: '#FAF7F2' }}>
+                        {fmtDuration(nap.durationMin)}
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                        ({startStr} – {endStr})
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          background: nap.source === 'ring' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.1)',
+                          color: nap.source === 'ring' ? '#30D158' : '#8E8E93',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {nap.source === 'ring' ? (isEn ? 'Ring' : 'Bague') : (isEn ? 'Manual' : 'Manuel')}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px', color: 'rgba(250, 247, 242, 0.7)' }}>
+                      <span>{isEn ? 'Deep:' : 'Profond:'} <strong style={{ color: '#818CF8' }}>{nap.deepMin}m</strong></span>
+                      <span>•</span>
+                      <span>{isEn ? 'Light:' : 'Léger:'} <strong style={{ color: '#67E8F9' }}>{nap.lightMin}m</strong></span>
+                      <span>•</span>
+                      <span style={{ color: '#FB923C', fontWeight: 700 }}>+{nap.energyBonus}% Energy</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteNap(nap.id)}
+                    style={{
+                      background: 'rgba(255, 59, 48, 0.1)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#FF453A',
+                      cursor: 'pointer',
+                      padding: '6px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    title={isEn ? 'Delete this nap' : 'Supprimer cette sieste'}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            background: 'rgba(18, 18, 22, 0.6)',
+            border: '1px dashed rgba(251, 146, 60, 0.28)',
+            borderRadius: '20px',
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'background 150ms ease',
+          }}
+          onClick={() => setIsAddNapModalOpen(true)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: 'rgba(251, 146, 60, 0.18)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Sun size={13} color="#FB923C" />
+            </span>
+            <div>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2', display: 'block' }}>
+                {isEn ? 'Log a Restful Nap' : 'Ajouter une sieste réparatrice'}
+              </span>
+              <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
+                {isEn ? '20-30 min nap recharges your Body Energy' : 'Une pause de 20-30 min recharge votre Body Energy'}
+              </span>
+            </div>
+          </div>
+          <Plus size={15} color="#FB923C" />
+        </div>
+      )}
+
+      {/* 4. INTERACTIVE HYPNOGRAM TIMELINE (LE TRACÉ DES CYCLES DE NUIT) */}
       <div
         style={{
           background: 'rgba(18, 18, 22, 0.78)',
@@ -861,6 +1052,155 @@ export const SleepScreen: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {/* MODAL AJOUTER UNE SIESTE MANUELLE */}
+      {isAddNapModalOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setIsAddNapModalOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            zIndex: 1200,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            className="modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '430px',
+              background: '#14141A',
+              borderTop: '1px solid rgba(251, 146, 60, 0.4)',
+              borderRadius: '28px 28px 0 0',
+              padding: '22px 20px 36px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.8)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sun size={18} color="#FB923C" />
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#FAF7F2' }}>
+                  {isEn ? 'Log a Restful Nap' : 'Enregistrer une sieste'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddNapModalOpen(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#FAF7F2',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', margin: 0, lineHeight: 1.4 }}>
+              {isEn
+                ? 'Indicate when you rested. This will calibrate your daytime recovery and boost your Body Energy score.'
+                : 'Indiquez votre créneau de repos. La sieste sera intégrée à votre score de récupération et rechargera votre Body Energy.'}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  {isEn ? 'Start Time' : 'Début'}
+                </label>
+                <input
+                  type="time"
+                  value={napStartStr}
+                  onChange={(e) => setNapStartStr(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '12px',
+                    color: '#FFF',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    padding: '10px',
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  {isEn ? 'End Time' : 'Fin'}
+                </label>
+                <input
+                  type="time"
+                  value={napEndStr}
+                  onChange={(e) => setNapEndStr(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '12px',
+                    color: '#FFF',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    padding: '10px',
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const [sH, sM] = napStartStr.split(':').map((v) => parseInt(v, 10));
+                const [eH, eM] = napEndStr.split(':').map((v) => parseInt(v, 10));
+                const startMin = (isNaN(sH) ? 14 : sH) * 60 + (isNaN(sM) ? 0 : sM);
+                const endMin = (isNaN(eH) ? 14 : eH) * 60 + (isNaN(eM) ? 35 : eM);
+                addManualNap({ startMin, endMin });
+                setIsAddNapModalOpen(false);
+              }}
+              style={{
+                width: '100%',
+                height: '46px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #FB923C 0%, #EA580C 100%)',
+                border: 'none',
+                color: '#FFF',
+                fontSize: '14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 16px rgba(251, 146, 60, 0.4)',
+                marginTop: '6px',
+              }}
+            >
+              <Sun size={16} color="#FFF" />
+              <span>{isEn ? 'Save Restful Nap' : 'Enregistrer la sieste'}</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

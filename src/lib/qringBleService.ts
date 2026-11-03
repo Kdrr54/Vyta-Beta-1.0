@@ -26,6 +26,7 @@
 
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
+import { NapRecord } from '../types';
 
 // QRing Primary Vendor Service (Used by all QRing / Colmi R02 / QCWireless hardware)
 export const QRING_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
@@ -74,6 +75,7 @@ export interface BleRingData {
   sleepScore?: number;
   sleepStartMin?: number;
   sleepEndMin?: number;
+  naps?: NapRecord[];
   spo2?: number;
   spo2Min?: number;
   spo2Max?: number;
@@ -1574,110 +1576,166 @@ class QRingBleService {
         const dayBlocks = records.filter((r) => r.daysAgo === dAgo);
         dayBlocks.sort((a, b) => a.normStart - b.normStart);
 
-        const totalLight = dayBlocks.reduce((s, b) => s + b.lightMin, 0);
-        const totalDeep = dayBlocks.reduce((s, b) => s + b.deepMin, 0);
-        const totalRem = dayBlocks.reduce((s, b) => s + b.remMin, 0);
-        let totalAwake = dayBlocks.reduce((s, b) => s + b.awakeMin, 0);
+        // Partitionnement intelligent : Sommeil nocturne principal vs Siestes de jour (Naps)
+        // Les siestes ont lieu en journée (08:30 - 20:00) avec une durée typique de 15 à 180 min.
+        // Elles ne doivent jamais écraser ni décaler les heures de coucher et de réveil du sommeil de nuit !
+        const napBlocks: SleepDayRecord[] = [];
+        const nightBlocks: SleepDayRecord[] = [];
 
-        const earliestStart = dayBlocks[0].normStart;
-        const lastBlock = dayBlocks[dayBlocks.length - 1];
-
-        // Détection fine du réveil physiologique réel :
-        // 1. Détecter les éventuels stades d'éveil terminaux (0x05) à la fin du dernier bloc
-        //    (quand l'utilisateur est réveillé mais que la bague continue d'enregistrer jusqu'à la synchronisation app)
-        let trailingAwakeMin = 0;
-        if (lastBlock.stages.length > 0) {
-          for (let k = lastBlock.stages.length - 1; k >= 0; k--) {
-            if (lastBlock.stages[k].type === 0x05) {
-              trailingAwakeMin += lastBlock.stages[k].minutes;
+        if (dayBlocks.length > 1) {
+          const maxDur = Math.max(...dayBlocks.map((b) => (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart)));
+          for (const b of dayBlocks) {
+            const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
+            const clockStart = ((b.normStart % 1440) + 1440) % 1440;
+            const isDaytime = clockStart >= 510 && clockStart <= 1200; // 08:30 à 20:00
+            if (isDaytime && dur <= 180 && dur < maxDur) {
+              napBlocks.push(b);
             } else {
-              break;
+              nightBlocks.push(b);
             }
           }
-        }
-
-        const lastBlockStageSum = lastBlock.lightMin + lastBlock.deepMin + lastBlock.remMin + lastBlock.awakeMin;
-        const totalStageSum = totalLight + totalDeep + totalRem + totalAwake;
-        const hasStages = totalStageSum >= 60;
-
-        let realEndNorm: number;
-        if (hasStages) {
-          if (lastBlock.stages.length > 0) {
-            // Le réveil physiologique a eu lieu à la fin du dernier stade de sommeil physique (profond/rem/léger),
-            // juste avant les stades d'éveil terminaux (trailingAwakeMin).
-            realEndNorm = lastBlock.normStart + (lastBlockStageSum - trailingAwakeMin);
+        } else if (dayBlocks.length === 1) {
+          const b = dayBlocks[0];
+          const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
+          const clockStart = ((b.normStart % 1440) + 1440) % 1440;
+          const isDaytime = clockStart >= 510 && clockStart <= 1200; // 08:30 à 20:00
+          if (isDaytime && dur <= 180 && dur >= 15) {
+            napBlocks.push(b);
           } else {
-            realEndNorm = earliestStart + (totalStageSum - trailingAwakeMin);
-          }
-          // L'éveil terminal après réveil n'est pas un micro-réveil nocturne
-          totalAwake = Math.max(0, totalAwake - trailingAwakeMin);
-        } else {
-          const spanMin = lastBlock.normEnd - earliestStart;
-          realEndNorm = spanMin >= 60 && spanMin <= 960 ? lastBlock.normEnd : earliestStart + 480;
-        }
-
-        // Si pour aujourd'hui l'heure de fin calculée coïncide avec l'heure exacte de connexion de l'app (maintenant)
-        // alors que la durée réelle de sommeil indique un réveil antérieur :
-        if (dAgo === 0) {
-          const now = new Date();
-          const nowMin = now.getHours() * 60 + now.getMinutes();
-          const clockEnd = ((realEndNorm % 1440) + 1440) % 1440;
-          const physioSleepMin = totalDeep + totalRem + totalLight + totalAwake;
-          if (Math.abs(clockEnd - nowMin) <= 3 && physioSleepMin >= 60 && (earliestStart + physioSleepMin) < nowMin - 10) {
-            console.log(`[QRing BLE] Sleep end was dragged to app sync time (${clockEnd} min). Corrected to physiological wake-up: ${earliestStart + physioSleepMin} min`);
-            realEndNorm = earliestStart + physioSleepMin;
+            nightBlocks.push(b);
           }
         }
 
-        const finalTotalMin = hasStages
-          ? (totalLight + totalDeep + totalRem + totalAwake)
-          : Math.min(960, Math.max(60, realEndNorm - earliestStart));
+        // 1. EXTRACTION DES SIESTES DU JOUR
+        const dayNaps: NapRecord[] = napBlocks.map((nap, nIdx) => {
+          const dur = Math.max(15, (nap.lightMin + nap.deepMin + nap.remMin + nap.awakeMin) || (nap.normEnd - nap.normStart));
+          const startClockMin = ((nap.normStart % 1440) + 1440) % 1440;
+          const endClockMin = ((nap.normEnd % 1440) + 1440) % 1440;
+          const energyBonus = Math.min(15, Math.max(5, Math.round(dur / 4)));
+          const napScore = Math.min(100, Math.round((dur / 45) * 85 + (nap.deepMin / dur) * 15));
+          return {
+            id: `nap-${dAgo}-${startClockMin}-${nIdx}`,
+            startMin: startClockMin,
+            endMin: endClockMin,
+            durationMin: dur,
+            deepMin: nap.deepMin,
+            lightMin: nap.lightMin,
+            remMin: nap.remMin,
+            score: napScore,
+            energyBonus,
+            source: 'ring',
+          };
+        });
 
-        if (finalTotalMin >= 60 && finalTotalMin <= 960) {
-          const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
-          const endClockMin = ((realEndNorm % 1440) + 1440) % 1440;
+        // 2. ANALYSE DU SOMMEIL NOCTURNE PRINCIPAL (s'il existe)
+        if (nightBlocks.length > 0) {
+          const totalLight = nightBlocks.reduce((s, b) => s + b.lightMin, 0);
+          const totalDeep = nightBlocks.reduce((s, b) => s + b.deepMin, 0);
+          const totalRem = nightBlocks.reduce((s, b) => s + b.remMin, 0);
+          let totalAwake = nightBlocks.reduce((s, b) => s + b.awakeMin, 0);
 
-          // Verrou temporel strict pour AUJOURD'HUI (dAgo === 0) :
-          // L'heure de réveil ne peut pas être dans le futur par rapport à l'heure courante
+          const earliestStart = nightBlocks[0].normStart;
+          const lastBlock = nightBlocks[nightBlocks.length - 1];
+
+          // Détection fine du réveil physiologique réel :
+          // Détecter les éventuels stades d'éveil terminaux (0x05) à la fin du dernier bloc
+          let trailingAwakeMin = 0;
+          if (lastBlock.stages.length > 0) {
+            for (let k = lastBlock.stages.length - 1; k >= 0; k--) {
+              if (lastBlock.stages[k].type === 0x05) {
+                trailingAwakeMin += lastBlock.stages[k].minutes;
+              } else {
+                break;
+              }
+            }
+          }
+
+          const lastBlockStageSum = lastBlock.lightMin + lastBlock.deepMin + lastBlock.remMin + lastBlock.awakeMin;
+          const totalStageSum = totalLight + totalDeep + totalRem + totalAwake;
+          const hasStages = totalStageSum >= 60;
+
+          let realEndNorm: number;
+          if (hasStages) {
+            if (lastBlock.stages.length > 0) {
+              realEndNorm = lastBlock.normStart + (lastBlockStageSum - trailingAwakeMin);
+            } else {
+              realEndNorm = earliestStart + (totalStageSum - trailingAwakeMin);
+            }
+            totalAwake = Math.max(0, totalAwake - trailingAwakeMin);
+          } else {
+            const spanMin = lastBlock.normEnd - earliestStart;
+            realEndNorm = spanMin >= 60 && spanMin <= 960 ? lastBlock.normEnd : earliestStart + 480;
+          }
+
+          // Si pour aujourd'hui l'heure de fin calculée coïncide avec l'heure exacte de connexion de l'app (maintenant)
+          // alors que la durée réelle de sommeil indique un réveil antérieur :
           if (dAgo === 0) {
             const now = new Date();
             const nowMin = now.getHours() * 60 + now.getMinutes();
-            if (endClockMin > nowMin && (realEndNorm > 0 || nowMin < 720)) {
-              console.warn(
-                `[QRing BLE] Sleep end (${endClockMin} min) is in the future compared to now (${nowMin} min). Ignored for today.`
-              );
-              continue;
+            const clockEnd = ((realEndNorm % 1440) + 1440) % 1440;
+            const physioSleepMin = totalDeep + totalRem + totalLight + totalAwake;
+            if (Math.abs(clockEnd - nowMin) <= 3 && physioSleepMin >= 60 && (earliestStart + physioSleepMin) < nowMin - 10) {
+              console.log(`[QRing BLE] Sleep end was dragged to app sync time (${clockEnd} min). Corrected to physiological wake-up: ${earliestStart + physioSleepMin} min`);
+              realEndNorm = earliestStart + physioSleepMin;
             }
-            this.hasBigDataSleepToday = true;
           }
 
-          const sleepHours = parseFloat((finalTotalMin / 60).toFixed(4));
-          // Calcul du score de qualité de sommeil d'après durée réelle & efficacité
-          const durationScore = Math.min(100, Math.round((finalTotalMin / 480) * 100));
-          const effRatio = finalTotalMin > 0 ? (finalTotalMin - totalAwake) / finalTotalMin : 1;
-          const deepRemRatio = finalTotalMin > 0 ? (totalDeep + totalRem) / finalTotalMin : 0.4;
-          const sleepScore = Math.min(
-            99,
-            Math.max(
-              50,
-              Math.round(durationScore * 0.55 + effRatio * 100 * 0.3 + Math.min(100, deepRemRatio * 200) * 0.15)
-            )
-          );
+          const finalTotalMin = hasStages
+            ? (totalLight + totalDeep + totalRem + totalAwake)
+            : Math.min(960, Math.max(60, realEndNorm - earliestStart));
 
-          console.log(
-            `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${dAgo}, blocks=${dayBlocks.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), deep=${totalDeep}, rem=${totalRem}, light=${totalLight}, awake=${totalAwake}, score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
-          );
+          if (finalTotalMin >= 60 && finalTotalMin <= 960) {
+            const startClockMin = ((earliestStart % 1440) + 1440) % 1440;
+            const endClockMin = ((realEndNorm % 1440) + 1440) % 1440;
 
+            if (dAgo === 0) {
+              const now = new Date();
+              const nowMin = now.getHours() * 60 + now.getMinutes();
+              if (endClockMin > nowMin && (realEndNorm > 0 || nowMin < 720)) {
+                console.warn(
+                  `[QRing BLE] Sleep end (${endClockMin} min) is in the future compared to now (${nowMin} min). Ignored for today.`
+                );
+                continue;
+              }
+              this.hasBigDataSleepToday = true;
+            }
+
+            const sleepHours = parseFloat((finalTotalMin / 60).toFixed(4));
+            const durationScore = Math.min(100, Math.round((finalTotalMin / 480) * 100));
+            const effRatio = finalTotalMin > 0 ? (finalTotalMin - totalAwake) / finalTotalMin : 1;
+            const deepRemRatio = finalTotalMin > 0 ? (totalDeep + totalRem) / finalTotalMin : 0.4;
+            const sleepScore = Math.min(
+              99,
+              Math.max(
+                50,
+                Math.round(durationScore * 0.55 + effRatio * 100 * 0.3 + Math.min(100, deepRemRatio * 200) * 0.15)
+              )
+            );
+
+            console.log(
+              `[QRing BLE] Parsed BigData 0x27 Sleep (daysAgo=${dAgo}, nightBlocks=${nightBlocks.length}, naps=${dayNaps.length}): total=${finalTotalMin}min (${Math.floor(finalTotalMin / 60)}h${String(finalTotalMin % 60).padStart(2, '0')}m), score=${sleepScore}, start=${startClockMin}, end=${endClockMin}`
+            );
+
+            this.notify({
+              daysAgo: dAgo,
+              sleepHours,
+              sleepDeepMin: totalDeep,
+              sleepRemMin: totalRem,
+              sleepLightMin: totalLight,
+              sleepAwakeMin: totalAwake,
+              sleepScore,
+              sleepStartMin: startClockMin,
+              sleepEndMin: endClockMin,
+              naps: dayNaps,
+              isConnected: true,
+            });
+          }
+        } else if (dayNaps.length > 0) {
+          // Journée avec uniquement une sieste détectée (bague non portée la nuit)
+          console.log(`[QRing BLE] Parsed BigData 0x27 Day Nap only (daysAgo=${dAgo}, naps=${dayNaps.length})`);
           this.notify({
             daysAgo: dAgo,
-            sleepHours,
-            sleepDeepMin: totalDeep,
-            sleepRemMin: totalRem,
-            sleepLightMin: totalLight,
-            sleepAwakeMin: totalAwake,
-            sleepScore,
-            sleepStartMin: startClockMin,
-            sleepEndMin: endClockMin,
+            naps: dayNaps,
             isConnected: true,
           });
         }

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption } from '../types';
-import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
-import { DayMetrics } from '../types';
+import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
+import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
 
@@ -55,6 +54,8 @@ interface AppContextType {
   isLiveRunningViewOpen: boolean;
   setIsLiveRunningViewOpen: (open: boolean) => void;
   resetToFactory: () => void;
+  addManualNap: (nap: { startMin: number; endMin: number; deepMin?: number; lightMin?: number }) => void;
+  deleteNap: (napId: string) => void;
   weekData: DayMetrics[];
   setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
 }
@@ -647,6 +648,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               cur.bodyEnergy = cur.score;
             }
           }
+          if (data.naps && Array.isArray(data.naps)) {
+            cur.naps = data.naps;
+            const totalNapBonus = data.naps.reduce((sum, n) => sum + (n.energyBonus || 0), 0);
+            if (totalNapBonus > 0 && cur.bodyEnergy) {
+              cur.bodyEnergy = Math.min(100, Math.round(cur.bodyEnergy + totalNapBonus));
+            }
+          }
+          next[idx] = cur;
+          try {
+            localStorage.setItem('vyta_week_data', JSON.stringify(next));
+          } catch (_) {}
+          return next;
+        });
+      }
+      if (data.naps && Array.isArray(data.naps) && data.sleepHours === undefined) {
+        setWeekData((prev) => {
+          const next = [...prev];
+          const dAgo = data.daysAgo ?? 0;
+          const idx = Math.max(0, Math.min(6, TODAY_INDEX - dAgo));
+          const cur = { ...(next[idx] || {}) } as DayMetrics;
+          cur.naps = data.naps!;
+          const totalNapBonus = data.naps!.reduce((sum, n) => sum + (n.energyBonus || 0), 0);
+          if (totalNapBonus > 0 && cur.bodyEnergy) {
+            cur.bodyEnergy = Math.min(100, Math.round(cur.bodyEnergy + totalNapBonus));
+          }
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -893,6 +919,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  const addManualNap = useCallback((napInput: { startMin: number; endMin: number; deepMin?: number; lightMin?: number }) => {
+    setWeekData((prev) => {
+      const next = [...prev];
+      const cur = { ...(next[selectedDay] || emptyDayMetrics) };
+      const curNaps = [...(cur.naps || [])];
+      const dur = napInput.endMin >= napInput.startMin
+        ? napInput.endMin - napInput.startMin
+        : (napInput.endMin + 1440) - napInput.startMin;
+      const cleanDur = Math.max(10, dur);
+      const deep = napInput.deepMin !== undefined ? napInput.deepMin : Math.round(cleanDur * 0.3);
+      const light = napInput.lightMin !== undefined ? napInput.lightMin : cleanDur - deep;
+      const energyBonus = Math.min(15, Math.max(5, Math.round(cleanDur / 4)));
+      const score = Math.min(100, Math.round((cleanDur / 45) * 85 + (deep / cleanDur) * 15));
+
+      const newNap: NapRecord = {
+        id: `manual-nap-${Date.now()}`,
+        startMin: napInput.startMin,
+        endMin: napInput.endMin,
+        durationMin: cleanDur,
+        deepMin: deep,
+        lightMin: light,
+        score,
+        energyBonus,
+        source: 'manual',
+      };
+
+      curNaps.push(newNap);
+      cur.naps = curNaps;
+      if (cur.bodyEnergy) {
+        cur.bodyEnergy = Math.min(100, cur.bodyEnergy + energyBonus);
+      }
+      next[selectedDay] = cur;
+      try {
+        localStorage.setItem('vyta_week_data', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+  }, [selectedDay]);
+
+  const deleteNap = useCallback((napId: string) => {
+    setWeekData((prev) => {
+      const next = [...prev];
+      const cur = { ...(next[selectedDay] || emptyDayMetrics) };
+      if (!cur.naps) return prev;
+      cur.naps = cur.naps.filter((n) => n.id !== napId);
+      next[selectedDay] = cur;
+      try {
+        localStorage.setItem('vyta_week_data', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+  }, [selectedDay]);
+
   return (
     <AppContext.Provider
       value={{
@@ -945,6 +1024,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLiveRunningViewOpen,
         setIsLiveRunningViewOpen,
         resetToFactory,
+        addManualNap,
+        deleteNap,
         weekData,
         setWeekData,
       }}

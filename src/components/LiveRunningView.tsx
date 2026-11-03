@@ -67,6 +67,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   });
   const [mapType, setMapType] = useState<'dark' | 'satellite'>('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [targetDurationMin, setTargetDurationMin] = useState<number | null>(null);
 
   // Apple MapKit refs
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
@@ -960,6 +961,42 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               </div>
             </div>
 
+            {/* Target Duration Selector (Libre / 15m / 30m / 45m / 1h) */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px' }}>
+              <span style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600 }}>Objectif temps :</span>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                {[
+                  { label: 'Libre', val: null },
+                  { label: '15 min', val: 15 },
+                  { label: '30 min', val: 30 },
+                  { label: '45 min', val: 45 },
+                  { label: '1h', val: 60 },
+                ].map((opt) => {
+                  const isSel = targetDurationMin === opt.val;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setTargetDurationMin(opt.val)}
+                      style={{
+                        padding: '3px 9px',
+                        borderRadius: '12px',
+                        border: isSel ? '1px solid #FF9500' : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: isSel ? 'rgba(255, 149, 0, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        color: isSel ? '#FF9500' : '#8E8E93',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 150ms ease',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Complete Interactive Telemetry Charts (Distance, Vitesse, BPM) */}
             <RunTelemetryCharts
               runState={runState}
@@ -968,6 +1005,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               liveSpeedKmh={liveSpeedKmh || 0}
               liveHr={liveHr || 0}
               telemetryHistory={telemetryHistory}
+              targetDurationSec={targetDurationMin ? targetDurationMin * 60 : null}
             />
 
             {/* Partager Ma Course CTA */}

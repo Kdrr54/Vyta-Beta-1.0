@@ -17,6 +17,7 @@ export interface RunTelemetryChartsProps {
   liveSpeedKmh: number;
   liveHr: number;
   telemetryHistory: TelemetryPoint[];
+  targetDurationSec?: number | null;
 }
 
 export type MetricType = 'distance' | 'speed' | 'bpm';
@@ -59,6 +60,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
   liveSpeedKmh,
   liveHr,
   telemetryHistory,
+  targetDurationSec,
 }) => {
   const { isLiveHrActive, toggleLiveHr } = useApp();
   const [activeMetric, setActiveMetric] = useState<MetricType>('distance');
@@ -82,15 +84,15 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
   const bottomY = chartY + chartHeight;
 
   // Calcul du domaine temporel X (horizontal) : démarre à 00:00
+  // S'adapte dynamiquement à la durée de course réelle ou à l'objectif de temps choisi
   const maxTimeSec = useMemo(() => {
-    if (runDurationSec <= 0) return 600; // 10 min de base à l'arrêt
-    if (runDurationSec < 300) return 300; // 5 min
-    if (runDurationSec < 600) return 600; // 10 min
-    if (runDurationSec < 1200) return 1200; // 20 min
-    if (runDurationSec < 1800) return 1800; // 30 min
-    if (runDurationSec < 2512) return 2512; // 42 min
-    return Math.ceil(runDurationSec / 300) * 300;
-  }, [runDurationSec]);
+    if (targetDurationSec && targetDurationSec > 0) {
+      return targetDurationSec;
+    }
+    if (runDurationSec <= 0) return 300; // 5 min de base à l'arrêt
+    // Ajustement dynamique avec 10% de marge pour que le tracé respire sans être coincé à 10 min
+    return Math.max(180, Math.ceil((runDurationSec * 1.1) / 30) * 30);
+  }, [runDurationSec, targetDurationSec]);
 
   const getX = (tSec: number) => {
     const ratio = Math.max(0, Math.min(1, tSec / maxTimeSec));
