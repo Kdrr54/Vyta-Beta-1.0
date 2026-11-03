@@ -1113,22 +1113,24 @@ class QRingBleService {
     } catch (_) {}
     console.log('[QRing BLE] Programming all ring sensor monitoring intervals to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
 
-    // 1. Heart rate interval (Command 0x16: [0x02, 0x01, mins])
-    await this.writeBytes(this.makePacket(0x16, [0x02, 0x01, mins & 0xFF]));
+    const isEnabled = mins > 0 ? 0x01 : 0x00;
+
+    // 1. Heart rate interval (Command 0x16: [0x02, isEnabled, mins])
+    await this.writeBytes(this.makePacket(0x16, [0x02, isEnabled, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 100));
 
-    // 2. SpO2 periodic interval (Command 0x2C: [0x02, 0x01, mins] and [0x05, 0x01, mins])
-    await this.writeBytes(this.makePacket(0x2C, [0x02, 0x01, mins & 0xFF]));
-    await this.writeBytes(this.makePacket(0x2C, [0x05, 0x01, mins & 0xFF]));
+    // 2. SpO2 periodic interval (Command 0x2C: [0x02, isEnabled, mins] and [0x05, isEnabled, mins])
+    await this.writeBytes(this.makePacket(0x2C, [0x02, isEnabled, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x2C, [0x05, isEnabled, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 100));
 
-    // 3. HRV periodic monitoring & interval (Command 0x38: [0x02, 0x01, mins] and [0x02, 0x01])
-    await this.writeBytes(this.makePacket(0x38, [0x02, 0x01, mins & 0xFF]));
-    await this.writeBytes(this.makePacket(0x38, [0x02, 0x01]));
+    // 3. HRV periodic monitoring & interval (Command 0x38: [0x02, isEnabled, mins])
+    await this.writeBytes(this.makePacket(0x38, [0x02, isEnabled, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x38, [0x02, isEnabled]));
     await new Promise((r) => setTimeout(r, 100));
 
-    // 4. Stress periodic monitoring & interval (Command 0x36: [0x02, 0x01, mins])
-    await this.writeBytes(this.makePacket(0x36, [0x02, 0x01, mins & 0xFF]));
+    // 4. Stress periodic monitoring & interval (Command 0x36: [0x02, isEnabled, mins])
+    await this.writeBytes(this.makePacket(0x36, [0x02, isEnabled, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 100));
 
     return true;
@@ -2318,10 +2320,14 @@ class QRingBleService {
         const val = dataView.getUint8(2);
         if (subType === 0x01 && val >= 40 && val <= 200) {
           console.log('[QRing BLE] Notification 0x73 (type=1) Heart Rate:', val, 'bpm');
-          this.notify({ heartRate: val, isConnected: true });
+          if (this.isRealTimeHrActive) {
+            this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
+          }
         } else if (subType === 0x03 && val >= 70 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=3) SpO2:', val, '%');
-          this.notify({ spo2: val, isConnected: true });
+          if (this.isRealTimeHrActive) {
+            this.notify({ spo2: val, isConnected: true });
+          }
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=0x0C) Battery:', val, '%');
           this.notify({ batteryPct: val, isConnected: true });

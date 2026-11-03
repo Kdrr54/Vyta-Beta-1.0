@@ -365,8 +365,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 200) {
         setLiveBpm(data.liveHeartRate);
-      } else if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
-        setLiveBpm(data.heartRate);
       }
       if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
         setWeekData((prev) => {
@@ -375,15 +373,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.bpm = data.heartRate!;
 
-          // Courbe réelle : utiliser directement les 48 relevés de la bague (0x15) pour aujourd'hui sans mélanger avec d'anciens caches
-          const prevLog = Array.isArray(cur.hrLog) && cur.hrLog.length === 48 ? [...cur.hrLog] : new Array(48).fill(0);
+          // Courbe réelle : mettre à jour hrLog UNIQUEMENT si le journal complet 48 créneaux (0x15) est fourni par la mémoire de la bague.
+          // Ne JAMAIS fabriquer de faux relevé au créneau actuel lorsque la bague est posée ou non portée !
           if (Array.isArray(data.heartRateLog) && data.heartRateLog.length === 48) {
             cur.hrLog = data.heartRateLog.map((val) => (val >= 40 && val <= 200 ? val : 0));
-          } else {
-            const now = new Date();
-            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
-            prevLog[curHalf] = data.heartRate!;
-            cur.hrLog = prevLog;
           }
 
           const validLog = (cur.hrLog || []).filter((v) => v >= 40 && v <= 200);
@@ -751,6 +744,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (updated.hrLog) updated.hrLog = clampLog(updated.hrLog);
                 if (updated.hrvLog) updated.hrvLog = clampLog(updated.hrvLog);
                 if (updated.stressLog) updated.stressLog = clampLog(updated.stressLog);
+
+                // Élimination des relevés fantômes enregistrés lorsque la bague était posée sans être portée (après-midi statique)
+                if (now.getHours() >= 15 && (updated.steps || 0) < 250) {
+                  const clearOffFinger = (arr?: number[]) => {
+                    if (Array.isArray(arr) && arr.length === 48) {
+                      return arr.map((v, i) => (i >= 31 && i <= currentSlot ? 0 : v));
+                    }
+                    return arr;
+                  };
+                  if (updated.hrLog) updated.hrLog = clearOffFinger(updated.hrLog);
+                  if (updated.hrvLog) updated.hrvLog = clearOffFinger(updated.hrvLog);
+                  if (updated.stressLog) updated.stressLog = clearOffFinger(updated.stressLog);
+                  if (updated.spo2Log) updated.spo2Log = clearOffFinger(updated.spo2Log);
+                }
 
                 // Verrou sommeil pour aujourd'hui :
                 // Si le réveil enregistré est dans le futur par rapport à l'heure courante (ex: 12h06 alors qu'il est 02h37),

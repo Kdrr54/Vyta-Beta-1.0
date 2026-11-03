@@ -935,6 +935,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   qringBle.setAllSensorIntervals(30);
                 },
               },
+              {
+                id: 'pause',
+                labelFr: 'Bague retirée (Pause)',
+                labelEn: 'Ring off (Pause)',
+                subFr: 'Veille totale · 0 LED',
+                subEn: 'Sensors paused · 0 LED',
+                isActive: (sensorIntervals?.heartRate as string) === 'pause',
+                action: () => {
+                  updateSensorIntervals({
+                    heartRate: 'pause' as any,
+                    hrv: 'pause' as any,
+                    spo2: 'pause' as any,
+                    temperature: 'pause' as any,
+                    stress: 'pause' as any,
+                    bloodPressure: 'pause' as any,
+                    glucose: 'pause' as any,
+                    respiratory: 'pause' as any,
+                  });
+                  qringBle.setAllSensorIntervals(0);
+                },
+              },
             ].map((preset) => (
               <button
                 key={preset.id}
