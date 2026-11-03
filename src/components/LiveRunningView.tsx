@@ -6,6 +6,7 @@ import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, P
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { fmtClockSec, fmtMMSS } from '../lib/format';
+import { useApp } from '../context/AppContext';
 
 interface LiveRunningViewProps {
   runState: 'idle' | 'running' | 'paused' | 'finished';
@@ -50,6 +51,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
 }) => {
+  const { isLiveHrActive, toggleLiveHr } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(false);
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
@@ -528,8 +530,37 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           <ChevronDown size={22} />
         </button>
 
-        {/* Top-Right: Settings & Heading Compass */}
+        {/* Top-Right: Settings, Live Cardio & Heading Compass */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', pointerEvents: 'auto' }}>
+          {/* Quick Toggle Live Cardio (Heart) */}
+          <button
+            type="button"
+            onClick={toggleLiveHr}
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              background: isLiveHrActive ? 'rgba(255, 59, 48, 0.28)' : 'rgba(24, 24, 27, 0.78)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: isLiveHrActive ? '1.5px solid #FF3B30' : '1px solid rgba(255, 255, 255, 0.12)',
+              color: isLiveHrActive ? '#FF3B30' : '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: isLiveHrActive ? '0 0 16px rgba(255, 59, 48, 0.45)' : '0 4px 14px rgba(0,0,0,0.5)',
+              transition: 'all 200ms ease',
+            }}
+            title={isLiveHrActive ? "Désactiver le cardio en direct (Bague)" : "Activer le cardio en direct (Bague)"}
+          >
+            <Heart
+              size={18}
+              fill={isLiveHrActive ? "#FF3B30" : "none"}
+              color={isLiveHrActive ? "#FF3B30" : "#FFFFFF"}
+            />
+          </button>
+
           {/* Settings button */}
           <button
             type="button"
@@ -879,18 +910,37 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                 </div>
               </div>
 
-              {/* Cardio & Calories */}
+              {/* Cardio & Calories (Clickable to toggle real-time PPG on the ring) */}
               <div
+                onClick={toggleLiveHr}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: isLiveHrActive ? 'rgba(255, 59, 48, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                  border: isLiveHrActive ? '1px solid rgba(255, 59, 48, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
                   borderRadius: '14px',
                   padding: '10px 12px',
+                  cursor: 'pointer',
+                  transition: 'all 200ms ease',
                 }}
+                title={isLiveHrActive ? "Cardio en direct actif (Toucher pour arrêter)" : "Toucher pour activer la mesure cardio en direct"}
               >
-                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Heart size={12} color="#FF453A" fill="#FF453A" />
-                  <span>Cardio & Énergie</span>
+                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Heart size={12} color="#FF453A" fill={isLiveHrActive ? "#FF453A" : "none"} />
+                    <span>Cardio & Énergie</span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '8px',
+                      background: isLiveHrActive ? 'rgba(255, 59, 48, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+                      color: isLiveHrActive ? '#FF453A' : '#8E8E93',
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    {isLiveHrActive ? 'LIVE' : 'ACTIVER'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
                   <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
@@ -1098,6 +1148,30 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                 }}
               >
                 <X size={16} />
+              </button>
+            </div>
+
+            {/* Cardio Live Bague */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFF' }}>Cardio Live (Bague)</span>
+                <span style={{ fontSize: '11px', color: '#8E8E93' }}>Capteur optique en continu</span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleLiveHr}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  background: isLiveHrActive ? '#FF3B30' : 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  color: '#FFF',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {isLiveHrActive ? 'Actif ❤️' : 'Activer'}
               </button>
             </div>
 

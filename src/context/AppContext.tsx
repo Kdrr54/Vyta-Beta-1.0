@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption } from '../types';
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { DayMetrics } from '../types';
@@ -30,6 +30,9 @@ interface AppContextType {
   setSelectedDay: (day: number) => void;
   liveBpm: number;
   setLiveBpm: (bpm: number | ((prev: number) => number)) => void;
+  isLiveHrActive: boolean;
+  setIsLiveHrActive: (active: boolean | ((prev: boolean) => boolean)) => void;
+  toggleLiveHr: () => Promise<boolean>;
   ring: RingDevice;
   updateRing: (partial: Partial<RingDevice>) => void;
   theme: AppTheme;
@@ -280,6 +283,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // BPM en direct transmis par la bague (strictement 0 tant qu'aucune mesure n'est reçue)
   const [liveBpm, setLiveBpm] = useState<number>(() => 0);
+  const [isLiveHrActive, setIsLiveHrActive] = useState<boolean>(false);
+
+  const toggleLiveHr = useCallback(async (): Promise<boolean> => {
+    if (isLiveHrActive) {
+      setIsLiveHrActive(false);
+      setLiveBpm(0);
+      const res = await qringBle.stopRealTimeHeartRate();
+      return !res;
+    } else {
+      setIsLiveHrActive(true);
+      const res = await qringBle.startRealTimeHeartRate();
+      return res;
+    }
+  }, [isLiveHrActive]);
+
+  // Rafraîchissement périodique (keep-alive) pendant la mesure cardio continue
+  useEffect(() => {
+    if (!isLiveHrActive) return;
+
+    const interval = setInterval(() => {
+      if (qringBle.isConnected()) {
+        qringBle.startRealTimeHeartRate();
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isLiveHrActive]);
 
   const updateProfile = (partial: Partial<UserProfile>) => {
     setProfile(prev => {
@@ -333,6 +365,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 200) {
         setLiveBpm(data.liveHeartRate);
+      } else if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
+        setLiveBpm(data.heartRate);
       }
       if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
         setWeekData((prev) => {
@@ -846,6 +880,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedDay,
         liveBpm,
         setLiveBpm,
+        isLiveHrActive,
+        setIsLiveHrActive,
+        toggleLiveHr,
         ring,
         updateRing,
         theme,

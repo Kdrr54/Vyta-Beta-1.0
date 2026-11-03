@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Navigation, Gauge, Heart } from 'lucide-react';
 import { fmtClockSec } from '../lib/format';
+import { useApp } from '../context/AppContext';
 
 export interface TelemetryPoint {
   timeSec: number;
@@ -59,6 +60,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
   liveHr,
   telemetryHistory,
 }) => {
+  const { isLiveHrActive, toggleLiveHr } = useApp();
   const [activeMetric, setActiveMetric] = useState<MetricType>('distance');
   const [scrubRatio, setScrubRatio] = useState<number | null>(null);
 
@@ -161,9 +163,18 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
 
   const pointsBpm = useMemo(() => {
     if (isIdle || telemetryHistory.length === 0) return [];
-    return telemetryHistory.map((pt) => ({
+
+    const smoothedHr = telemetryHistory.map((pt, i, arr) => {
+      if (arr.length < 3 || i === 0 || i === arr.length - 1 || pt.hrBpm <= 0) return pt.hrBpm;
+      const prev = arr[i - 1].hrBpm > 0 ? arr[i - 1].hrBpm : pt.hrBpm;
+      const curr = pt.hrBpm;
+      const next = arr[i + 1].hrBpm > 0 ? arr[i + 1].hrBpm : pt.hrBpm;
+      return Math.round(prev * 0.2 + curr * 0.6 + next * 0.2);
+    });
+
+    return telemetryHistory.map((pt, idx) => ({
       x: getX(pt.timeSec),
-      y: getYBpm(pt.hrBpm),
+      y: getYBpm(smoothedHr[idx]),
       raw: pt,
     }));
   }, [isIdle, telemetryHistory, chartWidth, chartHeight, maxTimeSec]);
@@ -342,17 +353,41 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
               </span>
             )}
             {activeMetric === 'bpm' && (
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: '#FFFFFF',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {isIdle ? '0' : liveHr}{' '}
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>bpm</span>
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={toggleLiveHr}
+                  style={{
+                    background: isLiveHrActive ? 'rgba(255, 59, 48, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                    border: isLiveHrActive ? '1px solid rgba(255, 59, 48, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '12px',
+                    padding: '3px 8px',
+                    color: isLiveHrActive ? '#FF453A' : '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 200ms ease',
+                  }}
+                  title={isLiveHrActive ? "Désactiver la mesure continue" : "Activer la mesure continue du rythme cardiaque"}
+                >
+                  <Heart size={11} fill={isLiveHrActive ? '#FF453A' : 'none'} color={isLiveHrActive ? '#FF453A' : '#FFF'} />
+                  <span>{isLiveHrActive ? 'Actif' : 'Activer'}</span>
+                </button>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: '#FFFFFF',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {isIdle ? '0' : (liveHr > 40 ? liveHr : '--')}{' '}
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>bpm</span>
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -468,8 +503,8 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
             </linearGradient>
 
             <linearGradient id="bpmFill" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#8E8E93" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#8E8E93" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#FF453A" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#FF453A" stopOpacity="0.0" />
             </linearGradient>
 
             {/* Filtre Lueur */}
@@ -641,15 +676,44 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
               <path
                 d={pathBpm}
                 fill="none"
-                stroke="#8E8E93"
+                stroke="#FF453A"
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 filter="url(#telemetryGlow)"
               />
               {headBpm && (
-                <circle cx={headBpm.x} cy={headBpm.y} r="3.8" fill="#000000" stroke="#8E8E93" strokeWidth="2" />
+                <circle cx={headBpm.x} cy={headBpm.y} r="3.8" fill="#000000" stroke="#FF453A" strokeWidth="2" />
               )}
+            </g>
+          )}
+
+          {/* Bouton d'action central si le cardio n'est pas encore actif */}
+          {activeMetric === 'bpm' && !isLiveHrActive && (!telemetryHistory || telemetryHistory.every((p) => p.hrBpm <= 40)) && (
+            <g
+              onClick={toggleLiveHr}
+              style={{ cursor: 'pointer' }}
+            >
+              <rect
+                x={chartX + chartWidth / 2 - 95}
+                y={chartY + chartHeight / 2 - 16}
+                width={190}
+                height={32}
+                rx={16}
+                fill="rgba(24, 24, 27, 0.88)"
+                stroke="rgba(255, 59, 48, 0.55)"
+                strokeWidth={1.2}
+              />
+              <text
+                x={chartX + chartWidth / 2}
+                y={chartY + chartHeight / 2 + 5}
+                textAnchor="middle"
+                fill="#FF453A"
+                fontSize="11.5"
+                fontWeight="700"
+              >
+                ❤️ Activer le cardio live
+              </text>
             </g>
           )}
 

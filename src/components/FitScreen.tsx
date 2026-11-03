@@ -15,6 +15,7 @@ function calculateGpsDistanceMeters(lat1: number, lon1: number, lat2: number, lo
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { qringBle } from '../lib/qringBleService';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
 import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../lib/story';
@@ -172,7 +173,7 @@ export function formatRouteDateStr(route: StoredRoute): string {
 }
 
 export const FitScreen: React.FC = () => {
-  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm } = useApp();
+  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive } = useApp();
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
   const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
@@ -644,6 +645,10 @@ export const FitScreen: React.FC = () => {
   const stopRun = () => {
     setRunState('finished');
     notifyNativeWorkout('stop');
+    if (isLiveHrActive) {
+      setIsLiveHrActive(false);
+      qringBle.stopRealTimeHeartRate().catch(() => {});
+    }
     saveCurrentRunToTrajets();
     openRunStory();
     setIsLiveRunningViewOpen(false);
@@ -652,6 +657,10 @@ export const FitScreen: React.FC = () => {
   const resetRun = () => {
     setRunState('idle');
     notifyNativeWorkout('stop');
+    if (isLiveHrActive) {
+      setIsLiveHrActive(false);
+      qringBle.stopRealTimeHeartRate().catch(() => {});
+    }
     setRunDurationSec(0);
     setRunDistanceKm(0);
     runDistanceKmRef.current = 0;
