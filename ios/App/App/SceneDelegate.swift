@@ -248,7 +248,8 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
 
         let lat = loc.coordinate.latitude
         let lng = loc.coordinate.longitude
-        let speed = max(0, loc.speed)
+        // loc.speed is -1 if invalid or Doppler speed unavailable. Keep -1 so web layer knows hardware speed is unknown.
+        let speed = loc.speed >= 0 ? loc.speed : -1.0
         let accuracy = loc.horizontalAccuracy
         let time = Int(loc.timestamp.timeIntervalSince1970 * 1000)
 

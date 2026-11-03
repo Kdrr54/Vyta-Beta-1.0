@@ -451,10 +451,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     if (runState !== 'running') {
       return '0,0';
     }
-    if (runDistanceKm < 0.01 || runDurationSec < 3) {
-      return '0,0';
-    }
-    if (typeof liveSpeedKmh === 'number' && liveSpeedKmh >= 1.0) {
+    if (typeof liveSpeedKmh === 'number' && liveSpeedKmh >= 0.8) {
       return liveSpeedKmh.toFixed(1).replace('.', ',');
     }
     return '0,0';

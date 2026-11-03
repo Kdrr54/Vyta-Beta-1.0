@@ -140,9 +140,21 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
 
   const pointsVitesse = useMemo(() => {
     if (isIdle || telemetryHistory.length === 0) return [];
-    return telemetryHistory.map((pt) => ({
+
+    // Filtre passe-bas gaussien/triangulaire [0.15, 0.7, 0.15]
+    // Élimine les micro-variations de quantification GPS pour une courbe fluide de type Apple Fitness
+    const smoothedSpeeds = telemetryHistory.map((pt, i, arr) => {
+      if (arr.length < 3 || i === 0 || i === arr.length - 1) return pt.speedKmh;
+      const prev = arr[i - 1].speedKmh;
+      const curr = pt.speedKmh;
+      const next = arr[i + 1].speedKmh;
+      if (curr === 0 && prev === 0) return 0;
+      return Math.round((prev * 0.15 + curr * 0.7 + next * 0.15) * 10) / 10;
+    });
+
+    return telemetryHistory.map((pt, idx) => ({
       x: getX(pt.timeSec),
-      y: getYVitesse(pt.speedKmh),
+      y: getYVitesse(smoothedSpeeds[idx]),
       raw: pt,
     }));
   }, [isIdle, telemetryHistory, chartWidth, chartHeight, maxTimeSec]);
@@ -206,13 +218,18 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
 
   // Moyennes télémetriques pour le trait moyen
   const avgSpeed = useMemo(() => {
-    if (telemetryHistory.length === 0) return liveSpeedKmh > 0 ? liveSpeedKmh : 11.4;
-    return telemetryHistory.reduce((s, p) => s + p.speedKmh, 0) / telemetryHistory.length;
+    if (telemetryHistory.length === 0) return liveSpeedKmh > 0 ? liveSpeedKmh : 0;
+    const movingPoints = telemetryHistory.filter((p) => p.speedKmh >= 0.8);
+    if (movingPoints.length === 0) return liveSpeedKmh > 0 ? liveSpeedKmh : 0;
+    const sum = movingPoints.reduce((s, p) => s + p.speedKmh, 0);
+    return Math.round((sum / movingPoints.length) * 10) / 10;
   }, [telemetryHistory, liveSpeedKmh]);
 
   const avgBpm = useMemo(() => {
-    if (telemetryHistory.length === 0) return liveHr > 0 ? liveHr : 154;
-    return Math.round(telemetryHistory.reduce((s, p) => s + p.hrBpm, 0) / telemetryHistory.length);
+    if (telemetryHistory.length === 0) return liveHr > 0 ? liveHr : 0;
+    const validHrPoints = telemetryHistory.filter((p) => p.hrBpm > 40);
+    if (validHrPoints.length === 0) return liveHr > 0 ? liveHr : 0;
+    return Math.round(validHrPoints.reduce((s, p) => s + p.hrBpm, 0) / validHrPoints.length);
   }, [telemetryHistory, liveHr]);
 
   // Scrub tactile interactif (100% fluide, ne bloque jamais le défilement vertical mobile)

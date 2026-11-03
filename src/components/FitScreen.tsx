@@ -238,8 +238,17 @@ export const FitScreen: React.FC = () => {
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>([]);
   const [instantSpeedKmh, setInstantSpeedKmh] = useState<number>(0);
   const lastGpsFixRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const lastDistanceFixRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const recentGpsSamplesRef = useRef<{ lat: number; lng: number; time: number }[]>([]);
+  const lastValidGpsTimestampRef = useRef<number>(0);
+  const currentSmoothedSpeedRef = useRef<number>(0);
+  const runDistanceKmRef = useRef<number>(0);
   const runStartTimeRef = useRef<number>(0);
   const accumulatedDurRef = useRef<number>(initialRunDur);
+
+  useEffect(() => {
+    runDistanceKmRef.current = runDistanceKm;
+  }, [runDistanceKm]);
   // isLiveRunningViewOpen hoisted to AppContext
 
   const notifyNativeWorkout = (
@@ -280,7 +289,7 @@ export const FitScreen: React.FC = () => {
     };
   }, [runState]);
 
-  // Minuteur d'entraînement & télémétrie réelle (calcul basé sur horloge réelle / reprise en arrière-plan)
+  // Minuteur d'entraînement & télémétrie réelle (cadence 1 seconde fluide, sans interruption)
   useEffect(() => {
     if (runState !== 'running') return;
 
@@ -289,8 +298,19 @@ export const FitScreen: React.FC = () => {
         const elapsed = Math.floor((Date.now() - runStartTimeRef.current) / 1000);
         setRunDurationSec(elapsed);
 
-        const curSpeed = instantSpeedKmh;
+        // Décroissance douce si perte prolongée du signal GPS (> 6s sans fix)
+        const timeSinceGps = lastValidGpsTimestampRef.current > 0 
+          ? (Date.now() - lastValidGpsTimestampRef.current) / 1000 
+          : 0;
+        let curSpeed = currentSmoothedSpeedRef.current;
+        if (timeSinceGps > 6.0 && curSpeed > 0) {
+          curSpeed = Math.max(0, Math.round((curSpeed * 0.7) * 10) / 10);
+          currentSmoothedSpeedRef.current = curSpeed;
+          setInstantSpeedKmh(curSpeed);
+        }
+
         const curHr = liveBpm > 0 ? liveBpm : 0;
+        const currentDist = runDistanceKmRef.current;
 
         setTelemetryHistory((prevHistory) => {
           if (prevHistory.length > 0 && prevHistory[prevHistory.length - 1].timeSec === elapsed) {
@@ -300,7 +320,7 @@ export const FitScreen: React.FC = () => {
             ...prevHistory,
             {
               timeSec: elapsed,
-              distanceKm: runDistanceKm,
+              distanceKm: currentDist,
               speedKmh: Math.round(curSpeed * 10) / 10,
               hrBpm: curHr,
             },
@@ -308,11 +328,11 @@ export const FitScreen: React.FC = () => {
         });
 
         // Mise à jour de l'Activité en direct (Dynamic Island / Écran verrouillé iOS)
-        const curPaceSec = runDistanceKm > 0.01 ? Math.round(elapsed / runDistanceKm) : 0;
+        const curPaceSec = currentDist > 0.01 ? Math.round(elapsed / currentDist) : 0;
         const curPaceStr = curPaceSec > 0 ? fmtMMSS(curPaceSec) : '--:--';
         notifyNativeWorkout('update', {
           elapsedTime: elapsed,
-          distanceKm: Math.round(runDistanceKm * 100) / 100,
+          distanceKm: Math.round(currentDist * 100) / 100,
           paceText: curPaceStr,
           currentHeartRate: curHr,
           isPaused: false,
@@ -335,13 +355,14 @@ export const FitScreen: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
     };
-  }, [runState, instantSpeedKmh, runDistanceKm, liveBpm]);
+  }, [runState, liveBpm]);
 
   // Traitement universel des coordonnées GPS (Foreground + Native Background iOS CoreLocation)
   const processGpsFix = (latitude: number, longitude: number, speed: number | null, accuracy: number, timestamp?: number) => {
-    if (accuracy > 35) return;
+    // 1. Filtrer les coordonnées aberrantes ou de trop faible précision (> 35m)
+    if (accuracy > 35 || accuracy < 0) return;
     const coords: [number, number] = [latitude, longitude];
-    const now = timestamp || Date.now();
+    const now = timestamp && timestamp > 0 ? timestamp : Date.now();
 
     setUserPosition(coords);
     try {
@@ -354,59 +375,124 @@ export const FitScreen: React.FC = () => {
       setRunDurationSec(elapsed);
     }
 
+    // Premier point GPS enregistré
     if (!lastGpsFixRef.current) {
       lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+      lastDistanceFixRef.current = { lat: latitude, lng: longitude, time: now };
+      recentGpsSamplesRef.current = [{ lat: latitude, lng: longitude, time: now }];
+      lastValidGpsTimestampRef.current = now;
       setRealGpsPoints([coords]);
       return;
     }
 
-    const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
-    if (dtSec < 1.2) return;
+    // 2. Fenêtre glissante temporelle des 5 dernières secondes
+    recentGpsSamplesRef.current.push({ lat: latitude, lng: longitude, time: now });
+    recentGpsSamplesRef.current = recentGpsSamplesRef.current.filter((p) => now - p.time <= 5000);
+    lastValidGpsTimestampRef.current = now;
 
-    const distMeters = calculateGpsDistanceMeters(
+    // 3. Calcul de la vitesse
+    const hasHardwareSpeed = speed !== null && typeof speed === 'number' && !isNaN(speed) && speed >= 0;
+
+    // Vitesse calculée sur la fenêtre glissante (3-5 secondes)
+    let windowSpeedKmh = 0;
+    const samples = recentGpsSamplesRef.current;
+    if (samples.length >= 2) {
+      const firstSample = samples[0];
+      const lastSample = samples[samples.length - 1];
+      const windowDtSec = Math.max(0.5, (lastSample.time - firstSample.time) / 1000);
+      const windowDistMeters = calculateGpsDistanceMeters(
+        firstSample.lat,
+        firstSample.lng,
+        lastSample.lat,
+        lastSample.lng
+      );
+      if (windowDtSec >= 1.5) {
+        windowSpeedKmh = (windowDistMeters / windowDtSec) * 3.6;
+      }
+    }
+
+    // Vitesse delta directe entre les deux dernières positions
+    const dtSec = Math.max(0.5, (now - lastGpsFixRef.current.time) / 1000);
+    const directDistMeters = calculateGpsDistanceMeters(
       lastGpsFixRef.current.lat,
       lastGpsFixRef.current.lng,
       latitude,
       longitude
     );
+    const directSpeedKmh = (directDistMeters / dtSec) * 3.6;
 
-    const hasHardwareSpeed = speed !== null && !isNaN(speed) && speed >= 0;
-    const isStationary = hasHardwareSpeed ? speed < 0.7 : distMeters < 5.0;
-
-    if (isStationary) {
-      setInstantSpeedKmh(0);
-      return;
+    // Sélection de la vitesse brute :
+    // On privilégie la vitesse Doppler si disponible et cohérente (> 0.4 m/s)
+    let rawSpeedKmh = 0;
+    if (hasHardwareSpeed && speed > 0.4) {
+      rawSpeedKmh = speed * 3.6;
+    } else if (windowSpeedKmh > 0) {
+      rawSpeedKmh = windowSpeedKmh;
+    } else {
+      rawSpeedKmh = directSpeedKmh;
     }
 
-    if (distMeters >= 5.0 && distMeters < 100) {
-      let instantKmh = 0;
-      if (hasHardwareSpeed && speed > 0.3) {
-        instantKmh = speed * 3.6;
+    // Détection arrêt stationnaire vs mouvement actif
+    const isStationary = 
+      (hasHardwareSpeed && speed < 0.25) || 
+      (samples.length >= 2 && windowSpeedKmh < 0.8 && directDistMeters < 1.5);
+
+    let targetSpeedKmh = 0;
+    if (isStationary) {
+      targetSpeedKmh = 0;
+    } else {
+      if (rawSpeedKmh > 35.0) {
+        // Ignorer les sauts GPS aberrants
+        targetSpeedKmh = currentSmoothedSpeedRef.current;
+      } else if (rawSpeedKmh < 1.0) {
+        targetSpeedKmh = 0;
       } else {
-        instantKmh = (distMeters / dtSec) * 3.6;
+        targetSpeedKmh = rawSpeedKmh;
       }
+    }
 
-      if (instantKmh > 25.0) {
-        setInstantSpeedKmh(0);
-        return;
-      }
-
-      if (instantKmh < 2.0) {
-        instantKmh = 0;
+    // 4. Filtre de lissage continu exponentiel (EMA)
+    // Empêche la courbe en dents de scie : la vitesse reste stable et fidèle à l'allure réelle
+    let nextSmoothedSpeed = 0;
+    if (targetSpeedKmh <= 0) {
+      nextSmoothedSpeed = currentSmoothedSpeedRef.current > 0.5 
+        ? Math.max(0, Math.round((currentSmoothedSpeedRef.current * 0.5) * 10) / 10) 
+        : 0;
+    } else {
+      if (currentSmoothedSpeedRef.current <= 0.5) {
+        // Démarrage franc
+        nextSmoothedSpeed = Math.round(targetSpeedKmh * 10) / 10;
       } else {
-        const distKm = distMeters / 1000;
-        setRunDistanceKm((prev) => Math.round((prev + distKm) * 1000) / 1000);
-
-        setInstantSpeedKmh((prev) => {
-          const smoothed = prev > 0 ? (prev * 0.7 + instantKmh * 0.3) : instantKmh;
-          return Math.round(smoothed * 10) / 10;
-        });
-
-        lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
-        setRealGpsPoints((prev) => [...prev, coords]);
+        // En marche continue : EMA 75% historique / 25% nouveau point
+        const ema = currentSmoothedSpeedRef.current * 0.75 + targetSpeedKmh * 0.25;
+        nextSmoothedSpeed = Math.round(ema * 10) / 10;
       }
-    } else if (distMeters < 5.0) {
-      setInstantSpeedKmh(0);
+    }
+
+    currentSmoothedSpeedRef.current = nextSmoothedSpeed;
+    setInstantSpeedKmh(nextSmoothedSpeed);
+    lastGpsFixRef.current = { lat: latitude, lng: longitude, time: now };
+
+    // 5. Accumulation propre de la distance (anti-drift à l'arrêt)
+    if (!lastDistanceFixRef.current) {
+      lastDistanceFixRef.current = { lat: latitude, lng: longitude, time: now };
+    }
+    const distSinceAccum = calculateGpsDistanceMeters(
+      lastDistanceFixRef.current.lat,
+      lastDistanceFixRef.current.lng,
+      latitude,
+      longitude
+    );
+
+    if (nextSmoothedSpeed >= 1.0 && distSinceAccum >= 2.5 && distSinceAccum < 150) {
+      const deltaKm = distSinceAccum / 1000;
+      setRunDistanceKm((prev) => {
+        const updated = Math.round((prev + deltaKm) * 1000) / 1000;
+        runDistanceKmRef.current = updated;
+        return updated;
+      });
+      lastDistanceFixRef.current = { lat: latitude, lng: longitude, time: now };
+      setRealGpsPoints((prev) => [...prev, coords]);
     }
   };
 
@@ -494,10 +580,15 @@ export const FitScreen: React.FC = () => {
     if (runState === 'idle' || runState === 'finished') {
       setRunDurationSec(0);
       setRunDistanceKm(0);
+      runDistanceKmRef.current = 0;
       setInstantSpeedKmh(0);
+      currentSmoothedSpeedRef.current = 0;
+      recentGpsSamplesRef.current = [];
       const initPoints: [number, number][] = userPosition ? [userPosition] : [];
       setRealGpsPoints(initPoints);
       lastGpsFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
+      lastDistanceFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
+      lastValidGpsTimestampRef.current = Date.now();
       setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
       accumulatedDurRef.current = 0;
       runStartTimeRef.current = Date.now();
@@ -520,6 +611,8 @@ export const FitScreen: React.FC = () => {
     setRunState('paused');
     accumulatedDurRef.current = runDurationSec;
     setInstantSpeedKmh(0);
+    currentSmoothedSpeedRef.current = 0;
+    recentGpsSamplesRef.current = [];
     const pSec = runDistanceKm > 0.01 ? Math.round(runDurationSec / runDistanceKm) : 0;
     notifyNativeWorkout('pause', {
       elapsedTime: runDurationSec,
@@ -533,6 +626,10 @@ export const FitScreen: React.FC = () => {
   const resumeRun = () => {
     runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     setRunState('running');
+    currentSmoothedSpeedRef.current = 0;
+    recentGpsSamplesRef.current = [];
+    lastDistanceFixRef.current = null;
+    lastValidGpsTimestampRef.current = Date.now();
     const pSec = runDistanceKm > 0.01 ? Math.round(accumulatedDurRef.current / runDistanceKm) : 0;
     notifyNativeWorkout('resume', {
       elapsedTime: accumulatedDurRef.current,
@@ -557,9 +654,14 @@ export const FitScreen: React.FC = () => {
     notifyNativeWorkout('stop');
     setRunDurationSec(0);
     setRunDistanceKm(0);
+    runDistanceKmRef.current = 0;
     setInstantSpeedKmh(0);
+    currentSmoothedSpeedRef.current = 0;
+    recentGpsSamplesRef.current = [];
     setRealGpsPoints([]);
     lastGpsFixRef.current = null;
+    lastDistanceFixRef.current = null;
+    lastValidGpsTimestampRef.current = 0;
     setTelemetryHistory([]);
     accumulatedDurRef.current = 0;
     runStartTimeRef.current = 0;
@@ -700,7 +802,7 @@ export const FitScreen: React.FC = () => {
       : 0;
   const liveSpeedKmh =
     runState === 'running'
-      ? (runDistanceKm > 0.01 && instantSpeedKmh >= 1.0 ? instantSpeedKmh.toFixed(1) : '0.0')
+      ? (instantSpeedKmh >= 0.8 ? instantSpeedKmh.toFixed(1) : '0.0')
       : '0.0';
   const liveHr = isIdle ? 0 : (liveBpm > 0 ? liveBpm : 0);
   const liveCalories = isIdle ? 0 : Math.round(runDistanceKm * 65);
