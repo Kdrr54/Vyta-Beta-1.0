@@ -459,6 +459,12 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     return '0,0';
   };
 
+  // Vitesse moyenne globale de la course en km/h
+  const avgSpeedKmh =
+    runDistanceKm > 0.01 && runDurationSec > 0
+      ? (runDistanceKm / (runDurationSec / 3600)).toFixed(1).replace('.', ',')
+      : '0,0';
+
   const content = (
     <div
       style={{
@@ -886,7 +892,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
             {/* Secondary 4-Card Stats Row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {/* Allure & Dénivelé */}
+              {/* Vitesse Moyenne & Dénivelé */}
               <div
                 style={{
                   background: 'rgba(255, 255, 255, 0.05)',
@@ -897,13 +903,13 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               >
                 <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <TrendingUp size={12} color="#007AFF" />
-                  <span>Allure & Dénivelé</span>
+                  <span>Vitesse & Dénivelé</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
                   <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
-                    {livePaceSec > 0 ? fmtMMSS(livePaceSec) : '--:--'}
+                    {avgSpeedKmh}
                   </span>
-                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>/km</span>
+                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>km/h</span>
                   <span style={{ fontSize: '11px', color: '#30D158', marginLeft: 'auto', fontWeight: 700 }}>
                     +{liveElevation} m
                   </span>

@@ -329,12 +329,14 @@ export const FitScreen: React.FC = () => {
         });
 
         // Mise à jour de l'Activité en direct (Dynamic Island / Écran verrouillé iOS)
-        const curPaceSec = currentDist > 0.01 ? Math.round(elapsed / currentDist) : 0;
-        const curPaceStr = curPaceSec > 0 ? fmtMMSS(curPaceSec) : '--:--';
+        const curAvgSpeed = currentDist > 0.01 && elapsed > 0
+          ? (currentDist / (elapsed / 3600)).toFixed(1).replace('.', ',')
+          : '0,0';
+        const curSpeedText = `${curAvgSpeed} km/h`;
         notifyNativeWorkout('update', {
           elapsedTime: elapsed,
           distanceKm: Math.round(currentDist * 100) / 100,
-          paceText: curPaceStr,
+          paceText: curSpeedText,
           currentHeartRate: curHr,
           isPaused: false,
         });
@@ -614,11 +616,13 @@ export const FitScreen: React.FC = () => {
     setInstantSpeedKmh(0);
     currentSmoothedSpeedRef.current = 0;
     recentGpsSamplesRef.current = [];
-    const pSec = runDistanceKm > 0.01 ? Math.round(runDurationSec / runDistanceKm) : 0;
+    const curAvgSpeed = runDistanceKm > 0.01 && runDurationSec > 0
+      ? (runDistanceKm / (runDurationSec / 3600)).toFixed(1).replace('.', ',')
+      : '0,0';
     notifyNativeWorkout('pause', {
       elapsedTime: runDurationSec,
       distanceKm: Math.round(runDistanceKm * 100) / 100,
-      paceText: pSec > 0 ? fmtMMSS(pSec) : '--:--',
+      paceText: `${curAvgSpeed} km/h`,
       currentHeartRate: liveBpm > 0 ? liveBpm : 0,
       isPaused: true,
     });
@@ -631,11 +635,13 @@ export const FitScreen: React.FC = () => {
     recentGpsSamplesRef.current = [];
     lastDistanceFixRef.current = null;
     lastValidGpsTimestampRef.current = Date.now();
-    const pSec = runDistanceKm > 0.01 ? Math.round(accumulatedDurRef.current / runDistanceKm) : 0;
+    const curAvgSpeed = runDistanceKm > 0.01 && accumulatedDurRef.current > 0
+      ? (runDistanceKm / (accumulatedDurRef.current / 3600)).toFixed(1).replace('.', ',')
+      : '0,0';
     notifyNativeWorkout('resume', {
       elapsedTime: accumulatedDurRef.current,
       distanceKm: Math.round(runDistanceKm * 100) / 100,
-      paceText: pSec > 0 ? fmtMMSS(pSec) : '--:--',
+      paceText: `${curAvgSpeed} km/h`,
       currentHeartRate: liveBpm > 0 ? liveBpm : 0,
       isPaused: false,
     });
@@ -784,16 +790,16 @@ export const FitScreen: React.FC = () => {
 
   const shareStoredRoute = (route: StoredRoute, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const paceVal = route.distanceKm > 0 && route.durationSec > 0
-      ? fmtMMSS(Math.round(route.durationSec / route.distanceKm))
-      : '--:--';
+    const speedVal = route.distanceKm > 0 && route.durationSec > 0
+      ? (route.distanceKm / (route.durationSec / 3600)).toFixed(1).replace('.', ',')
+      : '--';
     openStory({
       mode: 'run',
       title: route.title,
       dateStr: route.dateStr,
       stats: [
         { label: 'Distance', value: route.distanceKm.toFixed(2), unit: 'km' },
-        { label: 'Allure', value: paceVal, unit: '/km' },
+        { label: 'Vitesse Moyenne', value: speedVal, unit: 'km/h' },
         { label: 'Temps', value: fmtClockSec(route.durationSec) },
         { label: 'FC Moyenne', value: route.avgHr > 0 ? `${route.avgHr}` : '--', unit: 'bpm' },
       ],
@@ -1116,7 +1122,9 @@ export const FitScreen: React.FC = () => {
   const openRunStory = () => {
     const finalDist = parseFloat(runDistanceKm.toFixed(2));
     const finalDur = runDurationSec;
-    const finalPace = finalDist > 0 && finalDur > 0 ? Math.round(finalDur / finalDist) : 0;
+    const finalAvgSpeed = finalDist > 0 && finalDur > 0
+      ? (finalDist / (finalDur / 3600)).toFixed(1).replace('.', ',')
+      : '0,0';
     const finalHr = liveHr > 40 ? liveHr : 0;
 
     openStory({
@@ -1126,7 +1134,7 @@ export const FitScreen: React.FC = () => {
       accentText: 'Séance GPS Enregistrée',
       stats: [
         { label: 'Distance', value: finalDist > 0 ? `${finalDist.toFixed(2)}` : '0.00', unit: 'km' },
-        { label: 'Allure', value: finalPace > 0 ? fmtMMSS(finalPace) : '--:--', unit: '/km' },
+        { label: 'Vitesse Moyenne', value: finalAvgSpeed, unit: 'km/h' },
         { label: 'Temps', value: fmtClockSec(finalDur) },
         { label: 'FC Moyenne', value: finalHr > 0 ? `${finalHr}` : '--', unit: 'bpm' },
       ],
@@ -1344,12 +1352,12 @@ export const FitScreen: React.FC = () => {
             </div>
 
             <div className="activity-raw-item">
-              <span className="activity-raw-label">Allure Moyenne</span>
+              <span className="activity-raw-label">Vitesse Moyenne</span>
               <div>
                 <span className="activity-raw-val">
-                  {isIdle ? '--:--' : fmtMMSS(livePaceSec)}
+                  {isIdle ? '0,0' : (runDistanceKm > 0.01 && runDurationSec > 0 ? (runDistanceKm / (runDurationSec / 3600)).toFixed(1).replace('.', ',') : '0,0')}
                 </span>
-                <span className="activity-raw-unit">/km</span>
+                <span className="activity-raw-unit">km/h</span>
               </div>
             </div>
 
@@ -1604,7 +1612,7 @@ export const FitScreen: React.FC = () => {
                         ⏱ {fmtClockSec(route.durationSec)}
                       </span>
                       <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                        ⚡ {route.distanceKm > 0 && route.durationSec > 0 ? `${fmtMMSS(Math.round(route.durationSec / route.distanceKm))} /km` : '--:-- /km'}
+                        ⚡ {route.distanceKm > 0 && route.durationSec > 0 ? `${(route.distanceKm / (route.durationSec / 3600)).toFixed(1).replace('.', ',')} km/h` : '-- km/h'}
                       </span>
                     </div>
                   </div>
@@ -2646,11 +2654,12 @@ export const FitScreen: React.FC = () => {
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Allure</div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
                   {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
-                    ? fmtMMSS(Math.round(viewingRouteForMap.durationSec / viewingRouteForMap.distanceKm))
-                    : '--:--'}
+                    ? `${(viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)).toFixed(1).replace('.', ',')} `
+                    : '-- '}
+                  <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km/h</span>
                 </div>
               </div>
               <div>

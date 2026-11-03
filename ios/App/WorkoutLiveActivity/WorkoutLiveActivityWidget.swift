@@ -66,13 +66,13 @@ public struct WorkoutLiveActivityWidget: Widget {
                         }
                         .frame(maxWidth: .infinity)
 
-                        // 2. Allure moyenne intermédiaire
+                        // 2. Vitesse moyenne
                         VStack(spacing: 3) {
                             Text(context.state.paceText)
                                 .font(.system(size: 24, weight: .bold, design: .rounded))
                                 .monospacedDigit()
                                 .foregroundColor(.white)
-                            Text("Allure moyenne\nintermédiaire (/km)")
+                            Text("Vitesse moyenne\n(km/h)")
                                 .font(.system(size: 9, weight: .medium))
                                 .multilineTextAlignment(.center)
                                 .foregroundColor(.gray)
@@ -171,13 +171,13 @@ struct LockScreenLiveActivityView: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                // 2. Allure moyenne intermédiaire
+                // 2. Vitesse moyenne
                 VStack(spacing: 4) {
                     Text(context.state.paceText)
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundColor(.white)
-                    Text("Allure moyenne\nintermédiaire (/km)")
+                    Text("Vitesse moyenne\n(km/h)")
                         .font(.system(size: 10, weight: .medium))
                         .multilineTextAlignment(.center)
                         .foregroundColor(.gray)
