@@ -1653,11 +1653,6 @@ class QRingBleService {
               if (sMin < minSpo2) minSpo2 = sMin;
               if (sMax > maxSpo2) maxSpo2 = sMax;
               spo2Log[hourHalfSlot] = pct;
-              // Populer aussi le créneau de 30 min pour l'heure mesurée si écoulé
-              const halfSlot = hour * 2 + 1;
-              if (halfSlot <= currentHalfSlot) {
-                spo2Log[halfSlot] = pct;
-              }
             }
           }
         }
