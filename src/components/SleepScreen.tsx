@@ -1000,8 +1000,8 @@ export const SleepScreen: React.FC = () => {
         <p style={{ fontSize: '12.5px', lineHeight: 1.5, color: '#FAF7F2', margin: 0 }}>
           {isZeroState
             ? (isEn
-                ? 'No sleep session recorded yet. Wear your Vyta One ring tonight to analyze your sleep architecture, resting nadir and circadian rhythm.'
-                : 'Aucune session de sommeil enregistrée pour le moment. Portez votre bague Vyta One cette nuit pour analyser votre architecture de sommeil, vos creux cardiaques et votre rythme circadien.')
+                ? 'No sleep session recorded yet. Wear your Stoic Ring One tonight to analyze your sleep architecture, resting nadir and circadian rhythm.'
+                : 'Aucune session de sommeil enregistrée pour le moment. Portez votre bague Stoic Ring One cette nuit pour analyser votre architecture de sommeil, vos creux cardiaques et votre rythme circadien.')
             : (isEn
                 ? `Night session recorded (${bedtimeStr} – ${wakeStr}) with ${deepPct}% deep sleep and ${remPct}% REM sleep (${efficiency}% efficiency).`
                 : `Session nocturne mesurée par la bague (${bedtimeStr} – ${wakeStr}) avec ${deepPct}% de sommeil profond et ${remPct}% de sommeil paradoxal (${efficiency}% d'efficacité).`)}

@@ -199,7 +199,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 {t('settings.title')}
               </h2>
               <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 500 }}>
-                {isEn ? 'Vyta One Ring · System & Biometrics' : 'Bague Vyta One · Système & Biométrie'}
+                {isEn ? 'Stoic Ring One · System & Biometrics' : 'Bague Stoic Ring One · Système & Biométrie'}
               </span>
             </div>
           </div>
@@ -479,7 +479,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             >
               <img
                 src="/assets/ring/ring-iso-transparent.png"
-                alt="Vyta One Smart Ring"
+                alt="Stoic Ring One Smart Ring"
                 style={{
                   width: '100%',
                   height: '100%',
@@ -497,7 +497,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             onClick={() => updateRing({ vytaCareActive: !isVytaCareActive })}
             role="button"
             tabIndex={0}
-            title={isEn ? 'Click to toggle Vyta Care warranty status' : 'Cliquer pour basculer le statut de garantie'}
+            title={isEn ? 'Click to toggle Stoic Care warranty status' : 'Cliquer pour basculer le statut de garantie'}
             style={{
               padding: '10px 12px',
               borderRadius: '14px',
@@ -536,7 +536,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Vyta Care Warranty' : 'Garantie Vyta Care'}
+                  {isEn ? 'Stoic Care Warranty' : 'Garantie Stoic Care'}
                 </span>
                 <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
                   {isVytaCareActive
@@ -1320,7 +1320,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                {isEn ? 'Vyta One Ring Size' : 'Taille de bague Vyta One'}
+                {isEn ? 'Stoic Ring One Size' : 'Taille de bague Stoic Ring One'}
               </span>
               <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
                 {isEn ? 'Standard index/middle finger fit' : 'Ajustement index ou majeur'}

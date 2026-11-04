@@ -113,7 +113,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             const ringAnnotation = new mapkit.MarkerAnnotation(ringCoord, {
               color: '#30D158',
               glyphText: '💍',
-              title: isEn ? 'Vyta One Smart Ring' : 'Bague Vyta One',
+              title: isEn ? 'Stoic Ring One' : 'Bague Stoic Ring One',
               subtitle: isEn ? 'Last known position (4m ago)' : 'Dernière position connue (il y a 4 min)',
               selected: true,
             });
@@ -529,7 +529,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               >
                 <img
                   src="/assets/ring/ring-iso-transparent.png"
-                  alt="Vyta One Smart Ring"
+                  alt="Stoic Ring One Smart Ring"
                   style={{
                     width: '100%',
                     height: '100%',
@@ -542,7 +542,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: '15px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Vyta One Smart Ring
+                  Stoic Ring One
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                   <span

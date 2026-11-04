@@ -522,7 +522,7 @@ class QRingBleService {
 
       // Step 2: Direct connect using saved device UUID without scanning
       const savedId = this.getSavedDeviceId();
-      const savedName = this.getSavedDeviceName() || 'Vyta One';
+      const savedName = this.getSavedDeviceName() || 'Stoic Ring One';
       if (savedId) {
         try {
           console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
@@ -963,6 +963,27 @@ class QRingBleService {
         }
       } catch (_) {}
 
+      // 3b. Also attempt to subscribe to standard Bluetooth SIG Heart Rate Service (0x180D / 0x2A37) if exposed by ring
+      try {
+        await BleClient.startNotifications(
+          deviceId,
+          STANDARD_HEART_RATE_SERVICE_UUID,
+          STANDARD_HEART_RATE_MEASUREMENT_UUID,
+          (val) => {
+            if (val && val.byteLength >= 2) {
+              const flags = val.getUint8(0);
+              const is16Bit = (flags & 0x01) !== 0;
+              const bpm = is16Bit ? val.getUint16(1, true) : val.getUint8(1);
+              if (bpm >= 40 && bpm <= 220) {
+                console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate:', bpm, 'bpm');
+                this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
+              }
+            }
+          }
+        );
+        console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate notifications active');
+      } catch (_) {}
+
       // 4. Send Hardware Protocol Handshakes & Configuration (Pure memory sync, 0 LED)
       await this.syncAllRingData();
 
@@ -1019,7 +1040,7 @@ class QRingBleService {
     });
 
     this.device = device;
-    const deviceName = device.name || 'Vyta One';
+    const deviceName = device.name || 'Stoic Ring One';
 
     device.addEventListener('gattserverdisconnected', () => {
       console.warn('[QRing BLE Web] Device disconnected');
@@ -1906,6 +1927,10 @@ class QRingBleService {
     const batPacket = this.makePacket(0x03, [0x00]);
     await this.writeBytes(batPacket);
     console.log('[QRing BLE] Sent 16-byte Battery Request (Opcode 0x03)');
+  }
+
+  public isRealTimeHeartRateActive(): boolean {
+    return this.isRealTimeHrActive;
   }
 
   /**

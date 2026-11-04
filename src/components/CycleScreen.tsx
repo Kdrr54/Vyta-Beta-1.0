@@ -596,8 +596,8 @@ export const CycleScreen: React.FC = () => {
 
           <p style={{ margin: 0, fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.4 }}>
             {isEn
-              ? 'No cycle data recorded yet. Provide 3 quick details so Vyta can predict your phases, ovulation, and next period.'
-              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Vyta prévoie vos phases, votre ovulation et vos prochaines règles.'}
+              ? 'No cycle data recorded yet. Provide 3 quick details so Stoic Labs can predict your phases, ovulation, and next period.'
+              : 'Aucune donnée enregistrée pour le moment. Renseignez 3 informations simples pour que Stoic Labs prévoie vos phases, votre ovulation et vos prochaines règles.'}
           </p>
 
           <button
@@ -1427,8 +1427,8 @@ export const CycleScreen: React.FC = () => {
 
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
               {isEn
-                ? 'Vyta uses these 3 key metrics to calculate and predict your phases, fertile window, and period schedule.'
-                : 'Vyta utilise ces 3 métriques clés pour prédire avec précision vos phases, votre ovulation et vos prochaines règles.'}
+                ? 'Stoic Labs uses these 3 key metrics to calculate and predict your phases, fertile window, and period schedule.'
+                : 'Stoic Labs utilise ces 3 métriques clés pour prédire avec précision vos phases, votre ovulation et vos prochaines règles.'}
             </p>
 
             {/* Input 1: Calendar Grid to select First Day of Last Period */}
@@ -1951,8 +1951,8 @@ export const CycleScreen: React.FC = () => {
                       ? `Real skin temperature measured by your ring (${selectedPoint.temp.toFixed(2)}°C).`
                       : `Température cutanée réelle mesurée par votre bague (${selectedPoint.temp.toFixed(2)} °C).`)
                   : (isEn
-                      ? `No temperature reading recorded for this day. Your Vyta ring only plots real measured nocturnal temperatures.`
-                      : `Aucune mesure thermique enregistrée pour ce jour. Votre bague Vyta affiche uniquement vos vraies mesures nocturnes.`)}
+                      ? `No temperature reading recorded for this day. Your Stoic Ring One only plots real measured nocturnal temperatures.`
+                      : `Aucune mesure thermique enregistrée pour ce jour. Votre bague Stoic Ring One affiche uniquement vos vraies mesures nocturnes.`)}
               </p>
             </div>
           </div>

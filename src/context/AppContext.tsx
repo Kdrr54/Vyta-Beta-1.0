@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
@@ -285,6 +285,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // BPM en direct transmis par la bague (strictement 0 tant qu'aucune mesure n'est reçue)
   const [liveBpm, setLiveBpm] = useState<number>(() => 0);
   const [isLiveHrActive, setIsLiveHrActive] = useState<boolean>(false);
+  const isLiveHrActiveRef = useRef<boolean>(false);
+  useEffect(() => {
+    isLiveHrActiveRef.current = isLiveHrActive;
+  }, [isLiveHrActive]);
 
   const toggleLiveHr = useCallback(async (): Promise<boolean> => {
     if (isLiveHrActive) {
@@ -354,10 +358,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
       }
-      // Réception BPM en direct : capté soit via liveHeartRate direct, soit via notification BLE tant que le mode live est actif
+      // Réception BPM en direct : capté soit via liveHeartRate direct, soit dès que le mode live est actif sur la bague ou dans l'app
+      const isLiveActive = isLiveHrActiveRef.current || qringBle.isRealTimeHeartRateActive();
       const incomingLive = (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 220)
         ? data.liveHeartRate
-        : (isLiveHrActive && data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 220)
+        : (isLiveActive && data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 220)
           ? data.heartRate
           : null;
       if (incomingLive !== null) {

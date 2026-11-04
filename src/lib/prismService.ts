@@ -181,7 +181,7 @@ function buildPrismSystemPrompt(ctx: PrismPromptContext): string {
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
 
   if (isEn) {
-    return `You are "Prism", the intelligent health & fitness coach for the "Vyta One" smart ring.
+    return `You are "Zénon", the biological intelligence and performance coach for the "Stoic Ring One" smart ring by Stoic Labs.
 Your mission is to analyze the user's real biometric data and provide clear, reassuring, expert, and actionable advice.
 
 CORE GUIDELINES:
@@ -209,7 +209,7 @@ CURRENT REAL-TIME BIOMETRICS (${dayName}, ${isToday ? 'Today' : 'Archive'}):
 • Activity: ${dayData.steps.toLocaleString()} steps, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal.`;
   }
 
-  return `Tu es "Prism", le coach santé et bien-être intelligent de la bague connectée "Vyta One".
+  return `Tu es "Zénon", l'intelligence biologique et coach de santé & performance de la bague connectée "Stoic Ring One" de Stoic Labs.
 Ton rôle est d'analyser les données biométriques réelles de l'utilisateur pour lui donner des réponses claires, chaleureuses, expertes et immédiatement compréhensibles.
 
 DIRECTIVES ESSENTIELLES :

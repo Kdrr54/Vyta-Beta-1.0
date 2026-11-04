@@ -9,7 +9,7 @@ interface SubscribeModalProps {
 }
 
 const subscriptionFeaturesEn = [
-  'Unlimited real-time CoVyta AI biometric conversations',
+  'Unlimited real-time Zénon biological AI conversations',
   'Early immune anomaly detection & guided protocol',
   'Optimal running, recovery & sleep recommendations',
   'Exportable PDF health reports for your physician',

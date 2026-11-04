@@ -114,9 +114,9 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
       if (navigator.share) {
         const res = await fetch(dataUrl);
         const blob = await res.blob();
-        const file = new File([blob], 'vyta-activity.png', { type: 'image/png' });
+        const file = new File([blob], 'stoic-activity.png', { type: 'image/png' });
         await navigator.share({
-          title: 'Vyta Activity',
+          title: 'Stoic Activity',
           text: `${data.title} — ${distStat.value} ${distStat.unit || ''}`,
           files: [file],
         });

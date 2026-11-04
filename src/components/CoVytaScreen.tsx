@@ -287,7 +287,7 @@ export const CoVytaScreen: React.FC = () => {
       {/* 1. Header supérieur simple : CoVyta + Statut IA + Bouton Réinitialiser */}
       <div className="covyta-header-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <h1 className="header-title" style={{ margin: 0 }}>CoVyta</h1>
+          <h1 className="header-title" style={{ margin: 0 }}>Zénon</h1>
           <button
             type="button"
             onClick={() => setShowKeyModal(true)}
@@ -360,7 +360,7 @@ export const CoVytaScreen: React.FC = () => {
             </div>
 
             <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', marginTop: '2px' }}>
-              {isEn ? 'CoVyta Biometric Intelligence' : 'Intelligence Biométrique CoVyta'}
+              {isEn ? 'Zénon Biometric Intelligence' : 'Intelligence Biologique Zénon'}
             </span>
 
             <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)', maxWidth: '300px', lineHeight: 1.45, textAlign: 'center' }}>
@@ -428,7 +428,7 @@ export const CoVytaScreen: React.FC = () => {
                   <>
                     <Sparkles size={11} color={m.isRealAI ? '#30D158' : 'var(--gold)'} />
                     <span style={{ fontSize: '10px', fontWeight: 700, color: m.isRealAI ? '#30D158' : 'var(--gold-light)', letterSpacing: '0.04em' }}>
-                      COVYTA
+                      ZÉNON
                     </span>
                     {m.isRealAI && (
                       <span
@@ -565,7 +565,7 @@ export const CoVytaScreen: React.FC = () => {
           <input
             type="text"
             className="chat-input"
-            placeholder={isEn ? 'Ask CoVyta a question...' : 'Posez une question à CoVyta...'}
+            placeholder={isEn ? 'Ask Zénon a question...' : 'Posez une question à Zénon...'}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             disabled={isThinking}

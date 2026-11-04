@@ -216,7 +216,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '15px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                  Prism IA
+                  Zénon
                 </span>
                 <span
                   style={{
@@ -237,7 +237,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 </span>
               </div>
               <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '1px' }}>
-                {isEn ? 'Biometric Intelligence · Vyta One' : 'Intelligence Biométrique · Vyta One'}
+                {isEn ? 'Biological Intelligence · Stoic Ring One' : 'Intelligence Biologique · Stoic Ring One'}
               </span>
             </div>
           </div>
@@ -311,12 +311,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Prism IA
+                  Zénon
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', maxWidth: '280px', lineHeight: 1.45 }}>
                   {isEn
-                    ? 'Ask Prism anything about your ring biometrics, sleep architecture, recovery, or workouts.'
-                    : 'Posez votre question à Prism sur vos biométries, votre sommeil, votre récupération ou votre entraînement.'}
+                    ? 'Ask Zénon anything about your ring biometrics, sleep architecture, recovery, or workouts.'
+                    : 'Posez votre question à Zénon sur vos biométries, votre sommeil, votre récupération ou votre entraînement.'}
                 </span>
               </div>
             </div>
@@ -389,7 +389,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Sparkles size={12} />
-                        {isEn ? 'Prism Clinical Reasoning' : 'Raisonnement Clinique Prism'}
+                        {isEn ? 'Zénon Clinical Reasoning' : 'Raisonnement Clinique Zénon'}
                       </span>
                       {expandedThinking[msg.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
@@ -446,7 +446,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 <Sparkles size={13} color="#060608" />
               </div>
               <span style={{ fontSize: '11px', color: '#C084FC', fontWeight: 500 }}>
-                {isEn ? 'Prism is analyzing your biometrics...' : 'Prism analyse vos biométries...'}
+                {isEn ? 'Zénon is analyzing your biometrics...' : 'Zénon analyse vos biométries...'}
               </span>
             </div>
           )}

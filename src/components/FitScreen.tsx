@@ -692,7 +692,7 @@ export const FitScreen: React.FC = () => {
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
-      title: `Course Vyta · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
+      title: `Course Stoic · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
       location: finalDist >= 0.05 ? 'Course extérieure' : 'Session statique',
       distanceKm: finalDist,
       durationSec: finalDur,
@@ -1135,7 +1135,7 @@ export const FitScreen: React.FC = () => {
 
     openStory({
       mode: 'run',
-      title: 'Course GPS Vyta',
+      title: 'Course GPS Stoic',
       dateStr: new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }),
       accentText: 'Séance GPS Enregistrée',
       stats: [
@@ -1262,12 +1262,12 @@ export const FitScreen: React.FC = () => {
                   <span className="gps-pulse-dot" />
                   <span>
                     {runState === 'running'
-                      ? 'GPS Vyta Actif (Live)'
+                      ? 'GPS Stoic Actif (Live)'
                       : runState === 'paused'
                       ? 'GPS en pause'
                       : runState === 'finished'
                       ? 'Course Terminée'
-                      : 'GPS Vyta Prêt'}
+                      : 'GPS Stoic Prêt'}
                   </span>
                 </span>
               </div>
@@ -2180,12 +2180,12 @@ export const FitScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Kudos / Vyta Boost button */}
+                  {/* Kudos / Stoic Boost button */}
                   <button
                     type="button"
                     className={`boost-btn ${isBoosted ? 'boosted' : ''}`}
                     onClick={() => handleBoost(post.id)}
-                    title="Envoyer un Vyta Boost"
+                    title="Envoyer un Stoic Boost"
                   >
                     <Flame size={13} color={isBoosted ? 'var(--gold)' : '#FFFFFF'} />
                     <span>{post.boosts} Boosts</span>

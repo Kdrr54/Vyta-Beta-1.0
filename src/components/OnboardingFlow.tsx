@@ -146,7 +146,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 margin: '0 0 8px 0',
               }}
             >
-              Vyta One
+              Stoic Ring One
             </h1>
             <p
               style={{
@@ -176,7 +176,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
           >
             <img
               src="/assets/v2-orynn-ring-pedestal.png"
-              alt="Bague Vyta One sur Piédestal"
+              alt="Bague Stoic Ring One sur Piédestal"
               style={{
                 maxWidth: '280px',
                 maxHeight: '300px',

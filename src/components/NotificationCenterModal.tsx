@@ -27,7 +27,7 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
 
   const handleSendTest = (type: 'battery' | 'sleep' | 'vrc') => {
     if (type === 'battery') {
-      dispatchApplePush('🔋 Bague Vyta One', 'Charge à 100% — Prête pour 7 jours d\'autonomie continue.', 'battery');
+      dispatchApplePush('🔋 Bague Stoic Ring One', 'Charge à 100% — Prête pour 7 jours d\'autonomie continue.', 'battery');
     } else if (type === 'sleep') {
       dispatchApplePush('🌙 Préparation au Sommeil', 'Température corporelle en baisse. Fenêtre idéale dans 20 min.', 'sleep');
     } else {

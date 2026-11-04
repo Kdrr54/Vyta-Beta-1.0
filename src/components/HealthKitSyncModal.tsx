@@ -141,7 +141,7 @@ export const HealthKitSyncModal: React.FC<HealthKitSyncModalProps> = ({ onClose 
           </div>
         </div>
 
-        {/* Synced Biomarkers from Vyta One to Apple Health */}
+        {/* Synced Biomarkers from Stoic Ring One to Apple Health */}
         <div style={{ marginBottom: '16px' }}>
           <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
             Biomarqueurs écrits dans Apple Santé

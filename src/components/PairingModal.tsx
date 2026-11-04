@@ -114,7 +114,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
       const res = await qringBle.requestAndConnect();
       if (res.success) {
         setStatus('found');
-        setStatusMessage(`Bague ${res.deviceName || 'Vyta One'} connectée`);
+        setStatusMessage(`Bague ${res.deviceName || 'Stoic Ring One'} connectée`);
 
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try {
@@ -300,10 +300,10 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           )}
           <span>
             {status === 'found'
-              ? 'Vyta One · Connectée'
+              ? 'Stoic Ring One · Connectée'
               : status === 'searching'
               ? 'Balayage BLE Actif'
-              : 'Vyta One · Premier Lancement'}
+              : 'Stoic Ring One · Premier Lancement'}
           </span>
         </div>
 
@@ -429,7 +429,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           >
             <img
               src="/assets/ring/ring-iso-transparent.png"
-              alt="Bague Vyta One"
+              alt="Bague Stoic Ring One"
               style={{
                 width: '100%',
                 height: '100%',

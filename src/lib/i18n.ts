@@ -7,12 +7,12 @@ export const translations = {
     'tab.sleep': 'Sommeil',
     'tab.cycle': 'Cycle',
     'tab.fit': 'Activité',
-    'tab.covyta': 'CoVyta IA',
+    'tab.covyta': 'Zénon',
 
     // Header
-    'header.covyta_on': 'CoVyta ON',
-    'header.covyta_off': 'CoVyta OFF',
-    'header.ring_title': 'Bague Vyta One • Réglages & Diagnostics',
+    'header.covyta_on': 'Zénon ACTIF',
+    'header.covyta_off': 'Zénon OFF',
+    'header.ring_title': 'Bague Stoic Ring One • Réglages & Diagnostics',
     'header.battery_tooltip': 'Batterie bague : ',
 
     // Week & Dates
@@ -38,7 +38,7 @@ export const translations = {
     'settings.age': 'Âge (ans)',
     'settings.height': 'Taille (cm)',
     'settings.weight': 'Poids (kg)',
-    'settings.my_ring': 'Ma Bague (Vyta One)',
+    'settings.my_ring': 'Ma Bague (Stoic Ring One)',
     'settings.ring_battery': 'Batterie Bague',
     'settings.days_left': '5 jours restants',
     'settings.case_battery': 'Boîtier Nomade',
@@ -149,8 +149,8 @@ export const translations = {
     'covyta.suggest_sleep': 'Pourquoi mon sommeil profond a chuté ?',
     'covyta.suggest_run': 'Quelle allure de course me conseilles-tu ?',
     'covyta.locked_title': 'Mode Découverte Limitée',
-    'covyta.locked_desc': 'Activez CoVyta IA Premium pour débloquer les analyses biométriques en temps réel et le coaching prédictif.',
-    'covyta.subscribe_btn': 'Activer CoVyta IA • 5,99 €',
+    'covyta.locked_desc': 'Activez Zénon Premium pour débloquer les analyses biologiques en temps réel et le coaching prédictif.',
+    'covyta.subscribe_btn': 'Activer Zénon • 5,99 €',
 
     // Metric Detail Modal (BPM, HRV, Temp, SpO2)
     'metric.back': 'Santé',
@@ -166,7 +166,7 @@ export const translations = {
     'metric.recorded_measure': 'Mesure enregistrée',
 
     // Subscribe Modal
-    'sub.title': 'CoVyta IA Premium',
+    'sub.title': 'Zénon Premium',
     'sub.banner_title': 'Abonnement Sans Engagement',
     'sub.price': '5,99 €',
     'sub.period': '/ 4 semaines',
@@ -174,7 +174,7 @@ export const translations = {
     'sub.features_unlocked': 'Fonctionnalités exclusives débloquées :',
     'sub.apple_pay': 'Payer avec Apple Pay',
     'sub.card_pay': 'Carte Bancaire (CB, Visa, Mastercard)',
-    'sub.welcome_title': 'Bienvenue dans CoVyta IA !',
+    'sub.welcome_title': 'Bienvenue dans Zénon !',
     'sub.welcome_desc': 'Tous les diagnostics et protocoles biométriques sont désormais actifs.',
   },
 
@@ -184,12 +184,12 @@ export const translations = {
     'tab.sleep': 'Sleep',
     'tab.cycle': 'Cycle',
     'tab.fit': 'Activity',
-    'tab.covyta': 'CoVyta AI',
+    'tab.covyta': 'Zénon',
 
     // Header
-    'header.covyta_on': 'CoVyta ON',
-    'header.covyta_off': 'CoVyta OFF',
-    'header.ring_title': 'Vyta One Ring • Settings & Diagnostics',
+    'header.covyta_on': 'Zénon ACTIF',
+    'header.covyta_off': 'Zénon OFF',
+    'header.ring_title': 'Stoic Ring One Ring • Settings & Diagnostics',
     'header.battery_tooltip': 'Ring battery: ',
 
     // Week & Dates
@@ -215,7 +215,7 @@ export const translations = {
     'settings.age': 'Age (yrs)',
     'settings.height': 'Height (cm)',
     'settings.weight': 'Weight (kg)',
-    'settings.my_ring': 'My Ring (Vyta One)',
+    'settings.my_ring': 'My Ring (Stoic Ring One)',
     'settings.ring_battery': 'Ring Battery',
     'settings.days_left': '5 days left',
     'settings.case_battery': 'Travel Case',
@@ -326,8 +326,8 @@ export const translations = {
     'covyta.suggest_sleep': 'Why did my deep sleep drop last night?',
     'covyta.suggest_run': 'What running pace do you recommend?',
     'covyta.locked_title': 'Limited Discovery Mode',
-    'covyta.locked_desc': 'Activate CoVyta AI Premium to unlock real-time biometric analysis and predictive coaching.',
-    'covyta.subscribe_btn': 'Activate CoVyta AI • €5.99',
+    'covyta.locked_desc': 'Activate Zénon Premium to unlock real-time biological analysis and predictive coaching.',
+    'covyta.subscribe_btn': 'Activate Zénon • €5.99',
 
     // Metric Detail Modal (BPM, HRV, Temp, SpO2)
     'metric.back': 'Health',
@@ -343,7 +343,7 @@ export const translations = {
     'metric.recorded_measure': 'Recorded measurement',
 
     // Subscribe Modal
-    'sub.title': 'CoVyta AI Premium',
+    'sub.title': 'Zénon Premium',
     'sub.banner_title': 'No Commitment Subscription',
     'sub.price': '€5.99',
     'sub.period': '/ 4 weeks',
@@ -351,7 +351,7 @@ export const translations = {
     'sub.features_unlocked': 'Exclusive unlocked features:',
     'sub.apple_pay': 'Pay with Apple Pay',
     'sub.card_pay': 'Credit Card (Visa, Mastercard)',
-    'sub.welcome_title': 'Welcome to CoVyta AI!',
+    'sub.welcome_title': 'Welcome to Zénon!',
     'sub.welcome_desc': 'All biometric diagnostics and custom protocols are now active.',
   },
 } as const;

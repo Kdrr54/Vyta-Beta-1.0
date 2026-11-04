@@ -60,7 +60,7 @@ export const AppleNotificationBanner: React.FC = () => {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
           <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            VYTA • MAINTENANT
+            STOIC LABS • MAINTENANT
           </span>
           <button
             onClick={() => setActiveNotif(null)}

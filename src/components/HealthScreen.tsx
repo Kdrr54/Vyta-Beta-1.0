@@ -256,7 +256,7 @@ export const HealthScreen: React.FC = () => {
         onClick={() => openModal('prism')}
         role="button"
         tabIndex={0}
-        title="Ouvrir Prism IA · Analyse Biométrique & Clinique"
+        title="Ouvrir Zénon · Intelligence Biologique"
         style={{
           position: 'relative',
           padding: '13px 15px',
@@ -305,7 +305,7 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '13.5px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                Prism IA
+                Zénon
               </span>
               <span
                 style={{
@@ -319,7 +319,7 @@ export const HealthScreen: React.FC = () => {
                   letterSpacing: '0.2px',
                 }}
               >
-                LIVE
+                ACTIF
               </span>
             </div>
             <p
@@ -333,7 +333,7 @@ export const HealthScreen: React.FC = () => {
                 textOverflow: 'ellipsis',
               }}
             >
-              {language === 'fr' ? 'Intelligence physiologique & biométrique en direct' : 'Live biometric & physiological intelligence'}
+              {language === 'fr' ? 'Intelligence biologique & analyse clinique en direct' : 'Live biological intelligence & clinical insights'}
             </p>
           </div>
         </div>
@@ -1053,7 +1053,7 @@ export const HealthScreen: React.FC = () => {
         >
           <img
             src="/assets/ring/ring-iso-transparent.png"
-            alt="Vyta One Smart Ring Sensors"
+            alt="Stoic Ring One Smart Ring Sensors"
             style={{
               width: '100%',
               height: '100%',

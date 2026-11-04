@@ -747,8 +747,8 @@ export const GeneralStateModal: React.FC<GeneralStateModalProps> = ({ onClose })
           <p style={{ fontSize: '12px', lineHeight: 1.5, color: 'rgba(250, 247, 242, 0.85)', margin: 0 }}>
             {activeScore === 0
               ? isEn
-                ? 'Wear your Vyta ring continuously during the day and while sleeping to unlock personalized physiological insights.'
-                : 'Portez votre bague Vyta en continu durant la journée et pendant votre sommeil pour afficher votre analyse biométrique personnalisée.'
+                ? 'Wear your Stoic Ring One continuously during the day and while sleeping to unlock personalized physiological insights.'
+                : 'Portez votre bague Stoic Ring One en continu durant la journée et pendant votre sommeil pour afficher votre analyse biométrique personnalisée.'
               : activeScore >= 90
               ? isEn
                 ? `Outstanding condition! Your score of ${activeScore}/100 exceeds your weekly average (${avgScore}) by +${diffAvg} points.`

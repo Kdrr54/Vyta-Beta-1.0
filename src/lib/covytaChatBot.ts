@@ -62,9 +62,9 @@ export function generateCoVytaResponse(ctx: BotContext): string {
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
   if (isZeroState) {
     if (isEn) {
-      return `### Vyta One · Waiting for Biometric Telemetry ⏳
+      return `### Stoic Ring One · Waiting for Biometric Telemetry ⏳
 
-Hello **${userName}**! Your Vyta One ring is in factory initial state with **0 recorded metrics**.
+Hello **${userName}**! Your Stoic Ring One is in factory initial state with **0 recorded metrics**.
 
 • **Status**: Ring waiting for first wear and synchronization.
 • **Current Telemetry**: 0 BPM · 0 Steps · No sleep data.
@@ -73,13 +73,13 @@ Hello **${userName}**! Your Vyta One ring is in factory initial state with **0 r
 Your personalized physiological analyses, readiness scores, and training targets will unlock automatically once your first metrics are recorded!`;
     }
 
-    return `### Bague Vyta One · En attente de télémétrie biométrique ⏳
+    return `### Bague Stoic Ring One · En attente de télémétrie biométrique ⏳
 
-Bonjour **${userName}** ! Votre bague connectée Vyta One est actuellement à l'état d'usine avec **0 donnée enregistrée**.
+Bonjour **${userName}** ! Votre bague connectée Stoic Ring One est actuellement à l'état d'usine avec **0 donnée enregistrée**.
 
 • **Statut** : Bague réinitialisée en attente de première utilisation.
 • **Télémétrie actuelle** : 0 BPM · 0 Pas · Aucun cycle de sommeil.
-• **Ce qu'il faut faire** : Portez simplement votre bague Vyta One au doigt. Dès que vous la portez, les capteurs optiques PPG mesureront en continu votre rythme cardiaque, vos phases de sommeil et votre VRC.
+• **Ce qu'il faut faire** : Portez simplement votre bague Stoic Ring One au doigt. Dès que vous la portez, les capteurs optiques PPG mesureront en continu votre rythme cardiaque, vos phases de sommeil et votre VRC.
 
 Toutes vos analyses physiologiques, scores d'énergie et recommandations personnalisées se baseront automatiquement sur les informations transmises dès votre première synchronisation !`;
   }
@@ -221,7 +221,7 @@ Simulating behavioral impacts on your biometric baseline:
 
     return `### Simulateur d'Habitudes & Métabolisme · Bevel ☕🧪
 
-Simulation de l'impact physiologique sur tes capteurs Vyta One :
+Simulation de l'impact physiologique sur tes capteurs Stoic Ring One :
 
 • **Coupure Caféine** : Ta demi-vie d'élimination de la caféine est d'environ 6h. Tout café consommé **après 14h00** amputera ton sommeil profond de **−24 minutes** ce soir.
 • **Dîner Tardif (après 20h30)** : Maintient un débit splanchnique élevé durant la première moitié de nuit, haussant ta FC nocturne de **+4 à 6 bpm** et bridant ta VFC.
@@ -235,9 +235,9 @@ Simulation de l'impact physiologique sur tes capteurs Vyta One :
 
   if (greetingsRegex.test(cleanPrompt) || (cleanPrompt.length <= 15 && greetingsExtended.test(cleanPrompt))) {
     if (isEn) {
-      return `### Hello ${userName}! 👋 · Bevel Intelligence
-
-Synchronized in real time with your **Vyta One** smart ring.
+      return `### Hello ${userName}! 👋 · Stoic Labs
+ 
+Synchronized in real time with your **Stoic Ring One** smart ring.
 
 • **Recovery Score**: **${dayData.score}/100**
 • **Target Strain**: **${strain.min}–${strain.max} / 21**
@@ -247,9 +247,9 @@ Synchronized in real time with your **Vyta One** smart ring.
 Mode active: **${persona.toUpperCase()}**. Ask me to **connect the dots**, **calculate your strain**, or **audit your sleep architecture**!`;
     }
 
-    return `### Bonjour ${userName} ! 👋 · Bevel Intelligence
+    return `### Bonjour ${userName} ! 👋 · Stoic Labs
 
-Synchronisé en direct avec ta bague **Vyta One**.
+Synchronisé en direct avec ta bague **Stoic Ring One**.
 
 • **Score de Récupération** : **${dayData.score}/100**
 • **Target Strain du Jour** : **${strain.min}–${strain.max} / 21**
@@ -260,11 +260,11 @@ Mode actif : **${persona === 'analyst' ? '🔬 ANALYSTE' : persona === 'commande
   }
 
   // 6. QUI ES-TU / WHO ARE YOU
-  if (/(qui es-tu|qui es tu|c'est quoi covyta|présente-toi|who are you|what is covyta|bevel)/i.test(cleanPrompt)) {
+  if (/(qui es-tu|qui es tu|c'est quoi covyta|c'est quoi zénon|c'est quoi zenon|présente-toi|who are you|what is covyta|what is zenon|stoic labs)/i.test(cleanPrompt)) {
     if (isEn) {
-      return `### I am CoVyta AI · Powered by Bevel Intelligence ⚡
+      return `### I am Zénon · Biological AI by Stoic Labs ⚡
 
-A native biometric reasoning engine tailored for the **Vyta One** titanium smart ring.
+A native biological intelligence tailored for the **Stoic Ring One** titanium smart ring.
 
 Unlike generic language models, I connect the dots across:
 • **Nocturnal Autonomic Tone** (HRV in milliseconds & Nadir HR)
@@ -275,9 +275,9 @@ Unlike generic language models, I connect the dots across:
 Switch between **Analyst**, **Commander**, and **Guardian** personas above to adapt my tone to your goals.`;
     }
 
-    return `### Je suis CoVyta IA · Propulsé par Bevel Intelligence ⚡
+    return `### Je suis Zénon · L'IA Biologique de Stoic Labs ⚡
 
-Un moteur d'intelligence biométrique natif conçu pour la bague connectée en titane **Vyta One**.
+Un moteur d'intelligence biologique natif conçu pour la bague connectée en titane **Stoic Ring One**.
 
 Contrairement aux IA génériques, je relie la cause à l'effet sur ton corps :
 • **Tonus Autonome Nocturne** (VFC en millisecondes et Nadir cardiaque)
@@ -350,12 +350,12 @@ Ton niveau de Body Energy est actuellement à **${dayData.bodyEnergy} %**.
     if (isEn) {
       return `### Sleep Architecture & Chronobiology 🌙
 
-Nocturnal telemetry recorded by Vyta One:
+Nocturnal telemetry recorded by Stoic Ring One:
 • **Sleep Score**: **${dayData.sleep.score}/100**
 • **Deep Sleep**: **${deepHours}h ${deepMins}m** (physical cellular repair)
 • **REM Sleep**: **${Math.floor(dayData.sleep.remMin / 60)}h ${dayData.sleep.remMin % 60}m** (cognitive & memory consolidation)
 
-### Bevel Recommendations
+### Zénon Recommendations
 • **Sleep Need Tonight**: **8h 15m** (including 25m debt compensation)
 • **Bedtime Target**: **22:45**
 • **Room Ambient**: **18 °C** with complete darkness`;
@@ -363,12 +363,12 @@ Nocturnal telemetry recorded by Vyta One:
 
     return `### Architecture du Sommeil & Chronobiologie 🌙
 
-Relevés nocturnes de ta bague Vyta One :
+Relevés nocturnes de ta bague Stoic Ring One :
 • **Score de Sommeil** : **${dayData.sleep.score}/100**
 • **Sommeil Profond** : **${deepHours}h ${deepMins}m** (sécrétion d'hormone de croissance et réparation tissulaire)
 • **Sommeil Paradoxal (REM)** : **${Math.floor(dayData.sleep.remMin / 60)}h ${dayData.sleep.remMin % 60}m** (synthèse mémorielle et gestion émotionnelle)
 
-### Recommandations Bevel
+### Recommandations Zénon
 • **Besoin de Sommeil ce soir** : **8h15** (dont +25 min de compensation de dette)
 • **Heure de Coucher Recommandée** : **22h45**
 • **Environnement** : Température de chambre à **18 °C** et obscurité complète`;

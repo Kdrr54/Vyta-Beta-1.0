@@ -1,13 +1,13 @@
 {
   "appId": "lt.manodrabuziai.fr.ZCU3WN2ZW4",
-  "appName": "Vyta",
+  "appName": "Stoic Labs",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
-    "hostname": "vyta"
+    "hostname": "stoic"
   },
   "ios": {
-    "scheme": "Vyta",
+    "scheme": "Stoic",
     "teamId": "ZCU3WN2ZW4",
     "contentInset": "never",
     "allowsLinkPreview": false,

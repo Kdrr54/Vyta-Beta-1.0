@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Vyta</string>
+        <string>Stoic Labs</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,9 +46,9 @@
     </dict>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Vyta a besoin du Bluetooth pour se synchroniser avec votre bague connectée Vyta One.</string>
+	<string>Stoic Labs a besoin du Bluetooth pour se synchroniser avec votre bague connectée Stoic Ring One.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Vyta utilise le Bluetooth pour communiquer avec la bague connectée.</string>
+	<string>Stoic Labs utilise le Bluetooth pour communiquer avec la bague connectée Stoic Ring One.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
@@ -60,11 +60,11 @@
 		<string>location</string>
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Vyta enregistre votre parcours et vitesse d'entraînement GPS avec précision pendant vos séances de course, même en arrière-plan.</string>
+	<string>Stoic Labs enregistre votre parcours et vitesse d'entraînement GPS avec précision pendant vos séances de course, même en arrière-plan.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Vyta utilise votre géolocalisation pour mesurer vos distances et tracer votre itinéraire d'entraînement.</string>
+	<string>Stoic Labs utilise votre géolocalisation pour mesurer vos distances et tracer votre itinéraire d'entraînement.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Vyta continue d'enregistrer votre tracé GPS, distance et vitesse de course même lorsque votre téléphone est verrouillé ou en veille.</string>
+	<string>Stoic Labs continue d'enregistrer votre tracé GPS, distance et vitesse de course même lorsque votre téléphone est verrouillé ou en veille.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
