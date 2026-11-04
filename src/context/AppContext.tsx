@@ -294,24 +294,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return !res;
     } else {
       setIsLiveHrActive(true);
+      // Démarre la boucle continue PPG (Action.START + Action.CONTINUE toutes les 1.2s)
       const res = await qringBle.startRealTimeHeartRate();
+      if (!res && !qringBle.isConnected()) {
+        console.warn('[Live HR] Ring not currently connected, triggering quick reconnect...');
+        qringBle.scheduleAutoReconnect();
+      }
       return res;
     }
-  }, [isLiveHrActive]);
-
-  // Rafraîchissement périodique (keep-alive) pendant la mesure cardio continue
-  useEffect(() => {
-    if (!isLiveHrActive) return;
-
-    const interval = setInterval(() => {
-      if (qringBle.isConnected()) {
-        qringBle.startRealTimeHeartRate();
-      }
-    }, 15000);
-
-    return () => {
-      clearInterval(interval);
-    };
   }, [isLiveHrActive]);
 
   const updateProfile = (partial: Partial<UserProfile>) => {
@@ -364,8 +354,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
       }
-      if (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 200) {
-        setLiveBpm(data.liveHeartRate);
+      // Réception BPM en direct : capté soit via liveHeartRate direct, soit via notification BLE tant que le mode live est actif
+      const incomingLive = (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 220)
+        ? data.liveHeartRate
+        : (isLiveHrActive && data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 220)
+          ? data.heartRate
+          : null;
+      if (incomingLive !== null) {
+        setLiveBpm(incomingLive);
       }
       if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
         setWeekData((prev) => {

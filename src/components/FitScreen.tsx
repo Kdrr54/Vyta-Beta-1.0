@@ -820,7 +820,13 @@ export const FitScreen: React.FC = () => {
       ? (instantSpeedKmh >= 0.8 ? instantSpeedKmh.toFixed(1) : '0.0')
       : '0.0';
   const liveHr = isIdle ? 0 : (liveBpm > 0 ? liveBpm : 0);
-  const liveCalories = isIdle ? 0 : Math.round(runDistanceKm * 65);
+  // Dépense énergétique : calcul combiné distance + temps écoulé + rythme cardiaque
+  const liveCalories = isIdle
+    ? 0
+    : Math.max(
+        Math.round(runDistanceKm * 65),
+        runDurationSec > 5 ? Math.round((runDurationSec / 60) * (liveHr > 120 ? 11 : liveHr > 90 ? 8.5 : 7)) : 0
+      );
   const liveElevation = 0;
 
   // ------------------ MUSCULATION (SÉANCE PERSONNALISÉE) ------------------

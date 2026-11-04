@@ -386,8 +386,7 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
-                  {isIdle ? '0' : (liveHr > 40 ? liveHr : '--')}{' '}
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>bpm</span>
+                  {isIdle ? '0' : (liveHr > 40 ? `${liveHr} bpm` : (isLiveHrActive ? 'Mesure...' : '-- bpm'))}
                 </span>
               </div>
             )}
@@ -715,6 +714,32 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
                 fontWeight="700"
               >
                 ❤️ Activer le cardio live
+              </text>
+            </g>
+          )}
+
+          {/* Indicateur de mesure en cours quand actif mais en attente du premier verrouillage de pouls */}
+          {activeMetric === 'bpm' && isLiveHrActive && (!telemetryHistory || telemetryHistory.every((p) => p.hrBpm <= 40)) && (
+            <g>
+              <rect
+                x={chartX + chartWidth / 2 - 105}
+                y={chartY + chartHeight / 2 - 16}
+                width={210}
+                height={32}
+                rx={16}
+                fill="rgba(24, 24, 27, 0.90)"
+                stroke="rgba(255, 59, 48, 0.55)"
+                strokeWidth={1.2}
+              />
+              <text
+                x={chartX + chartWidth / 2}
+                y={chartY + chartHeight / 2 + 5}
+                textAnchor="middle"
+                fill="#FF453A"
+                fontSize="11.5"
+                fontWeight="700"
+              >
+                ❤️ Capteur actif · Mesure du pouls...
               </text>
             </g>
           )}

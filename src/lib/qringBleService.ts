@@ -159,6 +159,7 @@ class QRingBleService {
   // Strict 30-minute discrete cadence (48 slots/24h: 00:00, 00:30, 01:00, 01:30... — 0 continuous)
   private configuredIntervalMinutes = 30;
   private isRealTimeHrActive = false;
+  private realTimeHrTimer: any = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -1910,12 +1911,13 @@ class QRingBleService {
   /**
    * Start real-time heart rate sensor on the ring (Illuminates Green Optical LEDs)
    * Official QRing / Colmi R02 protocol (colmi_r02_client / QCBandSDK):
-   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action = 1, 0...]
-   * Response packet: [0x69, 0x01, errorCode (0 = OK), heartRateBpm, ...]
+   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action.START = 1, 0...]
+   * Continuous keep-alive: [0x69, DataType.HeartRate = 1, Action.CONTINUE = 3] every 1.2s
+   * Legacy Command 30 (0x1E): [0x1E, 0x03] for older firmware revisions
    */
   public async startRealTimeHeartRate(): Promise<boolean> {
     this.isRealTimeHrActive = true;
-    console.log('[QRing BLE] Triggering live optical PPG measurement (Command 0x69 [0x01, 0x01])...');
+    console.log('[QRing BLE] Starting continuous optical PPG measurement on physical ring...');
 
     // If not currently connected, attempt quick silent auto-reconnect before failing
     if (!this.isConnected()) {
@@ -1927,27 +1929,79 @@ class QRingBleService {
       }
     }
 
-    // Send ONLY the official QRing HeartRate (DataType = 1) command.
-    // Sending DataType = 6 (0x06) or Command 30 (0x1E) triggers ECG/SpO2/raw PPG (~96) instead of BPM!
+    if (this.realTimeHrTimer) {
+      clearInterval(this.realTimeHrTimer);
+      this.realTimeHrTimer = null;
+    }
+
+    // 1. Initial Start Packet: Command 105 (0x69), DataType.HeartRate = 1, Action.START = 1
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
     const ok = await this.writeBytes(p105_1);
+
+    // 2. Also send Command 30 (0x1E) type 0x03 for older Colmi / Moya firmware compatibility
+    try {
+      const p30 = this.makePacket(0x1E, [0x03]);
+      await this.writeBytes(p30);
+    } catch (_) {}
+
+    // 3. Keep-alive loop: Colmi R02 optical PPG expects Action.CONTINUE (0x03) every ~1-2 seconds
+    // to maintain the optical green LED active without watchdog timeout
+    let count = 0;
+    this.realTimeHrTimer = setInterval(async () => {
+      if (!this.isRealTimeHrActive) {
+        if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
+        this.realTimeHrTimer = null;
+        return;
+      }
+
+      if (!this.isConnected()) {
+        await this.attemptSilentReconnect();
+        return;
+      }
+
+      count++;
+      // Every 3 cycles (~3.6s), re-send START to maintain optical green LED lock
+      if (count % 3 === 0) {
+        await this.writeBytes(this.makePacket(0x69, [0x01, 0x01]));
+        try {
+          await this.writeBytes(this.makePacket(0x1E, [0x03]));
+        } catch (_) {}
+      } else {
+        // Send Action.CONTINUE = 3
+        await this.writeBytes(this.makePacket(0x69, [0x01, 0x03]));
+      }
+    }, 1200);
+
     return ok;
   }
 
   /**
    * Stop real-time heart rate sensor on the ring to preserve battery
    * Official QRing / Colmi R02 protocol:
+   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action.STOP = 4]
    * Command 106 (0x6A): [0x6A, DataType.HeartRate = 1, 0x00, 0x00]
    */
   public async stopRealTimeHeartRate(): Promise<boolean> {
     this.isRealTimeHrActive = false;
-    console.log('[QRing BLE] Stopping live optical PPG measurement (Command 0x6A [0x01, 0x00, 0x00])...');
+    if (this.realTimeHrTimer) {
+      clearInterval(this.realTimeHrTimer);
+      this.realTimeHrTimer = null;
+    }
+    console.log('[QRing BLE] Stopping live optical PPG measurement (Command 0x6A & 0x69 Stop)...');
 
+    // 1. Command 105 Action.STOP = 4
+    const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
+    await this.writeBytes(p105_1_stop);
+
+    // 2. Command 106 Stop
     const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
     const ok = await this.writeBytes(p106_stop_1);
 
-    const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
-    await this.writeBytes(p105_1_stop);
+    // 3. Command 30 Stop
+    try {
+      const p30_stop = this.makePacket(0x1E, [0x00]);
+      await this.writeBytes(p30_stop);
+    } catch (_) {}
 
     return ok;
   }
@@ -2335,34 +2389,69 @@ class QRingBleService {
     }
 
     // 5. Official QRing / Colmi R02 Real-time Heart Rate stream packet (header 0x69 / 105)
-    // Exact QRing packet layout (colmi_r02_client / QCBandSDK):
+    // Colmi R02 / QRing layout (colmi_r02_client / QCBandSDK):
     //   byte[0] = 0x69 (105)
     //   byte[1] = dataType (1 = HeartRate, 3 = SpO2, 10 = HRV)
-    //   byte[2] = errorCode (0 = valid reading, != 0 = error)
-    //   byte[3] = value (heartRate in BPM when dataType === 1 and errorCode === 0)
+    // Depending on firmware revision:
+    //   byte[2] = reading value (heartRate in BPM if dataType === 1), OR status / errorCode
+    //   byte[3] = secondary reading value or status
     // Note: dataType === 6 is ECG/raw PPG (~96) and must NEVER be parsed as BPM!
-    if ((header === 0x69 || header === 105) && len >= 4) {
+    if ((header === 0x69 || header === 105) && len >= 3) {
       const dataType = dataView.getUint8(1);
-      const errCode = dataView.getUint8(2);
-      const val = dataView.getUint8(3);
-      if (dataType === 0x01 && errCode === 0) {
-        if (val >= 40 && val <= 200) {
-          console.log('[QRing BLE] Command 105 (0x69, type=1) Real PPG Heart Rate Received:', val, 'bpm');
-          this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
+      const b2 = dataView.getUint8(2);
+      const b3 = len >= 4 ? dataView.getUint8(3) : 0;
+
+      if (dataType === 0x01) {
+        let bpm = 0;
+        if (b2 >= 40 && b2 <= 220) {
+          bpm = b2;
+        } else if (b3 >= 40 && b3 <= 220) {
+          bpm = b3;
+        }
+
+        if (bpm >= 40 && bpm <= 220) {
+          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (b2:', b2, 'b3:', b3, ')');
+          this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
+          return;
+        } else if (b2 === 0 || b3 === 0) {
+          console.log('[QRing BLE] Command 105 optical PPG pulse lock acquiring...');
+        }
+      } else if (dataType === 0x03) {
+        let spo2Val = 0;
+        if (b2 >= 70 && b2 <= 100) spo2Val = b2;
+        else if (b3 >= 70 && b3 <= 100) spo2Val = b3;
+        if (spo2Val > 0) {
+          console.log('[QRing BLE] Command 105 Real SpO2 Received:', spo2Val, '%');
+          this.notify({ spo2: spo2Val, isConnected: true });
           return;
         }
-      } else if (dataType === 0x03 && errCode === 0) {
-        if (val >= 70 && val <= 100) {
-          console.log('[QRing BLE] Command 105 (0x69, type=3) Real SpO2 Received:', val, '%');
-          this.notify({ spo2: val, isConnected: true });
+      } else if (dataType === 10 || dataType === 0x0A) {
+        let hrvVal = 0;
+        if (b2 >= 10 && b2 <= 200) hrvVal = b2;
+        else if (b3 >= 10 && b3 <= 200) hrvVal = b3;
+        if (hrvVal > 0) {
+          console.log('[QRing BLE] Command 105 HRV Received:', hrvVal, 'ms');
+          this.notify({ hrv: hrvVal, isConnected: true });
           return;
         }
-      } else if ((dataType === 10 || dataType === 0x0A) && errCode === 0) {
-        if (val >= 10 && val <= 200) {
-          console.log('[QRing BLE] Command 105 HRV Received:', val, 'ms');
-          this.notify({ hrv: val, isConnected: true });
-          return;
-        }
+      }
+    }
+
+    // 5b. Native QRing Command 30 (0x1E) Realtime Heart Rate response (legacy Colmi firmware)
+    if ((header === 30 || header === 0x1E) && len >= 2) {
+      const b1 = dataView.getUint8(1);
+      const b2 = len >= 3 ? dataView.getUint8(2) : 0;
+      let bpm = 0;
+      if (b1 >= 40 && b1 <= 220) {
+        bpm = b1;
+      } else if (b2 >= 40 && b2 <= 220) {
+        bpm = b2;
+      }
+
+      if (bpm >= 40 && bpm <= 220) {
+        console.log('[QRing BLE] Command 30 Real PPG Heart Rate Received:', bpm, 'bpm (b1:', b1, 'b2:', b2, ')');
+        this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
+        return;
       }
     }
 
@@ -2376,16 +2465,12 @@ class QRingBleService {
       if (len >= 3) {
         const subType = dataView.getUint8(1);
         const val = dataView.getUint8(2);
-        if (subType === 0x01 && val >= 40 && val <= 200) {
+        if (subType === 0x01 && val >= 40 && val <= 220) {
           console.log('[QRing BLE] Notification 0x73 (type=1) Heart Rate:', val, 'bpm');
-          if (this.isRealTimeHrActive) {
-            this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
-          }
+          this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
         } else if (subType === 0x03 && val >= 70 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=3) SpO2:', val, '%');
-          if (this.isRealTimeHrActive) {
-            this.notify({ spo2: val, isConnected: true });
-          }
+          this.notify({ spo2: val, isConnected: true });
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=0x0C) Battery:', val, '%');
           this.notify({ batteryPct: val, isConnected: true });

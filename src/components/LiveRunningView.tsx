@@ -51,7 +51,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
 }) => {
-  const { isLiveHrActive, toggleLiveHr } = useApp();
+  const { isLiveHrActive, toggleLiveHr, ring } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(false);
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
@@ -565,6 +565,9 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               size={18}
               fill={isLiveHrActive ? "#FF3B30" : "none"}
               color={isLiveHrActive ? "#FF3B30" : "#FFFFFF"}
+              style={{
+                animation: isLiveHrActive ? 'pulse 1.4s ease-in-out infinite' : 'none',
+              }}
             />
           </button>
 
@@ -949,11 +952,36 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                     {isLiveHrActive ? 'LIVE' : 'ACTIVER'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
-                    {liveHr > 40 ? liveHr : '--'}
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                  {liveHr > 40 ? (
+                    <>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
+                        {liveHr}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
+                    </>
+                  ) : isLiveHrActive ? (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <span
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: '#FF453A',
+                          display: 'inline-block',
+                          boxShadow: '0 0 8px #FF453A',
+                        }}
+                      />
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#FF453A' }}>
+                        {ring?.isConnected ? 'Recherche pouls...' : 'Connexion bague...'}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>--</span>
+                      <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
+                    </>
+                  )}
                   <span style={{ fontSize: '11px', color: '#FF9F0A', marginLeft: 'auto', fontWeight: 700 }}>
                     {liveCalories} kcal
                   </span>
