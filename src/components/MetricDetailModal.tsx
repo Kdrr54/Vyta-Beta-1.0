@@ -994,16 +994,29 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  // On ne relie que les créneaux réellement mesurés (la courbe s'arrête strictement à l'heure courante sans tracer vers le futur)
-  const measuredPoints = dataset
-    .map((pt, i) => ({ x: getX(i), y: getY(pt.value), pt }))
-    .filter((p) => isValidPoint(p.pt))
-    .map(({ x, y }) => ({ x, y }));
-  const coordPoints = measuredPoints.length > 0
-    ? measuredPoints
-    : [];
-  const linePath = getSmoothPath(coordPoints);
-  const areaPath = getSmoothArea(coordPoints, bottomY);
+  // Segmentation des créneaux mesurés : si la bague n'a pas été portée (trou >= 1 créneau / 30 min),
+  // on sépare la courbe en segments distincts pour laisser un vide visuel ("trou") sans relier artificiellement.
+  const segments: Array<Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }>> = [];
+  let currentSegment: Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }> = [];
+
+  dataset.forEach((pt, i) => {
+    if (isValidPoint(pt)) {
+      if (currentSegment.length > 0) {
+        const prev = currentSegment[currentSegment.length - 1];
+        // S'il y a un créneau manquant entre deux mesures (trou > 1 créneau, soit au moins 30 min sans relevé),
+        // on clôture le segment courant pour laisser un trou visible dans la courbe
+        if (i - prev.slotIndex > 1) {
+          segments.push(currentSegment);
+          currentSegment = [];
+        }
+      }
+      currentSegment.push({ x: getX(i), y: getY(pt.value), pt, slotIndex: i });
+    }
+  });
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
 
   const getIcon = () => {
     switch (detail.iconName) {
@@ -1161,7 +1174,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     ? (activePoint.info || t('metric.recorded_measure'))
                     : (activePoint.info || (metricId === 'resp'
                         ? (isEn ? 'Sleep only (Awake)' : 'Éveil (Sommeil uniquement)')
-                        : (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday
+                        : (modalDay < TODAY_INDEX || (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday)
                             ? (isEn ? 'No measure (Ring off)' : 'Non mesuré (Bague retirée)')
                             : (isEn ? 'Awaiting reading' : 'En attente')))))
                 : displayPeriodText}
@@ -1210,7 +1223,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       ? (isEn ? 'Inspected data point' : 'Point inspecté sur la courbe')
                       : (metricId === 'resp'
                           ? (isEn ? 'Awake daytime period' : 'Période d’éveil en journée')
-                          : (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday
+                          : (modalDay < TODAY_INDEX || (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday)
                               ? (isEn ? 'Ring removed / No pulse' : 'Bague retirée / Pas de mesure')
                               : (isEn ? 'Awaiting reading' : 'Point futur en attente'))))
                   : displayBadge}
@@ -1911,7 +1924,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
               )}
 
               {/* Chart Curve or Zero State Notice */}
-              {isZeroState ? (
+              {isZeroState || segments.length === 0 ? (
                 <g>
                   <line
                     x1={paddingLeft}
@@ -1945,30 +1958,63 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </g>
               ) : (
                 <>
-                  {/* Area Fill */}
-                  <path d={areaPath} fill={`url(#areaGrad-${detail.id})`} />
+                  {segments.map((seg, sIdx) => {
+                    if (seg.length >= 2) {
+                      const segLine = getSmoothPath(seg);
+                      const segArea = getSmoothArea(seg, bottomY);
+                      return (
+                        <g key={`seg-${sIdx}`}>
+                          {/* Area Fill for this segment */}
+                          <path d={segArea} fill={`url(#areaGrad-${detail.id})`} />
 
-                  {/* Ambient Glowing Halo Line */}
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke={theme.primary}
-                    strokeWidth="5.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity="0.32"
-                    filter={`url(#chartGlow-${detail.id})`}
-                  />
+                          {/* Ambient Glowing Halo Line */}
+                          <path
+                            d={segLine}
+                            fill="none"
+                            stroke={theme.primary}
+                            strokeWidth="5.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            opacity="0.32"
+                            filter={`url(#chartGlow-${detail.id})`}
+                          />
 
-                  {/* Sharp High-Intensity Core Line */}
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke={`url(#strokeGrad-${detail.id})`}
-                    strokeWidth="2.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                          {/* Sharp High-Intensity Core Line */}
+                          <path
+                            d={segLine}
+                            fill="none"
+                            stroke={`url(#strokeGrad-${detail.id})`}
+                            strokeWidth="2.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </g>
+                      );
+                    } else if (seg.length === 1) {
+                      return (
+                        <g key={`pt-${sIdx}`}>
+                          {/* Point isolé mesuré (pulse dot) */}
+                          <circle
+                            cx={seg[0].x}
+                            cy={seg[0].y}
+                            r="5"
+                            fill={theme.primary}
+                            opacity="0.35"
+                            filter={`url(#chartGlow-${detail.id})`}
+                          />
+                          <circle
+                            cx={seg[0].x}
+                            cy={seg[0].y}
+                            r="3.5"
+                            fill="#FFFFFF"
+                            stroke={theme.primary}
+                            strokeWidth="2"
+                          />
+                        </g>
+                      );
+                    }
+                    return null;
+                  })}
                 </>
               )}
 
@@ -2111,7 +2157,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     ? (activePoint.info || t('metric.recorded_measure'))
                     : (activePoint.info || (metricId === 'resp'
                         ? (isEn ? 'Sleep only' : 'Sommeil uniq.')
-                        : (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday
+                        : (modalDay < TODAY_INDEX || (modalDay === TODAY_INDEX && hoverIndex <= currentSlotToday)
                             ? (isEn ? 'Ring off' : 'Bague non portée')
                             : (isEn ? 'Awaiting reading' : 'En attente'))))}
                 </span>
