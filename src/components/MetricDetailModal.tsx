@@ -994,8 +994,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  // Segmentation des créneaux mesurés : si la bague n'a pas été portée (trou >= 1 créneau / 30 min),
-  // on sépare la courbe en segments distincts pour laisser un vide visuel ("trou") sans relier artificiellement.
+  // Seuil d'interruption (bague retirée) :
+  // - Pour le BPM (mesure automatique toutes les 30 min) : un trou de plus de 2h30 (5 créneaux consécutifs sans relevé) marque un retrait de la bague.
+  // - Pour le VRC / SpO2 / Stress / Temp (mesures périodiques espacées naturellement de 1h à 2h) :
+  //   les mesures espacées jusqu'à 4h (8 créneaux de 30 min) appartiennent à la même période de port et doivent former une ligne de courbe fluide continue.
+  //   Au-delà de 4h d'absence totale de mesure (ex: bague retirée pendant 10h), la courbe s'interrompt pour laisser un vide net ("trou").
+  const maxGapSlots = metricId === 'bpm' ? 5 : 8;
+
   const segments: Array<Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }>> = [];
   let currentSegment: Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }> = [];
 
@@ -1003,9 +1008,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     if (isValidPoint(pt)) {
       if (currentSegment.length > 0) {
         const prev = currentSegment[currentSegment.length - 1];
-        // S'il y a un créneau manquant entre deux mesures (trou > 1 créneau, soit au moins 30 min sans relevé),
-        // on clôture le segment courant pour laisser un trou visible dans la courbe
-        if (i - prev.slotIndex > 1) {
+        if (i - prev.slotIndex > maxGapSlots) {
           segments.push(currentSegment);
           currentSegment = [];
         }
@@ -1993,22 +1996,25 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     } else if (seg.length === 1) {
                       return (
                         <g key={`pt-${sIdx}`}>
-                          {/* Point isolé mesuré (pulse dot) */}
-                          <circle
-                            cx={seg[0].x}
-                            cy={seg[0].y}
-                            r="5"
-                            fill={theme.primary}
-                            opacity="0.35"
+                          {/* Segment court / Point isolé mesuré */}
+                          <line
+                            x1={seg[0].x - 8}
+                            y1={seg[0].y}
+                            x2={seg[0].x + 8}
+                            y2={seg[0].y}
+                            stroke={theme.primary}
+                            strokeWidth="3.2"
+                            strokeLinecap="round"
+                            opacity="0.85"
                             filter={`url(#chartGlow-${detail.id})`}
                           />
                           <circle
                             cx={seg[0].x}
                             cy={seg[0].y}
-                            r="3.5"
+                            r="3"
                             fill="#FFFFFF"
                             stroke={theme.primary}
-                            strokeWidth="2"
+                            strokeWidth="1.5"
                           />
                         </g>
                       );
