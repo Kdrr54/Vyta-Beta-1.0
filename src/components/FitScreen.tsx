@@ -599,6 +599,10 @@ export const FitScreen: React.FC = () => {
       runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     }
     setRunState('running');
+    if (!isLiveHrActive) {
+      setIsLiveHrActive(true);
+      qringBle.startRealTimeHeartRate().catch(() => {});
+    }
     notifyNativeWorkout('start', {
       workoutTitle: 'Course à pied',
       elapsedTime: 0,
@@ -631,6 +635,10 @@ export const FitScreen: React.FC = () => {
   const resumeRun = () => {
     runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     setRunState('running');
+    if (!isLiveHrActive) {
+      setIsLiveHrActive(true);
+      qringBle.startRealTimeHeartRate().catch(() => {});
+    }
     currentSmoothedSpeedRef.current = 0;
     recentGpsSamplesRef.current = [];
     lastDistanceFixRef.current = null;
