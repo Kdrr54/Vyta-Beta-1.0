@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame, TrendingUp } from 'lucide-react';
+import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame } from 'lucide-react';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { fmtClockSec, fmtMMSS } from '../lib/format';
@@ -67,7 +67,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   });
   const [mapType, setMapType] = useState<'dark' | 'satellite'>('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [targetDurationMin, setTargetDurationMin] = useState<number | null>(null);
 
   // Apple MapKit refs
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
@@ -459,12 +458,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     }
     return '0,0';
   };
-
-  // Vitesse moyenne globale de la course en km/h
-  const avgSpeedKmh =
-    runDistanceKm > 0.01 && runDurationSec > 0
-      ? (runDistanceKm / (runDurationSec / 3600)).toFixed(1).replace('.', ',')
-      : '0,0';
 
   const content = (
     <div
@@ -891,140 +884,9 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           </span>
         </div>
 
-        {/* EXPANDED CONTENT: Metrics Grid + Telemetry Charts + Share Button */}
+        {/* EXPANDED CONTENT: Telemetry Charts + Share Button */}
         {isSheetExpanded && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
-            {/* Secondary 4-Card Stats Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {/* Vitesse Moyenne & Dénivelé */}
-              <div
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '14px',
-                  padding: '10px 12px',
-                }}
-              >
-                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <TrendingUp size={12} color="#007AFF" />
-                  <span>Vitesse & Dénivelé</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
-                    {avgSpeedKmh}
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#8E8E93' }}>km/h</span>
-                  <span style={{ fontSize: '11px', color: '#30D158', marginLeft: 'auto', fontWeight: 700 }}>
-                    +{liveElevation} m
-                  </span>
-                </div>
-              </div>
-
-              {/* Cardio & Calories (Clickable to toggle real-time PPG on the ring) */}
-              <div
-                onClick={toggleLiveHr}
-                style={{
-                  background: isLiveHrActive ? 'rgba(255, 59, 48, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isLiveHrActive ? '1px solid rgba(255, 59, 48, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '14px',
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                  transition: 'all 200ms ease',
-                }}
-                title={isLiveHrActive ? "Cardio en direct actif (Toucher pour arrêter)" : "Toucher pour activer la mesure cardio en direct"}
-              >
-                <div style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Heart size={12} color="#FF453A" fill={isLiveHrActive ? "#FF453A" : "none"} />
-                    <span>Cardio & Énergie</span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      padding: '2px 6px',
-                      borderRadius: '8px',
-                      background: isLiveHrActive ? 'rgba(255, 59, 48, 0.3)' : 'rgba(255, 255, 255, 0.1)',
-                      color: isLiveHrActive ? '#FF453A' : '#8E8E93',
-                      letterSpacing: '0.3px',
-                    }}
-                  >
-                    {isLiveHrActive ? 'LIVE' : 'ACTIVER'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                  {liveHr > 40 ? (
-                    <>
-                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>
-                        {liveHr}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
-                    </>
-                  ) : isLiveHrActive ? (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                      <span
-                        style={{
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          background: '#FF453A',
-                          display: 'inline-block',
-                          boxShadow: '0 0 8px #FF453A',
-                        }}
-                      />
-                      <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#FF453A' }}>
-                        {ring?.isConnected ? 'Recherche pouls...' : 'Connexion bague...'}
-                      </span>
-                    </div>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#FFF' }}>--</span>
-                      <span style={{ fontSize: '11px', color: '#8E8E93' }}>bpm</span>
-                    </>
-                  )}
-                  <span style={{ fontSize: '11px', color: '#FF9F0A', marginLeft: 'auto', fontWeight: 700 }}>
-                    {liveCalories} kcal
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Target Duration Selector (Libre / 15m / 30m / 45m / 1h) */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px' }}>
-              <span style={{ fontSize: '11px', color: '#8E8E93', fontWeight: 600 }}>Objectif temps :</span>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                {[
-                  { label: 'Libre', val: null },
-                  { label: '15 min', val: 15 },
-                  { label: '30 min', val: 30 },
-                  { label: '45 min', val: 45 },
-                  { label: '1h', val: 60 },
-                ].map((opt) => {
-                  const isSel = targetDurationMin === opt.val;
-                  return (
-                    <button
-                      key={opt.label}
-                      type="button"
-                      onClick={() => setTargetDurationMin(opt.val)}
-                      style={{
-                        padding: '3px 9px',
-                        borderRadius: '12px',
-                        border: isSel ? '1px solid #FF9500' : '1px solid rgba(255, 255, 255, 0.1)',
-                        background: isSel ? 'rgba(255, 149, 0, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                        color: isSel ? '#FF9500' : '#8E8E93',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 150ms ease',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Complete Interactive Telemetry Charts (Distance, Vitesse, BPM) */}
             <RunTelemetryCharts
               runState={runState}
@@ -1033,7 +895,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               liveSpeedKmh={liveSpeedKmh || 0}
               liveHr={liveHr || 0}
               telemetryHistory={telemetryHistory}
-              targetDurationSec={targetDurationMin ? targetDurationMin * 60 : null}
             />
 
             {/* Partager Ma Course CTA */}

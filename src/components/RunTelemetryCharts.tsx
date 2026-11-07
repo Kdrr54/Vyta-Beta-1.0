@@ -166,15 +166,20 @@ export const RunTelemetryCharts: React.FC<RunTelemetryChartsProps> = ({
   const pointsBpm = useMemo(() => {
     if (isIdle || telemetryHistory.length === 0) return [];
 
-    const smoothedHr = telemetryHistory.map((pt, i, arr) => {
-      if (arr.length < 3 || i === 0 || i === arr.length - 1 || pt.hrBpm <= 0) return pt.hrBpm;
-      const prev = arr[i - 1].hrBpm > 0 ? arr[i - 1].hrBpm : pt.hrBpm;
+    // Ne tracer que les points où le pouls a été effectivement détecté (> 0 bpm)
+    // pour éviter d'afficher une fausse ligne plate à 60 bpm au début avant la détection
+    const validHrPoints = telemetryHistory.filter((pt) => pt.hrBpm > 0);
+    if (validHrPoints.length === 0) return [];
+
+    const smoothedHr = validHrPoints.map((pt, i, arr) => {
+      if (arr.length < 3 || i === 0 || i === arr.length - 1) return pt.hrBpm;
+      const prev = arr[i - 1].hrBpm;
       const curr = pt.hrBpm;
-      const next = arr[i + 1].hrBpm > 0 ? arr[i + 1].hrBpm : pt.hrBpm;
+      const next = arr[i + 1].hrBpm;
       return Math.round(prev * 0.2 + curr * 0.6 + next * 0.2);
     });
 
-    return telemetryHistory.map((pt, idx) => ({
+    return validHrPoints.map((pt, idx) => ({
       x: getX(pt.timeSec),
       y: getYBpm(smoothedHr[idx]),
       raw: pt,

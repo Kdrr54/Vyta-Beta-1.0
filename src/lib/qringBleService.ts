@@ -2012,42 +2012,16 @@ class QRingBleService {
     }
 
     // 1. Initial Start Packet: Command 105 (0x69), DataType.HeartRate = 1, Action.START = 1
+    // CRITICAL: Send START once. DO NOT loop/spam START or CONTINUE every second,
+    // which causes the ring's optical photodiode state machine to reset and blink repeatedly.
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
     const ok = await this.writeBytes(p105_1);
 
-    // 2. Also send Command 30 (0x1E) type 0x03 for older Colmi / Moya firmware compatibility
+    // 2. Also send Command 30 (0x1E) type 0x03 once for older Colmi / Moya firmware compatibility
     try {
       const p30 = this.makePacket(0x1E, [0x03]);
       await this.writeBytes(p30);
     } catch (_) {}
-
-    // 3. Keep-alive loop: Colmi R02 optical PPG expects Action.CONTINUE (0x03) every ~1-2 seconds
-    // to maintain the optical green LED active without watchdog timeout
-    let count = 0;
-    this.realTimeHrTimer = setInterval(async () => {
-      if (!this.isRealTimeHrActive) {
-        if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
-        this.realTimeHrTimer = null;
-        return;
-      }
-
-      if (!this.isConnected()) {
-        await this.attemptSilentReconnect();
-        return;
-      }
-
-      count++;
-      // Every 3 cycles (~3.6s), re-send START to maintain optical green LED lock
-      if (count % 3 === 0) {
-        await this.writeBytes(this.makePacket(0x69, [0x01, 0x01]));
-        try {
-          await this.writeBytes(this.makePacket(0x1E, [0x03]));
-        } catch (_) {}
-      } else {
-        // Send Action.CONTINUE = 3
-        await this.writeBytes(this.makePacket(0x69, [0x01, 0x03]));
-      }
-    }, 1200);
 
     return ok;
   }
@@ -2074,7 +2048,7 @@ class QRingBleService {
     const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
     const ok = await this.writeBytes(p106_stop_1);
 
-    // 3. Command 30 Stop
+    // 3. Stop legacy Command 30 (0x1E)
     try {
       const p30_stop = this.makePacket(0x1E, [0x00]);
       await this.writeBytes(p30_stop);
