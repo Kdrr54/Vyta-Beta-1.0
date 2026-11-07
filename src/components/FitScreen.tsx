@@ -657,7 +657,6 @@ export const FitScreen: React.FC = () => {
   };
 
   const stopRun = () => {
-    setRunState('finished');
     notifyNativeWorkout('stop');
     if (isLiveHrActive) {
       setIsLiveHrActive(false);
@@ -666,6 +665,7 @@ export const FitScreen: React.FC = () => {
     saveCurrentRunToTrajets();
     openRunStory();
     setIsLiveRunningViewOpen(false);
+    resetRun();
   };
 
   const resetRun = () => {
@@ -1200,7 +1200,7 @@ export const FitScreen: React.FC = () => {
           className={`segmented-btn ${subTab === 'trajets' ? 'active' : ''}`}
           onClick={() => setSubTab('trajets')}
         >
-          Trajets ({storedRoutes.length})
+          Trajets
         </button>
         <button
           type="button"
@@ -1262,8 +1262,6 @@ export const FitScreen: React.FC = () => {
                       ? ''
                       : runState === 'paused'
                       ? 'paused'
-                      : runState === 'finished'
-                      ? 'finished'
                       : 'idle'
                   }`}
                 >
@@ -1273,8 +1271,6 @@ export const FitScreen: React.FC = () => {
                       ? 'GPS Stoic Actif (Live)'
                       : runState === 'paused'
                       ? 'GPS en pause'
-                      : runState === 'finished'
-                      ? 'Course Terminée'
                       : 'GPS Stoic Prêt'}
                   </span>
                 </span>
@@ -1282,7 +1278,7 @@ export const FitScreen: React.FC = () => {
             </div>
 
             {/* Run Action Buttons */}
-            {runState === 'idle' && (
+            {(runState === 'idle' || runState === 'finished') && (
               <button type="button" className="start-run-btn-main" onClick={startRun}>
                 <Play size={16} fill="#000000" />
                 <span>Démarrer la course</span>
@@ -1311,33 +1307,6 @@ export const FitScreen: React.FC = () => {
                 <button type="button" className="stop-run-btn" onClick={stopRun}>
                   <Square size={14} fill="currentColor" />
                   <span>Terminer</span>
-                </button>
-              </div>
-            )}
-
-            {runState === 'finished' && (runDistanceKm > 0.05 || runDurationSec > 10) && (
-              <div className="run-action-btns-row">
-                <button
-                  type="button"
-                  className="resume-run-btn"
-                  onClick={resetRun}
-                  style={{
-                    background: 'rgba(255,255,255,0.08)',
-                    color: '#fff',
-                    borderColor: 'rgba(255,255,255,0.15)',
-                  }}
-                >
-                  <RotateCcw size={14} />
-                  <span>Recommencer</span>
-                </button>
-                <button
-                  type="button"
-                  className="add-exercise-btn-main"
-                  onClick={openRunStory}
-                  style={{ flex: 1.5, padding: '11px 16px' }}
-                >
-                  <Share2 size={15} />
-                  <span>Partager Ma Course</span>
                 </button>
               </div>
             )}
@@ -1424,7 +1393,7 @@ export const FitScreen: React.FC = () => {
             <div className="session-title-row">
               <div>
                 <span className="session-title-text" style={{ fontSize: '17px' }}>
-                  Mes Trajets ({storedRoutes.length})
+                  Mes Trajets
                 </span>
               </div>
 
