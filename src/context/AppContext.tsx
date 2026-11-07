@@ -426,6 +426,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cur.hrv = data.hrv!;
           if (Array.isArray(data.hrvLog) && data.hrvLog.length === 48) {
             cur.hrvLog = data.hrvLog;
+          } else {
+            const now = new Date();
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const log = Array.isArray(cur.hrvLog) && cur.hrvLog.length === 48 ? [...cur.hrvLog] : new Array(48).fill(0);
+            log[currentSlot] = data.hrv!;
+            cur.hrvLog = log;
           }
           if (cur.pillars) {
             const recScore = Math.min(100, Math.max(20, Math.round(50 + (data.hrv! - 30) * 0.9)));
@@ -696,6 +702,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.spo2Max !== undefined) cur.spo2Max = data.spo2Max;
           if (Array.isArray(data.spo2Log) && data.spo2Log.length === 48) {
             cur.spo2Log = data.spo2Log;
+          } else {
+            const now = new Date();
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const log = Array.isArray(cur.spo2Log) && cur.spo2Log.length === 48 ? [...cur.spo2Log] : new Array(48).fill(0);
+            log[currentSlot] = data.spo2!;
+            cur.spo2Log = log;
           }
           next[idx] = cur;
           try {

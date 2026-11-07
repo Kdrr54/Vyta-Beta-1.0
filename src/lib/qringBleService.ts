@@ -143,8 +143,12 @@ class QRingBleService {
   // Stored 30-min Stress (0x37) & HRV (0x39) multi-packet accumulators (48 slots/day)
   private stressLogSlots: number[] = new Array(48).fill(0);
   private stressDebounceTimer: any = null;
+  private stressTotalPackets = 0;
+  private stressPeriodMinutes = 60;
   private hrvLogSlots: number[] = new Array(48).fill(0);
   private hrvDebounceTimer: any = null;
+  private hrvTotalPackets = 0;
+  private hrvPeriodMinutes = 60;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -1782,16 +1786,27 @@ class QRingBleService {
       while (index - 6 < payloadLen && index < bytes.length) {
         const daysAgo = bytes[index++] & 0xFF;
         for (let hour = 0; hour < 24 && index + 1 < bytes.length && index - 6 < payloadLen; hour++) {
-          const sMin = bytes[index++] & 0xFF;
-          const sMax = bytes[index++] & 0xFF;
-          if (sMin >= 70 && sMin <= 100 && sMax >= 70 && sMax <= 100) {
-            const pct = Math.round((sMin + sMax) / 2);
-            const hourHalfSlot = hour * 2;
-            if (daysAgo === 0 && hourHalfSlot <= currentHalfSlot) {
-              latestSpo2 = pct;
-              if (sMin < minSpo2) minSpo2 = sMin;
-              if (sMax > maxSpo2) maxSpo2 = sMax;
-              spo2Log[hourHalfSlot] = pct;
+          const b0 = bytes[index++] & 0xFF;
+          const b1 = bytes[index++] & 0xFF;
+          const slot0 = hour * 2;
+          const slot1 = hour * 2 + 1;
+          const v0 = b0 >= 70 && b0 <= 100 ? b0 : 0;
+          const v1 = b1 >= 70 && b1 <= 100 ? b1 : 0;
+          if (daysAgo === 0) {
+            if (v0 > 0 && slot0 <= currentHalfSlot) {
+              latestSpo2 = v0;
+              if (v0 < minSpo2) minSpo2 = v0;
+              if (v0 > maxSpo2) maxSpo2 = v0;
+              spo2Log[slot0] = v0;
+            }
+            // Cadence 30 minutes : si la seconde mesure v1 existe, l'enregistrer à :30.
+            // Si la bague opère en cadence 30 min avec réplication de fenêtre, porter v0 sur le créneau :30.
+            const secondVal = v1 > 0 ? v1 : (v0 > 0 ? v0 : 0);
+            if (secondVal > 0 && slot1 <= currentHalfSlot) {
+              latestSpo2 = secondVal;
+              if (secondVal < minSpo2) minSpo2 = secondVal;
+              if (secondVal > maxSpo2) maxSpo2 = secondVal;
+              spo2Log[slot1] = secondVal;
             }
           }
         }
@@ -2290,7 +2305,7 @@ class QRingBleService {
       }
     }
 
-    // 2d. Stored 30-min Stress History (Command 55 / 0x37 — Gadgetbridge historicalStress verbatim)
+    // 2d. Stored 30-min Stress History (Command 55 / 0x37 — Gadgetbridge historicalStress)
     if (header === 55 || header === 0x37) {
       if (len >= 2) {
         const packetNr = dataView.getUint8(1);
@@ -2300,20 +2315,35 @@ class QRingBleService {
         }
         if (packetNr === 0) {
           this.stressLogSlots = new Array(48).fill(0);
+          this.stressTotalPackets = len >= 3 ? dataView.getUint8(2) : 0;
+          this.stressPeriodMinutes = len >= 4 ? dataView.getUint8(3) : 60;
           return;
         }
         if (packetNr >= 1 && packetNr <= 4) {
-          const startByte = packetNr === 1 ? 3 : 2;
-          const baseSlot = packetNr > 1 ? 12 + (packetNr - 2) * 13 : 0;
-          for (let i = startByte; i < Math.min(len - 1, 15); i++) {
-            const val = dataView.getUint8(i);
-            const slotIdx = baseSlot + (i - startByte);
-            if (val > 0 && val <= 100 && slotIdx >= 0 && slotIdx < 48) {
-              this.stressLogSlots[slotIdx] = val;
+          const isHourly = (this.stressTotalPackets > 0 && this.stressTotalPackets <= 3) || this.stressPeriodMinutes >= 60;
+          const startByte = 2;
+          if (isHourly) {
+            const baseHour = (packetNr - 1) * 12;
+            for (let i = startByte; i < Math.min(len, 14); i++) {
+              const val = dataView.getUint8(i);
+              const hour = baseHour + (i - startByte);
+              if (val > 0 && val <= 100 && hour >= 0 && hour < 24) {
+                this.stressLogSlots[hour * 2] = val;
+                this.stressLogSlots[hour * 2 + 1] = val; // Réplication 30 min pour couverture complète
+              }
+            }
+          } else {
+            const baseSlot = (packetNr - 1) * 12;
+            for (let i = startByte; i < Math.min(len, 14); i++) {
+              const val = dataView.getUint8(i);
+              const slotIdx = baseSlot + (i - startByte);
+              if (val > 0 && val <= 100 && slotIdx >= 0 && slotIdx < 48) {
+                this.stressLogSlots[slotIdx] = val;
+              }
             }
           }
           if (this.stressDebounceTimer) clearTimeout(this.stressDebounceTimer);
-          if (packetNr >= 4) {
+          if (packetNr >= (isHourly ? 2 : 4)) {
             this.finalizeStressLog();
           } else {
             this.stressDebounceTimer = setTimeout(() => this.finalizeStressLog(), 300);
@@ -2333,20 +2363,35 @@ class QRingBleService {
         }
         if (packetNr === 0) {
           this.hrvLogSlots = new Array(48).fill(0);
+          this.hrvTotalPackets = len >= 3 ? dataView.getUint8(2) : 0;
+          this.hrvPeriodMinutes = len >= 4 ? dataView.getUint8(3) : 60;
           return;
         }
         if (packetNr >= 1 && packetNr <= 4) {
-          const startByte = packetNr === 1 ? 3 : 2;
-          const baseSlot = packetNr > 1 ? 12 + (packetNr - 2) * 13 : 0;
-          for (let i = startByte; i < Math.min(len - 1, 15); i++) {
-            const val = dataView.getUint8(i);
-            const slotIdx = baseSlot + (i - startByte);
-            if (val >= 5 && val < 250 && slotIdx >= 0 && slotIdx < 48) {
-              this.hrvLogSlots[slotIdx] = val;
+          const isHourly = (this.hrvTotalPackets > 0 && this.hrvTotalPackets <= 3) || this.hrvPeriodMinutes >= 60;
+          const startByte = 2;
+          if (isHourly) {
+            const baseHour = (packetNr - 1) * 12;
+            for (let i = startByte; i < Math.min(len, 14); i++) {
+              const val = dataView.getUint8(i);
+              const hour = baseHour + (i - startByte);
+              if (val >= 5 && val < 250 && hour >= 0 && hour < 24) {
+                this.hrvLogSlots[hour * 2] = val;
+                this.hrvLogSlots[hour * 2 + 1] = val; // Réplication 30 min pour couverture continue
+              }
+            }
+          } else {
+            const baseSlot = (packetNr - 1) * 12;
+            for (let i = startByte; i < Math.min(len, 14); i++) {
+              const val = dataView.getUint8(i);
+              const slotIdx = baseSlot + (i - startByte);
+              if (val >= 5 && val < 250 && slotIdx >= 0 && slotIdx < 48) {
+                this.hrvLogSlots[slotIdx] = val;
+              }
             }
           }
           if (this.hrvDebounceTimer) clearTimeout(this.hrvDebounceTimer);
-          if (packetNr >= 4) {
+          if (packetNr >= (isHourly ? 2 : 4)) {
             this.finalizeHrvLog();
           } else {
             this.hrvDebounceTimer = setTimeout(() => this.finalizeHrvLog(), 300);
@@ -2471,28 +2516,34 @@ class QRingBleService {
     // Note: dataType === 6 is ECG/raw PPG (~96) and must NEVER be parsed as BPM!
     if ((header === 0x69 || header === 105) && len >= 3) {
       const dataType = dataView.getUint8(1);
-      const b2 = dataView.getUint8(2);
-      const b3 = len >= 4 ? dataView.getUint8(3) : 0;
 
       if (dataType === 0x01) {
         let bpm = 0;
-        if (b2 >= 40 && b2 <= 220) {
-          bpm = b2;
-        } else if (b3 >= 40 && b3 <= 220) {
-          bpm = b3;
+        // Recherche du BPM valide dans les octets de réponse (bytes 2 à 5 selon firmware et code d'action)
+        for (let i = 2; i < Math.min(len, 6); i++) {
+          const v = dataView.getUint8(i);
+          if (v >= 40 && v <= 220) {
+            bpm = v;
+            break;
+          }
         }
 
         if (bpm >= 40 && bpm <= 220) {
-          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (b2:', b2, 'b3:', b3, ')');
+          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm');
           this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
           return;
-        } else if (b2 === 0 || b3 === 0) {
+        } else {
           console.log('[QRing BLE] Command 105 optical PPG pulse lock acquiring...');
         }
       } else if (dataType === 0x03) {
         let spo2Val = 0;
-        if (b2 >= 70 && b2 <= 100) spo2Val = b2;
-        else if (b3 >= 70 && b3 <= 100) spo2Val = b3;
+        for (let i = 2; i < Math.min(len, 6); i++) {
+          const v = dataView.getUint8(i);
+          if (v >= 70 && v <= 100) {
+            spo2Val = v;
+            break;
+          }
+        }
         if (spo2Val > 0) {
           console.log('[QRing BLE] Command 105 Real SpO2 Received:', spo2Val, '%');
           this.notify({ spo2: spo2Val, isConnected: true });
@@ -2500,8 +2551,13 @@ class QRingBleService {
         }
       } else if (dataType === 10 || dataType === 0x0A) {
         let hrvVal = 0;
-        if (b2 >= 10 && b2 <= 200) hrvVal = b2;
-        else if (b3 >= 10 && b3 <= 200) hrvVal = b3;
+        for (let i = 2; i < Math.min(len, 6); i++) {
+          const v = dataView.getUint8(i);
+          if (v >= 10 && v <= 200) {
+            hrvVal = v;
+            break;
+          }
+        }
         if (hrvVal > 0) {
           console.log('[QRing BLE] Command 105 HRV Received:', hrvVal, 'ms');
           this.notify({ hrv: hrvVal, isConnected: true });

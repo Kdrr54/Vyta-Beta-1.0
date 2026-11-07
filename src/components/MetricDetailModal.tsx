@@ -824,6 +824,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
+      for (let i = 0; i < 47; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
+          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
+          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+          slots[i + 1].isMeasured = true;
+        }
+      }
       return slots;
     }
 
@@ -838,6 +845,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
+      // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
+      for (let i = 0; i < 47; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
+          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
+          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+          slots[i + 1].isMeasured = true;
+        }
+      }
       return slots;
     }
 
@@ -852,6 +867,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
+      // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
+      for (let i = 0; i < 47; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
+          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
+          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+          slots[i + 1].isMeasured = true;
+        }
+      }
       return slots;
     }
 
@@ -866,6 +889,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
+      for (let i = 0; i < 47; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
+          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
+          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+          slots[i + 1].isMeasured = true;
+        }
+      }
       return slots;
     }
 
