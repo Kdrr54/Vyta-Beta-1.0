@@ -174,10 +174,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSensorIntervals = (partial: Partial<SensorIntervals>) => {
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
-      if (partial.heartRate) {
-        const mins = partial.heartRate === '30min' ? 30 : partial.heartRate === '1h' ? 60 : partial.heartRate === 'pause' ? 0 : 30;
-        qringBle.setAllSensorIntervals(mins);
-      }
+      const hr = partial.heartRate || next.heartRate;
+      const mins = hr === '30min' ? 30 : hr === '1h' ? 60 : hr === 'pause' ? 0 : 30;
+      qringBle.setAllSensorIntervals(mins);
       try {
         localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));
       } catch (e) {}

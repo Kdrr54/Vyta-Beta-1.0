@@ -164,6 +164,8 @@ class QRingBleService {
   private configuredIntervalMinutes = 30;
   private isRealTimeHrActive = false;
   private realTimeHrTimer: any = null;
+  private lastAutoMeasureSlot = -1;
+  private isAutoSpotMeasuring = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -288,7 +290,19 @@ class QRingBleService {
       if (this.isConnected()) {
         try {
           await this.sendBatteryRequest();
-          // 0 continuous HR: ring measures strictly every 30 minutes (00:00, 00:30, 01:00, 01:30...)
+
+          const nowDate = new Date();
+          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
+          const minuteInSlot = nowDate.getMinutes() % 30;
+
+          // Cadence 30 min : déclencher une mesure spot SpO2 & VRC au début de chaque créneau de 30 min (minute 0-3 ou 30-33)
+          if (this.configuredIntervalMinutes === 30 && !this.isAutoSpotMeasuring && !this.isRealTimeHrActive) {
+            if (this.lastAutoMeasureSlot !== currentSlot && minuteInSlot <= 5) {
+              this.lastAutoMeasureSlot = currentSlot;
+              this.triggerProactiveBiometricSpotCheck();
+            }
+          }
+
           const now = Date.now();
           if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
             this.lastPeriodicSyncTime = now;
@@ -1136,9 +1150,9 @@ class QRingBleService {
    * - Command 0x16 (CMD_HEART_RATE_LOG_SETTINGS): [0x02, enabledByte, intervalMin]
    *   enabledByte: 0x01 = enable, 0x02 = disable (0x00 is invalid in firmware).
    *   intervalMin: e.g. 30 or 60 minutes. This drives the master hardware optical PPG wake-up timer.
-   * - Command 0x2C (CMD_BLOOD_OXYGEN): [0x02, enabledByte]
-   * - Command 0x38 (CMD_HRV): [0x02, enabledByte]
-   * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte]
+   * - Command 0x2C (CMD_BLOOD_OXYGEN): [0x02, enabledByte, intervalMin]
+   * - Command 0x38 (CMD_HRV): [0x02, enabledByte, intervalMin]
+   * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
   public async setAllSensorIntervals(minutes?: number): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
@@ -1157,20 +1171,24 @@ class QRingBleService {
     await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 200));
 
-    // 2. SpO2 periodic monitoring (Command 0x2C: [0x02, enabledByte])
-    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte]));
+    // 2. SpO2 periodic monitoring (Command 0x2C: [0x02, enabledByte, intervalMin])
+    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 200));
 
-    // 3. HRV periodic monitoring (Command 0x38: [0x02, enabledByte])
-    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte]));
+    // 3. HRV periodic monitoring (Command 0x38: [0x02, enabledByte, intervalMin])
+    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 200));
 
-    // 4. Stress periodic monitoring (Command 0x36: [0x02, enabledByte])
-    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte]));
+    // 4. Stress periodic monitoring (Command 0x36: [0x02, enabledByte, intervalMin])
+    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 200));
 
-    // 5. Query ring setting to verify hardware acknowledged the 0x16 interval
+    // 5. Query ring settings to verify hardware acknowledged the 30/60 min intervals
     await this.writeBytes(this.makePacket(0x16, [0x01]));
+    await new Promise((r) => setTimeout(r, 100));
+    await this.writeBytes(this.makePacket(0x2C, [0x01]));
+    await new Promise((r) => setTimeout(r, 100));
+    await this.writeBytes(this.makePacket(0x38, [0x01]));
 
     return true;
   }
@@ -2083,6 +2101,57 @@ class QRingBleService {
     const p106_stop = this.makePacket(0x6A, [0x03, 0x00, 0x00]);
     await this.writeBytes(p106_stop);
     return ok;
+  }
+
+  /**
+   * Trigger real-time optical HRV measurement on physical ring:
+   * DataType.HRV = 10 (0x0A)
+   */
+  public async startRealTimeHrv(): Promise<boolean> {
+    console.log('[QRing BLE] Triggering live optical HRV measurement (DataType.HRV = 10)...');
+    if (!this.isConnected()) return false;
+    const p105_10 = this.makePacket(0x69, [0x0A, 0x01]);
+    return await this.writeBytes(p105_10);
+  }
+
+  public async stopRealTimeHrv(): Promise<boolean> {
+    console.log('[QRing BLE] Stopping live optical HRV measurement...');
+    const p105_10_stop = this.makePacket(0x69, [0x0A, 0x04]);
+    const ok = await this.writeBytes(p105_10_stop);
+    const p106_stop = this.makePacket(0x6A, [0x0A, 0x00, 0x00]);
+    await this.writeBytes(p106_stop);
+    return ok;
+  }
+
+  /**
+   * Autonomous 30-min spot measurement scheduler:
+   * Triggers a discrete 15s SpO2 + 12s HRV optical reading on the ring
+   * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
+   */
+  public async triggerProactiveBiometricSpotCheck() {
+    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive) return;
+    this.isAutoSpotMeasuring = true;
+    console.log('[QRing BLE] Running autonomous 30-min biometric spot check (SpO2 & HRV)...');
+    try {
+      // 1. SpO2 optical spot check (15s)
+      await this.startRealTimeBloodOxygen();
+      await new Promise((r) => setTimeout(r, 16000));
+      await this.stopRealTimeBloodOxygen();
+      await new Promise((r) => setTimeout(r, 800));
+
+      // 2. HRV optical spot check (12s)
+      await this.startRealTimeHrv();
+      await new Promise((r) => setTimeout(r, 12000));
+      await this.stopRealTimeHrv();
+      await new Promise((r) => setTimeout(r, 800));
+
+      // 3. Pull latest history frames from ring memory
+      await this.syncAllRingData();
+    } catch (err) {
+      console.warn('[QRing BLE] Autonomous spot check notice:', err);
+    } finally {
+      this.isAutoSpotMeasuring = false;
+    }
   }
 
   /**
