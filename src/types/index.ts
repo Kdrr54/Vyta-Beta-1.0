@@ -87,7 +87,7 @@ export interface DayMetrics {
   resp?: number;
 }
 
-export type SensorIntervalOption = '15min' | '30min' | '1h' | '2h';
+export type SensorIntervalOption = '15min' | '30min' | '1h' | '2h' | 'pause';
 
 export interface SensorIntervals {
   heartRate: SensorIntervalOption;

@@ -899,7 +899,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 labelEn: 'Every hour (1h)',
                 subFr: 'Chaque heure · ~8j (Optimal)',
                 subEn: 'Hourly · ~8d (Optimal)',
-                isActive: (sensorIntervals?.heartRate || '1h') === '1h',
+                isActive: sensorIntervals?.heartRate === '1h',
                 action: () => {
                   updateSensorIntervals({
                     heartRate: '1h',
@@ -920,7 +920,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 labelEn: 'Every 30 min',
                 subFr: '2× / heure · ~5j (Précis)',
                 subEn: '2x / hr · ~5d (Precise)',
-                isActive: sensorIntervals?.heartRate === '30min',
+                isActive: (sensorIntervals?.heartRate || '30min') === '30min',
                 action: () => {
                   updateSensorIntervals({
                     heartRate: '30min',

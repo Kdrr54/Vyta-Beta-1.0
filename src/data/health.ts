@@ -53,13 +53,13 @@ export const GOALS = { steps: 10000, distanceKm: 8, activeKcal: 600 };
 
 export const defaultSensorIntervals: SensorIntervals = {
   heartRate: '30min',
-  hrv: '1h',
-  spo2: '1h',
-  temperature: '1h',
-  stress: '1h',
-  bloodPressure: '1h',
-  glucose: '1h',
-  respiratory: '1h',
+  hrv: '30min',
+  spo2: '30min',
+  temperature: '30min',
+  stress: '30min',
+  bloodPressure: '30min',
+  glucose: '30min',
+  respiratory: '30min',
 };
 
 /**

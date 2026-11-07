@@ -164,20 +164,22 @@ class QRingBleService {
   constructor() {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('vyta_ring_interval');
-        if (saved) {
-          const val = parseInt(saved, 10);
-          if (val === 5 || val === 10 || val === 15 || val === 30 || val === 60) {
-            this.configuredIntervalMinutes = val;
+        const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
+        if (intervalsStr) {
+          const parsed = JSON.parse(intervalsStr);
+          if (parsed.heartRate === '30min') {
+            this.configuredIntervalMinutes = 30;
+          } else if (parsed.heartRate === '1h') {
+            this.configuredIntervalMinutes = 60;
+          } else if (parsed.heartRate === '15min') {
+            this.configuredIntervalMinutes = 15;
           }
         } else {
-          const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
-          if (intervalsStr) {
-            const parsed = JSON.parse(intervalsStr);
-            if (parsed.heartRate === '30min') {
-              this.configuredIntervalMinutes = 30;
-            } else if (parsed.heartRate === '15min') {
-              this.configuredIntervalMinutes = 15;
+          const saved = localStorage.getItem('vyta_ring_interval');
+          if (saved) {
+            const val = parseInt(saved, 10);
+            if (val === 5 || val === 10 || val === 15 || val === 30 || val === 60) {
+              this.configuredIntervalMinutes = val;
             }
           }
         }
@@ -1126,6 +1128,13 @@ class QRingBleService {
    */
   /**
    * Configure all ring autonomous sensors measurement intervals (Heart Rate, SpO2, HRV, Stress)
+   * Official Colmi R02 / QRing BLE Protocol:
+   * - Command 0x16 (CMD_HEART_RATE_LOG_SETTINGS): [0x02, enabledByte, intervalMin]
+   *   enabledByte: 0x01 = enable, 0x02 = disable (0x00 is invalid in firmware).
+   *   intervalMin: e.g. 30 or 60 minutes. This drives the master hardware optical PPG wake-up timer.
+   * - Command 0x2C (CMD_BLOOD_OXYGEN): [0x02, enabledByte]
+   * - Command 0x38 (CMD_HRV): [0x02, enabledByte]
+   * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte]
    */
   public async setAllSensorIntervals(minutes?: number): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
@@ -1137,25 +1146,27 @@ class QRingBleService {
     } catch (_) {}
     console.log('[QRing BLE] Programming all ring sensor monitoring intervals to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
 
-    const isEnabled = mins > 0 ? 0x01 : 0x00;
+    const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
 
-    // 1. Heart rate interval (Command 0x16: [0x02, isEnabled, mins])
-    await this.writeBytes(this.makePacket(0x16, [0x02, isEnabled, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 100));
+    // 1. Master Heart rate interval (Command 0x16: [0x02, enabledByte, intervalMin])
+    // Drives optical PPG wake-up interval across the entire ring
+    await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 200));
 
-    // 2. SpO2 periodic interval (Command 0x2C: [0x02, isEnabled, mins] and [0x05, isEnabled, mins])
-    await this.writeBytes(this.makePacket(0x2C, [0x02, isEnabled, mins & 0xFF]));
-    await this.writeBytes(this.makePacket(0x2C, [0x05, isEnabled, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 100));
+    // 2. SpO2 periodic monitoring (Command 0x2C: [0x02, enabledByte])
+    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte]));
+    await new Promise((r) => setTimeout(r, 200));
 
-    // 3. HRV periodic monitoring & interval (Command 0x38: [0x02, isEnabled, mins])
-    await this.writeBytes(this.makePacket(0x38, [0x02, isEnabled, mins & 0xFF]));
-    await this.writeBytes(this.makePacket(0x38, [0x02, isEnabled]));
-    await new Promise((r) => setTimeout(r, 100));
+    // 3. HRV periodic monitoring (Command 0x38: [0x02, enabledByte])
+    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte]));
+    await new Promise((r) => setTimeout(r, 200));
 
-    // 4. Stress periodic monitoring & interval (Command 0x36: [0x02, isEnabled, mins])
-    await this.writeBytes(this.makePacket(0x36, [0x02, isEnabled, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 100));
+    // 4. Stress periodic monitoring (Command 0x36: [0x02, enabledByte])
+    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte]));
+    await new Promise((r) => setTimeout(r, 200));
+
+    // 5. Query ring setting to verify hardware acknowledged the 0x16 interval
+    await this.writeBytes(this.makePacket(0x16, [0x01]));
 
     return true;
   }
@@ -1260,10 +1271,6 @@ class QRingBleService {
    */
   public async requestSpo2Data(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored SpO2 history from ring memory (BigData 0xBC 0x2A, 0 LEDs)...');
-    // Enable automatic periodic SpO2 logging preference (0x2C [0x02, 0x01])
-    await this.writeBytes(this.makePacket(0x2C, [0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 150));
-
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       // Gadgetbridge YawellRingDeviceSupport verbatim: { 0xBC, 0x2A, 0x01, 0x00, 0xFF, 0x00, 0xFF }
       await this.writeBigDataBytes([0xBC, 0x2A, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
@@ -1278,9 +1285,6 @@ class QRingBleService {
    */
   public async requestHrvLog(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored 30-min HRV (VRC) history (Command 0x39, 0 LEDs)...');
-    // Enable automatic HRV logging preference (0x38 [0x02, 0x01])
-    await this.writeBytes(this.makePacket(0x38, [0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 150));
     const pkt = this.makePacket(0x39, [0x00]);
     return await this.writeBytes(pkt);
   }
@@ -1290,9 +1294,6 @@ class QRingBleService {
    */
   public async requestStressLog(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored 30-min Stress history (Command 0x37, 0 LEDs)...');
-    // Enable automatic Stress logging preference (0x36 [0x02, 0x01])
-    await this.writeBytes(this.makePacket(0x36, [0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 150));
     const pkt = this.makePacket(0x37, [0x00]);
     return await this.writeBytes(pkt);
   }
@@ -1875,8 +1876,23 @@ class QRingBleService {
       await this.sendTimeSync();
       await new Promise((r) => setTimeout(r, 300));
 
-      // 2. Heart rate monitoring cadence (every 30 min)
-      await this.setHeartRateInterval(this.configuredIntervalMinutes);
+      // 2. Heart rate monitoring cadence & autonomous sensors (30 min or 60 min as configured by user)
+      if (typeof window !== 'undefined') {
+        try {
+          const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
+          if (intervalsStr) {
+            const parsed = JSON.parse(intervalsStr);
+            if (parsed.heartRate === '30min') {
+              this.configuredIntervalMinutes = 30;
+            } else if (parsed.heartRate === '1h') {
+              this.configuredIntervalMinutes = 60;
+            } else if (parsed.heartRate === '15min') {
+              this.configuredIntervalMinutes = 15;
+            }
+          }
+        } catch (_) {}
+      }
+      await this.setAllSensorIntervals(this.configuredIntervalMinutes);
       await new Promise((r) => setTimeout(r, 300));
 
       // 3. Stored full-day heart rate logs (flash memory only, 0 LEDs, given 1300ms to stream all 24 frames cleanly)
@@ -2159,6 +2175,35 @@ class QRingBleService {
         this.notify({ batteryPct: realBat, isCharging, isConnected: true });
         return;
       }
+    }
+
+    // 1b. Ring Sensor Interval Configuration Confirmation (header 0x16 / 22)
+    // Response to makePacket(0x16, [0x02, enabledByte, interval]) or query makePacket(0x16, [0x01])
+    if (header === 22 || header === 0x16) {
+      if (len >= 4) {
+        const subType = dataView.getUint8(1);
+        const enabledByte = dataView.getUint8(2);
+        const intervalMins = dataView.getUint8(3);
+        const isEnabled = enabledByte === 1;
+        console.log(`[QRing BLE] Ring Hardware Interval confirmed: ${intervalMins} min (enabled=${isEnabled}, subType=${subType})`);
+        if (intervalMins >= 5 && intervalMins <= 120) {
+          this.configuredIntervalMinutes = intervalMins;
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('vyta_ring_interval', String(intervalMins));
+            }
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+
+    // 1c. Ring Sensor Monitoring Acknowledgment (0x2C SpO2, 0x36 Stress, 0x38 HRV)
+    if ([44, 0x2C, 54, 0x36, 56, 0x38].includes(header)) {
+      const sensorName = (header === 44 || header === 0x2C) ? 'SpO2' : (header === 56 || header === 0x38) ? 'HRV' : 'Stress';
+      const isEnabled = len >= 3 ? dataView.getUint8(2) === 1 : true;
+      console.log(`[QRing BLE] Ring Sensor ${sensorName} (0x${header.toString(16)}) preference confirmed: enabled=${isEnabled}`);
+      return;
     }
 
     // 2. Stored Periodic / Hourly Heart Rate logs (header 0x15 / 21)

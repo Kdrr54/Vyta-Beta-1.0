@@ -149,7 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) {
           const parsed = JSON.parse(saved);
           const sanitize = (val: any, fallback: SensorIntervalOption): SensorIntervalOption => {
-            if (val === '15min' || val === '30min' || val === '1h' || val === '2h') return val;
+            if (val === '15min' || val === '30min' || val === '1h' || val === '2h' || val === 'pause') return val;
             if (val === '10min' || val === '20min') return '15min';
             if (val === '60min') return '1h';
             if (val === '120min') return '2h';
@@ -175,7 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
       if (partial.heartRate) {
-        const mins = partial.heartRate === '30min' ? 30 : 60;
+        const mins = partial.heartRate === '30min' ? 30 : partial.heartRate === '1h' ? 60 : partial.heartRate === 'pause' ? 0 : 30;
         qringBle.setAllSensorIntervals(mins);
       }
       try {
@@ -184,6 +184,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
   };
+
+  useEffect(() => {
+    const mins = sensorIntervals?.heartRate === '30min' ? 30 : sensorIntervals?.heartRate === '1h' ? 60 : sensorIntervals?.heartRate === 'pause' ? 0 : 30;
+    qringBle.setAllSensorIntervals(mins);
+  }, []);
 
 
   // App Visual Theme ('dark')
