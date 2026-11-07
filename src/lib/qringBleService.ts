@@ -1609,8 +1609,9 @@ class QRingBleService {
           for (const b of dayBlocks) {
             const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
             const clockStart = ((b.normStart % 1440) + 1440) % 1440;
-            const isDaytime = clockStart >= 510 && clockStart <= 1200; // 08:30 à 20:00
-            if (isDaytime && dur <= 180 && dur < maxDur) {
+            // Véritable fenêtre circadienne de sieste diurne (11:00 à 19:30). Ne jamais fragmenter le sommeil du matin !
+            const isDaytime = clockStart >= 660 && clockStart <= 1170;
+            if (isDaytime && dur >= 15 && dur <= 120 && dur < maxDur) {
               napBlocks.push(b);
             } else {
               nightBlocks.push(b);
@@ -1620,8 +1621,8 @@ class QRingBleService {
           const b = dayBlocks[0];
           const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
           const clockStart = ((b.normStart % 1440) + 1440) % 1440;
-          const isDaytime = clockStart >= 510 && clockStart <= 1200; // 08:30 à 20:00
-          if (isDaytime && dur <= 180 && dur >= 15) {
+          const isDaytime = clockStart >= 660 && clockStart <= 1170;
+          if (isDaytime && dur <= 120 && dur >= 15) {
             napBlocks.push(b);
           } else {
             nightBlocks.push(b);
@@ -1633,8 +1634,9 @@ class QRingBleService {
           const dur = Math.max(15, (nap.lightMin + nap.deepMin + nap.remMin + nap.awakeMin) || (nap.normEnd - nap.normStart));
           const startClockMin = ((nap.normStart % 1440) + 1440) % 1440;
           const endClockMin = ((nap.normEnd % 1440) + 1440) % 1440;
-          const energyBonus = Math.min(15, Math.max(5, Math.round(dur / 4)));
+          const energyBonus = Math.min(18, Math.max(5, Math.round(dur / 4.5)));
           const napScore = Math.min(100, Math.round((dur / 45) * 85 + (nap.deepMin / dur) * 15));
+          const napType: 'power' | 'restful' | 'cycle' = dur <= 25 ? 'power' : (dur <= 55 ? 'restful' : 'cycle');
           return {
             id: `nap-${dAgo}-${startClockMin}-${nIdx}`,
             startMin: startClockMin,
@@ -1645,7 +1647,8 @@ class QRingBleService {
             remMin: nap.remMin,
             score: napScore,
             energyBonus,
-            source: 'ring',
+            source: 'ring' as const,
+            napType,
           };
         });
 

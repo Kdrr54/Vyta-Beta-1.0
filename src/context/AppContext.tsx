@@ -54,7 +54,7 @@ interface AppContextType {
   isLiveRunningViewOpen: boolean;
   setIsLiveRunningViewOpen: (open: boolean) => void;
   resetToFactory: () => void;
-  addManualNap: (nap: { startMin: number; endMin: number; deepMin?: number; lightMin?: number }) => void;
+  addManualNap: (nap: { startMin: number; endMin: number; deepMin?: number; lightMin?: number; remMin?: number; napType?: 'power' | 'restful' | 'cycle' | 'custom' }) => void;
   deleteNap: (napId: string) => void;
   weekData: DayMetrics[];
   setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
@@ -920,7 +920,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const addManualNap = useCallback((napInput: { startMin: number; endMin: number; deepMin?: number; lightMin?: number }) => {
+  const addManualNap = useCallback((napInput: {
+    startMin: number;
+    endMin: number;
+    deepMin?: number;
+    lightMin?: number;
+    remMin?: number;
+    napType?: 'power' | 'restful' | 'cycle' | 'custom';
+  }) => {
     setWeekData((prev) => {
       const next = [...prev];
       const cur = { ...(next[selectedDay] || emptyDayMetrics) };
@@ -929,9 +936,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? napInput.endMin - napInput.startMin
         : (napInput.endMin + 1440) - napInput.startMin;
       const cleanDur = Math.max(10, dur);
-      const deep = napInput.deepMin !== undefined ? napInput.deepMin : Math.round(cleanDur * 0.3);
-      const light = napInput.lightMin !== undefined ? napInput.lightMin : cleanDur - deep;
-      const energyBonus = Math.min(15, Math.max(5, Math.round(cleanDur / 4)));
+      const deep = napInput.deepMin !== undefined
+        ? napInput.deepMin
+        : (napInput.napType === 'power' ? 0 : Math.round(cleanDur * 0.3));
+      const rem = napInput.remMin !== undefined
+        ? napInput.remMin
+        : (napInput.napType === 'cycle' ? Math.round(cleanDur * 0.2) : 0);
+      const light = napInput.lightMin !== undefined
+        ? napInput.lightMin
+        : Math.max(0, cleanDur - deep - rem);
+      const energyBonus = Math.min(18, Math.max(5, Math.round(cleanDur / 4.5)));
       const score = Math.min(100, Math.round((cleanDur / 45) * 85 + (deep / cleanDur) * 15));
 
       const newNap: NapRecord = {
@@ -941,9 +955,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         durationMin: cleanDur,
         deepMin: deep,
         lightMin: light,
+        remMin: rem,
         score,
         energyBonus,
         source: 'manual',
+        napType: napInput.napType || (cleanDur <= 25 ? 'power' : cleanDur <= 50 ? 'restful' : 'cycle'),
       };
 
       curNaps.push(newNap);
@@ -964,7 +980,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = [...prev];
       const cur = { ...(next[selectedDay] || emptyDayMetrics) };
       if (!cur.naps) return prev;
+      const target = cur.naps.find((n) => n.id === napId);
       cur.naps = cur.naps.filter((n) => n.id !== napId);
+      if (target && target.energyBonus && cur.bodyEnergy) {
+        cur.bodyEnergy = Math.max(10, cur.bodyEnergy - target.energyBonus);
+      }
       next[selectedDay] = cur;
       try {
         localStorage.setItem('vyta_week_data', JSON.stringify(next));

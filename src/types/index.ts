@@ -45,6 +45,7 @@ export interface NapRecord {
   score: number;       // Score de récupération (ex: 85/100)
   energyBonus: number; // Gain en % de Body Energy (ex: +8%)
   source: 'ring' | 'manual';
+  napType?: 'power' | 'restful' | 'cycle' | 'custom';
 }
 
 export interface DayMetrics {
