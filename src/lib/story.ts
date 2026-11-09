@@ -368,11 +368,11 @@ export function generateStoryDataUrl(
         drawRunTrajectoryOnCanvas(270, 1150, 540, 350, '#FFFFFF', 16);
       }
 
-      // 5. Logo STOIC LABS en bas
+      // 5. Logo STOÏK en bas
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '900 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
       ctx.letterSpacing = '6px';
-      ctx.fillText('STOIC LABS', 540, 1620);
+      ctx.fillText('STOÏK', 540, 1620);
 
       resolve(canvas.toDataURL('image/png'));
       return;
@@ -435,7 +435,7 @@ export function generateStoryDataUrl(
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '900 52px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
       ctx.letterSpacing = '6px';
-      ctx.fillText('STOIC LABS', 540, 1775);
+      ctx.fillText('STOÏK', 540, 1775);
 
       resolve(canvas.toDataURL('image/png'));
       return;
@@ -485,7 +485,7 @@ export function generateStoryDataUrl(
     ctx.fillStyle = fgPrimary;
     ctx.font = '900 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.letterSpacing = '6px';
-    ctx.fillText('STOIC LABS', 540, 1620);
+    ctx.fillText('STOÏK', 540, 1620);
 
     resolve(canvas.toDataURL('image/png'));
   });

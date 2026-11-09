@@ -896,33 +896,6 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               liveHr={liveHr || 0}
               telemetryHistory={telemetryHistory}
             />
-
-            {/* Partager Ma Course CTA */}
-            {onOpenStory && (
-              <button
-                type="button"
-                onClick={onOpenStory}
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '24px',
-                  background: '#FFFFFF',
-                  border: 'none',
-                  color: '#000000',
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.18)',
-                }}
-              >
-                <Share2 size={16} />
-                <span>Partager Ma Course</span>
-              </button>
-            )}
           </div>
         )}
 

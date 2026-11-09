@@ -488,7 +488,7 @@ class QRingBleService {
         if (isKnownSaved || isRingName || rawConnected.length === 1) {
           results.push({
             deviceId: devId,
-            name: name || savedName || 'Bague Vyta',
+            name: name || savedName || 'Bague Stoïk',
             isRing: true,
             rssi: -45,
           });
@@ -2012,8 +2012,7 @@ class QRingBleService {
     }
 
     // 1. Initial Start Packet: Command 105 (0x69), DataType.HeartRate = 1, Action.START = 1
-    // CRITICAL: Send START once. DO NOT loop/spam START or CONTINUE every second,
-    // which causes the ring's optical photodiode state machine to reset and blink repeatedly.
+    // CRITICAL: Send Action.START once at initiation to start the PPG sensor.
     const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
     const ok = await this.writeBytes(p105_1);
 
@@ -2022,6 +2021,29 @@ class QRingBleService {
       const p30 = this.makePacket(0x1E, [0x03]);
       await this.writeBytes(p30);
     } catch (_) {}
+
+    // 3. Continuous Keep-Alive loop: Official Colmi R02 / QRing Protocol
+    // Send Action.CONTINUE = 3 ([0x69, 0x01, 0x03]) every 2000ms.
+    // CRITICAL: Send Action.START (0x01) ONLY ONCE above at t=0.
+    // In this loop, send ONLY Action.CONTINUE (0x03). This tells the ring microcontroller
+    // to maintain the optical sensor stream alive without resetting the photodiode state machine,
+    // keeping the green LED solidly lit and broadcasting fresh live heart rate updates!
+    this.realTimeHrTimer = setInterval(async () => {
+      if (!this.isRealTimeHrActive) {
+        if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
+        this.realTimeHrTimer = null;
+        return;
+      }
+
+      if (!this.isConnected()) {
+        await this.attemptSilentReconnect();
+        return;
+      }
+
+      try {
+        await this.writeBytes(this.makePacket(0x69, [0x01, 0x03]));
+      } catch (_) {}
+    }, 2000);
 
     return ok;
   }
@@ -2562,21 +2584,37 @@ class QRingBleService {
 
       if (dataType === 0x01) {
         let bpm = 0;
-        // Recherche du BPM valide dans les octets de réponse (bytes 2 à 5 selon firmware et code d'action)
-        for (let i = 2; i < Math.min(len, 6); i++) {
-          const v = dataView.getUint8(i);
-          if (v >= 40 && v <= 220) {
-            bpm = v;
-            break;
+        // Colmi R02 / QCBand layout: byte[2] is error/status code (0 = success), byte[3] is BPM reading
+        const statusOrErr = dataView.getUint8(2);
+        if (len >= 4 && statusOrErr === 0) {
+          const val = dataView.getUint8(3);
+          if (val >= 40 && val <= 220) {
+            bpm = val;
+          }
+        }
+
+        // Fallback for older firmware variants where byte[2] directly holds BPM
+        if (bpm === 0 && statusOrErr >= 40 && statusOrErr <= 220) {
+          bpm = statusOrErr;
+        }
+
+        // Additional scan fallback across bytes 2 to 5
+        if (bpm === 0) {
+          for (let i = 2; i < Math.min(len, 6); i++) {
+            const v = dataView.getUint8(i);
+            if (v >= 40 && v <= 220) {
+              bpm = v;
+              break;
+            }
           }
         }
 
         if (bpm >= 40 && bpm <= 220) {
-          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm');
+          console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (status:', statusOrErr, ')');
           this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
           return;
         } else {
-          console.log('[QRing BLE] Command 105 optical PPG pulse lock acquiring...');
+          console.log('[QRing BLE] Command 105 optical PPG pulse lock acquiring (status:', statusOrErr, ')...');
         }
       } else if (dataType === 0x03) {
         let spo2Val = 0;

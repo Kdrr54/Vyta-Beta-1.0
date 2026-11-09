@@ -87,7 +87,7 @@ export const translations = {
     'immunity.temp_normal': 'Température cutanée dans la plage normale',
     'immunity.hrv_stable': 'Variabilité cardiaque (VFC) stable et équilibrée',
     'immunity.immune_optimal': 'Système immunitaire au repos optimal',
-    'immunity.diag_badge': 'DIAGNOSTIC & PROTOCOLE COVYTA',
+    'immunity.diag_badge': 'DIAGNOSTIC & PROTOCOLE STOÏK',
     'immunity.diag_title': 'Suspicion de réponse inflammatoire précoce',
     'immunity.diag_factors': 'Avec le croisement de deux facteurs :',
     'immunity.diag_factor_temp': "L'élévation thermique",
@@ -99,7 +99,7 @@ export const translations = {
     'immunity.diag_step2_desc': "Remplacement de la séance d'intensité par 20 min de respiration guidée.",
     'immunity.diag_step3_title': 'Coucher anticipé :',
     'immunity.diag_step3_desc': 'Fenêtre de sommeil impérative à 22h45 pour stimuler les cytokines.',
-    'immunity.unlock_btn': 'Débloquer le Protocole CoVyta IA',
+    'immunity.unlock_btn': 'Débloquer le Protocole Stoïk IA',
 
     // Sleep Phases
     'sleep.title': 'Phases de Sommeil',
@@ -264,7 +264,7 @@ export const translations = {
     'immunity.temp_normal': 'Skin temperature within normal baseline',
     'immunity.hrv_stable': 'Heart rate variability (HRV) balanced and steady',
     'immunity.immune_optimal': 'Immune defense in optimal resting state',
-    'immunity.diag_badge': 'COVYTA DIAGNOSTIC & PROTOCOL',
+    'immunity.diag_badge': 'STOÏK DIAGNOSTIC & PROTOCOL',
     'immunity.diag_title': 'Early inflammatory response suspected',
     'immunity.diag_factors': 'Based on two concurring biometric signals:',
     'immunity.diag_factor_temp': 'Temperature elevation',
@@ -276,7 +276,7 @@ export const translations = {
     'immunity.diag_step2_desc': 'Replace intense workout with 20 min guided breathwork.',
     'immunity.diag_step3_title': 'Early bedtime:',
     'immunity.diag_step3_desc': 'Sleep window required by 10:45 PM to trigger cytokines.',
-    'immunity.unlock_btn': 'Unlock CoVyta AI Protocol',
+    'immunity.unlock_btn': 'Unlock Stoïk AI Protocol',
 
     // Sleep Phases
     'sleep.title': 'Sleep Stages',

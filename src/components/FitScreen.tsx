@@ -274,6 +274,13 @@ export const FitScreen: React.FC = () => {
   };
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>([]);
+  const lastLiveBpmUpdateRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (liveBpm > 0) {
+      lastLiveBpmUpdateRef.current = Date.now();
+    }
+  }, [liveBpm]);
 
   // Empêcher l'extinction de l'écran pendant la course active (Screen WakeLock API)
   useEffect(() => {
@@ -310,7 +317,9 @@ export const FitScreen: React.FC = () => {
           setInstantSpeedKmh(curSpeed);
         }
 
-        const curHr = liveBpm > 0 ? liveBpm : 0;
+        // BPM en direct avec contrôle de fraîcheur (< 18s pour éviter les lignes plates si perte de contact optique)
+        const isBpmFresh = (Date.now() - lastLiveBpmUpdateRef.current) < 18000;
+        const curHr = (liveBpm > 0 && isBpmFresh) ? liveBpm : 0;
         const currentDist = runDistanceKmRef.current;
 
         setTelemetryHistory((prevHistory) => {
@@ -599,10 +608,8 @@ export const FitScreen: React.FC = () => {
       runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     }
     setRunState('running');
-    if (!isLiveHrActive) {
-      setIsLiveHrActive(true);
-      qringBle.startRealTimeHeartRate().catch(() => {});
-    }
+    setIsLiveHrActive(true);
+    qringBle.startRealTimeHeartRate().catch(() => {});
     notifyNativeWorkout('start', {
       workoutTitle: 'Course à pied',
       elapsedTime: 0,
@@ -635,10 +642,8 @@ export const FitScreen: React.FC = () => {
   const resumeRun = () => {
     runStartTimeRef.current = Date.now() - accumulatedDurRef.current * 1000;
     setRunState('running');
-    if (!isLiveHrActive) {
-      setIsLiveHrActive(true);
-      qringBle.startRealTimeHeartRate().catch(() => {});
-    }
+    setIsLiveHrActive(true);
+    qringBle.startRealTimeHeartRate().catch(() => {});
     currentSmoothedSpeedRef.current = 0;
     recentGpsSamplesRef.current = [];
     lastDistanceFixRef.current = null;

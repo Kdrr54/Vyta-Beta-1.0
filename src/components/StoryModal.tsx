@@ -72,7 +72,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
     const variant = SLIDE_VARIANTS[activeSlide] || 'transparent';
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `vyta-${data.mode}-${variant}-${Date.now()}.png`;
+    a.download = `stoik-${data.mode}-${variant}-${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -306,7 +306,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
               fontFamily: 'var(--font-display), -apple-system, BlinkMacSystemFont, sans-serif',
             }}
           >
-            VYTA
+            STOÏK
           </div>
         </div>
       );
@@ -435,7 +435,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
                 color: '#FFFFFF',
               }}
             >
-              VYTA
+              STOÏK
             </div>
           </div>
         </div>
@@ -512,7 +512,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         )}
 
         <div style={{ fontSize: '17px', fontWeight: 900, color: fg, letterSpacing: '0.14em' }}>
-          VYTA
+          STOÏK
         </div>
       </div>
     );
@@ -533,18 +533,21 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          height: '93%',
+          maxHeight: '94dvh',
+          height: '94dvh',
           background: '#0D0D10',
           borderTop: '1px solid rgba(255, 255, 255, 0.14)',
           borderRadius: '24px 24px 0 0',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
           color: '#FFFFFF',
-          overflow: 'hidden',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
           boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.85)',
           position: 'relative',
-          paddingBottom: '18px',
+          paddingBottom: 'calc(max(36px, env(safe-area-inset-bottom)) + 30px)',
         }}
       >
         {/* 1. Top Navigation Header: Close | Share Activity */}
@@ -626,7 +629,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            flex: 1,
+            flexShrink: 0,
             width: '100%',
             overflow: 'hidden',
             paddingTop: '8px',
@@ -717,7 +720,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         <div
           style={{
             width: '100%',
-            padding: '4px 20px 6px 20px',
+            padding: '16px 20px 12px 20px',
             boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column',
