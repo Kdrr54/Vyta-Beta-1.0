@@ -179,30 +179,47 @@ export const HealthScreen: React.FC = () => {
               transform: 'translateY(-1px)',
             }}
           >
-            <span
-              style={{
-                fontSize: '17px',
-                fontWeight: 300,
-                color: '#FAF7F2',
-                lineHeight: 1,
-                letterSpacing: '-0.5px',
-                fontFamily: 'var(--font-display, -apple-system, sans-serif)',
-              }}
-            >
-              {ring.isConnected && batteryPct > 0 ? batteryPct : '--'}
-            </span>
-            <span
-              style={{
-                fontSize: '9.5px',
-                fontWeight: 600,
-                color: isLowBattery ? '#FF5A52' : '#D9F970',
-                marginLeft: '1px',
-                lineHeight: 1,
-                fontFamily: 'var(--font-mono, monospace)',
-              }}
-            >
-              %
-            </span>
+            {ring.isConnected && batteryPct > 0 ? (
+              <>
+                <span
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: 300,
+                    color: '#FAF7F2',
+                    lineHeight: 1,
+                    letterSpacing: '-0.5px',
+                    fontFamily: 'var(--font-display, -apple-system, sans-serif)',
+                  }}
+                >
+                  {batteryPct}
+                </span>
+                <span
+                  style={{
+                    fontSize: '9.5px',
+                    fontWeight: 600,
+                    color: isLowBattery ? '#FF5A52' : '#D9F970',
+                    marginLeft: '1px',
+                    lineHeight: 1,
+                    fontFamily: 'var(--font-mono, monospace)',
+                  }}
+                >
+                  %
+                </span>
+              </>
+            ) : (
+              <span
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 300,
+                  color: 'rgba(250, 247, 242, 0.35)',
+                  lineHeight: 1,
+                  letterSpacing: '0.5px',
+                  fontFamily: 'var(--font-display, -apple-system, sans-serif)',
+                }}
+              >
+                --
+              </span>
+            )}
           </div>
         </div>
       </div>

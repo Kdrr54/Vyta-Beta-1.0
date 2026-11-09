@@ -100,7 +100,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('vyta_ring_device');
-        if (saved) return { ...defaultRing, ...JSON.parse(saved) };
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            ...defaultRing,
+            ...parsed,
+            // Toujours initialiser déconnectée à chaque ouverture tant que le BLE n'est pas actif
+            isConnected: false,
+          };
+        }
       } catch (e) {}
     }
     return defaultRing;
@@ -344,8 +352,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     // Reconnexion automatique silencieuse en arrière-plan & synchronisation immédiate si déjà connectée
     if (qringBle.isConnected()) {
+      updateRing({ isConnected: true });
       qringBle.syncAllRingData();
     } else {
+      updateRing({ isConnected: false });
       qringBle.autoConnectSavedDevice();
     }
 
@@ -361,6 +371,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data.isConnected !== undefined) {
         updateRing({ isConnected: data.isConnected });
+        if (!data.isConnected) {
+          setLiveBpm(0);
+        }
       }
       // Réception BPM en direct : capté soit via liveHeartRate direct, soit dès que le mode live est actif sur la bague ou dans l'app
       const isLiveActive = isLiveHrActiveRef.current || qringBle.isRealTimeHeartRateActive();

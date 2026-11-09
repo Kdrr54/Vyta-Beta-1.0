@@ -419,7 +419,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     transition: 'color 0.2s ease',
                   }}
                 >
-                  {isConnected && ring.batteryRing > 0 ? `${ring.batteryRing}%` : (isConnected ? '0%' : '--')}
+                  {isConnected && ring.batteryRing > 0 ? `${ring.batteryRing}%` : '--'}
                 </span>
               </div>
 
@@ -437,7 +437,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               >
                 <div
                   style={{
-                    width: String(ring.batteryRing) + '%',
+                    width: isConnected && ring.batteryRing > 0 ? String(ring.batteryRing) + '%' : '0%',
                     height: '100%',
                     borderRadius: '999px',
                     background:
@@ -457,12 +457,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 style={{
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: (ring.batteryRing || 0) <= 15 ? '#FF453A' : '#D9F970',
+                  color: !isConnected ? 'rgba(250, 247, 242, 0.45)' : ((ring.batteryRing || 0) <= 15 ? '#FF453A' : '#D9F970'),
                   marginTop: '4px',
                   letterSpacing: '0.01em',
                 }}
               >
-                {remainingBatteryTime}
+                {isConnected && ring.batteryRing > 0 ? remainingBatteryTime : (isEn ? 'Ring disconnected' : 'Bague non connectée')}
               </span>
             </div>
 

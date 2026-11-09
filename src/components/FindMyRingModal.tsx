@@ -378,7 +378,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             >
               <Battery size={13} color="#D9F970" />
               <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-                {ring.batteryRing ?? 87}%
+                {ring.isConnected && (ring.batteryRing || 0) > 0 ? `${ring.batteryRing}%` : '--'}
               </span>
             </div>
 
