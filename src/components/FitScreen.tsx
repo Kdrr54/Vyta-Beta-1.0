@@ -22,7 +22,7 @@ import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../l
 import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
-import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
+import { TelemetryPoint } from './RunTelemetryCharts';
 import { 
   Flame, 
   MapPin, 
@@ -1320,67 +1320,6 @@ export const FitScreen: React.FC = () => {
             distanceKm={runDistanceKm}
             realGpsPoints={realGpsPoints}
             userPosition={userPosition}
-          />
-
-          {/* Key Running Metrics Grid (Live GPS) */}
-          <div className="activity-raw-card">
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">Distance</span>
-              <div>
-                <span className="activity-raw-val">
-                  {isIdle ? '0.00' : runDistanceKm.toFixed(2)}
-                </span>
-                <span className="activity-raw-unit">km</span>
-              </div>
-            </div>
-
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">Vitesse Moyenne</span>
-              <div>
-                <span className="activity-raw-val">
-                  {isIdle ? '0,0' : (runDistanceKm > 0.01 && runDurationSec > 0 ? (runDistanceKm / (runDurationSec / 3600)).toFixed(1).replace('.', ',') : '0,0')}
-                </span>
-                <span className="activity-raw-unit">km/h</span>
-              </div>
-            </div>
-
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">Temps Total</span>
-              <div>
-                <span className="activity-raw-val">{fmtClockSec(runDurationSec)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Secondary stats row: Vitesse, Dénivelé, FC moyenne, Calories */}
-          <div className="metrics-grid-2">
-            <div className="metric-card" style={{ minHeight: '90px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Vitesse & Dénivelé</span>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span className="metric-large">{liveSpeedKmh}</span>
-                <span className="metric-unit">km/h</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>+{liveElevation} m</span>
-              </div>
-            </div>
-
-            <div className="metric-card" style={{ minHeight: '90px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Cardio & Énergie</span>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span className="metric-large">{liveHr}</span>
-                <span className="metric-unit">bpm</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{liveCalories} kcal</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Télémétrie Complète : 1. Distance, 2. Vitesse, 3. BPM avec temps horizontal */}
-          <RunTelemetryCharts
-            runState={runState}
-            runDurationSec={runDurationSec}
-            runDistanceKm={runDistanceKm}
-            liveSpeedKmh={parseFloat(liveSpeedKmh)}
-            liveHr={liveHr}
-            telemetryHistory={telemetryHistory}
           />
         </div>
       )}
