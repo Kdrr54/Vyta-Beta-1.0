@@ -824,10 +824,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      for (let i = 0; i < 47; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
-          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
-          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
+      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
+      for (let i = 0; i < 46; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
+          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
           slots[i + 1].isMeasured = true;
         }
       }
@@ -846,10 +847,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         }
       });
       // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
-      for (let i = 0; i < 47; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
-          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
-          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
+      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
+      for (let i = 0; i < 46; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
+          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
           slots[i + 1].isMeasured = true;
         }
       }
@@ -868,10 +870,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         }
       });
       // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
-      for (let i = 0; i < 47; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
-          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
-          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
+      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
+      for (let i = 0; i < 46; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
+          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
           slots[i + 1].isMeasured = true;
         }
       }
@@ -889,10 +892,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      for (let i = 0; i < 47; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 1 <= currentSlotToday) {
-          const nextVal = (i + 2 <= currentSlotToday && slots[i + 2].isMeasured) ? slots[i + 2].value : slots[i].value;
-          slots[i + 1].value = Math.round((slots[i].value + nextVal) / 2);
+      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
+      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
+      for (let i = 0; i < 46; i += 2) {
+        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
+          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
           slots[i + 1].isMeasured = true;
         }
       }
@@ -1024,12 +1028,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const avgY = getY(avgVal);
 
-  // Seuil d'interruption (bague retirée) :
-  // - Pour le BPM (mesure automatique toutes les 30 min) : un trou de plus de 2h30 (5 créneaux consécutifs sans relevé) marque un retrait de la bague.
-  // - Pour le VRC / SpO2 / Stress / Temp (mesures périodiques espacées naturellement de 1h à 2h) :
-  //   les mesures espacées jusqu'à 4h (8 créneaux de 30 min) appartiennent à la même période de port et doivent former une ligne de courbe fluide continue.
-  //   Au-delà de 4h d'absence totale de mesure (ex: bague retirée pendant 10h), la courbe s'interrompt pour laisser un vide net ("trou").
-  const maxGapSlots = metricId === 'bpm' ? 5 : 8;
+  // Seuil d'interruption net (bague retirée / absence d'enregistrement) :
+  // Dès qu'une période n'est pas mesurée (ex: bague retirée à la salle de sport à 14h30),
+  // le graphique ne doit tracer AUCUN trait (interruption nette / vide complet) au lieu de relier artificiellement les points.
+  // - BPM : mesure toutes les 30 min -> maxGapSlots = 1 (coupure dès > 1 créneau / 30 min sans relevé)
+  // - VRC / SpO2 / Stress / Temp : cadence 1h (2 créneaux de 30 min) -> maxGapSlots = 2 (coupure dès > 2 créneaux sans relevé)
+  const maxGapSlots = metricId === 'bpm' ? 1 : 2;
 
   const segments: Array<Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }>> = [];
   let currentSegment: Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }> = [];
