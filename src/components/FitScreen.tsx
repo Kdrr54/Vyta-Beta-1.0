@@ -22,8 +22,10 @@ import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../l
 import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
+import { GpathVbtTracker } from './GpathVbtTracker';
 import { TelemetryPoint } from './RunTelemetryCharts';
 import { 
+  Zap,
   Flame, 
   MapPin, 
   Trophy, 
@@ -846,6 +848,7 @@ export const FitScreen: React.FC = () => {
   const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
+  const [isVbtTrackerOpen, setIsVbtTrackerOpen] = useState<boolean>(false);
 
   // Modals state
   const initialAddModal = params?.get('modal') === 'add_ex' || params?.get('add_ex') === '1';
@@ -1833,6 +1836,72 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Bouton d'accès au Mode Capteur VBT (Style Gpath) */}
+          <button
+            type="button"
+            onClick={() => setIsVbtTrackerOpen(!isVbtTrackerOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.16) 0%, rgba(0, 128, 255, 0.16) 100%)',
+              border: '1.5px solid #00F0FF',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 18px rgba(0, 240, 255, 0.22)',
+              color: '#FFFFFF',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  background: 'rgba(0, 240, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Zap size={14} color="#00F0FF" />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#00F0FF' }}>
+                  GPATH VBT TRACKER (VITESSE LIVE)
+                </div>
+                <div style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.65)' }}>
+                  Comptage de reps & perte de vitesse automatique
+                </div>
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: '#00F0FF',
+                background: 'rgba(0, 240, 255, 0.15)',
+                padding: '4px 8px',
+                borderRadius: '8px',
+              }}
+            >
+              {isVbtTrackerOpen ? 'FERMER ▲' : 'OUVRIR ↗'}
+            </span>
+          </button>
+
+          {isVbtTrackerOpen && (
+            <GpathVbtTracker
+              currentExerciseName={exercises[0]?.name || 'Développé Couché'}
+              weightKg={exercises[0]?.sets[0]?.weightKg || 60}
+              onClose={() => setIsVbtTrackerOpen(false)}
+              onSaveSet={(repsCount, avgVel, lossPct) => {
+                setIsVbtTrackerOpen(false);
+              }}
+            />
+          )}
 
           {/* Tonnage Total Counter Header */}
           <div className="activity-raw-card" style={{ gridTemplateColumns: '1fr 1fr' }}>
