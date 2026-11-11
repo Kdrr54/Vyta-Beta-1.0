@@ -1,0 +1,103 @@
+workflows:
+  ios-release:
+    name: Vyta iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: 16.2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    scripts:
+      - name: 📦 Installation des dépendances
+        script: npm install
+
+      - name: 🔨 Compilation des assets web
+        script: npm run build
+
+      - name: 🍏 Synchronisation du projet iOS natif
+        script: |
+          npx cap sync ios
+          node scripts/add_widget_target.cjs
+
+      - name: 📲 Compilation de l'archive iOS et génération de l'IPA
+        script: |
+          cd ios/App
+          if [ -n "$DIST_CERT_PEM" ]; then
+            echo "Configuration du certificat Apple Distribution..."
+            KEYCHAIN_PATH=$HOME/Library/Keychains/app-signing.keychain-db
+            echo "$DIST_KEY_PEM" > key.pem
+            echo "$DIST_CERT_PEM" > cert.pem
+            echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o build_pp.mobileprovision
+
+            openssl pkcs12 -export \
+              -inkey key.pem \
+              -in cert.pem \
+              -out dist.p12 \
+              -passout pass:"${P12_PASSWORD:-Vyta2026}"
+
+            security create-keychain -p "${KEYCHAIN_PASSWORD:-Vyta2026}" "$KEYCHAIN_PATH" || true
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH" || true
+            security unlock-keychain -p "${KEYCHAIN_PASSWORD:-Vyta2026}" "$KEYCHAIN_PATH" || true
+
+            security import dist.p12 -P "${P12_PASSWORD:-Vyta2026}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" || true
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD:-Vyta2026}" "$KEYCHAIN_PATH" || true
+            security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp build_pp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+            cp Vyta_Workout_Widget_Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+
+            xcodebuild -project App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -archivePath build/App.xcarchive \
+              -destination 'generic/platform=iOS' \
+              CODE_SIGN_STYLE="Manual" \
+              DEVELOPMENT_TEAM="ZCU3WN2ZW4" \
+              CODE_SIGN_IDENTITY="Apple Distribution" \
+              archive
+
+            xcodebuild -exportArchive \
+              -archivePath build/App.xcarchive \
+              -exportPath build/Export \
+              -exportOptionsPlist ExportOptions.plist
+            cp build/Export/*.ipa ../../Vyta.ipa
+          else
+            echo "Compilation sans signature..."
+            xcodebuild -project App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -archivePath build/App.xcarchive \
+              -destination 'generic/platform=iOS' \
+              CODE_SIGN_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY="" \
+              archive
+            mkdir -p Payload
+            cp -r build/App.xcarchive/Products/Applications/App.app Payload/Vyta.app
+            zip -r Vyta.ipa Payload
+            mv Vyta.ipa ../../Vyta.ipa
+          fi
+
+      - name: ✈️ Envoi vers TestFlight
+        script: |
+          if [ -n "$APP_STORE_CONNECT_API_KEY" ]; then
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "$APP_STORE_CONNECT_API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+            xcrun altool --upload-app \
+              -f Vyta.ipa \
+              -t ios \
+              --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+              --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+              --show-progress
+          fi
+
+    artifacts:
+      - Vyta.ipa
+      - ios/App/build/Export/*.ipa
