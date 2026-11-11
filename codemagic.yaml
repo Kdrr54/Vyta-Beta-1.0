@@ -10,26 +10,26 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: main
+        - pattern: 'main'
           include: true
           source: true
     scripts:
-      - name: 📦 Installation des dépendances
+      - name: Install dependencies
         script: npm install
 
-      - name: 🔨 Compilation des assets web
+      - name: Build web assets
         script: npm run build
 
-      - name: 🍏 Synchronisation du projet iOS natif
+      - name: Sync Capacitor iOS
         script: |
           npx cap sync ios
           node scripts/add_widget_target.cjs
 
-      - name: 📲 Compilation de l'archive iOS et génération de l'IPA
+      - name: Build iOS App
         script: |
           cd ios/App
           if [ -n "$DIST_CERT_PEM" ]; then
-            echo "Configuration du certificat Apple Distribution..."
+            echo "Setting up certificate..."
             KEYCHAIN_PATH=$HOME/Library/Keychains/app-signing.keychain-db
             echo "$DIST_KEY_PEM" > key.pem
             echo "$DIST_CERT_PEM" > cert.pem
@@ -47,7 +47,6 @@ workflows:
 
             security import dist.p12 -P "${P12_PASSWORD:-Vyta2026}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH" || true
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD:-Vyta2026}" "$KEYCHAIN_PATH" || true
-            security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
 
             mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
             cp build_pp.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
@@ -69,7 +68,7 @@ workflows:
               -exportOptionsPlist ExportOptions.plist
             cp build/Export/*.ipa ../../Vyta.ipa
           else
-            echo "Compilation sans signature..."
+            echo "Building unsigned IPA..."
             xcodebuild -project App.xcodeproj \
               -scheme App \
               -configuration Release \
@@ -85,7 +84,7 @@ workflows:
             mv Vyta.ipa ../../Vyta.ipa
           fi
 
-      - name: ✈️ Envoi vers TestFlight
+      - name: Upload to TestFlight
         script: |
           if [ -n "$APP_STORE_CONNECT_API_KEY" ]; then
             mkdir -p ~/.appstoreconnect/private_keys
