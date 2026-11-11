@@ -848,7 +848,7 @@ export const FitScreen: React.FC = () => {
   const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
-  const [isVbtTrackerOpen, setIsVbtTrackerOpen] = useState<boolean>(false);
+  const [isVbtTrackerOpen, setIsVbtTrackerOpen] = useState<boolean>(true);
 
   // Modals state
   const initialAddModal = params?.get('modal') === 'add_ex' || params?.get('add_ex') === '1';
