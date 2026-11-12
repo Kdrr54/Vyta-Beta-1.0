@@ -623,7 +623,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const displayAdvice = isEn ? detail.adviceEn : detail.advice;
   const displayStats = isEn ? detail.statsEn : detail.stats;
   const displayMoments = isEn ? detail.momentsEn : detail.moments;
-  const displayDistribution = isEn ? detail.distributionEn : detail.distribution;
   const displayTipPoints = isEn ? theme.tipPointsEn : theme.tipPointsFr;
 
   const isZeroState = metricId === 'temp'
@@ -2327,91 +2326,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   </div>
                 );
               })}
-            </div>
-
-            {/* Clean Zone Distribution with Dynamic Biomarker Colors */}
-            <div
-              className="metric-clean-card"
-              style={{
-                background: 'rgba(20, 20, 24, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span className="clean-card-title">{t('metric.distribution')}</span>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: `${theme.primary}DD`,
-                    fontWeight: 600,
-                  }}
-                >
-                  {isEn ? 'Physiological Balance' : 'Équilibre physiologique'}
-                </span>
-              </div>
-
-              {isZeroState || displayDistribution.length === 0 ? (
-                <div style={{ padding: '16px 0 6px 0', textAlign: 'center' }}>
-                  <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '999px' }} />
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', marginTop: '8px', display: 'block', fontFamily: 'var(--font-mono)' }}>
-                    {isEn ? 'Waiting for 24-hour sensor data' : 'En attente de mesures sur 24 heures'}
-                  </span>
-                </div>
-              ) : (
-                <>
-                  {/* Multi-segment Progress Bar with actual biological colors */}
-                  <div className="clean-distrib-bar" style={{ height: '10px' }}>
-                    {displayDistribution.map((d, i) => {
-                      const segColor = theme.zoneColors[i] || '#64748B';
-                      return (
-                        <div
-                          key={i}
-                          className="clean-distrib-seg"
-                          style={{
-                            width: `${d.percent}%`,
-                            backgroundColor: segColor,
-                            boxShadow: i === 0 ? `0 0 8px ${segColor}` : undefined,
-                          }}
-                          title={`${d.name}: ${d.percent}%`}
-                        />
-                      );
-                    })}
-                  </div>
-
-                  {/* Legend with glowing color dots */}
-                  <div className="clean-distrib-legend">
-                    {displayDistribution.map((d, i) => {
-                      const segColor = theme.zoneColors[i] || '#64748B';
-                      return (
-                        <div key={i} className="distrib-legend-item">
-                          <span
-                            className="distrib-legend-dot"
-                            style={{
-                              backgroundColor: segColor,
-                              boxShadow: `0 0 6px ${segColor}`,
-                            }}
-                          />
-                          <span className="distrib-legend-name">{d.name}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span
-                              style={{
-                                fontSize: '10.5px',
-                                color: 'rgba(250, 247, 242, 0.65)',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                background: 'rgba(255, 255, 255, 0.06)',
-                              }}
-                            >
-                              {d.percent}%
-                            </span>
-                            <span className="distrib-legend-dur">{d.duration}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
             </div>
           </div>
         )}
