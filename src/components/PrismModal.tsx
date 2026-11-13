@@ -88,7 +88,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     setOrbStatus('thinking');
 
     const minThinkStart = Date.now();
-    const MIN_ORB_MS = 1400;
+    const MIN_ORB_MS = 900;
 
     try {
       const history = messages

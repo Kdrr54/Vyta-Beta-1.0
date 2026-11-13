@@ -4,6 +4,18 @@ import { calculateTargetStrain } from './covytaChatBot';
 const PRISM_GEMINI_KEY_STORAGE = 'vyta_gemini_api_key';
 const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6K8tuI674qFgJDFcJocIrMkR8Wt9fJku-9f9rUSMJzRrw';
 
+let cachedWorkingModel: string | null = null;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Récupère la clé API Gemini depuis l'environnement ou le localStorage
  */
@@ -44,7 +56,11 @@ export interface PrismKeyTestResult {
  */
 async function fetchActiveGeminiModels(apiKey: string): Promise<string[]> {
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const res = await fetchWithTimeout(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+      {},
+      4000
+    );
     if (res.ok) {
       const data = await res.json();
       const models: string[] = (data.models || [])
@@ -275,33 +291,45 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
     parts: [{ text: ctx.prompt }],
   });
 
-  const dynamicModels = await fetchActiveGeminiModels(apiKey);
   const fallbackList = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
     'gemini-flash-latest',
     'gemini-3.7-flash',
-    'gemini-3.8-flash',
   ];
 
-  const sortedDynamic = dynamicModels
-    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
-    .sort((a, b) => {
-      if (a === 'gemini-3.5-flash') return -1;
-      if (b === 'gemini-3.5-flash') return 1;
-      if (a.includes('3.5') && !b.includes('3.5')) return -1;
-      if (!a.includes('3.5') && b.includes('3.5')) return 1;
-      return 0;
-    });
+  let candidateModels: string[];
+  if (cachedWorkingModel) {
+    candidateModels = Array.from(new Set([cachedWorkingModel, ...fallbackList])).slice(0, 4);
+  } else {
+    const dynamicModels = await fetchActiveGeminiModels(apiKey);
+    const sortedDynamic = dynamicModels
+      .filter((m) =>
+        m.includes('flash') &&
+        !m.includes('image') &&
+        !m.includes('tts') &&
+        !m.includes('audio') &&
+        !m.includes('2.5') &&
+        !m.includes('2.0') &&
+        !m.includes('1.5')
+      )
+      .sort((a, b) => {
+        if (a === 'gemini-3.5-flash') return -1;
+        if (b === 'gemini-3.5-flash') return 1;
+        if (a.includes('3.5') && !b.includes('3.5')) return -1;
+        if (!a.includes('3.5') && b.includes('3.5')) return 1;
+        return 0;
+      });
+    candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList])).slice(0, 4);
+  }
 
-  const candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList]));
   let lastError = '';
 
   for (const model of candidateModels) {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     try {
-      const response = await fetch(apiUrl, {
+      const response = await fetchWithTimeout(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,9 +345,10 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
             },
           },
         }),
-      });
+      }, 14000);
 
       if (response.ok) {
+        cachedWorkingModel = model;
         const data = await response.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
@@ -353,7 +382,10 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
         }
       }
     } catch (err: any) {
-      lastError = err?.message || 'Erreur réseau';
+      if (cachedWorkingModel === model) cachedWorkingModel = null;
+      lastError = err?.name === 'AbortError'
+        ? 'Délai dépassé (serveur lent)'
+        : (err?.message || 'Erreur réseau');
     }
   }
 
