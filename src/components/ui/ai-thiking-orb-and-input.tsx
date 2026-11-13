@@ -23,10 +23,11 @@ export interface MorphOrbProps {
   className?: string;
   style?: React.CSSProperties;
   onSuccess?: (answer: string, question: string) => void;
+  suggestions?: string[];
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 132;
+const CARD_H_DEFAULT = 220;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
 const CARD_H = CARD_H_DEFAULT;
 const FLY_D = 138;
@@ -814,6 +815,7 @@ export default function MorphOrb(props: MorphOrbProps) {
     className = "",
     style,
     onSuccess,
+    suggestions,
   } = props;
   const copy = React.useMemo(() => ({ ...COPY, ...userCopy }), [userCopy]);
   const [phase, setPhaseState] = useState<Phase>("idle");
@@ -887,7 +889,10 @@ export default function MorphOrb(props: MorphOrbProps) {
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
-    inputRef.current?.focus({ preventScroll: true });
+    // On touch/mobile devices, don't force focus on mount to prevent jarring keyboard pops
+    if (window.matchMedia("(pointer: fine)").matches) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
 
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -977,6 +982,54 @@ export default function MorphOrb(props: MorphOrbProps) {
     <div className={`mo-root ${className}`.trim()} style={style} data-phase={phase} ref={rootRef}>
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
+
+      {suggestions && suggestions.length > 0 && phase === "idle" && (
+        <div
+          className="mo-suggestions"
+          style={{
+            position: "absolute",
+            bottom: "132px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: "7px",
+            width: "min(560px, calc(100vw - 32px))",
+            zIndex: 25,
+            pointerEvents: "auto",
+            animation: "mo-fade-in 0.3s ease",
+          }}
+        >
+          {suggestions.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => {
+                setValue(q);
+                lastTextRef.current = q;
+                rtRef.current?.start(q, makeCfg());
+              }}
+              style={{
+                padding: "7px 14px",
+                borderRadius: "999px",
+                background: "rgba(255, 255, 255, 0.07)",
+                border: "1px solid rgba(255, 255, 255, 0.16)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                color: "#FAF7F2",
+                fontSize: "11px",
+                fontWeight: 500,
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mo-mover" ref={moverRef}>
         {Array.from({ length: 6 }).map((_, i) => (

@@ -425,14 +425,15 @@
 }
 
 .mo-a-body {
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.5;
   color: #FAF7F2;
   margin: 0;
   overflow-y: auto;
-  max-height: 72px;
+  max-height: 150px;
   user-select: text;
-  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .mo-a-body::-webkit-scrollbar {
