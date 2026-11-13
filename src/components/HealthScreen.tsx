@@ -5,13 +5,12 @@ import { WeekSelector } from './WeekSelector';
 import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
 import { CardioAge } from './CardioAge';
-import { HeartRateCard } from './HeartRateCard';
-import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind } from 'lucide-react';
+import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind, Heart } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode } = useApp();
+  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
@@ -73,6 +72,11 @@ export const HealthScreen: React.FC = () => {
     prevDayData && prevDayData.score > 0 && prevDayData.sleep?.score > 0 && dayData.score > 0
       ? dayData.score - prevDayData.score
       : 0;
+
+  const isToday = selectedDay === TODAY_INDEX;
+  const bpmValue = (isToday && liveBpm > 0)
+    ? liveBpm
+    : (dayData.bpm && dayData.bpm > 0 ? dayData.bpm : (dayData.restingBpm && dayData.restingBpm > 0 ? dayData.restingBpm : 0));
 
   // Generate 60 radial tick marks for the circular HUD around the ring
   const ticks = Array.from({ length: 60 }, (_, i) => {
@@ -376,9 +380,142 @@ export const HealthScreen: React.FC = () => {
       </div>
 
       {/* =====================================================================
-          3. WIDE RECTANGLE HEART RATE LIVE ECG CARD
+          3. WIDE "GENERAL STATE" ADVANCED SENSING BANNER CARD
+             (Placé en haut à la place de la carte fréquence cardiaque)
           ===================================================================== */}
-      <HeartRateCard onClick={() => openMetricDetail('bpm')} />
+      <div
+        onClick={() => openModal('general_state')}
+        role="button"
+        tabIndex={0}
+        title="État général & dynamique hebdomadaire"
+        style={{
+          position: 'relative',
+          width: '100%',
+          minHeight: '132px',
+          padding: '16px 18px',
+          borderRadius: '26px',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          background: isMono
+            ? 'radial-gradient(ellipse at 35% 100%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+            : 'radial-gradient(ellipse at 35% 100%, rgba(217, 249, 112, 0.25) 0%, rgba(82, 102, 42, 0.18) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C',
+          borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+          borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+          borderRight: '1px solid rgba(255, 248, 240, 0.12)',
+          borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(217, 249, 112, 0.45)',
+          boxShadow: '0 14px 32px rgba(0, 0, 0, 0.55)',
+        }}
+      >
+        {/* Top-Left Sparkle + Titre "État général" + Sous-titre "+3 vs hier" */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <Sparkles size={13} color="#FAF7F2" fill="#FAF7F2" />
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#FAF7F2',
+                letterSpacing: '-0.2px',
+              }}
+            >
+              {language === "fr" ? "État général" : "General State"}
+            </span>
+          </div>
+          {selectedDay > 0 && dayData.score > 0 && scoreDiffYesterday !== 0 && (
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 500,
+                color: isMono ? '#FAF7F2' : (scoreDiffYesterday >= 0 ? '#30D158' : '#FF453A'),
+                paddingLeft: '20px',
+                letterSpacing: '0.01em',
+              }}
+            >
+              {scoreDiffYesterday >= 0 ? `+${scoreDiffYesterday}` : scoreDiffYesterday} {language === 'fr' ? 'vs hier' : 'vs yesterday'}
+            </span>
+          )}
+        </div>
+
+        {/* Bottom-Left: Score + Statut */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 3, marginTop: '8px' }}>
+          <span
+            style={{
+              fontSize: '42px',
+              fontWeight: 300,
+              color: '#FAF7F2',
+              lineHeight: 1,
+              letterSpacing: '-1.2px',
+            }}
+          >
+            {dayData.score > 0 ? dayData.score : '--'}
+          </span>
+          <span
+            style={{
+              fontSize: '13px',
+              fontWeight: 400,
+              color: 'rgba(250, 247, 242, 0.78)',
+            }}
+          >
+            {isFirstLaunch || dayData.score === 0 ? (language === "fr" ? "En attente de données" : "Waiting for data") : (language === "fr" ? "Équilibré" : "Equilibrate")}
+          </span>
+        </div>
+
+        {/* Right Side: Clean 3D Isometric Smart Ring (High-Res Transparent, No Text) */}
+        <div
+          style={{
+            position: 'absolute',
+            right: '-15px',
+            bottom: '-28px',
+            width: '205px',
+            height: '165px',
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}
+        >
+          <img
+            src="/assets/ring/ring-iso-transparent.png"
+            alt="Stoic Ring One Smart Ring Sensors"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              transform: 'scale(1.12)',
+              filter: `${currentFinish.imgFilter} contrast(1.08) drop-shadow(0 16px 32px rgba(0, 0, 0, 0.95))`,
+            }}
+          />
+        </div>
+
+        {/* Top-Right Circular Frosted Glass Arrow Button (↗) */}
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            openModal('general_state');
+          }}
+          style={{
+            position: 'absolute',
+            top: '14px',
+            right: '14px',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 4,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          title="Ouvrir la vue détaillée de l'état général"
+        >
+          <ArrowUpRight size={16} color="#FAF7F2" strokeWidth={1.8} />
+        </div>
+      </div>
 
       {/* Bannière visuelle claire si un jour passé est sélectionné, avec bouton de retour instantané à Aujourd'hui */}
       {selectedDay !== TODAY_INDEX && (
@@ -895,13 +1032,13 @@ export const HealthScreen: React.FC = () => {
         </div>
 
         {/* -----------------------------------------------------------------
-            CARD 6: "Fréquence Respiratoire" (Biométrie Nocturne RSA) - SKY BLUE
+            CARD 6: "Fréquence Cardiaque" (BPM) - CRIMSON / ROSE
             ----------------------------------------------------------------- */}
         <div
-          onClick={() => openMetricDetail('resp')}
+          onClick={() => openMetricDetail('bpm')}
           role="button"
           tabIndex={0}
-          title="Ouvrir le suivi détaillé de la fréquence respiratoire & ventilation nocturne"
+          title="Ouvrir le suivi détaillé 24h de la fréquence cardiaque"
           style={{
             position: 'relative',
             minHeight: '160px',
@@ -914,199 +1051,63 @@ export const HealthScreen: React.FC = () => {
             justifyContent: 'space-between',
             background: isMono
               ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
-              : 'radial-gradient(ellipse at 50% 108%, rgba(56, 189, 248, 0.36) 0%, rgba(2, 132, 199, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
+              : 'radial-gradient(ellipse at 50% 108%, rgba(255, 69, 58, 0.36) 0%, rgba(220, 38, 38, 0.14) 45%, rgba(10, 10, 12, 0.94) 78%), rgba(10, 10, 12, 0.86)',
             backdropFilter: 'blur(26px)',
             WebkitBackdropFilter: 'blur(26px)',
             borderTop: '1px solid rgba(255, 248, 240, 0.16)',
             borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
             borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(56, 189, 248, 0.75)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(255, 69, 58, 0.75)',
             boxShadow: isMono
               ? '0 14px 30px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
-              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(56, 189, 248, 0.2)',
+              : '0 14px 30px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(255, 69, 58, 0.2)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
-              {language === 'fr' ? <>Fréquence<br />respiratoire</> : <>Respiratory<br />Rate</>}
+              {language === 'fr' ? <>Fréquence<br />cardiaque</> : <>Heart<br />Rate</>}
             </span>
             <div
               style={{
                 width: '34px',
                 height: '34px',
                 borderRadius: '50%',
-                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(56, 189, 248, 0.18)',
-                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(56, 189, 248, 0.4)',
-                boxShadow: isMono ? 'none' : '0 0 12px rgba(56, 189, 248, 0.28)',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 69, 58, 0.18)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(255, 69, 58, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(255, 69, 58, 0.28)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <Wind size={16} color={isMono ? "#FAF7F2" : "#38BDF8"} strokeWidth={1.8} />
+              <Heart size={16} color={isMono ? "#FAF7F2" : "#FF453A"} fill={isMono ? "transparent" : "rgba(255, 69, 58, 0.25)"} strokeWidth={1.8} />
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '2px 0' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
               <span style={{ fontSize: '32px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1, letterSpacing: '-0.8px' }}>
-                {dayData.resp && dayData.resp > 0 ? dayData.resp : '--'}
+                {bpmValue > 0 ? bpmValue : '--'}
               </span>
-              {dayData.resp && dayData.resp > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#38BDF8', fontWeight: 600 }}>rpm</span> : null}
+              {bpmValue > 0 ? <span style={{ fontSize: '11px', color: isMono ? 'rgba(250, 247, 242, 0.55)' : '#FF453A', fontWeight: 600 }}>bpm</span> : null}
             </div>
-            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#7DD3FC', marginTop: '2px', fontWeight: 600 }}>
-              {dayData.resp && dayData.resp > 0 ? (language === 'fr' ? 'Régulière · Calme' : 'Smooth & Steady') : '--'}
+            <span style={{ fontSize: '10.5px', color: isMono ? 'rgba(250, 247, 242, 0.65)' : '#FFA29A', marginTop: '2px', fontWeight: 600 }}>
+              {bpmValue > 0 ? (dayData.restingBpm ? (language === 'fr' ? `Repos · ${dayData.restingBpm} bpm` : `Resting · ${dayData.restingBpm} bpm`) : (language === 'fr' ? 'Pouls actif' : 'Active pulse')) : '--'}
             </span>
           </div>
 
           <svg width="100%" height="22" viewBox="0 0 140 22" fill="none" style={{ overflow: 'visible' }}>
             <path
-              d={!dayData.resp || dayData.resp === 0 ? "M 0 11 L 140 11" : "M 0 11 Q 25 3, 50 11 T 100 11 T 140 11"}
-              stroke={isMono ? '#FAF7F2' : '#38BDF8'}
+              d={bpmValue === 0 ? "M 0 11 L 140 11" : "M 0 11 L 35 11 L 42 16 L 48 3 L 55 20 L 62 7 L 68 11 L 140 11"}
+              stroke={isMono ? '#FAF7F2' : '#FF453A'}
               strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               fill="none"
-              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(56, 189, 248, 0.85))' }}
+              style={{ filter: isMono ? 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))' : 'drop-shadow(0 0 7px rgba(255, 69, 58, 0.85))' }}
             />
           </svg>
-        </div>
-      </div>
-
-      {/* =====================================================================
-          6. WIDE "GENERAL STATE" ADVANCED SENSING BANNER CARD
-             Matches bottom-right wide card in reference ("82 Equilibrate")
-          ===================================================================== */}
-      <div
-        onClick={() => openModal('general_state')}
-        role="button"
-        tabIndex={0}
-        title="État général & dynamique hebdomadaire"
-        style={{
-          position: 'relative',
-          width: '100%',
-          minHeight: '132px',
-          padding: '16px 18px',
-          borderRadius: '26px',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          background: isMono
-            ? 'radial-gradient(ellipse at 35% 100%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
-            : 'radial-gradient(ellipse at 35% 100%, rgba(217, 249, 112, 0.25) 0%, rgba(82, 102, 42, 0.18) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C',
-          borderTop: '1px solid rgba(255, 248, 240, 0.16)',
-          borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
-          borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-          borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(217, 249, 112, 0.45)',
-          boxShadow: '0 14px 32px rgba(0, 0, 0, 0.55)',
-        }}
-      >
-        {/* Top-Left Sparkle + Titre "État général" + Sous-titre "+3 vs hier" */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 3 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <Sparkles size={13} color="#FAF7F2" fill="#FAF7F2" />
-            <span
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#FAF7F2',
-                letterSpacing: '-0.2px',
-              }}
-            >
-              {language === "fr" ? "État général" : "General State"}
-            </span>
-          </div>
-          {selectedDay > 0 && dayData.score > 0 && scoreDiffYesterday !== 0 && (
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 500,
-                color: isMono ? '#FAF7F2' : (scoreDiffYesterday >= 0 ? '#30D158' : '#FF453A'),
-                paddingLeft: '20px',
-                letterSpacing: '0.01em',
-              }}
-            >
-              {scoreDiffYesterday >= 0 ? `+${scoreDiffYesterday}` : scoreDiffYesterday} {language === 'fr' ? 'vs hier' : 'vs yesterday'}
-            </span>
-          )}
-        </div>
-
-        {/* Bottom-Left: Score + Statut */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 3, marginTop: '8px' }}>
-          <span
-            style={{
-              fontSize: '42px',
-              fontWeight: 300,
-              color: '#FAF7F2',
-              lineHeight: 1,
-              letterSpacing: '-1.2px',
-            }}
-          >
-            {dayData.score > 0 ? dayData.score : '--'}
-          </span>
-          <span
-            style={{
-              fontSize: '13px',
-              fontWeight: 400,
-              color: 'rgba(250, 247, 242, 0.78)',
-            }}
-          >
-            {isFirstLaunch || dayData.score === 0 ? (language === "fr" ? "En attente de données" : "Waiting for data") : (language === "fr" ? "Équilibré" : "Equilibrate")}
-          </span>
-        </div>
-
-        {/* Right Side: Clean 3D Isometric Smart Ring (High-Res Transparent, No Text) */}
-        <div
-          style={{
-            position: 'absolute',
-            right: '-15px',
-            bottom: '-28px',
-            width: '205px',
-            height: '165px',
-            pointerEvents: 'none',
-            zIndex: 2,
-          }}
-        >
-          <img
-            src="/assets/ring/ring-iso-transparent.png"
-            alt="Stoic Ring One Smart Ring Sensors"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              transform: 'scale(1.12)',
-              filter: `${currentFinish.imgFilter} contrast(1.08) drop-shadow(0 16px 32px rgba(0, 0, 0, 0.95))`,
-            }}
-          />
-        </div>
-
-        {/* Top-Right Circular Frosted Glass Arrow Button (↗) */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            openModal('general_state');
-          }}
-          style={{
-            position: 'absolute',
-            top: '14px',
-            right: '14px',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            backdropFilter: 'blur(12px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 4,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-          }}
-          title="Ouvrir la vue détaillée de l'état général"
-        >
-          <ArrowUpRight size={16} color="#FAF7F2" strokeWidth={1.8} />
         </div>
       </div>
 

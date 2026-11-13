@@ -20,6 +20,7 @@ import {
   X,
   Layers,
   Info,
+  Wind,
 } from 'lucide-react';
 
 export const SleepScreen: React.FC = () => {
@@ -139,6 +140,7 @@ export const SleepScreen: React.FC = () => {
   // Biomarqueurs strictement nocturnes
   const nocturnalBpmVal = hasSlept && dayData.minBpm && dayData.minBpm >= 40 ? dayData.minBpm : (hasSlept && dayData.restingBpm ? dayData.restingBpm : null);
   const nocturnalHrvVal = hasSlept && dayData.hrv && dayData.hrv > 0 ? dayData.hrv : null;
+  const nocturnalRespVal = hasSlept && dayData.resp && dayData.resp > 0 ? dayData.resp : null;
   const nocturnalSpo2Val = hasSlept && dayData.spo2 && dayData.spo2 >= 70 ? Math.round(dayData.spo2) : null;
   const nocturnalTempDeltaVal = hasSlept && dayData.tempDelta !== undefined && dayData.tempDelta !== 0
     ? (dayData.tempDelta > 0 ? `+${dayData.tempDelta}` : `${dayData.tempDelta}`)
@@ -735,6 +737,44 @@ export const SleepScreen: React.FC = () => {
               </div>
             </div>
 
+            {/* Fréquence Respiratoire Nocturne */}
+            <div
+              onClick={() => openMetricDetail('resp')}
+              role="button"
+              tabIndex={0}
+              style={{
+                background: '#11121A',
+                border: '1px solid rgba(56, 189, 248, 0.18)',
+                borderRadius: '16px',
+                padding: '12px 14px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '8px',
+                transition: 'border-color 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {isEn ? 'Respiratory Rate' : 'Fréquence Resp.'}
+                </span>
+                <Wind size={13} color="#38BDF8" />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-display)' }}>
+                    {nocturnalRespVal !== null ? nocturnalRespVal : '--'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#38BDF8', fontWeight: 600 }}>RPM</span>
+                </div>
+                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                  {nocturnalRespVal !== null ? (isEn ? 'Nocturnal RSA' : 'Ventilation calme') : (isEn ? 'Awaiting night' : 'En attente')}
+                </span>
+              </div>
+            </div>
+
             {/* SpO2 Nocturne */}
             <div
               onClick={() => openMetricDetail('spo2')}
@@ -779,35 +819,48 @@ export const SleepScreen: React.FC = () => {
               role="button"
               tabIndex={0}
               style={{
+                gridColumn: 'span 2',
                 background: '#11121A',
                 border: '1px solid rgba(251, 146, 60, 0.18)',
                 borderRadius: '16px',
-                padding: '12px 14px',
+                padding: '12px 16px',
                 cursor: 'pointer',
                 display: 'flex',
-                flexDirection: 'column',
+                alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '8px',
                 transition: 'border-color 0.2s ease',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600, textTransform: 'uppercase' }}>
-                  {isEn ? 'Temp Dip' : 'Écart Thermique'}
-                </span>
-                <Thermometer size={13} color="#FB923C" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: 'rgba(251, 146, 60, 0.14)',
+                    border: '1px solid rgba(251, 146, 60, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Thermometer size={14} color="#FB923C" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600, textTransform: 'uppercase', display: 'block' }}>
+                    {isEn ? 'Nightly Skin Temp' : 'Écart Thermique Cutané'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                    {nocturnalTempDeltaVal !== null ? (isEn ? 'Circadian dip' : 'Baisse circadienne normale') : (isEn ? 'Awaiting night' : 'En attente')}
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                  <span style={{ fontSize: '22px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-display)' }}>
-                    {nocturnalTempDeltaVal !== null ? nocturnalTempDeltaVal : '--'}
-                  </span>
-                  <span style={{ fontSize: '10px', color: '#FB923C', fontWeight: 600 }}>°C</span>
-                </div>
-                <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)' }}>
-                  {nocturnalTempDeltaVal !== null ? (isEn ? 'Circadian dip' : 'Baisse circadienne') : (isEn ? 'Awaiting night' : 'En attente')}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                <span style={{ fontSize: '22px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-display)' }}>
+                  {nocturnalTempDeltaVal !== null ? nocturnalTempDeltaVal : '--'}
                 </span>
+                <span style={{ fontSize: '10px', color: '#FB923C', fontWeight: 600 }}>°C</span>
               </div>
             </div>
           </div>
