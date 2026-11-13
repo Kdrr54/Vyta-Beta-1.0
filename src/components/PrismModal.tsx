@@ -81,7 +81,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         overflow: 'hidden',
       }}
     >
-      {/* Top Header Bar */}
+      {/* Top Header Bar with iOS Safe Area Inset */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -89,13 +89,15 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           top: 0,
           left: 0,
           right: 0,
-          height: '64px',
-          padding: '0 20px',
+          paddingTop: 'max(env(safe-area-inset-top, 0px), 52px)',
+          paddingBottom: '12px',
+          paddingLeft: '20px',
+          paddingRight: '20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           zIndex: 30,
-          background: 'linear-gradient(to bottom, rgba(7, 7, 10, 0.85) 0%, transparent 100%)',
+          background: 'linear-gradient(to bottom, rgba(7, 7, 10, 0.95) 0%, rgba(7, 7, 10, 0.7) 70%, transparent 100%)',
           pointerEvents: 'auto',
         }}
       >

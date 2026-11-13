@@ -1,6 +1,7 @@
 // component.tsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "../../index.css";
+import { ZenonRichAnswer } from "../ZenonRichAnswer";
 
 /* ───────────────────────────── copy ───────────────────────────── */
 const COPY = {
@@ -27,7 +28,7 @@ export interface MorphOrbProps {
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 220;
+const CARD_H_DEFAULT = 340;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
 const CARD_H = CARD_H_DEFAULT;
 const FLY_D = 138;
@@ -37,7 +38,7 @@ const pillW = (el?: HTMLElement | null) => {
 };
 const cardW = (el?: HTMLElement | null) => {
   const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
-  return Math.min(360, w - 32);
+  return Math.min(365, w - 24);
 };
 const homeDy = (el?: HTMLElement | null) => {
   const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
@@ -300,7 +301,7 @@ function createOrb(canvas: HTMLCanvasElement, getSpeed: () => number, isReduced:
 
   if (!ctx) return { P, ensure() {}, reset, destroy() {} };
 
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const dpr = Math.min(1.5, window.devicePixelRatio || 1);
   canvas.width = Math.round(CANVAS * dpr);
   canvas.height = Math.round(CANVAS * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -527,16 +528,10 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
   const applyWords = (v: number) => {
     const body = env.getBody();
     if (!body) return;
-    const nodes = body.querySelectorAll<HTMLElement>(".mo-w");
-    const total = (nodes.length - 1) * wStagger + wDur;
-    const time = v * total;
     const reduced = env.isReduced();
-    nodes.forEach((el, i) => {
-      const p = E.out(clamp01((time - i * wStagger) / wDur));
-      el.style.opacity = fmt(p);
-      el.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 4)}px)`;
-      el.style.filter = p >= 0.999 || reduced ? "none" : `blur(${fmt((1 - p) * 4)}px)`;
-    });
+    const p = E.out(clamp01(v));
+    body.style.opacity = fmt(p);
+    body.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 6)}px)`;
   };
 
   /* ── channels ── */
@@ -551,7 +546,6 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
   });
   CH.inScale = (v) => {
     actor.style.setProperty("--inScale", fmt(v));
-    form.style.filter = v >= 0.999 ? "none" : `blur(${fmt((1 - v) * 15)}px)`;
   };
   CH.sOp = (v) => status.style.setProperty("--sOp", fmt(v));
   CH.sTy = (v) => status.style.setProperty("--sTy", fmt(v));
@@ -1080,13 +1074,9 @@ export default function MorphOrb(props: MorphOrbProps) {
               <i className="mo-a-dot" aria-hidden="true" />
               <span>{copy.answerTitle}</span>
             </div>
-            <p className="mo-a-body" ref={bodyRef}>
-              {words.map((w, i) => (
-                <React.Fragment key={i}>
-                  <span className="mo-w">{w}</span>{" "}
-                </React.Fragment>
-              ))}
-            </p>
+            <div className="mo-a-body" ref={bodyRef}>
+              <ZenonRichAnswer content={answer} />
+            </div>
           </div>
         </div>
       </div>
