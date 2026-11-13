@@ -1,7 +1,6 @@
 // component.tsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "../../index.css";
-import { ZenonRichAnswer } from "../ZenonRichAnswer";
 
 /* ───────────────────────────── copy ───────────────────────────── */
 const COPY = {
@@ -20,30 +19,15 @@ export interface MorphOrbProps {
   onSubmit?: (text: string) => Promise<string> | string;
   minThinkMs?: number;
   speed?: number;
-  copy?: Partial<typeof COPY>;
-  className?: string;
-  style?: React.CSSProperties;
-  onSuccess?: (answer: string, question: string) => void;
-  suggestions?: string[];
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 340;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
-const CARD_H = CARD_H_DEFAULT;
+const CARD_H = 108;
 const FLY_D = 138;
-const pillW = (el?: HTMLElement | null) => {
-  const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
-  return Math.min(560, w - 32);
-};
-const cardW = (el?: HTMLElement | null) => {
-  const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
-  return Math.min(365, w - 24);
-};
-const homeDy = (el?: HTMLElement | null) => {
-  const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
-  return h * 0.54 - 96;
-};
+const pillW = () => Math.min(560, window.innerWidth - 32);
+const cardW = () => Math.min(320, window.innerWidth - 32);
+const homeDy = () => window.innerHeight * 0.54 - 96; // pill centre is 96px above the viewport bottom; stage centre is at top:46%
 
 /* ───────────────────────── math + easing ───────────────────────── */
 type Ease = (t: number) => number;
@@ -301,7 +285,7 @@ function createOrb(canvas: HTMLCanvasElement, getSpeed: () => number, isReduced:
 
   if (!ctx) return { P, ensure() {}, reset, destroy() {} };
 
-  const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = Math.round(CANVAS * dpr);
   canvas.height = Math.round(CANVAS * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -472,10 +456,10 @@ function sampleAt(h: Sample[], t: number, out: Sample) {
   copy(h[n - 1]);
 }
 
-function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q: string) => void): Runtime {
+function createRuntime(env: Env): Runtime {
   const { actor, mover, root, status, pulse, ghosts, form } = env;
   const life = new AbortController();
-  const geo: Geo = { pw: pillW(root), cw: cardW(root), H: homeDy(root), dir: -1 };
+  const geo: Geo = { pw: pillW(), cw: cardW(), H: homeDy(), dir: -1 };
   const orb = createOrb(env.canvas, env.getSpeed, env.isReduced);
   const vals: Record<string, number> = {};
   const dirty = new Set<string>();
@@ -528,10 +512,16 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
   const applyWords = (v: number) => {
     const body = env.getBody();
     if (!body) return;
+    const nodes = body.querySelectorAll<HTMLElement>(".mo-w");
+    const total = (nodes.length - 1) * wStagger + wDur;
+    const time = v * total;
     const reduced = env.isReduced();
-    const p = E.out(clamp01(v));
-    body.style.opacity = fmt(p);
-    body.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 6)}px)`;
+    nodes.forEach((el, i) => {
+      const p = E.out(clamp01((time - i * wStagger) / wDur));
+      el.style.opacity = fmt(p);
+      el.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 4)}px)`;
+      el.style.filter = p >= 0.999 || reduced ? "none" : `blur(${fmt((1 - p) * 4)}px)`;
+    });
   };
 
   /* ── channels ── */
@@ -546,6 +536,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
   });
   CH.inScale = (v) => {
     actor.style.setProperty("--inScale", fmt(v));
+    form.style.filter = v >= 0.999 ? "none" : `blur(${fmt((1 - v) * 15)}px)`;
   };
   CH.sOp = (v) => status.style.setProperty("--sOp", fmt(v));
   CH.sTy = (v) => status.style.setProperty("--sTy", fmt(v));
@@ -606,9 +597,9 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     for (;;) {
       await sleep(1150 / env.getSpeed(), sig);
       if (sig.aborted || ctl.stop) return;
-      i = (i + 1) % copy.labels.length;
+      i = (i + 1) % COPY.labels.length;
       orb.P.prog = i % 4;
-      env.ui.swapLabel(copy.labels[i]);
+      env.ui.swapLabel(COPY.labels[i]);
     }
   };
 
@@ -637,16 +628,16 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
 
       /* think — until the answer settled AND the minimum time elapsed */
       env.ui.setPhase("think");
-      env.ui.live(copy.labels[0]);
+      env.ui.live(COPY.labels[0]);
       const ctl = { stop: false };
       void labelLoop(sig, ctl);
       const t0 = performance.now();
       const pending = Promise.resolve()
         .then(() => cfg.onSubmit(text))
-        .then((b) => (typeof b === "string" && b.trim() ? b : copy.answerBody), () => copy.answerBody);
+        .then((b) => (typeof b === "string" && b.trim() ? b : COPY.answerBody), () => COPY.answerBody);
       const got = await abortable(pending, sig);
       if (sig.aborted) throw ABORT;
-      const body = got ?? copy.answerBody;
+      const body = got ?? COPY.answerBody;
       await sleep(cfg.minThink / env.getSpeed() - (performance.now() - t0), sig);
       ctl.stop = true;
       if (sig.aborted) throw ABORT;
@@ -656,7 +647,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
 
       if (!reduced) {
         env.ui.setPhase("resolve");
-        env.ui.swapLabel(copy.done);
+        env.ui.swapLabel(COPY.done);
         await go(RESOLVE);
 
         env.ui.setPhase("condense");
@@ -665,11 +656,11 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
         env.ui.setPhase("unfold");
         wDur = 320;
         wStagger = n > 1 ? Math.min(45, 280 / (n - 1)) : 0;
-        env.ui.setAnswer(body); if (onSuccess) { try { onSuccess(body, text); } catch (e) { console.error(e); } }
+        env.ui.setAnswer(body);
         await go(unfoldTracks(geo, (n - 1) * wStagger + wDur));
       } else {
         env.ui.setPhase("resolve");
-        env.ui.swapLabel(copy.done);
+        env.ui.swapLabel(COPY.done);
         await go(R_RESOLVE);
         await sleep(350 / env.getSpeed(), sig);
         if (sig.aborted) throw ABORT;
@@ -723,7 +714,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     env.ui.clearInput();
     orb.reset();
     hist.length = 0;
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+    geo.pw = pillW(); geo.cw = cardW(); geo.H = homeDy();
     resetChannels();
     const pillCh = ["oPill", "oInput", "oGlow", "oAur", "oRing"];
     pillCh.forEach((ch) => setNow(ch, 0));
@@ -748,7 +739,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hist.length = 0;
     env.ui.setAnswer("");
     env.ui.resetLabel();
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+    geo.pw = pillW(); geo.cw = cardW(); geo.H = homeDy();
     resetChannels();
     setNow("pulse", -1);
     busy = false; idling = false;
@@ -763,7 +754,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     start(text, cfg) {
       if (busy) return false;
       busy = true;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root); // snapshot once, never read layout in frames
+      geo.pw = pillW(); geo.cw = cardW(); geo.H = homeDy(); // snapshot once, never read layout in frames
       geo.dir = -geo.dir;
       orb.reset();
       setNow("u", 0);
@@ -785,7 +776,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hard,
     home() {
       if (busy) return;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+      geo.pw = pillW(); geo.cw = cardW(); geo.H = homeDy();
       setNow("w", geo.pw);
       setNow("u", 0);
     },
@@ -801,20 +792,9 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export default function MorphOrb(props: MorphOrbProps) {
-  const {
-    onSubmit,
-    minThinkMs = 1800,
-    speed = 1,
-    copy: userCopy,
-    className = "",
-    style,
-    onSuccess,
-    suggestions,
-  } = props;
-  const copy = React.useMemo(() => ({ ...COPY, ...userCopy }), [userCopy]);
   const [phase, setPhaseState] = useState<Phase>("idle");
   const [value, setValue] = useState("");
-  const [lbl, setLbl] = useState<{ cur: string; prev: string | null; n: number }>({ cur: copy.labels[0], prev: null, n: 0 });
+  const [lbl, setLbl] = useState<{ cur: string; prev: string | null; n: number }>({ cur: COPY.labels[0], prev: null, n: 0 });
   const [answer, setAnswer] = useState("");
   const [dbgSpeed, setDbgSpeed] = useState(1);
   const [debug] = useState(() => typeof window !== "undefined" && /[?&]debug(?:[=&]|$)/.test(window.location.search));
@@ -861,7 +841,7 @@ export default function MorphOrb(props: MorphOrbProps) {
       ui: {
         setPhase: (p) => { phaseRef.current = p; setPhaseState(p); },
         swapLabel: (name) => setLbl((l) => (l.cur === name ? l : { cur: name, prev: l.cur, n: l.n + 1 })),
-        resetLabel: () => setLbl((l) => ({ cur: copy.labels[0], prev: null, n: l.n + 1 })),
+        resetLabel: () => setLbl((l) => ({ cur: COPY.labels[0], prev: null, n: l.n + 1 })),
         setAnswer: (s) => setAnswer(s),
         clearInput: () => setValue(""),
         live: (s) => { if (liveRef.current) liveRef.current.textContent = s; },
@@ -869,7 +849,7 @@ export default function MorphOrb(props: MorphOrbProps) {
         idleReady: () => { inputRef.current?.focus({ preventScroll: true }); },
         focusAnswer: () => { answerRef.current?.focus({ preventScroll: true }); },
       },
-    }, copy, onSuccess);
+    });
     rtRef.current = rt;
 
     const onKey = (e: KeyboardEvent) => {
@@ -883,10 +863,7 @@ export default function MorphOrb(props: MorphOrbProps) {
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
-    // On touch/mobile devices, don't force focus on mount to prevent jarring keyboard pops
-    if (window.matchMedia("(pointer: fine)").matches) {
-      inputRef.current?.focus({ preventScroll: true });
-    }
+    inputRef.current?.focus({ preventScroll: true });
 
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -963,7 +940,7 @@ export default function MorphOrb(props: MorphOrbProps) {
   const words = answer.split(/\s+/).filter(Boolean);
 
   const labelInner = (name: string) =>
-    name === copy.done ? (
+    name === COPY.done ? (
       <span className="mo-lab-done">{name}</span>
     ) : (
       <>
@@ -973,57 +950,9 @@ export default function MorphOrb(props: MorphOrbProps) {
     );
 
   return (
-    <div className={`mo-root ${className}`.trim()} style={style} data-phase={phase} ref={rootRef}>
+    <div className="mo-root" data-phase={phase} ref={rootRef}>
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
-
-      {suggestions && suggestions.length > 0 && phase === "idle" && (
-        <div
-          className="mo-suggestions"
-          style={{
-            position: "absolute",
-            bottom: "132px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "7px",
-            width: "min(560px, calc(100vw - 32px))",
-            zIndex: 25,
-            pointerEvents: "auto",
-            animation: "mo-fade-in 0.3s ease",
-          }}
-        >
-          {suggestions.map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => {
-                setValue(q);
-                lastTextRef.current = q;
-                rtRef.current?.start(q, makeCfg());
-              }}
-              style={{
-                padding: "7px 14px",
-                borderRadius: "999px",
-                background: "rgba(255, 255, 255, 0.07)",
-                border: "1px solid rgba(255, 255, 255, 0.16)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
-                color: "#FAF7F2",
-                fontSize: "11px",
-                fontWeight: 500,
-                cursor: "pointer",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="mo-mover" ref={moverRef}>
         {Array.from({ length: 6 }).map((_, i) => (
@@ -1052,13 +981,13 @@ export default function MorphOrb(props: MorphOrbProps) {
               type="text"
               value={value}
               maxLength={200}
-              placeholder={copy.placeholder}
+              placeholder={COPY.placeholder}
               aria-label="Ask anything"
               spellCheck={false}
               onChange={onChange}
               onKeyDown={onKeyDown}
             />
-            <button type="submit" className="mo-send" aria-label={copy.send} data-ready={ready ? "" : undefined}>
+            <button type="submit" className="mo-send" aria-label={COPY.send} data-ready={ready ? "" : undefined}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 19V5" />
                 <path d="M5.5 11.5L12 5l6.5 6.5" />
@@ -1069,14 +998,18 @@ export default function MorphOrb(props: MorphOrbProps) {
           <canvas className="mo-orb" ref={canvasRef} aria-hidden="true" />
           <div className="mo-pulse" ref={pulseRef} aria-hidden="true" />
 
-          <div className="mo-answer" ref={answerRef} tabIndex={-1} role="group" aria-label={copy.answerTitle}>
+          <div className="mo-answer" ref={answerRef} tabIndex={-1} role="group" aria-label={COPY.answerTitle}>
             <div className="mo-a-head">
               <i className="mo-a-dot" aria-hidden="true" />
-              <span>{copy.answerTitle}</span>
+              <span>{COPY.answerTitle}</span>
             </div>
-            <div className="mo-a-body" ref={bodyRef}>
-              <ZenonRichAnswer content={answer} />
-            </div>
+            <p className="mo-a-body" ref={bodyRef}>
+              {words.map((w, i) => (
+                <React.Fragment key={i}>
+                  <span className="mo-w">{w}</span>{" "}
+                </React.Fragment>
+              ))}
+            </p>
           </div>
         </div>
       </div>
@@ -1088,7 +1021,7 @@ export default function MorphOrb(props: MorphOrbProps) {
         <span key={"c" + lbl.n} className="mo-lab mo-in">{labelInner(lbl.cur)}</span>
       </div>
 
-      <button type="button" className="mo-reset" onClick={onReset}>{copy.reset}</button>
+      <button type="button" className="mo-reset" onClick={onReset}>{COPY.reset}</button>
 
       <div className="mo-live" ref={liveRef} role="status" aria-live="polite" />
 
@@ -1108,150 +1041,6 @@ export default function MorphOrb(props: MorphOrbProps) {
             />
           </label>
           <button type="button" onClick={replay}>Replay</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─────────────────────── Zenon Unified 3D Orb ─────────────────────── */
-export interface ZenonOrbProps {
-  status: "idle" | "thinking" | "done";
-  label?: string;
-  prog?: number;
-  size?: number;
-}
-
-export function ZenonOrb({ status, label, prog = 0, size = 180 }: ZenonOrbProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const orbRef = useRef<ReturnType<typeof createOrb> | null>(null);
-  const statusRef = useRef(status);
-  statusRef.current = status;
-
-  useIsoLayoutEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const orb = createOrb(canvas, () => 1, () => mq.matches);
-    orb.P.k = 1;
-    orb.P.alpha = 0.85;
-    orb.P.spin = 0.28;
-    orb.P.pop = 1;
-    orb.ensure();
-    orbRef.current = orb;
-
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-      last = now;
-      const st = statusRef.current;
-      const P = orb.P;
-      const tSpin = st === "thinking" ? 0.95 : st === "done" ? 0.35 : 0.25;
-      const tAlpha = st === "idle" ? 0.85 : 1;
-      const tSweep = st === "done" ? 1 : 0;
-      const tFloor = st === "done" ? 0.95 : 0;
-      const tGain = st === "thinking" ? 1.15 : st === "done" ? 0 : 0.7;
-      const tRad = st === "done" ? 0.16 : st === "thinking" ? 0.04 : 0;
-
-      const k = 1 - Math.exp(-dt * 5.5);
-      P.spin = lerp(P.spin, tSpin, k);
-      P.alpha = lerp(P.alpha, tAlpha, k);
-      P.sweep = lerp(P.sweep, tSweep, k);
-      P.floor = lerp(P.floor, tFloor, k);
-      P.gain = lerp(P.gain, tGain, k);
-      P.rad = lerp(P.rad, tRad, k);
-      P.k = 1;
-      orb.ensure();
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      orb.destroy();
-      orbRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (orbRef.current) {
-      orbRef.current.P.prog = prog % 4;
-    }
-  }, [prog]);
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "10px",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          width: `${size}px`,
-          height: `${size}px`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {/* Iridescent / Emerald Glow Halo behind the 3D sphere */}
-        <div
-          style={{
-            position: "absolute",
-            inset: "-12px",
-            borderRadius: "50%",
-            background:
-              status === "done"
-                ? "radial-gradient(circle, rgba(52, 211, 153, 0.38) 0%, rgba(16, 185, 129, 0.12) 55%, transparent 75%)"
-                : status === "thinking"
-                ? "radial-gradient(circle, rgba(192, 132, 252, 0.34) 0%, rgba(56, 189, 248, 0.2) 50%, transparent 75%)"
-                : "radial-gradient(circle, rgba(147, 197, 253, 0.22) 0%, rgba(192, 132, 252, 0.12) 50%, transparent 75%)",
-            filter: "blur(24px)",
-            transition: "background 0.4s ease",
-            pointerEvents: "none",
-          }}
-        />
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: `${size}px`,
-            height: `${size}px`,
-            display: "block",
-            position: "relative",
-            zIndex: 2,
-          }}
-          aria-hidden="true"
-        />
-      </div>
-
-      {label && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "13px",
-            fontWeight: 500,
-            color: status === "done" ? "#4ade80" : "rgba(250, 247, 242, 0.88)",
-            letterSpacing: "-0.2px",
-            minHeight: "20px",
-          }}
-        >
-          <span>{label}</span>
-          {status === "thinking" && (
-            <span className="mo-dots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-          )}
         </div>
       )}
     </div>
