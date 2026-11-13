@@ -2310,7 +2310,7 @@
   background: #0D0D10;
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 32px 32px 0 0;
-  padding: 12px 18px 44px 18px;
+  padding: 12px 18px max(54px, calc(env(safe-area-inset-bottom, 24px) + 30px)) 18px;
   max-height: 94%;
   overflow-y: auto;
   scrollbar-width: none;

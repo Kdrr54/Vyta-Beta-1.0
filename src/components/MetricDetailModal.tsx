@@ -1124,6 +1124,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         style={{
           background: theme.sheetBg,
           boxShadow: theme.sheetGlow,
+          paddingBottom: 'max(54px, calc(env(safe-area-inset-bottom, 24px) + 30px))',
         }}
       >
         {/* Grabber */}
@@ -1774,54 +1775,24 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 </span>
               </div>
 
-              {/* Mode Toggle [ 🌙 Sommeil | ☀️ 24h ] - Accessible UNIQUEMENT depuis la page Sommeil */}
+              {/* Badge Sommeil fixe depuis la page Sommeil (aucun basculement 24h) */}
               {isSleepPage && (
                 <div
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    background: 'rgba(255, 255, 255, 0.06)',
+                    gap: '4px',
+                    background: `${theme.primary}22`,
+                    border: `1px solid ${theme.primary}55`,
                     borderRadius: '999px',
-                    padding: '2px',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    padding: '2px 8px',
+                    fontSize: '9.5px',
+                    fontWeight: 700,
+                    color: theme.primary,
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setCurveMode('sleep')}
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      background: curveMode === 'sleep' ? theme.primary : 'transparent',
-                      color: curveMode === 'sleep' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
-                      fontSize: '9.5px',
-                      fontWeight: 600,
-                      padding: '2px 7px',
-                      borderRadius: '999px',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s ease',
-                    }}
-                  >
-                    🌙 {isEn ? 'Sleep' : 'Sommeil'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurveMode('24h')}
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      background: curveMode === '24h' ? theme.primary : 'transparent',
-                      color: curveMode === '24h' ? '#000000' : 'rgba(250, 247, 242, 0.75)',
-                      fontSize: '9.5px',
-                      fontWeight: 600,
-                      padding: '2px 7px',
-                      borderRadius: '999px',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s ease',
-                    }}
-                  >
-                    ☀️ 24h
-                  </button>
+                  <span>🌙</span>
+                  <span>{isEn ? 'Sleep' : 'Sommeil'}</span>
                 </div>
               )}
             </div>

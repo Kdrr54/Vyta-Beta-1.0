@@ -117,7 +117,7 @@ export const TabBar: React.FC = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 9999,
+        zIndex: 90,
         pointerEvents: 'none',
       }}
     >
