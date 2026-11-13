@@ -3,6 +3,7 @@
 @import './glass.css';
 @import './features.css';
 @import './motion-blur.css';
+@import '../index.css';
 
 /* Global Resets */
 * {
