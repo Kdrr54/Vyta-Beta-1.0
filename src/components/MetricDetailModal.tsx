@@ -431,6 +431,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const liveSpo2Ref = useRef(liveSpo2);
   liveSpo2Ref.current = liveSpo2;
 
+  const [liveTemp, setLiveTemp] = useState<number | null>(null);
+  const liveTempRef = useRef(liveTemp);
+  liveTempRef.current = liveTemp;
+
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
 
@@ -457,10 +461,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       qringBle.stopRealTimeHeartRate();
     } else if (metricId === 'spo2') {
       qringBle.stopRealTimeBloodOxygen();
+    } else if (metricId === 'temp') {
+      qringBle.stopRealTimeTemperature();
     }
 
     const finalBpm = liveBpmRef.current;
     const finalSpo2 = liveSpo2Ref.current;
+    const finalTemp = liveTempRef.current;
     if (completed) {
       if (metricId === 'bpm') {
         if (finalBpm > 35) {
@@ -518,6 +525,31 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           setMeasureFeedback(language === 'fr' ? 'Signal SpO2 faible (restez parfaitement immobile)' : 'Weak SpO2 signal (remain perfectly still)');
           setTimeout(() => setMeasureFeedback(null), 4500);
         }
+      } else if (metricId === 'temp') {
+        if (finalTemp && finalTemp >= 30 && finalTemp <= 43) {
+          setMeasureFeedback(language === 'fr' ? `✓ ${finalTemp.toFixed(1)} °C mesuré et enregistré` : `✓ ${finalTemp.toFixed(1)} °C measured & saved`);
+          setTimeout(() => setMeasureFeedback(null), 4500);
+          setWeekData((prev) => {
+            const next = [...prev];
+            const idx = Math.min(6, Math.max(0, modalDay));
+            const cur = { ...(next[idx] || {}) } as DayMetrics;
+            cur.skinTemp = finalTemp;
+            cur.tempDelta = parseFloat((finalTemp - 36.5).toFixed(2));
+            const prevLog = Array.isArray(cur.tempLog) && cur.tempLog.length === 48 ? [...cur.tempLog] : new Array(48).fill(0);
+            const now = new Date();
+            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+            prevLog[curHalf] = finalTemp;
+            cur.tempLog = prevLog;
+            next[idx] = cur;
+            try {
+              localStorage.setItem('vyta_week_data', JSON.stringify(next));
+            } catch (_) {}
+            return next;
+          });
+        } else {
+          setMeasureFeedback(language === 'fr' ? 'Capteur thermique en cours d’acquisition (gardez la bague au doigt)' : 'Thermal sensor acquiring (keep ring on finger)');
+          setTimeout(() => setMeasureFeedback(null), 4500);
+        }
       }
     }
   }, [language, modalDay, metricId, setWeekData]);
@@ -525,6 +557,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const handleStartMeasure = () => {
     if (metricId === 'bpm') setLiveBpm(0);
     if (metricId === 'spo2') setLiveSpo2(null);
+    if (metricId === 'temp') setLiveTemp(null);
     setCountdown(20);
     setIsMeasuring(true);
   };
@@ -547,6 +580,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.hrv || 0;
     }
     if (metricId === 'temp') {
+      if (modalDay === TODAY_INDEX && isMeasuring && liveTemp) return parseFloat((liveTemp - 36.5).toFixed(2));
       if (dayData?.tempDelta !== undefined && dayData.tempDelta !== null) return dayData.tempDelta;
       if (dayData?.skinTemp && dayData.skinTemp > 0) return parseFloat((dayData.skinTemp - 36.5).toFixed(2));
       return 0;
@@ -565,11 +599,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.glucose?.valueMmol || 0;
     }
     return 0;
-  }, [metricId, modalDay, dayData, isMeasuring, liveBpm, liveSpo2]);
+  }, [metricId, modalDay, dayData, isMeasuring, liveBpm, liveSpo2, liveTemp]);
 
   useEffect(() => {
     if (!isMeasuring) return;
-    if (metricId !== 'bpm' && metricId !== 'spo2') return;
+    if (metricId !== 'bpm' && metricId !== 'spo2' && metricId !== 'temp') return;
 
     const unsubscribe = qringBle.subscribe((data) => {
       if (metricId === 'bpm') {
@@ -580,6 +614,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         if (data.spo2 && data.spo2 >= 70 && data.spo2 <= 100) {
           setLiveSpo2(data.spo2);
         }
+      } else if (metricId === 'temp') {
+        if (data.skinTemp && data.skinTemp >= 30 && data.skinTemp <= 43) {
+          setLiveTemp(data.skinTemp);
+        }
       }
     });
 
@@ -587,6 +625,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       qringBle.startRealTimeHeartRate();
     } else if (metricId === 'spo2') {
       qringBle.startRealTimeBloodOxygen();
+    } else if (metricId === 'temp') {
+      qringBle.startRealTimeTemperature();
     }
 
     const timer = setInterval(() => {
@@ -606,6 +646,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         qringBle.stopRealTimeHeartRate();
       } else if (metricId === 'spo2') {
         qringBle.stopRealTimeBloodOxygen();
+      } else if (metricId === 'temp') {
+        qringBle.stopRealTimeTemperature();
       }
     };
   }, [isMeasuring, metricId, handleStopMeasure, setLiveBpm]);
@@ -1625,8 +1667,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             </div>
           )}
 
-          {/* Bouton de mesure optique en direct 20 secondes si Fréquence Cardiaque ou SpO2 aujourd'hui */}
-          {modalDay === TODAY_INDEX && (metricId === 'bpm' || metricId === 'spo2') && (
+          {/* Bouton de mesure optique / thermique en direct 20 secondes si Fréquence Cardiaque, SpO2 ou Température aujourd'hui */}
+          {modalDay === TODAY_INDEX && (metricId === 'bpm' || metricId === 'spo2' || metricId === 'temp') && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 6px 0', gap: '6px' }}>
               {isMeasuring ? (
                 <button
@@ -1638,14 +1680,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     gap: '6px',
                     padding: '5px 14px',
                     borderRadius: '999px',
-                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.22)' : 'rgba(217, 70, 239, 0.22)',
-                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.65)' : 'rgba(217, 70, 239, 0.65)'}`,
+                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.22)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.22)' : 'rgba(251, 191, 36, 0.22)',
+                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.65)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.65)' : 'rgba(251, 191, 36, 0.65)'}`,
                     color: '#FAF7F2',
                     fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     outline: 'none',
-                    boxShadow: `0 0 14px ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : 'rgba(217, 70, 239, 0.45)'}`,
+                    boxShadow: `0 0 14px ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.45)' : 'rgba(251, 191, 36, 0.45)'}`,
                   }}
                 >
                   <span
@@ -1653,13 +1695,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       width: '7px',
                       height: '7px',
                       borderRadius: '50%',
-                      backgroundColor: metricId === 'bpm' ? '#FF453A' : '#D946EF',
+                      backgroundColor: metricId === 'bpm' ? '#FF453A' : metricId === 'spo2' ? '#D946EF' : '#FBBF24',
                       animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
                     }}
                   />
-                  <span style={{ color: metricId === 'bpm' ? '#FF5A52' : '#F0ABFC', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ color: metricId === 'bpm' ? '#FF5A52' : metricId === 'spo2' ? '#F0ABFC' : '#FCD34D', fontFamily: 'var(--font-mono)' }}>
                     {metricId === 'bpm' && liveBpm ? `${liveBpm} BPM • ` : ''}
                     {metricId === 'spo2' && liveSpo2 ? `${liveSpo2}% • ` : ''}
+                    {metricId === 'temp' && liveTemp ? `${liveTemp.toFixed(1)} °C • ` : ''}
                     {countdown}s
                   </span>
                   <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.8)' }}>
@@ -1700,13 +1743,23 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                         animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
                       }}
                     />
-                  ) : (
+                  ) : metricId === 'spo2' ? (
                     <Droplets
                       size={12}
                       color="#D946EF"
                       fill="#D946EF"
                       style={{
                         filter: 'drop-shadow(0 0 4px rgba(217, 70, 239, 0.6))',
+                        animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
+                      }}
+                    />
+                  ) : (
+                    <Thermometer
+                      size={12}
+                      color="#FBBF24"
+                      fill="#FBBF24"
+                      style={{
+                        filter: 'drop-shadow(0 0 4px rgba(251, 191, 36, 0.6))',
                         animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
                       }}
                     />
@@ -1720,9 +1773,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                   style={{
                     padding: '4px 12px',
                     borderRadius: '999px',
-                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.16)' : 'rgba(217, 70, 239, 0.16)',
-                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : 'rgba(217, 70, 239, 0.45)'}`,
-                    color: metricId === 'bpm' ? '#FF5A52' : '#F0ABFC',
+                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.16)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.16)' : 'rgba(251, 191, 36, 0.16)',
+                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.45)' : 'rgba(251, 191, 36, 0.45)'}`,
+                    color: metricId === 'bpm' ? '#FF5A52' : metricId === 'spo2' ? '#F0ABFC' : '#FCD34D',
                     fontSize: '11px',
                     fontWeight: 600,
                     textAlign: 'center',

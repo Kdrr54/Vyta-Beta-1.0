@@ -1183,12 +1183,24 @@ class QRingBleService {
     await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 200));
 
-    // 5. Query ring settings to verify hardware acknowledged the 30/60 min intervals
+    // 5. Temperature periodic monitoring (Commands 0x3A, 0x74, 0x25 on R21 / QCBand firmware)
+    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 150));
+    await this.writeBytes(this.makePacket(0x74, [0x02, enabledByte, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 150));
+    await this.writeBytes(this.makePacket(0x25, [0x02, enabledByte, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 150));
+
+    // 6. Query ring settings to verify hardware acknowledged intervals
     await this.writeBytes(this.makePacket(0x16, [0x01]));
     await new Promise((r) => setTimeout(r, 100));
     await this.writeBytes(this.makePacket(0x2C, [0x01]));
     await new Promise((r) => setTimeout(r, 100));
     await this.writeBytes(this.makePacket(0x38, [0x01]));
+    await new Promise((r) => setTimeout(r, 100));
+    await this.writeBytes(this.makePacket(0x3A, [0x01]));
+    await new Promise((r) => setTimeout(r, 100));
+    await this.writeBytes(this.makePacket(0x74, [0x01]));
 
     return true;
   }
@@ -1321,16 +1333,22 @@ class QRingBleService {
   }
 
   /**
-   * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25, 0 LEDs)
+   * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25, 0x26, 0x74)
    */
   public async requestTemperatureData(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25)...');
+    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 / 0x26 / 0x74)...');
     await this.writeBytes(this.makePacket(0x3A, [0x03, 0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 100));
+    await this.writeBytes(this.makePacket(0x75, [0x00]));
+    await new Promise((r) => setTimeout(r, 100));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       await this.writeBigDataBytes([0xBC, 0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
+      await new Promise((r) => setTimeout(r, 120));
+      await this.writeBigDataBytes([0xBC, 0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
     } else {
       await this.writeBytes(this.makePacket(0xBC, [0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
+      await new Promise((r) => setTimeout(r, 120));
+      await this.writeBytes(this.makePacket(0xBC, [0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
     }
     return true;
   }
@@ -1507,7 +1525,7 @@ class QRingBleService {
       chunk[0] === 0xBC &&
       chunk.length >= 6 &&
       (this.bigDataBuffer.length === 0 ||
-        [0x27, 0x2A, 0x25].includes(chunk[1]))
+        [0x27, 0x2A, 0x25, 0x26, 0x74].includes(chunk[1]))
     ) {
       // If a previous packet was sitting in buffer, flush it before starting the new 0xBC header
       if (this.bigDataBuffer.length >= 7) {
@@ -1846,43 +1864,50 @@ class QRingBleService {
       return;
     }
 
-    // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25) — Gadgetbridge Yawell verbatim
-    if (dataId === 0x25) {
+    // 3. SKIN TEMPERATURE HISTORY (dataId = 0x25 / 0x26 / 0x74 / 0x75)
+    if (dataId === 0x25 || dataId === 0x26 || dataId === 0x74 || dataId === 0x75) {
       const now = new Date();
       const currentHalfSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
-      let latestTemp = 0;
-      const tempLog: number[] = new Array(48).fill(0);
       let idx = 6;
       while (idx - 6 < payloadLen && idx < bytes.length) {
         const daysAgo = bytes[idx++] & 0xFF;
         if (idx >= bytes.length) break;
         idx++; // interval marker 0x1e
+        const tempLog: number[] = new Array(48).fill(0);
+        let dayLatestTemp = 0;
         for (let h = 0; h < 24 && idx - 6 < payloadLen && idx < bytes.length; h++) {
           for (let half = 0; half < 2 && idx - 6 < payloadLen && idx < bytes.length; half++) {
             const raw = bytes[idx++] & 0xFF;
             const slotIdx = h * 2 + half;
-            // Pour aujourd'hui (daysAgo === 0), enregistrer uniquement les créneaux réels jusqu'à l'heure courante
-            if (daysAgo === 0 && slotIdx <= currentHalfSlot) {
+            // Pour aujourd'hui (daysAgo === 0), enregistrer uniquement les créneaux réels jusqu'à l'heure courante.
+            // Pour les nuits et jours passés (daysAgo > 0), tous les créneaux 0 à 47 sont valides.
+            if ((daysAgo === 0 && slotIdx <= currentHalfSlot) || daysAgo > 0) {
+              let t = 0;
               if (raw >= 100 && raw <= 220) {
-                const t = Math.round((raw / 10 + 20) * 10) / 10;
-                if (t >= 30 && t <= 42) {
-                  latestTemp = t;
-                  tempLog[slotIdx] = t;
-                }
+                t = Math.round((raw / 10 + 20) * 10) / 10;
+              } else if (raw >= 300 && raw <= 430) {
+                t = Math.round((raw / 10) * 10) / 10;
+              } else if (raw >= 30 && raw <= 43) {
+                t = raw;
+              }
+              if (t >= 30 && t <= 42) {
+                dayLatestTemp = t;
+                tempLog[slotIdx] = t;
               }
             }
           }
         }
-        if (daysAgo === 0) break;
+        if (dayLatestTemp >= 30 && dayLatestTemp <= 42) {
+          console.log(`[QRing BLE] Parsed BigData Skin Temp (daysAgo=${daysAgo}): ${dayLatestTemp}°C (${tempLog.filter((v) => v > 0).length} slots)`);
+          this.notify({
+            daysAgo,
+            skinTemp: dayLatestTemp,
+            tempLog: tempLog.some((v) => v > 0) ? tempLog : undefined,
+            isConnected: true,
+          });
+        }
       }
-      if (latestTemp >= 30 && latestTemp <= 42) {
-        console.log('[QRing BLE] Parsed BigData Skin Temperature:', latestTemp, '°C', tempLog.filter((v) => v > 0).length, 'slots');
-        this.notify({
-          skinTemp: latestTemp,
-          tempLog: tempLog.some((v) => v > 0) ? tempLog : undefined,
-          isConnected: true,
-        });
-      }
+      return;
     }
   }
 
@@ -2120,14 +2145,34 @@ class QRingBleService {
   }
 
   /**
+   * Trigger real-time skin temperature measurement on physical ring:
+   * DataType.Temperature = 5 (0x05)
+   */
+  public async startRealTimeTemperature(): Promise<boolean> {
+    console.log('[QRing BLE] Triggering live skin temperature measurement (DataType.Temperature = 5)...');
+    if (!this.isConnected()) return false;
+    const p105_5 = this.makePacket(0x69, [0x05, 0x01]);
+    return await this.writeBytes(p105_5);
+  }
+
+  public async stopRealTimeTemperature(): Promise<boolean> {
+    console.log('[QRing BLE] Stopping live skin temperature measurement...');
+    const p105_5_stop = this.makePacket(0x69, [0x05, 0x04]);
+    const ok = await this.writeBytes(p105_5_stop);
+    const p106_stop = this.makePacket(0x6A, [0x05, 0x00, 0x00]);
+    await this.writeBytes(p106_stop);
+    return ok;
+  }
+
+  /**
    * Autonomous 30-min spot measurement scheduler:
-   * Triggers a discrete 15s SpO2 + 12s HRV optical reading on the ring
+   * Triggers discrete SpO2 (15s) + HRV (12s) + Skin Temp (8s) readings on the ring
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
   public async triggerProactiveBiometricSpotCheck() {
     if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive) return;
     this.isAutoSpotMeasuring = true;
-    console.log('[QRing BLE] Running autonomous 30-min biometric spot check (SpO2 & HRV)...');
+    console.log('[QRing BLE] Running autonomous 30-min biometric spot check (SpO2, HRV & Skin Temp)...');
     try {
       // 1. SpO2 optical spot check (15s)
       await this.startRealTimeBloodOxygen();
@@ -2141,7 +2186,13 @@ class QRingBleService {
       await this.stopRealTimeHrv();
       await new Promise((r) => setTimeout(r, 800));
 
-      // 3. Pull latest history frames from ring memory
+      // 3. Skin Temperature contact spot check (8s)
+      await this.startRealTimeTemperature();
+      await new Promise((r) => setTimeout(r, 8000));
+      await this.stopRealTimeTemperature();
+      await new Promise((r) => setTimeout(r, 800));
+
+      // 4. Pull latest history frames from ring memory
       await this.syncAllRingData();
     } catch (err) {
       console.warn('[QRing BLE] Autonomous spot check notice:', err);
@@ -2644,6 +2695,33 @@ class QRingBleService {
           this.notify({ hrv: hrvVal, isConnected: true });
           return;
         }
+      } else if (dataType === 0x05) {
+        // Temperature live stream (R21 / QCBand)
+        let tempC = 0;
+        const b2 = dataView.getUint8(2);
+        const b3 = len >= 4 ? dataView.getUint8(3) : 0;
+        const u16BE = len >= 4 ? dataView.getUint16(2, false) : 0;
+        const u16LE = len >= 4 ? dataView.getUint16(2, true) : 0;
+
+        if (u16BE >= 3000 && u16BE <= 4300) {
+          tempC = parseFloat((u16BE / 100).toFixed(2));
+        } else if (u16LE >= 3000 && u16LE <= 4300) {
+          tempC = parseFloat((u16LE / 100).toFixed(2));
+        } else if (u16BE >= 300 && u16BE <= 430) {
+          tempC = parseFloat((u16BE / 10).toFixed(2));
+        } else if (u16LE >= 300 && u16LE <= 430) {
+          tempC = parseFloat((u16LE / 10).toFixed(2));
+        } else if (b2 >= 30 && b2 <= 43) {
+          tempC = b3 > 0 && b3 < 100 ? parseFloat((b2 + (b3 > 9 ? b3 / 100 : b3 / 10)).toFixed(2)) : b2;
+        } else if (b2 >= 100 && b2 <= 220) {
+          tempC = parseFloat((b2 / 10 + 20).toFixed(2));
+        }
+
+        if (tempC >= 30 && tempC <= 43) {
+          console.log('[QRing BLE] Command 105 Real Skin Temperature Received:', tempC, '°C');
+          this.notify({ skinTemp: tempC, isConnected: true });
+          return;
+        }
       }
     }
 
@@ -2681,6 +2759,32 @@ class QRingBleService {
         } else if (subType === 0x03 && val >= 70 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=3) SpO2:', val, '%');
           this.notify({ spo2: val, isConnected: true });
+        } else if (subType === 0x05) {
+          // Temperature Push Notification (R21 / QCBand)
+          let tempC = 0;
+          const b2 = val;
+          const b3 = len >= 4 ? dataView.getUint8(3) : 0;
+          const u16BE = len >= 4 ? dataView.getUint16(2, false) : 0;
+          const u16LE = len >= 4 ? dataView.getUint16(2, true) : 0;
+
+          if (u16BE >= 3000 && u16BE <= 4300) {
+            tempC = parseFloat((u16BE / 100).toFixed(2));
+          } else if (u16LE >= 3000 && u16LE <= 4300) {
+            tempC = parseFloat((u16LE / 100).toFixed(2));
+          } else if (u16BE >= 300 && u16BE <= 430) {
+            tempC = parseFloat((u16BE / 10).toFixed(2));
+          } else if (u16LE >= 300 && u16LE <= 430) {
+            tempC = parseFloat((u16LE / 10).toFixed(2));
+          } else if (b2 >= 30 && b2 <= 43) {
+            tempC = b3 > 0 && b3 < 100 ? parseFloat((b2 + (b3 > 9 ? b3 / 100 : b3 / 10)).toFixed(2)) : b2;
+          } else if (b2 >= 100 && b2 <= 220) {
+            tempC = parseFloat((b2 / 10 + 20).toFixed(2));
+          }
+
+          if (tempC >= 30 && tempC <= 43) {
+            console.log('[QRing BLE] Notification 0x73 (type=5) Skin Temperature:', tempC, '°C');
+            this.notify({ skinTemp: tempC, isConnected: true });
+          }
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=0x0C) Battery:', val, '%');
           this.notify({ batteryPct: val, isConnected: true });

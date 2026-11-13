@@ -496,16 +496,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return next;
         });
       }
-      if (data.skinTemp !== undefined && data.skinTemp >= 30 && data.skinTemp <= 42) {
+      if (data.skinTemp !== undefined && data.skinTemp >= 30 && data.skinTemp <= 43) {
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = TODAY_INDEX;
+          const daysAgo = data.daysAgo ?? 0;
+          const idx = Math.max(0, Math.min(6, TODAY_INDEX - daysAgo));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.skinTemp = data.skinTemp!;
           cur.tempDelta = parseFloat((data.skinTemp! - 36.5).toFixed(2));
           if (Array.isArray(data.tempLog) && data.tempLog.length === 48) {
             const now = new Date();
-            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const currentSlot = daysAgo === 0
+              ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
+              : 47;
             const clamped = [...data.tempLog];
             for (let i = currentSlot + 1; i < 48; i++) {
               clamped[i] = 0;
@@ -513,7 +516,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.tempLog = clamped;
           } else if (!cur.tempLog || cur.tempLog.length !== 48) {
             const now = new Date();
-            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const currentSlot = daysAgo === 0
+              ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
+              : 47;
             const slots = new Array(48).fill(0);
             for (let i = 0; i <= currentSlot; i++) {
               const hour = i / 2;

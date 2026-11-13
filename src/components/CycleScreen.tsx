@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Settings2,
   RotateCcw,
+  Thermometer,
 } from 'lucide-react';
 
 const MONTH_NAMES_FR = [
@@ -47,7 +48,7 @@ export interface CalendarDayLog {
 }
 
 export const CycleScreen: React.FC = () => {
-  const { language, setTab, profile, simulatedDate, weekData, selectedDay } = useApp();
+  const { language, setTab, profile, simulatedDate, weekData, selectedDay, openMetricDetail } = useApp();
   const isEn = language === 'en';
   const realTodayTemp =
     weekData && weekData[selectedDay]?.skinTemp && (weekData[selectedDay].skinTemp ?? 0) >= 30
@@ -338,7 +339,19 @@ export const CycleScreen: React.FC = () => {
     } else {
       phase = 'luteal';
     }
-    const temp = isConfigured && day === computedCycleDay && realTodayTemp > 0 ? realTodayTemp : 0;
+    // Récupérer la vraie mesure enregistrée par la bague pour chaque jour du cycle
+    // computedCycleDay correspond à aujourd'hui (selectedDay ou TODAY_INDEX dans weekData)
+    // Chaque jour d de weekData correspond au jour de cycle: computedCycleDay + (d - selectedDay)
+    let temp = 0;
+    if (isConfigured && weekData) {
+      for (let d = 0; d < weekData.length; d++) {
+        const correspondingCycleDay = computedCycleDay + (d - selectedDay);
+        if (correspondingCycleDay === day && (weekData[d]?.skinTemp ?? 0) >= 30) {
+          temp = Number(weekData[d].skinTemp!.toFixed(2));
+          break;
+        }
+      }
+    }
     return { day, temp, phase };
   });
 
@@ -1697,16 +1710,42 @@ export const CycleScreen: React.FC = () => {
               marginTop: '14px',
             }}
           >
-            {/* Header: Title */}
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {isEn ? 'Basal Body Temperature (BBT)' : 'Température Basale Nocturne'}
-              </span>
-              <div style={{ marginTop: '3px' }}>
-                <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
-                  {selectedPoint.temp > 0 ? `${selectedPoint.temp.toFixed(2).replace('.', ',')} °C` : '-- °C'}
+            {/* Header: Title & Live Measure action */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {isEn ? 'Basal Body Temperature (BBT)' : 'Température Basale Nocturne'}
                 </span>
+                <div style={{ marginTop: '3px' }}>
+                  <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
+                    {selectedPoint.temp > 0 ? `${selectedPoint.temp.toFixed(2).replace('.', ',')} °C` : '-- °C'}
+                  </span>
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => openMetricDetail('temp')}
+                title={isEn ? "Open 24h Skin Temperature details & Live Measure" : "Ouvrir le détail 24h & Mesure en direct"}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 12px',
+                  borderRadius: '999px',
+                  background: 'rgba(251, 191, 36, 0.12)',
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  color: '#FCD34D',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Thermometer size={12} color="#FBBF24" />
+                <span>{isEn ? 'Live Measure' : 'Mesurer (20s)'}</span>
+              </button>
             </div>
 
 
