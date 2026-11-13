@@ -16,9 +16,10 @@ interface AppContextType {
   updateProfile: (partial: Partial<UserProfile>) => void;
   finish: RingFinish;
   setFinish: (finish: RingFinish) => void;
-  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | null;
-  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism') => void;
+  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | null;
+  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap', extraPreset?: 'power' | 'restful' | 'cycle') => void;
   closeModal: () => void;
+  initialNapPreset: 'power' | 'restful' | 'cycle';
   metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null;
   openMetricDetail: (metric: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => void;
   closeMetricDetail: () => void;
@@ -93,7 +94,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
   const [finish, setFinish] = useState<RingFinish>(() => detectRingFinish(defaultRing.macAddress, defaultRing.serial));
-  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | null>(initialModal as any);
+  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | null>(initialModal as any);
+  const [initialNapPreset, setInitialNapPreset] = useState<'power' | 'restful' | 'cycle'>('power');
   const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null>(initialMetric);
   const [storyData, setStoryData] = useState<any | null>(initialStory);
   const [ring, setRing] = useState<RingDevice>(() => {
@@ -911,7 +913,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  const openModal = (m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism') => setModal(m);
+  const openModal = (
+    m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap',
+    extraPreset?: 'power' | 'restful' | 'cycle'
+  ) => {
+    if (extraPreset) setInitialNapPreset(extraPreset);
+    setModal(m);
+  };
   const closeModal = () => setModal(null);
   const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => setMetricDetail(m);
   const closeMetricDetail = () => setMetricDetail(null);
@@ -1039,6 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         modal,
         openModal,
         closeModal,
+        initialNapPreset,
         metricDetail,
         openMetricDetail,
         closeMetricDetail,

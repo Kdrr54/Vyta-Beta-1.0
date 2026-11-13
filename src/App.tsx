@@ -19,6 +19,7 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { GeneralStateModal } from './components/GeneralStateModal';
 import { FindMyRingModal } from './components/FindMyRingModal';
 import { PrismModal } from './components/PrismModal';
+import { NapModal } from './components/NapModal';
 import { AppleNotificationBanner } from './components/AppleNotificationBanner';
 import { TODAY_INDEX } from './data/health';
 
@@ -101,7 +102,7 @@ const AppInner: React.FC = () => {
         header={!isLiveRunningViewOpen ? <AppHeader /> : null}
         overlay={
           <>
-            {!isLiveRunningViewOpen && !metricDetail && !storyData && <TabBar />}
+            {!isLiveRunningViewOpen && !metricDetail && !storyData && modal !== 'nap' && <TabBar />}
             <AppleNotificationBanner />
             {modal === 'settings' && <SettingsModal onClose={closeModal} />}
             {modal === 'prism' && <PrismModal onClose={closeModal} />}
@@ -116,6 +117,7 @@ const AppInner: React.FC = () => {
             {modal === 'notifications' && <NotificationCenterModal onClose={closeModal} />}
             {modal === 'pairing' && <PairingModal onClose={closeModal} />}
             {modal === 'general_state' && <GeneralStateModal onClose={closeModal} />}
+            {modal === 'nap' && <NapModal onClose={closeModal} />}
             {storyData && <StoryModal data={storyData} onClose={closeStory} />}
             {metricDetail && <MetricDetailModal metricId={metricDetail} onClose={closeMetricDetail} />}
             {isDateModalOpen && <TestDateModal onClose={() => setIsDateModalOpen(false)} />}
