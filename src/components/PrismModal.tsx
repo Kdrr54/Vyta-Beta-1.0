@@ -457,7 +457,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         {/* 3. Bottom Input Bar */}
         <div
           style={{
-            padding: '10px 14px 18px 14px',
+            padding: '10px 14px max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) 14px',
             background: 'transparent',
             borderTop: 'none',
             zIndex: 10,

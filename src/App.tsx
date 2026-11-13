@@ -102,7 +102,7 @@ const AppInner: React.FC = () => {
         header={!isLiveRunningViewOpen ? <AppHeader /> : null}
         overlay={
           <>
-            {!isLiveRunningViewOpen && !metricDetail && !storyData && modal !== 'nap' && <TabBar />}
+            {!isLiveRunningViewOpen && !metricDetail && !storyData && !isDateModalOpen && modal !== 'nap' && modal !== 'prism' && <TabBar />}
             <AppleNotificationBanner />
             {modal === 'settings' && <SettingsModal onClose={closeModal} />}
             {modal === 'prism' && <PrismModal onClose={closeModal} />}
