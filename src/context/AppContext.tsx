@@ -4,6 +4,67 @@ import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, 
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
 
+/**
+ * Synchronise de façon cohérente l'Énergie Corporelle (au réveil, actuelle, prévue au coucher)
+ * à partir des vraies données de la bague (sommeil, VFC, stress, activité, siestes).
+ */
+function syncBodyEnergy(cur: DayMetrics, isToday: boolean): void {
+  const sleepScore = cur.pillars?.sleep || cur.sleep?.score || 0;
+  const recoveryScore = cur.pillars?.recovery || 0;
+  const stressVal = cur.stressAvg || cur.stress || 0;
+  const stressRecovery = stressVal > 0 ? Math.max(10, Math.min(100, 100 - stressVal + 14)) : 0;
+
+  const hasAnySignal =
+    sleepScore > 0 ||
+    recoveryScore > 0 ||
+    stressRecovery > 0 ||
+    (cur.steps || 0) > 0 ||
+    (cur.naps?.length || 0) > 0;
+
+  if (!hasAnySignal) {
+    cur.bodyEnergy = 0;
+    cur.bodyEnergyWake = 0;
+    cur.bodyEnergyBedtime = 0;
+    return;
+  }
+
+  const effectiveRecovery = recoveryScore > 0 ? recoveryScore : stressRecovery;
+  let wake = 0;
+  if (sleepScore > 0 && effectiveRecovery > 0) {
+    wake = Math.round(sleepScore * 0.65 + effectiveRecovery * 0.35);
+  } else if (sleepScore > 0) {
+    wake = sleepScore;
+  } else if (effectiveRecovery > 0) {
+    wake = effectiveRecovery;
+  } else {
+    wake = cur.score > 0 ? cur.score : 50;
+  }
+  wake = Math.max(10, Math.min(100, wake));
+  cur.bodyEnergyWake = wake;
+
+  const activityDrain = Math.min(
+    45,
+    Math.round((cur.activeKcal || 0) / 30 + (cur.steps || 0) / 1000)
+  );
+  const stressDrain = stressVal > 45 ? Math.min(18, Math.round((stressVal - 45) * 0.45)) : 0;
+  const napBonus = (cur.naps || []).reduce((sum, n) => sum + (n.energyBonus || 0), 0);
+
+  const currentEnergy = Math.max(5, Math.min(100, wake - activityDrain - stressDrain + napBonus));
+  cur.bodyEnergy = currentEnergy;
+
+  if (isToday) {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const bedtimeMin = 23 * 60;
+    const remainingHours = Math.max(0, (bedtimeMin - nowMin) / 60);
+    const hourlyBurn = stressVal > 50 ? 2.7 : 2.1;
+    const projectedDrain = Math.round(remainingHours * hourlyBurn);
+    cur.bodyEnergyBedtime = Math.max(5, Math.min(currentEnergy, currentEnergy - projectedDrain));
+  } else {
+    cur.bodyEnergyBedtime = Math.max(5, Math.min(currentEnergy, currentEnergy - 6));
+  }
+}
+
 interface AppContextType {
   tab: TabType;
   setTab: (tab: TabType) => void;
@@ -459,6 +520,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
+          syncBodyEnergy(cur, true);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -486,9 +548,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
-            cur.bodyEnergy = recFromStress;
-            if (cur.pillars.sleep > 0) cur.bodyEnergyWake = cur.pillars.sleep;
           }
+          syncBodyEnergy(cur, true);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -588,6 +649,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
+          syncBodyEnergy(cur, true);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -674,18 +736,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
-            cur.bodyEnergyWake = sleepScore;
-            if (!cur.bodyEnergy || cur.bodyEnergy === 0) {
-              cur.bodyEnergy = cur.score;
-            }
           }
           if (data.naps && Array.isArray(data.naps)) {
             cur.naps = data.naps;
-            const totalNapBonus = data.naps.reduce((sum, n) => sum + (n.energyBonus || 0), 0);
-            if (totalNapBonus > 0 && cur.bodyEnergy) {
-              cur.bodyEnergy = Math.min(100, Math.round(cur.bodyEnergy + totalNapBonus));
-            }
           }
+          syncBodyEnergy(cur, idx === TODAY_INDEX);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -700,10 +755,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.max(0, Math.min(6, TODAY_INDEX - dAgo));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.naps = data.naps!;
-          const totalNapBonus = data.naps!.reduce((sum, n) => sum + (n.energyBonus || 0), 0);
-          if (totalNapBonus > 0 && cur.bodyEnergy) {
-            cur.bodyEnergy = Math.min(100, Math.round(cur.bodyEnergy + totalNapBonus));
-          }
+          syncBodyEnergy(cur, idx === TODAY_INDEX);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -838,10 +890,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     const activePillars = [updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
                     updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
                   }
-                  updated.bodyEnergyWake = 0;
-                  if (updated.bodyEnergy && updated.score > 0) {
-                    updated.bodyEnergy = updated.score;
-                  }
                 } else if (updated.sleep && updated.sleep.startMin !== undefined && updated.sleep.endMin !== undefined) {
                   // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
                   const sMin = updated.sleep.startMin;
@@ -869,6 +917,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
                 updated.resp = Math.max(12.0, Math.min(17.5, computedResp));
               }
+              syncBodyEnergy(updated, dayIdx === TODAY_INDEX);
               return updated;
             });
             try {
@@ -1006,9 +1055,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       curNaps.push(newNap);
       cur.naps = curNaps;
-      if (cur.bodyEnergy) {
-        cur.bodyEnergy = Math.min(100, cur.bodyEnergy + energyBonus);
-      }
+      syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
       next[selectedDay] = cur;
       try {
         localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -1022,11 +1069,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = [...prev];
       const cur = { ...(next[selectedDay] || emptyDayMetrics) };
       if (!cur.naps) return prev;
-      const target = cur.naps.find((n) => n.id === napId);
       cur.naps = cur.naps.filter((n) => n.id !== napId);
-      if (target && target.energyBonus && cur.bodyEnergy) {
-        cur.bodyEnergy = Math.max(10, cur.bodyEnergy - target.energyBonus);
-      }
+      syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
       next[selectedDay] = cur;
       try {
         localStorage.setItem('vyta_week_data', JSON.stringify(next));
