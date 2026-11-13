@@ -137,12 +137,44 @@ jobs:
       - name: ✈️ Envoi vers TestFlight
         if: ${{ env.APP_STORE_CONNECT_API_KEY != '' }}
         run: |
-          xcrun altool --upload-app \
-            -f Vyta.ipa \
-            -t ios \
+          echo "🔍 Inspection des applications enregistrées sur App Store Connect..."
+          xcrun altool --list-apps \
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --show-progress
+            --output-format json > apps.json || true
+          cat apps.json || true
+
+          APP_ID=$(node -e "
+            try {
+              const fs = require('fs');
+              const raw = fs.readFileSync('apps.json', 'utf8');
+              const j = JSON.parse(raw);
+              const apps = Array.isArray(j.apps) ? j.apps : (Array.isArray(j.app_list) ? j.app_list : []);
+              const match = apps.find(a => (a.bundle_id || a.bundleId) === 'lt.manodrabuziai.fr.ZCU3WN2ZW4') || apps[0];
+              console.log(match?.['apple-id'] || match?.apple_id || match?.adam_id || match?.adamId || match?.id || '');
+            } catch(e) { console.log(''); }
+          ")
+
+          echo "Detected Apple ID: $APP_ID"
+
+          if [ -n "$APP_ID" ]; then
+            echo "🚀 Téléversement vers TestFlight avec Apple ID explicite ($APP_ID)..."
+            xcrun altool --upload-app \
+              -f Vyta.ipa \
+              -t ios \
+              --apple-id "$APP_ID" \
+              --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+              --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+              --show-progress
+          else
+            echo "🚀 Téléversement vers TestFlight..."
+            xcrun altool --upload-app \
+              -f Vyta.ipa \
+              -t ios \
+              --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+              --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
+              --show-progress
+          fi
 
       - name: 🧹 Nettoyage du Keychain
         if: always()
