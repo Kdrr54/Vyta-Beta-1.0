@@ -388,10 +388,10 @@
 .mo-answer {
   position: absolute;
   inset: 0;
-  padding: 18px 18px 16px 18px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   z-index: 10;
   pointer-events: auto;
   opacity: var(--oCard, 0);
@@ -403,13 +403,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #30D158;
-  margin-bottom: 10px;
-  flex-shrink: 0;
+  color: #4ade80;
+  margin-bottom: 6px;
   opacity: var(--hOp, 0);
   will-change: opacity;
 }
@@ -418,23 +417,21 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #30D158;
-  box-shadow: 0 0 8px #30D158;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
   transform: scale(var(--dotS, 0));
   display: inline-block;
   will-change: transform;
 }
 
 .mo-a-body {
-  flex: 1;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.5;
   color: #FAF7F2;
   margin: 0;
   overflow-y: auto;
-  max-height: 270px;
+  max-height: 72px;
   user-select: text;
-  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
@@ -443,8 +440,8 @@
 }
 
 .mo-w {
-  display: inline;
-  will-change: opacity, transform;
+  display: inline-block;
+  will-change: opacity, transform, filter;
 }
 
 /* Thinking Phase Status Indicator */
@@ -508,24 +505,21 @@
 /* Reset / New Question Button */
 .mo-reset {
   position: absolute;
-  top: calc(46% + 195px);
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
-  color: rgba(250, 247, 242, 0.88);
-  padding: 8px 20px;
+  color: rgba(250, 247, 242, 0.85);
+  padding: 8px 18px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
   transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 20;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .mo-root[data-phase="answered"] .mo-reset {
@@ -586,139 +580,3 @@
     animation: none !important;
   }
 }
-
-/* ────────────────────────── Zénon Rich Highlighter & Blocks ────────────────────────── */
-.zenon-answer-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.zenon-paragraph {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: rgba(250, 247, 242, 0.95);
-  letter-spacing: -0.15px;
-}
-
-/* Highlighted Metric Chips / Badges */
-.zenon-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  margin: 0 2px;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.92em;
-  letter-spacing: -0.2px;
-  vertical-align: baseline;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-.zenon-chip-emerald {
-  background: rgba(48, 209, 88, 0.16);
-  color: #30D158;
-  border: 1px solid rgba(48, 209, 88, 0.38);
-  box-shadow: 0 0 10px rgba(48, 209, 88, 0.15);
-}
-
-.zenon-chip-cyan {
-  background: rgba(56, 189, 248, 0.16);
-  color: #38BDF8;
-  border: 1px solid rgba(56, 189, 248, 0.38);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
-}
-
-.zenon-chip-purple {
-  background: rgba(192, 132, 252, 0.16);
-  color: #C084FC;
-  border: 1px solid rgba(192, 132, 252, 0.38);
-  box-shadow: 0 0 10px rgba(192, 132, 252, 0.15);
-}
-
-.zenon-chip-amber {
-  background: rgba(255, 214, 10, 0.16);
-  color: #FFD60A;
-  border: 1px solid rgba(255, 214, 10, 0.38);
-  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);
-}
-
-.zenon-chip-gold {
-  background: rgba(250, 247, 242, 0.12);
-  color: #FAF7F2;
-  border: 1px solid rgba(250, 247, 242, 0.24);
-}
-
-/* Bullet Cards */
-.zenon-bullet-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-left: 3px solid #38BDF8;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.zenon-bullet-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #38BDF8;
-  box-shadow: 0 0 8px #38BDF8;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-
-.zenon-bullet-body {
-  font-size: 13px;
-  line-height: 1.55;
-  color: rgba(250, 247, 242, 0.92);
-}
-
-/* Recommendation Banner */
-.zenon-recommendation-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 11px 13px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(48, 209, 88, 0.14) 0%, rgba(56, 189, 248, 0.08) 100%);
-  border: 1px solid rgba(48, 209, 88, 0.35);
-  box-shadow: 0 4px 18px rgba(48, 209, 88, 0.12);
-}
-
-.zenon-tip-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(48, 209, 88, 0.18);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.zenon-tip-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: #FAF7F2;
-}
-
-.zenon-tip-badge {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #30D158;
-}
-

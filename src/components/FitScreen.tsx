@@ -174,7 +174,8 @@ export function formatRouteDateStr(route: StoredRoute): string {
 }
 
 export const FitScreen: React.FC = () => {
-  const { openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive } = useApp();
+  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive } = useApp();
+  const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
   const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
@@ -1199,28 +1200,28 @@ export const FitScreen: React.FC = () => {
           className={`segmented-btn ${subTab === 'run' ? 'active' : ''}`}
           onClick={() => setSubTab('run')}
         >
-          Course
+          {isEn ? 'Running' : 'Course'}
         </button>
         <button
           type="button"
           className={`segmented-btn ${subTab === 'trajets' ? 'active' : ''}`}
           onClick={() => setSubTab('trajets')}
         >
-          Trajets
+          {isEn ? 'Routes' : 'Trajets'}
         </button>
         <button
           type="button"
           className={`segmented-btn ${subTab === 'gym' ? 'active' : ''}`}
           onClick={() => setSubTab('gym')}
         >
-          Musculation
+          {isEn ? 'Strength' : 'Musculation'}
         </button>
         <button
           type="button"
           className={`segmented-btn ${subTab === 'feed' ? 'active' : ''}`}
           onClick={() => setSubTab('feed')}
         >
-          Cercle
+          {isEn ? 'Circle' : 'Cercle'}
         </button>
       </div>
 
@@ -1247,14 +1248,16 @@ export const FitScreen: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FC5200', boxShadow: '0 0 10px #FC5200' }} />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#FFFFFF' }}>Course à pied active (Live)</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#FFFFFF' }}>
+                    {isEn ? 'Active Running (Live)' : 'Course à pied active (Live)'}
+                  </div>
                   <div style={{ fontSize: '11px', color: '#8E8E93', fontFamily: 'monospace' }}>
                     {fmtClockSec(runDurationSec)} • {runDistanceKm.toFixed(2)} km
                   </div>
                 </div>
               </div>
               <span style={{ fontSize: '12px', fontWeight: 800, color: '#FC5200', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                AFFICHER ↗
+                {isEn ? 'VIEW ↗' : 'AFFICHER ↗'}
               </span>
             </div>
           )}
@@ -1274,10 +1277,10 @@ export const FitScreen: React.FC = () => {
                   <span className="gps-pulse-dot" />
                   <span>
                     {runState === 'running'
-                      ? 'GPS Stoic Actif (Live)'
+                      ? (isEn ? 'Stoic GPS Active (Live)' : 'GPS Stoic Actif (Live)')
                       : runState === 'paused'
-                      ? 'GPS en pause'
-                      : 'GPS Stoic Prêt'}
+                      ? (isEn ? 'GPS Paused' : 'GPS en pause')
+                      : (isEn ? 'Stoic GPS Ready' : 'GPS Stoic Prêt')}
                   </span>
                 </span>
               </div>
@@ -1287,7 +1290,7 @@ export const FitScreen: React.FC = () => {
             {(runState === 'idle' || runState === 'finished') && (
               <button type="button" className="start-run-btn-main" onClick={startRun}>
                 <Play size={16} fill="#000000" />
-                <span>Démarrer la course</span>
+                <span>{isEn ? 'Start Run' : 'Démarrer la course'}</span>
               </button>
             )}
 
@@ -1295,11 +1298,11 @@ export const FitScreen: React.FC = () => {
               <div className="run-action-btns-row">
                 <button type="button" className="pause-run-btn" onClick={pauseRun}>
                   <Pause size={15} />
-                  <span>Pause</span>
+                  <span>{isEn ? 'Pause' : 'Pause'}</span>
                 </button>
                 <button type="button" className="stop-run-btn" onClick={stopRun}>
                   <Square size={14} fill="currentColor" />
-                  <span>Terminer</span>
+                  <span>{isEn ? 'Finish' : 'Terminer'}</span>
                 </button>
               </div>
             )}
@@ -1308,11 +1311,11 @@ export const FitScreen: React.FC = () => {
               <div className="run-action-btns-row">
                 <button type="button" className="resume-run-btn" onClick={resumeRun}>
                   <Play size={15} fill="currentColor" />
-                  <span>Reprendre</span>
+                  <span>{isEn ? 'Resume' : 'Reprendre'}</span>
                 </button>
                 <button type="button" className="stop-run-btn" onClick={stopRun}>
                   <Square size={14} fill="currentColor" />
-                  <span>Terminer</span>
+                  <span>{isEn ? 'Finish' : 'Terminer'}</span>
                 </button>
               </div>
             )}
@@ -1338,7 +1341,7 @@ export const FitScreen: React.FC = () => {
             <div className="session-title-row">
               <div>
                 <span className="session-title-text" style={{ fontSize: '17px' }}>
-                  Mes Trajets
+                  {isEn ? 'My Routes' : 'Mes Trajets'}
                 </span>
               </div>
 
@@ -1349,7 +1352,7 @@ export const FitScreen: React.FC = () => {
                 onClick={() => setShowNewRouteModal(true)}
               >
                 <Plus size={14} />
-                <span>Nouveau trajet</span>
+                <span>{isEn ? 'New Route' : 'Nouveau trajet'}</span>
               </button>
             </div>
           </div>
@@ -1359,7 +1362,7 @@ export const FitScreen: React.FC = () => {
             <div className="activity-raw-item">
               <span className="activity-raw-label">
                 <Route size={11} />
-                <span>Parcours</span>
+                <span>{isEn ? 'Routes' : 'Parcours'}</span>
               </span>
               <div>
                 <span className="activity-raw-val">{storedRoutes.length}</span>
@@ -1369,7 +1372,7 @@ export const FitScreen: React.FC = () => {
             <div className="activity-raw-item">
               <span className="activity-raw-label">
                 <Navigation size={11} />
-                <span>Distance cumulée</span>
+                <span>{isEn ? 'Total Distance' : 'Distance cumulée'}</span>
               </span>
               <div>
                 <span className="activity-raw-val">
@@ -1382,7 +1385,7 @@ export const FitScreen: React.FC = () => {
             <div className="activity-raw-item">
               <span className="activity-raw-label">
                 <TrendingUp size={11} />
-                <span>Dénivelé total</span>
+                <span>{isEn ? 'Total Elevation' : 'Dénivelé total'}</span>
               </span>
               <div>
                 <span className="activity-raw-val">
@@ -1568,7 +1571,7 @@ export const FitScreen: React.FC = () => {
                     }}
                   >
                     <Play size={13} fill="#000000" />
-                    <span>Lancer ce trajet</span>
+                    <span>{isEn ? 'Start this route' : 'Lancer ce trajet'}</span>
                   </button>
 
                   <button
@@ -1586,7 +1589,7 @@ export const FitScreen: React.FC = () => {
                       justifyContent: 'center',
                       cursor: 'pointer',
                     }}
-                    title="Partager ce trajet"
+                    title={isEn ? 'Share this route' : 'Partager ce trajet'}
                   >
                     <Share2 size={14} />
                   </button>
@@ -1606,7 +1609,7 @@ export const FitScreen: React.FC = () => {
                       justifyContent: 'center',
                       cursor: 'pointer',
                     }}
-                    title="Supprimer ce trajet"
+                    title={isEn ? 'Delete this route' : 'Supprimer ce trajet'}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -1680,12 +1683,14 @@ export const FitScreen: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Lieu / Départ</label>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                {isEn ? 'Location / Starting point' : 'Lieu / Départ'}
+              </label>
               <input
                 type="text"
                 value={newRouteLoc}
                 onChange={(e) => setNewRouteLoc(e.target.value)}
-                placeholder="ex: Paris 10e · Quai de Valmy"
+                placeholder={isEn ? 'e.g.: Central Park Loop' : 'ex: Paris 10e · Quai de Valmy'}
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
                   border: '1px solid rgba(255, 255, 255, 0.15)',
@@ -1699,7 +1704,9 @@ export const FitScreen: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Distance estimée (km)</label>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                {isEn ? 'Estimated Distance (km)' : 'Distance estimée (km)'}
+              </label>
               <input
                 type="number"
                 step="0.1"
@@ -1733,7 +1740,7 @@ export const FitScreen: React.FC = () => {
                   cursor: 'pointer',
                 }}
               >
-                Annuler
+                {isEn ? 'Cancel' : 'Annuler'}
               </button>
               <button
                 type="button"
@@ -1749,7 +1756,7 @@ export const FitScreen: React.FC = () => {
                   cursor: 'pointer',
                 }}
               >
-                Enregistrer
+                {isEn ? 'Create & Save' : 'Créer et Enregistrer'}
               </button>
             </div>
           </div>
@@ -1810,7 +1817,7 @@ export const FitScreen: React.FC = () => {
                   padding: '3px 8px',
                 }}
               >
-                En cours
+                {isEn ? 'In progress' : 'En cours'}
               </span>
             </div>
 
@@ -1821,7 +1828,7 @@ export const FitScreen: React.FC = () => {
                 onClick={() => setShowAddModal(true)}
               >
                 <Plus size={14} />
-                <span>Ajouter un exercice</span>
+                <span>{isEn ? 'Add exercise' : 'Ajouter un exercice'}</span>
               </button>
 
               <button
@@ -1830,7 +1837,7 @@ export const FitScreen: React.FC = () => {
                 onClick={() => setShowNewSessionModal(true)}
               >
                 <RotateCcw size={13} />
-                <span>Nouvelle séance</span>
+                <span>{isEn ? 'New workout' : 'Nouvelle séance'}</span>
               </button>
             </div>
           </div>
@@ -1840,7 +1847,7 @@ export const FitScreen: React.FC = () => {
             <div className="activity-raw-item">
               <span className="activity-raw-label">
                 <Dumbbell size={12} />
-                <span>Tonnage Soulevé</span>
+                <span>{isEn ? 'Volume Lifted' : 'Tonnage Soulevé'}</span>
               </span>
               <div>
                 <span className="activity-raw-val">
@@ -1854,7 +1861,7 @@ export const FitScreen: React.FC = () => {
             <div className="activity-raw-item">
               <span className="activity-raw-label">
                 <Award size={12} />
-                <span>Séries Validées</span>
+                <span>{isEn ? 'Completed Sets' : 'Séries Validées'}</span>
               </span>
               <div>
                 <span className="activity-raw-val">
@@ -1872,7 +1879,7 @@ export const FitScreen: React.FC = () => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-                      Chronomètre de repos
+                      {isEn ? 'Rest Timer' : 'Chronomètre de repos'}
                     </span>
                     <span
                       style={{
@@ -1908,7 +1915,7 @@ export const FitScreen: React.FC = () => {
                   type="button"
                   className="rest-adjust-btn"
                   onClick={() => adjustRestBy(-15)}
-                  title="Retirer 15 secondes"
+                  title={isEn ? 'Subtract 15 seconds' : 'Retirer 15 secondes'}
                 >
                   -15s
                 </button>
@@ -1916,7 +1923,7 @@ export const FitScreen: React.FC = () => {
                   type="button"
                   className="rest-adjust-btn"
                   onClick={() => adjustRestBy(15)}
-                  title="Ajouter 15 secondes"
+                  title={isEn ? 'Add 15 seconds' : 'Ajouter 15 secondes'}
                 >
                   +15s
                 </button>
@@ -1926,7 +1933,7 @@ export const FitScreen: React.FC = () => {
                   className="gear-btn"
                   style={{ width: '32px', height: '32px' }}
                   onClick={() => setTimerRunning(!timerRunning)}
-                  title={timerRunning ? 'Pause' : 'Démarrer'}
+                  title={isEn ? (timerRunning ? 'Pause' : 'Start') : (timerRunning ? 'Pause' : 'Démarrer')}
                 >
                   {timerRunning ? <Pause size={13} /> : <Play size={13} fill="#fff" />}
                 </button>
@@ -1973,17 +1980,17 @@ export const FitScreen: React.FC = () => {
                     {ex.name}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                    {ex.sets.length} {ex.sets.length > 1 ? 'séries' : 'série'}
+                    {ex.sets.length} {ex.sets.length > 1 ? (isEn ? 'sets' : 'séries') : (isEn ? 'set' : 'série')}
                   </span>
                 </div>
                 <button
                   type="button"
                   className="exercise-manage-pill-btn"
                   onClick={() => setManagingExId(ex.id)}
-                  title="Paramètres de l'exercice (poids, séries, suppression)"
+                  title={isEn ? 'Exercise settings (weight, sets, delete)' : "Paramètres de l'exercice (poids, séries, suppression)"}
                 >
                   <Sliders size={12} color="var(--gold)" />
-                  <span>Gérer</span>
+                  <span>{isEn ? 'Manage' : 'Gérer'}</span>
                 </button>
               </div>
 
@@ -2021,16 +2028,16 @@ export const FitScreen: React.FC = () => {
                         type="button"
                         className="mini-step-btn"
                         onClick={() => adjustReps(ex.id, s.id, -1)}
-                        title="-1 rép"
+                        title="-1 rep"
                       >
                         -
                       </button>
-                      <span className="mini-step-val">{s.reps} réps</span>
+                      <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
                       <button
                         type="button"
                         className="mini-step-btn"
                         onClick={() => adjustReps(ex.id, s.id, 1)}
-                        title="+1 rép"
+                        title="+1 rep"
                       >
                         +
                       </button>
@@ -2041,7 +2048,7 @@ export const FitScreen: React.FC = () => {
                       type="button"
                       className={`set-check-btn ${s.done ? 'done' : ''}`}
                       onClick={() => toggleSetDone(ex.id, s.id)}
-                      title={s.done ? 'Série validée' : 'Valider la série'}
+                      title={s.done ? (isEn ? 'Set completed' : 'Série validée') : (isEn ? 'Complete set' : 'Valider la série')}
                     >
                       {s.done ? <Check size={14} /> : <Plus size={13} />}
                     </button>
@@ -2056,7 +2063,7 @@ export const FitScreen: React.FC = () => {
                 onClick={() => addSetToExercise(ex.id)}
               >
                 <Plus size={13} />
-                <span>Ajouter une série</span>
+                <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
               </button>
             </div>
           ))}
@@ -2076,7 +2083,7 @@ export const FitScreen: React.FC = () => {
               onClick={openGymStory}
             >
               <Share2 size={16} />
-              <span>Partager Ma Séance</span>
+              <span>{isEn ? 'Share My Workout' : 'Partager Ma Séance'}</span>
             </button>
           )}
         </div>
@@ -2350,7 +2357,7 @@ export const FitScreen: React.FC = () => {
               onClick={() => handleAddExercise(newExName, newExSetsCount, newExWeight, newExReps)}
             >
               <Plus size={15} />
-              <span>Valider et Ajouter à la Séance</span>
+              <span>{isEn ? 'Confirm & Add to Workout' : 'Valider et Ajouter à la Séance'}</span>
             </button>
           </div>
         </div>
@@ -2371,17 +2378,17 @@ export const FitScreen: React.FC = () => {
                     letterSpacing: '0.05em',
                   }}
                 >
-                  Planification Fit
+                  {isEn ? 'Workout Planning' : 'Planification Fit'}
                 </span>
                 <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-                  Nouvelle Séance
+                  {isEn ? 'New Workout' : 'Nouvelle Séance'}
                 </h2>
               </div>
               <button
                 type="button"
                 className="modal-close-btn"
                 onClick={() => setShowNewSessionModal(false)}
-                aria-label="Fermer"
+                aria-label={isEn ? 'Close' : 'Fermer'}
               >
                 <X size={16} />
               </button>
@@ -2389,24 +2396,34 @@ export const FitScreen: React.FC = () => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Titre de la nouvelle séance
+                {isEn ? 'Workout title' : 'Titre de la nouvelle séance'}
               </label>
               <input
                 type="text"
                 className="settings-input"
-                placeholder="Ex: Séance Pectoraux & Bras, Dos & Biceps..."
+                placeholder={isEn ? 'e.g.: Chest & Arms, Back & Biceps...' : 'Ex: Séance Pectoraux & Bras, Dos & Biceps...'}
                 value={newSessionTitleInput}
                 onChange={(e) => setNewSessionTitleInput(e.target.value)}
               />
               <div className="exercise-quick-chips">
-                {[
-                  'Séance Pectoraux & Bras',
-                  'Séance Dos & Biceps',
-                  'Séance Jambes & Fessiers',
-                  'Séance Épaules & Abdos',
-                  'Full Body Performance',
-                  'Force Maximale (5x5)',
-                ].map((preset) => (
+                {(isEn
+                  ? [
+                      'Chest & Arms',
+                      'Back & Biceps',
+                      'Legs & Glutes',
+                      'Shoulders & Abs',
+                      'Full Body Performance',
+                      'Max Strength (5x5)',
+                    ]
+                  : [
+                      'Séance Pectoraux & Bras',
+                      'Séance Dos & Biceps',
+                      'Séance Jambes & Fessiers',
+                      'Séance Épaules & Abdos',
+                      'Full Body Performance',
+                      'Force Maximale (5x5)',
+                    ]
+                ).map((preset) => (
                   <button
                     key={preset}
                     type="button"
@@ -2423,10 +2440,10 @@ export const FitScreen: React.FC = () => {
               type="button"
               className="add-exercise-btn-main"
               style={{ padding: '12px', marginTop: '8px' }}
-              onClick={() => handleCreateNewSession(newSessionTitleInput || 'Nouvelle Séance')}
+              onClick={() => handleCreateNewSession(newSessionTitleInput || (isEn ? 'New Workout' : 'Nouvelle Séance'))}
             >
               <Check size={15} />
-              <span>Démarrer cette séance</span>
+              <span>{isEn ? 'Start this workout' : 'Démarrer cette séance'}</span>
             </button>
           </div>
         </div>

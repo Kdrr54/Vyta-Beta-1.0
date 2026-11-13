@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useApp } from '../context/AppContext';
 import { GymExercise } from './FitScreen';
 import {
   Settings2,
@@ -38,6 +39,8 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   onAddSet,
   onDeleteExercise,
 }) => {
+  const { language } = useApp();
+  const isEn = language === 'en';
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(exercise.name);
@@ -72,7 +75,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
             type="button"
             className="modal-close-btn"
             onClick={handleClose}
-            aria-label="Fermer"
+            aria-label={isEn ? 'Close' : 'Fermer'}
           >
             <X size={16} />
           </button>
@@ -80,7 +83,9 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
 
         {/* 1. RENOMMER L'EXERCICE */}
         <div className="ex-settings-card">
-          <span className="ex-settings-section-label">Nom de l'exercice</span>
+          <span className="ex-settings-section-label">
+            {isEn ? 'Exercise Name' : "Nom de l'exercice"}
+          </span>
           {isEditingName ? (
             <form onSubmit={handleSaveName} style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
               <input
@@ -92,7 +97,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               />
               <button type="submit" className="ex-settings-save-btn">
                 <Check size={14} />
-                <span>Enregistrer</span>
+                <span>{isEn ? 'Save' : 'Enregistrer'}</span>
               </button>
             </form>
           ) : (
@@ -114,10 +119,10 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                 type="button"
                 className="ex-mini-action-btn"
                 onClick={() => setIsEditingName(true)}
-                title="Modifier le nom"
+                title={isEn ? 'Edit name' : 'Modifier le nom'}
               >
                 <Edit3 size={13} />
-                <span>Renommer</span>
+                <span>{isEn ? 'Rename' : 'Renommer'}</span>
               </button>
             </div>
           )}
@@ -126,7 +131,9 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
         {/* 2. AJOUTER / AJUSTER DU POIDS GLOBALEMENT */}
         <div className="ex-settings-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="ex-settings-section-label">Ajustement rapide de charge</span>
+            <span className="ex-settings-section-label">
+              {isEn ? 'Quick Weight Adjustment' : 'Ajustement rapide de charge'}
+            </span>
           </div>
 
           <div className="ex-weight-quick-grid">
@@ -167,7 +174,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Layers size={13} color="var(--gold)" />
               <span className="ex-settings-section-label">
-                Poids & Répétitions ({exercise.sets.length})
+                {isEn ? 'Weight & Reps' : 'Poids & Répétitions'} ({exercise.sets.length})
               </span>
             </div>
             <button
@@ -176,7 +183,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               onClick={onAddSet}
             >
               <Plus size={12} />
-              <span>Ajouter une série</span>
+              <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
             </button>
           </div>
 
@@ -214,16 +221,16 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                     type="button"
                     className="mini-step-btn"
                     onClick={() => onAdjustReps(s.id, -1)}
-                    title="-1 rép"
+                    title={isEn ? '-1 rep' : '-1 rép'}
                   >
                     -
                   </button>
-                  <span className="mini-step-val">{s.reps} réps</span>
+                  <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
                   <button
                     type="button"
                     className="mini-step-btn"
                     onClick={() => onAdjustReps(s.id, 1)}
-                    title="+1 rép"
+                    title={isEn ? '+1 rep' : '+1 rép'}
                   >
                     +
                   </button>
@@ -235,7 +242,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                     className="ex-delete-set-btn"
                     style={{ padding: '5px 7px' }}
                     onClick={() => onDeleteSet(s.id)}
-                    title={`Supprimer la série ${idx + 1}`}
+                    title={isEn ? `Delete set ${idx + 1}` : `Supprimer la série ${idx + 1}`}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -255,7 +262,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
             onClick={onAddSet}
           >
             <Plus size={13} />
-            <span>Ajouter une série</span>
+            <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
           </button>
         </div>
 
@@ -263,7 +270,9 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
         <div className="ex-settings-card danger">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <AlertTriangle size={14} color="#FFFFFF" />
-            <span className="ex-settings-section-label danger">Zone de suppression</span>
+            <span className="ex-settings-section-label danger">
+              {isEn ? 'Danger Zone' : 'Zone de suppression'}
+            </span>
           </div>
 
           {!confirmDeleteEx ? (
@@ -273,12 +282,12 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               onClick={() => setConfirmDeleteEx(true)}
             >
               <Trash2 size={14} />
-              <span>Supprimer cet exercice</span>
+              <span>{isEn ? 'Delete this exercise' : 'Supprimer cet exercice'}</span>
             </button>
           ) : (
             <div className="ex-delete-confirm-box">
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#FFFFFF' }}>
-                Confirmer la suppression de cet exercice ?
+                {isEn ? 'Confirm exercise deletion?' : 'Confirmer la suppression de cet exercice ?'}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -286,14 +295,14 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
                   className="ex-delete-confirm-btn"
                   onClick={onDeleteExercise}
                 >
-                  Oui, supprimer
+                  {isEn ? 'Yes, delete' : 'Oui, supprimer'}
                 </button>
                 <button
                   type="button"
                   className="ex-delete-cancel-btn"
                   onClick={() => setConfirmDeleteEx(false)}
                 >
-                  Annuler
+                  {isEn ? 'Cancel' : 'Annuler'}
                 </button>
               </div>
             </div>

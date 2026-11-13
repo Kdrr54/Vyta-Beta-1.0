@@ -204,14 +204,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          <button
-            type="button"
-            className="modal-close-btn"
-            onClick={handleClose}
-            aria-label={t('settings.close')}
-          >
-            <X size={16} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* Quick Language Switcher Header Pill */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '2.5px',
+                borderRadius: '999px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                gap: '2px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('fr')}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: language === 'fr' ? 'rgba(255, 255, 255, 0.24)' : 'transparent',
+                  color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                  fontSize: '11px',
+                  fontWeight: language === 'fr' ? 700 : 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <span>🇫🇷</span>
+                <span>FR</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: language === 'en' ? 'rgba(255, 255, 255, 0.24)' : 'transparent',
+                  color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                  fontSize: '11px',
+                  fontWeight: language === 'en' ? 700 : 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <span>🇬🇧</span>
+                <span>EN</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={handleClose}
+              aria-label={t('settings.close')}
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* ====================================================================
@@ -1583,165 +1641,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Style des métriques : Coloré vs Noir & Blanc */}
-
+          {/* Sélecteur de Langue de l'Application */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-
             <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', fontWeight: 600 }}>
-
-              {isEn ? 'Biometric Glow Theme' : 'Style Visuel des Constantes'}
-
+              {isEn ? 'App Language · Langue' : 'Langue de l’application'}
             </span>
-
             <div
-
               style={{
-
                 display: 'grid',
-
                 gridTemplateColumns: '1fr 1fr',
-
                 gap: '8px',
-
                 padding: '4px',
-
                 borderRadius: '14px',
-
                 background: 'rgba(0, 0, 0, 0.5)',
-
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-
               }}
-
             >
-
               <button
-
                 type="button"
-
-                onClick={() => setCardThemeMode('colored')}
-
+                onClick={() => setLanguage('fr')}
                 style={{
-
-                  padding: '9px 12px',
-
+                  padding: '10px 12px',
                   borderRadius: '10px',
-
-                  background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-
-                  border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-
-                  color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-
-                  fontSize: '12px',
-
-                  fontWeight: cardThemeMode === 'colored' ? 700 : 500,
-
+                  background: language === 'fr' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                  border:
+                    language === 'fr'
+                      ? '1px solid rgba(255, 255, 255, 0.28)'
+                      : '1px solid transparent',
+                  color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '13px',
+                  fontWeight: language === 'fr' ? 700 : 500,
                   cursor: 'pointer',
-
                   transition: 'all 0.2s ease',
-
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
                 }}
-
               >
-
-                Coloré ✨
-
+                <span>🇫🇷</span>
+                <span>Français</span>
+                {language === 'fr' && <Check size={13} color="#D9F970" />}
               </button>
 
               <button
-
                 type="button"
-
-                onClick={() => setCardThemeMode('monochrome')}
-
+                onClick={() => setLanguage('en')}
                 style={{
-
-                  padding: '9px 12px',
-
+                  padding: '10px 12px',
                   borderRadius: '10px',
-
-                  background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-
-                  border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-
-                  color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-
-                  fontSize: '12px',
-
-                  fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
-
+                  background: language === 'en' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                  border:
+                    language === 'en'
+                      ? '1px solid rgba(255, 255, 255, 0.28)'
+                      : '1px solid transparent',
+                  color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '13px',
+                  fontWeight: language === 'en' ? 700 : 500,
                   cursor: 'pointer',
-
                   transition: 'all 0.2s ease',
-
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
                 }}
-
               >
-
-                Noir & Blanc
-
+                <span>🇬🇧</span>
+                <span>English</span>
+                {language === 'en' && <Check size={13} color="#D9F970" />}
               </button>
-
             </div>
-
-          </div>
-
-
-
-          {/* Language Switcher */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '8px',
-              padding: '4px',
-              borderRadius: '14px',
-              background: 'rgba(0, 0, 0, 0.5)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setLanguage('fr')}
-              style={{
-                padding: '9px 12px',
-                borderRadius: '10px',
-                background: language === 'fr' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                border:
-                  language === 'fr'
-                    ? '1px solid rgba(255, 255, 255, 0.22)'
-                    : '1px solid transparent',
-                color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                fontSize: '12.5px',
-                fontWeight: language === 'fr' ? 700 : 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              Français 🇫🇷
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setLanguage('en')}
-              style={{
-                padding: '9px 12px',
-                borderRadius: '10px',
-                background: language === 'en' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                border:
-                  language === 'en'
-                    ? '1px solid rgba(255, 255, 255, 0.22)'
-                    : '1px solid transparent',
-                color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                fontSize: '12.5px',
-                fontWeight: language === 'en' ? 700 : 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              English 🇬🇧
-            </button>
           </div>
 
           {/* ====================================================================

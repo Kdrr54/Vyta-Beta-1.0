@@ -978,7 +978,9 @@ export const SleepScreen: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                   <Sun size={11} color="#F59E0B" />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>Récup</span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+                    {isEn ? 'Rest' : 'Récup'}
+                  </span>
                 </div>
                 <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.5)' }}>35 min • +10%</span>
               </button>
