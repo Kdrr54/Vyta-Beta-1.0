@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes } from '../data/health';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
+import { PrecisionFindingView } from './PrecisionFindingView';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -57,6 +58,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [coords, setCoords] = useState<[number, number]>(DEFAULT_COORDS);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
   const [showProximityRadar, setShowProximityRadar] = useState<boolean>(false);
+  const [showPrecisionView, setShowPrecisionView] = useState<boolean>(false);
   const [locationAddress, setLocationAddress] = useState<string>('Paris, France');
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
 
@@ -716,6 +718,82 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             </span>
           </div>
 
+          {/* Bannière Apple Precision Finding (AirPods Pro 2 / AirTag Style) */}
+          <button
+            type="button"
+            onClick={() => setShowPrecisionView(true)}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, rgba(48, 209, 88, 0.22) 0%, rgba(13, 40, 18, 0.8) 100%)',
+              border: '1.5px solid rgba(48, 209, 88, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(48, 209, 88, 0.2)',
+              transition: 'all 0.18s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#30D158',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#051b0a',
+                  boxShadow: '0 0 14px rgba(48, 209, 88, 0.8)',
+                  flexShrink: 0,
+                }}
+              >
+                <Navigation size={17} strokeWidth={2.5} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
+                    {isEn ? 'Find Nearby (Precision Finding)' : 'Localisation précise à proximité'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      color: '#30D158',
+                      background: 'rgba(48, 209, 88, 0.2)',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(48, 209, 88, 0.4)',
+                    }}
+                  >
+                    AirPods Pro 2
+                  </span>
+                </div>
+                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                  {isEn ? 'Directional arrow & exact meter distance' : 'Flèche directionnelle et distance exacte en mètres'}
+                </span>
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#30D158',
+                background: 'rgba(48, 209, 88, 0.15)',
+                padding: '5px 10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(48, 209, 88, 0.3)',
+                flexShrink: 0,
+              }}
+            >
+              {isEn ? 'START' : 'LANCER'}
+            </span>
+          </button>
+
           {/* Radar de Proximité UWB / BLE */}
           {showProximityRadar && (
             <div
@@ -807,16 +885,16 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               <span>{isEn ? 'Directions' : 'Itinéraire Plans'}</span>
             </button>
 
-            {/* Radar */}
+            {/* Rechercher à proximité (Precision Finding) */}
             <button
               type="button"
-              onClick={() => setShowProximityRadar(!showProximityRadar)}
+              onClick={() => setShowPrecisionView(true)}
               style={{
                 padding: '11px 8px',
                 borderRadius: '14px',
-                background: showProximityRadar ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                border: showProximityRadar ? '1px solid rgba(48, 209, 88, 0.5)' : '1px solid rgba(255, 255, 255, 0.16)',
-                color: showProximityRadar ? '#30D158' : '#FAF7F2',
+                background: 'rgba(48, 209, 88, 0.16)',
+                border: '1px solid rgba(48, 209, 88, 0.45)',
+                color: '#30D158',
                 fontSize: '11.5px',
                 fontWeight: 600,
                 display: 'flex',
@@ -827,8 +905,8 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                 transition: 'all 0.18s ease',
               }}
             >
-              <Radio size={16} />
-              <span>{isEn ? 'Radar' : 'Radar'}</span>
+              <Navigation size={16} />
+              <span>{isEn ? 'Find Nearby' : 'Rechercher'}</span>
             </button>
           </div>
 
@@ -1235,6 +1313,14 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               </button>
             </div>
           </div>
+        )}
+
+        {/* 6. VUE PLEIN ÉCRAN LOCALISATION PRÉCISE (Apple Precision Finding) */}
+        {showPrecisionView && (
+          <PrecisionFindingView
+            onClose={() => setShowPrecisionView(false)}
+            initialDistance={1.2}
+          />
         )}
       </div>
     </div>
