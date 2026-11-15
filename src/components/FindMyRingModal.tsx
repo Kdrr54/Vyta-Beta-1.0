@@ -16,7 +16,17 @@ import {
   ChevronLeft,
   Sparkles,
   MapPin,
-  Disc,
+  Compass,
+  ShieldCheck,
+  BellRing,
+  ExternalLink,
+  CheckCircle2,
+  Lock,
+  Smartphone,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 interface FindMyRingModalProps {
@@ -49,6 +59,29 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [showProximityRadar, setShowProximityRadar] = useState<boolean>(false);
   const [locationAddress, setLocationAddress] = useState<string>('Paris, France');
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
+
+  // Intégration Apple Find My (Localiser d'Apple)
+  const [isAppleFindMyPaired, setIsAppleFindMyPaired] = useState<boolean>(() => {
+    return localStorage.getItem('vyta_apple_find_my_paired') === 'true';
+  });
+  const [showAppleFindMyGuide, setShowAppleFindMyGuide] = useState<boolean>(false);
+  const [separationAlertEnabled, setSeparationAlertEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('vyta_separation_alert') !== 'false';
+  });
+  const [lostModeEnabled, setLostModeEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('vyta_lost_mode') === 'true';
+  });
+  const [showLostModeModal, setShowLostModeModal] = useState<boolean>(false);
+  const [lostPhone, setLostPhone] = useState<string>(() => {
+    return localStorage.getItem('vyta_lost_phone') || '+33 6 12 34 56 78';
+  });
+  const [lostMsg, setLostMsg] = useState<string>(() => {
+    return (
+      localStorage.getItem('vyta_lost_msg') ||
+      'Cette bague Stoic Ring One appartient à Julien. Merci de me contacter si vous la trouvez.'
+    );
+  });
+  const [pairingSuccessMsg, setPairingSuccessMsg] = useState<string | null>(null);
 
   // 1. Détection de la position réelle (HTML5 Geolocation) pour la dernière position connue
   useEffect(() => {
@@ -263,6 +296,51 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
     window.open(`https://maps.apple.com/?daddr=${lat},${lng}&dirflg=w`, '_blank');
   };
 
+  // Lancer l'application native Apple Localiser (Find My)
+  const handleLaunchAppleFindMy = () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (isIOS) {
+      window.location.href = 'findmy://items';
+      setTimeout(() => {
+        window.location.href = 'findmy://';
+      }, 500);
+    } else {
+      window.open('https://www.icloud.com/find', '_blank');
+    }
+  };
+
+  // Simuler / valider le jumelage Apple Find My
+  const handleTogglePairing = () => {
+    const next = !isAppleFindMyPaired;
+    setIsAppleFindMyPaired(next);
+    localStorage.setItem('vyta_apple_find_my_paired', next ? 'true' : 'false');
+    if (next) {
+      setPairingSuccessMsg(
+        isEn
+          ? 'Stoic Ring One successfully registered in Apple Find My Network!'
+          : 'Bague Stoic Ring One associée avec succès au Réseau Localiser d’Apple !'
+      );
+      setTimeout(() => setPairingSuccessMsg(null), 4500);
+    }
+  };
+
+  // Basculer l'alerte de séparation
+  const handleToggleSeparationAlert = () => {
+    const next = !separationAlertEnabled;
+    setSeparationAlertEnabled(next);
+    localStorage.setItem('vyta_separation_alert', next ? 'true' : 'false');
+  };
+
+  // Sauvegarder le mode perdu
+  const handleSaveLostMode = () => {
+    localStorage.setItem('vyta_lost_phone', lostPhone);
+    localStorage.setItem('vyta_lost_msg', lostMsg);
+    localStorage.setItem('vyta_lost_mode', lostModeEnabled ? 'true' : 'false');
+    setShowLostModeModal(false);
+  };
+
   const handleBackToPrevious = () => {
     if (onBack) {
       onBack();
@@ -357,9 +435,23 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               {isEn ? 'Find My Ring' : 'Localiser la bague'}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
-              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#30D158', boxShadow: '0 0 6px #30D158' }} />
+              <span
+                style={{
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  background: isAppleFindMyPaired ? '#30D158' : '#38BDF8',
+                  boxShadow: isAppleFindMyPaired ? '0 0 6px #30D158' : '0 0 6px #38BDF8',
+                }}
+              />
               <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                {isEn ? 'Connected · BLE Active' : 'Connectée · Bluetooth actif'}
+                {isAppleFindMyPaired
+                  ? isEn
+                    ? 'Apple Find My Active'
+                    : 'Réseau Apple Localiser Actif'
+                  : isEn
+                  ? 'Bluetooth BLE Active'
+                  : 'Bluetooth BLE actif'}
               </span>
             </div>
           </div>
@@ -402,6 +494,33 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             </button>
           </div>
         </div>
+
+        {/* Notification Toast de succès */}
+        {pairingSuccessMsg && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '64px',
+              left: '16px',
+              right: '16px',
+              padding: '12px 14px',
+              borderRadius: '16px',
+              background: 'rgba(48, 209, 88, 0.95)',
+              color: '#08080C',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: '0 10px 30px rgba(48, 209, 88, 0.4)',
+              zIndex: 100,
+              fontSize: '12px',
+              fontWeight: 600,
+              animation: 'fadeIn 0.25s ease',
+            }}
+          >
+            <CheckCircle2 size={18} color="#08080C" style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{pairingSuccessMsg}</span>
+          </div>
+        )}
 
         {/* 2. Conteneur Carte Apple Plein Écran */}
         <div
@@ -476,24 +595,26 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
           </button>
         </div>
 
-        {/* 4. Carte Flottante Inférieure Apple Find My */}
+        {/* 4. Carte Flottante Inférieure Apple Find My (Feuille défilable) */}
         <div
           style={{
             position: 'absolute',
             bottom: 0,
             left: 0,
             right: 0,
-            padding: '16px 18px 24px 18px',
-            borderRadius: '26px 26px 0 0',
-            background: 'rgba(14, 14, 18, 0.88)',
-            backdropFilter: 'blur(28px)',
-            WebkitBackdropFilter: 'blur(28px)',
+            padding: '14px 16px 28px 16px',
+            borderRadius: '28px 28px 0 0',
+            background: 'rgba(14, 14, 18, 0.92)',
+            backdropFilter: 'blur(30px)',
+            WebkitBackdropFilter: 'blur(30px)',
             borderTop: '1px solid rgba(255, 255, 255, 0.16)',
-            boxShadow: '0 -16px 40px rgba(0, 0, 0, 0.85)',
+            boxShadow: '0 -16px 40px rgba(0, 0, 0, 0.88)',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px',
             zIndex: 10,
+            maxHeight: '66dvh',
+            overflowY: 'auto',
           }}
         >
           {/* Poignée de feuille */}
@@ -505,6 +626,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               background: 'rgba(255, 255, 255, 0.25)',
               alignSelf: 'center',
               marginBottom: '2px',
+              flexShrink: 0,
             }}
           />
 
@@ -709,7 +831,411 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               <span>{isEn ? 'Radar' : 'Radar'}</span>
             </button>
           </div>
+
+          {/* 5. MODULE OFFICIEL RÉSEAU LOCALISER D'APPLE (Apple Find My Network) */}
+          <div
+            style={{
+              marginTop: '4px',
+              padding: '14px',
+              borderRadius: '18px',
+              background: 'linear-gradient(145deg, rgba(20, 24, 33, 0.95), rgba(12, 14, 20, 0.95))',
+              border: isAppleFindMyPaired
+                ? '1px solid rgba(48, 209, 88, 0.35)'
+                : '1px solid rgba(255, 255, 255, 0.14)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            }}
+          >
+            {/* Titre & Badge Apple MFi */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: isAppleFindMyPaired ? 'rgba(48, 209, 88, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                    border: isAppleFindMyPaired ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Compass size={15} color={isAppleFindMyPaired ? '#30D158' : '#FAF7F2'} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
+                      {isEn ? 'Apple Find My™ Network' : 'Réseau Localiser d’Apple'}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        color: isAppleFindMyPaired ? '#30D158' : '#94A3B8',
+                        background: isAppleFindMyPaired ? 'rgba(48, 209, 88, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        border: isAppleFindMyPaired
+                          ? '1px solid rgba(48, 209, 88, 0.3)'
+                          : '1px solid rgba(255, 255, 255, 0.12)',
+                      }}
+                    >
+                      {isAppleFindMyPaired ? (isEn ? 'PAIRED' : 'ASSOCIÉE') : 'MFi CERTIFIED'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', display: 'block', marginTop: '1px' }}>
+                    {isEn ? 'Works with Apple Find My · End-to-end encryption' : 'Compatible Localiser · Chiffrement de bout en bout'}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAppleFindMyGuide(!showAppleFindMyGuide)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.65)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                title={isEn ? 'How it works' : 'Comment ça marche'}
+              >
+                {showAppleFindMyGuide ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+            </div>
+
+            {/* Description / Statut */}
+            <p style={{ margin: 0, fontSize: '11px', lineHeight: 1.45, color: 'rgba(250, 247, 242, 0.72)' }}>
+              {isAppleFindMyPaired
+                ? isEn
+                  ? 'Your Stoic Ring One is linked to your Apple ID. Hundreds of millions of Apple devices securely help locate it worldwide.'
+                  : 'Votre bague Stoic Ring One est associée à votre compte Apple. Des centaines de millions d’appareils Apple relaient sa position en toute sécurité dans le monde entier.'
+                : isEn
+                ? 'Add your ring to the native Apple Find My app on your iPhone to track it globally even when out of Bluetooth range.'
+                : 'Ajoutez votre bague à l’application native Localiser de votre iPhone pour la retrouver partout dans le monde même hors de portée Bluetooth.'}
+            </p>
+
+            {/* Guide d'appairage pas à pas (dépliable) */}
+            {showAppleFindMyGuide && (
+              <div
+                style={{
+                  padding: '12px',
+                  borderRadius: '14px',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  animation: 'fadeIn 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <HelpCircle size={14} color="#38BDF8" />
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                    {isEn ? 'How to add to Apple Find My (iOS):' : 'Comment l’ajouter dans l’app Localiser (iOS) :'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: 'rgba(250, 247, 242, 0.8)' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>1</span>
+                    <span>{isEn ? 'Open the native "Find My" app on your iPhone.' : 'Ouvrez l’application native « Localiser » sur votre iPhone.'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>2</span>
+                    <span>{isEn ? 'Select the "Items" tab, tap "+" and choose "Add Other Item".' : 'Allez dans l’onglet « Objets », touchez le « + » puis « Ajouter un autre objet pris en charge ».'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>3</span>
+                    <span>{isEn ? 'Place your Stoic Ring One on its charging dock to broadcast the Apple beacon.' : 'Posez votre bague Stoic Ring One sur son socle de charge pour émettre le beacon d’appairage MFi.'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>4</span>
+                    <span>{isEn ? 'Confirm pairing and bind the ring to your Apple ID.' : 'Validez le jumelage : votre bague est désormais protégée par le réseau mondial iCloud.'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Options avancées si associée */}
+            {isAppleFindMyPaired ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
+                {/* Alertes de séparation */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BellRing size={14} color={separationAlertEnabled ? '#30D158' : 'rgba(250,247,242,0.4)'} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+                        {isEn ? 'Notify When Left Behind' : 'M’avertir en cas d’oubli'}
+                      </span>
+                      <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
+                        {isEn ? 'Instant alert on iPhone & Apple Watch' : 'Notification instantanée sur iPhone & Apple Watch'}
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={separationAlertEnabled}
+                    onChange={handleToggleSeparationAlert}
+                    style={{
+                      accentColor: '#30D158',
+                      cursor: 'pointer',
+                      width: '18px',
+                      height: '18px',
+                    }}
+                  />
+                </div>
+
+                {/* Mode Perdu (Lost Mode) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    borderRadius: '12px',
+                    background: lostModeEnabled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    border: lostModeEnabled ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Lock size={14} color={lostModeEnabled ? '#EF4444' : 'rgba(250,247,242,0.4)'} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+                        {isEn ? 'Lost Mode (NFC Tagging)' : 'Mode Perdu (NFC & Message)'}
+                      </span>
+                      <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
+                        {lostModeEnabled
+                          ? isEn
+                            ? 'ACTIVE · Contact details broadcast'
+                            : 'ACTIF · Coordonnées de contact diffusées'
+                          : isEn
+                          ? 'Lock and leave contact info'
+                          : 'Verrouiller et laisser un message'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLostModeModal(true)}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '8px',
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: '#FAF7F2',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {isEn ? 'Configure' : 'Configurer'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Boutons d'Action Apple Find My */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '2px' }}>
+              {/* Ouvrir l'application native Localiser */}
+              <button
+                type="button"
+                onClick={handleLaunchAppleFindMy}
+                style={{
+                  padding: '10px 10px',
+                  borderRadius: '12px',
+                  background: 'rgba(48, 209, 88, 0.16)',
+                  border: '1px solid rgba(48, 209, 88, 0.4)',
+                  color: '#30D158',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                <Compass size={14} />
+                <span>{isEn ? 'Open Apple Find My' : 'Ouvrir Localiser'}</span>
+                <ExternalLink size={11} style={{ opacity: 0.7 }} />
+              </button>
+
+              {/* Bouton de jumelage / dissociation */}
+              <button
+                type="button"
+                onClick={handleTogglePairing}
+                style={{
+                  padding: '10px 10px',
+                  borderRadius: '12px',
+                  background: isAppleFindMyPaired ? 'rgba(255, 255, 255, 0.06)' : '#30D158',
+                  border: isAppleFindMyPaired ? '1px solid rgba(255, 255, 255, 0.14)' : '1px solid #30D158',
+                  color: isAppleFindMyPaired ? '#FAF7F2' : '#08080C',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>
+                  {isAppleFindMyPaired
+                    ? isEn
+                      ? 'Unpair Ring'
+                      : 'Dissocier'
+                    : isEn
+                    ? 'Add to Find My'
+                    : 'Ajouter à Localiser'}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Modal de Configuration du Mode Perdu (Lost Mode Sheet) */}
+        {showLostModeModal && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(20px)',
+              zIndex: 200,
+              display: 'flex',
+              alignItems: 'flex-end',
+              animation: 'fadeIn 0.2s ease',
+            }}
+            onClick={() => setShowLostModeModal(false)}
+          >
+            <div
+              style={{
+                width: '100%',
+                padding: '20px',
+                borderRadius: '24px 24px 0 0',
+                background: '#12141A',
+                borderTop: '1px solid rgba(255, 255, 255, 0.16)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Lock size={16} color="#EF4444" />
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2' }}>
+                    {isEn ? 'Lost Mode Configuration' : 'Configuration du Mode Perdu'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLostModeModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(250, 247, 242, 0.6)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isEn ? 'Enable Lost Mode' : 'Activer le Mode Perdu'}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={lostModeEnabled}
+                  onChange={(e) => setLostModeEnabled(e.target.checked)}
+                  style={{ accentColor: '#EF4444', width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                  {isEn ? 'Phone Number to Display' : 'Numéro de téléphone à afficher'}
+                </label>
+                <input
+                  type="tel"
+                  value={lostPhone}
+                  onChange={(e) => setLostPhone(e.target.value)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#FAF7F2',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                  {isEn ? 'Custom Message for Finder' : 'Message pour la personne qui la trouve'}
+                </label>
+                <textarea
+                  value={lostMsg}
+                  onChange={(e) => setLostMsg(e.target.value)}
+                  rows={3}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#FAF7F2',
+                    fontSize: '12px',
+                    outline: 'none',
+                    resize: 'none',
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveLostMode}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: lostModeEnabled ? '#EF4444' : '#30D158',
+                  border: 'none',
+                  color: '#FAF7F2',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginTop: '4px',
+                }}
+              >
+                {isEn ? 'Save Lost Mode' : 'Enregistrer le Mode Perdu'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

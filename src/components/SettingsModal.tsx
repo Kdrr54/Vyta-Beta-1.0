@@ -26,6 +26,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Compass,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -627,6 +628,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 : isEn
                 ? 'INACTIVE'
                 : 'NON ACTIVE'}
+            </span>
+          </div>
+
+          {/* Apple Find My Network Row */}
+          <div
+            onClick={() => openModal('find_my')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.035)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              zIndex: 2,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '8px',
+                  background: 'rgba(48, 209, 88, 0.14)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Compass size={14} color="#30D158" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
+                  {isEn ? 'Apple Find My™ Network' : 'Réseau Localiser d’Apple'}
+                </span>
+                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
+                  {typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true'
+                    ? isEn
+                      ? 'Paired · End-to-end encrypted on iCloud'
+                      : 'Associée · Chiffré de bout en bout sur iCloud'
+                    : isEn
+                    ? 'MFi Certified · Ready to pair'
+                    : 'Certifié MFi · Prête pour le jumelage'}
+                </span>
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true' ? '#30D158' : 'rgba(250, 247, 242, 0.65)',
+                background: typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true' ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.08)',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                letterSpacing: '0.03em',
+              }}
+            >
+              {typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true'
+                ? isEn ? 'PAIRED' : 'ASSOCIÉE'
+                : isEn ? 'CONFIG' : 'CONFIGURER'}
             </span>
           </div>
 
