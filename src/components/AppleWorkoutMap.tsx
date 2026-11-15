@@ -13,6 +13,50 @@ interface AppleWorkoutMapProps {
   distanceKm?: number;
   realGpsPoints?: [number, number][];
   userPosition?: [number, number] | null;
+  isSimulating?: boolean;
+}
+
+function getPointAtProgress(points: [number, number][], progress: number): [number, number] {
+  if (!points || points.length === 0) return [48.8566, 2.3522];
+  if (points.length === 1 || progress <= 0) return points[0];
+  if (progress >= 1) return points[points.length - 1];
+
+  const totalSegments = points.length - 1;
+  const targetFloat = Math.max(0, Math.min(1, progress)) * totalSegments;
+  const index = Math.floor(targetFloat);
+  const frac = targetFloat - index;
+
+  if (index >= totalSegments) return points[totalSegments];
+
+  const p1 = points[index];
+  const p2 = points[index + 1];
+
+  const lat = p1[0] + (p2[0] - p1[0]) * frac;
+  const lng = p1[1] + (p2[1] - p1[1]) * frac;
+  return [lat, lng];
+}
+
+function getSubTrailUpToProgress(points: [number, number][], progress: number): [number, number][] {
+  if (!points || points.length === 0) return [];
+  if (points.length === 1 || progress <= 0) return [points[0]];
+  if (progress >= 1) return points;
+
+  const totalSegments = points.length - 1;
+  const targetFloat = Math.max(0, Math.min(1, progress)) * totalSegments;
+  const index = Math.floor(targetFloat);
+  const frac = targetFloat - index;
+
+  const result = points.slice(0, index + 1);
+  if (frac > 0 && index + 1 < points.length) {
+    const p1 = points[index];
+    const p2 = points[index + 1];
+    const interPt: [number, number] = [
+      p1[0] + (p2[0] - p1[0]) * frac,
+      p1[1] + (p2[1] - p1[1]) * frac,
+    ];
+    result.push(interPt);
+  }
+  return result;
 }
 
 const DEFAULT_MAP_CENTER: [number, number] = [48.8566, 2.3522];
@@ -27,6 +71,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   distanceKm = 0,
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
+  isSimulating = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -37,6 +82,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
   const appleMapInstanceRef = useRef<any>(null);
   const applePolylineRef = useRef<any>(null);
+  const appleBgPolylineRef = useRef<any>(null);
   const appleRunnerAnnotationRef = useRef<any>(null);
   const appleStartAnnotationRef = useRef<any>(null);
   const appleFinishAnnotationRef = useRef<any>(null);
@@ -47,6 +93,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   const leafletLabelsRef = useRef<L.TileLayer | null>(null);
   const leafletPolylineRef = useRef<L.Polyline | null>(null);
   const leafletGlowPolyRef = useRef<L.Polyline | null>(null);
+  const leafletBgPolyRef = useRef<L.Polyline | null>(null);
   const leafletRunnerRef = useRef<L.Marker | null>(null);
   const leafletStartMarkerRef = useRef<L.Marker | null>(null);
   const leafletFinishMarkerRef = useRef<L.Marker | null>(null);
@@ -207,6 +254,15 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         }).addTo(map);
         leafletLabelsRef.current = labelLayer;
 
+        // Background polyline for full trail in simulation
+        const bgPoly = L.polyline([], {
+          color: 'rgba(48, 209, 88, 0.28)',
+          weight: 4,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        leafletBgPolyRef.current = bgPoly;
+
         // Dynamic polyline (halo + core)
         const glowPoly = L.polyline([], {
           color: '#30D158',
@@ -274,10 +330,16 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
     };
   }, []);
 
-  // DYNAMIC TRACKING UPDATE: Strictly draws user's actual GPS trajectory
+  // DYNAMIC TRACKING UPDATE: Strictly draws user's actual GPS trajectory (or simulation progress)
   useEffect(() => {
-    const runnerPos = getRunnerLatLng();
     const trailPoints = getActiveTrailPoints();
+    const isSimMode = isSimulating || (typeof progress === 'number' && progress > 0 && progress < 1);
+    const runnerPos = trailPoints.length > 0 && (isSimMode || progress === 0)
+      ? getPointAtProgress(trailPoints, progress)
+      : getRunnerLatLng();
+    const activeProgressPoints = isSimMode && trailPoints.length >= 2
+      ? getSubTrailUpToProgress(trailPoints, progress)
+      : trailPoints;
 
     // 1. UPDATE APPLE MAPKIT JS
     if (appleMapInstanceRef.current && (window as any).mapkit) {
@@ -287,7 +349,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
       // Update runner position
       if (appleRunnerAnnotationRef.current) {
         appleRunnerAnnotationRef.current.coordinate = new mapkit.Coordinate(runnerPos[0], runnerPos[1]);
-        if (runState === 'running') {
+        if (runState === 'running' || isSimulating) {
           map.setCenterAnimated(new mapkit.Coordinate(runnerPos[0], runnerPos[1]));
         }
       }
@@ -307,9 +369,30 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         appleStartAnnotationRef.current = null;
       }
 
-      // Update or create active polyline
-      if (trailPoints.length >= 2) {
-        const coords = trailPoints.map((p) => new mapkit.Coordinate(p[0], p[1]));
+      // Background Full Route Polyline (in simulation mode)
+      if (trailPoints.length >= 2 && isSimMode) {
+        const bgCoords = trailPoints.map((p) => new mapkit.Coordinate(p[0], p[1]));
+        if (appleBgPolylineRef.current) {
+          map.removeOverlay(appleBgPolylineRef.current);
+        }
+        const bgPoly = new mapkit.PolylineOverlay(bgCoords, {
+          style: new mapkit.Style({
+            strokeColor: 'rgba(48, 209, 88, 0.28)',
+            lineWidth: 4.5,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }),
+        });
+        map.addOverlay(bgPoly);
+        appleBgPolylineRef.current = bgPoly;
+      } else if (!isSimMode && appleBgPolylineRef.current) {
+        map.removeOverlay(appleBgPolylineRef.current);
+        appleBgPolylineRef.current = null;
+      }
+
+      // Active Foreground Dynamic Polyline
+      if (activeProgressPoints.length >= 2) {
+        const coords = activeProgressPoints.map((p) => new mapkit.Coordinate(p[0], p[1]));
         if (applePolylineRef.current) {
           map.removeOverlay(applePolylineRef.current);
         }
@@ -323,13 +406,13 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         });
         map.addOverlay(poly);
         applePolylineRef.current = poly;
-      } else if (trailPoints.length < 2 && applePolylineRef.current) {
+      } else if (activeProgressPoints.length < 2 && applePolylineRef.current) {
         map.removeOverlay(applePolylineRef.current);
         applePolylineRef.current = null;
       }
 
-      // Finish marker when complete
-      if (runState === 'finished' && trailPoints.length >= 2 && !appleFinishAnnotationRef.current) {
+      // Finish marker when complete or during simulation
+      if ((runState === 'finished' || isSimMode) && trailPoints.length >= 2 && !appleFinishAnnotationRef.current) {
         const lastPt = trailPoints[trailPoints.length - 1];
         const finishCoord = new mapkit.Coordinate(lastPt[0], lastPt[1]);
         const finishMarker = new mapkit.MarkerAnnotation(finishCoord, {
@@ -340,8 +423,8 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         map.addAnnotation(finishMarker);
         appleFinishAnnotationRef.current = finishMarker;
 
-        // Auto-fit completed trail in full view
-        if (applePolylineRef.current) {
+        // Auto-fit completed trail in full view on initial load
+        if (applePolylineRef.current && !isSimMode) {
           try {
             map.showItems([applePolylineRef.current], {
               animate: true,
@@ -349,7 +432,7 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
             });
           } catch (e) {}
         }
-      } else if (runState !== 'finished' && appleFinishAnnotationRef.current) {
+      } else if (runState !== 'finished' && !isSimMode && appleFinishAnnotationRef.current) {
         map.removeAnnotation(appleFinishAnnotationRef.current);
         appleFinishAnnotationRef.current = null;
       }
@@ -362,8 +445,8 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
       // Update runner marker & follow camera
       if (leafletRunnerRef.current) {
         leafletRunnerRef.current.setLatLng(runnerPos);
-        if (runState === 'running') {
-          map.panTo(runnerPos, { animate: true, duration: 0.5 });
+        if (runState === 'running' || isSimulating) {
+          map.panTo(runnerPos, { animate: true, duration: 0.2 });
         }
       }
 
@@ -382,14 +465,23 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         leafletStartMarkerRef.current = null;
       }
 
-      // Update dynamic trail
-      if (leafletPolylineRef.current && leafletGlowPolyRef.current) {
-        leafletPolylineRef.current.setLatLngs(trailPoints);
-        leafletGlowPolyRef.current.setLatLngs(trailPoints);
+      // Update background trail in simulation
+      if (leafletBgPolyRef.current) {
+        if (isSimMode && trailPoints.length >= 2) {
+          leafletBgPolyRef.current.setLatLngs(trailPoints);
+        } else {
+          leafletBgPolyRef.current.setLatLngs([]);
+        }
       }
 
-      // Finish pin when complete
-      if (runState === 'finished' && trailPoints.length >= 2 && !leafletFinishMarkerRef.current) {
+      // Update dynamic active trail
+      if (leafletPolylineRef.current && leafletGlowPolyRef.current) {
+        leafletPolylineRef.current.setLatLngs(activeProgressPoints);
+        leafletGlowPolyRef.current.setLatLngs(activeProgressPoints);
+      }
+
+      // Finish pin when complete or in simulation
+      if ((runState === 'finished' || isSimMode) && trailPoints.length >= 2 && !leafletFinishMarkerRef.current) {
         const lastPt = trailPoints[trailPoints.length - 1];
         const finishIcon = L.divIcon({
           className: 'apple-map-pin finish-pin',
@@ -401,13 +493,15 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
         leafletFinishMarkerRef.current = m;
 
         // Auto-fit bounds on completion
-        map.fitBounds(L.latLngBounds(trailPoints), { padding: [30, 30], animate: true });
-      } else if (runState !== 'finished' && leafletFinishMarkerRef.current) {
+        if (!isSimMode) {
+          map.fitBounds(L.latLngBounds(trailPoints), { padding: [30, 30], animate: true });
+        }
+      } else if (runState !== 'finished' && !isSimMode && leafletFinishMarkerRef.current) {
         map.removeLayer(leafletFinishMarkerRef.current);
         leafletFinishMarkerRef.current = null;
       }
     }
-  }, [distanceKm, runState, propRealGpsPoints, internalGpsPoints, userPosition]);
+  }, [distanceKm, runState, propRealGpsPoints, internalGpsPoints, userPosition, progress, isSimulating]);
 
   // Toggle Map Type
   const toggleMapType = () => {

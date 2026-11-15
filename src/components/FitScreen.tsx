@@ -225,6 +225,11 @@ export const FitScreen: React.FC = () => {
   const [managingRoute, setManagingRoute] = useState<StoredRoute | null>(null);
   const [editingRouteTitle, setEditingRouteTitle] = useState<string>('');
   const [showRouteDeleteConfirm, setShowRouteDeleteConfirm] = useState<boolean>(false);
+  const [isSimulatingRoute, setIsSimulatingRoute] = useState<boolean>(false);
+  const [simProgress, setSimProgress] = useState<number>(0);
+  const [simSpeed, setSimSpeed] = useState<number>(1);
+  const simAnimRef = useRef<number | null>(null);
+  const simLastTimeRef = useRef<number | null>(null);
 
   // ------------------ COURSE & CARDIO (SESSION GPS VYTA LIVE) ------------------
   const initialRunState = (params?.get('run_state') as 'idle' | 'running' | 'paused' | 'finished') || 'idle';
@@ -768,9 +773,57 @@ export const FitScreen: React.FC = () => {
     }
   };
 
+  const startRouteSimulation = (route: StoredRoute, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setViewingRouteForMap(route);
+    setSimProgress(0);
+    setIsSimulatingRoute(true);
+  };
+
+  // Moteur d'animation de la simulation du parcours sur Apple Maps
+  useEffect(() => {
+    if (!isSimulatingRoute || !viewingRouteForMap) {
+      if (simAnimRef.current) {
+        cancelAnimationFrame(simAnimRef.current);
+        simAnimRef.current = null;
+      }
+      simLastTimeRef.current = null;
+      return;
+    }
+
+    // Durée totale de la simulation à vitesse 1x : ~20 secondes
+    const BASE_DURATION_MS = 20000;
+
+    const step = (now: number) => {
+      if (!simLastTimeRef.current) simLastTimeRef.current = now;
+      const delta = now - simLastTimeRef.current;
+      simLastTimeRef.current = now;
+
+      setSimProgress((prev) => {
+        const next = prev + (delta / (BASE_DURATION_MS / simSpeed));
+        if (next >= 1) {
+          setIsSimulatingRoute(false);
+          return 1;
+        }
+        return next;
+      });
+
+      simAnimRef.current = requestAnimationFrame(step);
+    };
+
+    simAnimRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (simAnimRef.current) {
+        cancelAnimationFrame(simAnimRef.current);
+        simAnimRef.current = null;
+      }
+      simLastTimeRef.current = null;
+    };
+  }, [isSimulatingRoute, simSpeed, viewingRouteForMap]);
+
   const loadAndStartRoute = (route: StoredRoute) => {
-    resetRun();
-    setSubTab('run');
+    startRouteSimulation(route);
   };
 
   const getRouteEffectivePoints = (route: StoredRoute): [number, number][] => {
@@ -2495,11 +2548,15 @@ export const FitScreen: React.FC = () => {
         })()
       )}
 
-      {/* Modal Dédiée : Visualisation du trajet sur Apple Maps */}
+      {/* Modal Dédiée : Visualisation du trajet sur Apple Maps & Simulation */}
       {viewingRouteForMap && (
         <div
           className="modal-backdrop"
-          onClick={() => setViewingRouteForMap(null)}
+          onClick={() => {
+            setIsSimulatingRoute(false);
+            setSimProgress(0);
+            setViewingRouteForMap(null);
+          }}
           style={{
             zIndex: 10000,
             display: 'flex',
@@ -2557,7 +2614,11 @@ export const FitScreen: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setViewingRouteForMap(null)}
+                onClick={() => {
+                  setIsSimulatingRoute(false);
+                  setSimProgress(0);
+                  setViewingRouteForMap(null);
+                }}
                 style={{
                   width: '32px',
                   height: '32px',
@@ -2592,6 +2653,116 @@ export const FitScreen: React.FC = () => {
                 runState="finished"
                 realGpsPoints={getRouteEffectivePoints(viewingRouteForMap)}
                 distanceKm={viewingRouteForMap.distanceKm}
+                progress={simProgress}
+                isSimulating={isSimulatingRoute}
+              />
+
+              {/* Simulation Status Badge Overlay (Top-Left of map) */}
+              {isSimulatingRoute && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '12px',
+                    left: '12px',
+                    background: 'rgba(0, 0, 0, 0.72)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(48, 209, 88, 0.35)',
+                    borderRadius: '20px',
+                    padding: '5px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    zIndex: 500,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: '#30D158',
+                      boxShadow: '0 0 8px #30D158',
+                    }}
+                  />
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#30D158', letterSpacing: '0.04em' }}>
+                    {isEn ? 'SIMULATION' : 'SIMULATION'}
+                  </span>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)' }}>
+                    {simSpeed}x
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Simulation Timeline & Speed Controls */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '16px',
+                padding: '10px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(250, 247, 242, 0.85)' }}>
+                  <span style={{ fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
+                    {fmtClockSec(Math.round(viewingRouteForMap.durationSec * (simProgress || 0)))}
+                  </span>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.3)' }}>/</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'rgba(250, 247, 242, 0.6)' }}>
+                    {fmtClockSec(viewingRouteForMap.durationSec)}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11.5px', color: '#30D158', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    {Math.round(simProgress * 100)}%
+                  </span>
+                  {/* Speed toggle pills: 1x, 2x, 4x */}
+                  <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                    {[1, 2, 4].map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => setSimSpeed(spd)}
+                        style={{
+                          background: simSpeed === spd ? '#FFFFFF' : 'transparent',
+                          color: simSpeed === spd ? '#000000' : 'rgba(255, 255, 255, 0.65)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '2px 7px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Slider Track */}
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.005"
+                value={simProgress}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setSimProgress(val);
+                }}
+                style={{
+                  width: '100%',
+                  accentColor: '#30D158',
+                  cursor: 'pointer',
+                  height: '4px',
+                }}
               />
             </div>
 
@@ -2611,13 +2782,14 @@ export const FitScreen: React.FC = () => {
               <div>
                 <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  {viewingRouteForMap.distanceKm.toFixed(2)} <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km</span>
+                  {((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.distanceKm * simProgress) : viewingRouteForMap.distanceKm).toFixed(2)}{' '}
+                  <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km</span>
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  {fmtClockSec(viewingRouteForMap.durationSec)}
+                  {fmtClockSec((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? Math.round(viewingRouteForMap.durationSec * simProgress) : viewingRouteForMap.durationSec)}
                 </div>
               </div>
               <div>
@@ -2632,7 +2804,7 @@ export const FitScreen: React.FC = () => {
               <div>
                 <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
                 <div style={{ fontSize: '15px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  +{viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)}m
+                  +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)) * simProgress : (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8))))}m
                 </div>
               </div>
             </div>
@@ -2666,9 +2838,14 @@ export const FitScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const r = viewingRouteForMap;
-                  setViewingRouteForMap(null);
-                  loadAndStartRoute(r);
+                  if (isSimulatingRoute) {
+                    setIsSimulatingRoute(false);
+                  } else {
+                    if (simProgress >= 1) {
+                      setSimProgress(0);
+                    }
+                    setIsSimulatingRoute(true);
+                  }
                 }}
                 style={{
                   flex: 1,
@@ -2687,8 +2864,27 @@ export const FitScreen: React.FC = () => {
                   boxShadow: '0 4px 16px rgba(255, 255, 255, 0.25)',
                 }}
               >
-                <Play size={14} fill="#000000" />
-                <span>{isEn ? 'Start this route' : 'Lancer ce trajet'}</span>
+                {isSimulatingRoute ? (
+                  <>
+                    <Pause size={14} fill="#000000" />
+                    <span>{isEn ? 'Pause' : 'Pause'}</span>
+                  </>
+                ) : simProgress >= 1 ? (
+                  <>
+                    <RotateCcw size={14} />
+                    <span>{isEn ? 'Replay run' : 'Rejouer la course'}</span>
+                  </>
+                ) : simProgress > 0 ? (
+                  <>
+                    <Play size={14} fill="#000000" />
+                    <span>{isEn ? 'Resume' : 'Reprendre'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} fill="#000000" />
+                    <span>{isEn ? 'Simulate route' : 'Lancer ce trajet'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -2870,10 +3066,10 @@ export const FitScreen: React.FC = () => {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-                    {isEn ? 'Start this route' : 'Lancer ce trajet'}
+                    {isEn ? 'Simulate route' : 'Lancer ce trajet (Simulation)'}
                   </div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                    {isEn ? 'Start GPS session using this route' : 'Démarrer une session de course sur ce parcours'}
+                    {isEn ? 'Replay run simulation on Apple Maps' : 'Rejouer et visualiser la simulation sur Apple Maps'}
                   </div>
                 </div>
               </button>
