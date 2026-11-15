@@ -50,7 +50,9 @@ import {
   Sliders,
   Settings2,
   Route,
-  Bookmark
+  Bookmark,
+  MoreVertical,
+  ExternalLink
 } from 'lucide-react';
 
 export interface StoredRoute {
@@ -220,6 +222,9 @@ export const FitScreen: React.FC = () => {
   const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
   const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
   const [viewingRouteForMap, setViewingRouteForMap] = useState<StoredRoute | null>(null);
+  const [managingRoute, setManagingRoute] = useState<StoredRoute | null>(null);
+  const [editingRouteTitle, setEditingRouteTitle] = useState<string>('');
+  const [showRouteDeleteConfirm, setShowRouteDeleteConfirm] = useState<boolean>(false);
 
   // ------------------ COURSE & CARDIO (SESSION GPS VYTA LIVE) ------------------
   const initialRunState = (params?.get('run_state') as 'idle' | 'running' | 'paused' | 'finished') || 'idle';
@@ -750,6 +755,17 @@ export const FitScreen: React.FC = () => {
   const deleteRoute = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setStoredRoutes((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const saveRouteTitle = (id: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setStoredRoutes((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, title: trimmed } : r))
+    );
+    if (managingRoute && managingRoute.id === id) {
+      setManagingRoute((prev) => (prev ? { ...prev, title: trimmed } : null));
+    }
   };
 
   const loadAndStartRoute = (route: StoredRoute) => {
@@ -1596,22 +1612,28 @@ export const FitScreen: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={(e) => deleteRoute(route.id, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setManagingRoute(route);
+                      setEditingRouteTitle(route.title);
+                      setShowRouteDeleteConfirm(false);
+                    }}
                     style={{
                       width: '36px',
                       height: '36px',
                       borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      color: '#FFFFFF',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
+                      flexShrink: 0,
                     }}
-                    title={isEn ? 'Delete this route' : 'Supprimer ce trajet'}
+                    title={isEn ? 'Manage route' : 'Gérer ce trajet'}
                   >
-                    <Trash2 size={14} />
+                    <MoreVertical size={16} />
                   </button>
                 </div>
               </div>
@@ -2638,7 +2660,7 @@ export const FitScreen: React.FC = () => {
                 }}
               >
                 <Compass size={16} color="#30D158" />
-                <span>Ouvrir dans Plans</span>
+                <span>{isEn ? 'Open in Maps' : 'Ouvrir dans Plans'}</span>
               </button>
 
               <button
@@ -2666,8 +2688,408 @@ export const FitScreen: React.FC = () => {
                 }}
               >
                 <Play size={14} fill="#000000" />
-                <span>Lancer ce trajet</span>
+                <span>{isEn ? 'Start this route' : 'Lancer ce trajet'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal / Bottom Sheet: Gestionnaire de Trajet (3 petits points) */}
+      {managingRoute && (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            setManagingRoute(null);
+            setShowRouteDeleteConfirm(false);
+          }}
+          style={{
+            zIndex: 10001,
+            display: 'flex',
+            alignItems: 'flex-end',
+            padding: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              margin: '0 auto',
+              background: 'rgba(18, 18, 22, 0.98)',
+              borderTopLeftRadius: '28px',
+              borderTopRightRadius: '28px',
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderBottom: 'none',
+              padding: '16px 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Grabber Handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+            </div>
+
+            {/* Header: Title & Close */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.3px' }}>
+                  {isEn ? 'Manage Route' : 'Gérer le trajet'}
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  {managingRoute.distanceKm.toFixed(2)} km · {managingRoute.location || (isEn ? 'Outdoor run' : 'Course extérieure')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setManagingRoute(null);
+                  setShowRouteDeleteConfirm(false);
+                }}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Renommer le trajet */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                {isEn ? 'Route name' : 'Nom du parcours'}
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  value={editingRouteTitle}
+                  onChange={(e) => setEditingRouteTitle(e.target.value)}
+                  placeholder={isEn ? 'Route title...' : 'Titre du parcours...'}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    color: '#FFFFFF',
+                    fontSize: '14px',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingRouteTitle.trim()) {
+                      saveRouteTitle(managingRoute.id, editingRouteTitle.trim());
+                    }
+                  }}
+                  disabled={!editingRouteTitle.trim() || editingRouteTitle.trim() === managingRoute.title}
+                  style={{
+                    padding: '0 16px',
+                    borderRadius: '12px',
+                    background: (!editingRouteTitle.trim() || editingRouteTitle.trim() === managingRoute.title)
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : '#FFFFFF',
+                    color: (!editingRouteTitle.trim() || editingRouteTitle.trim() === managingRoute.title)
+                      ? 'rgba(255, 255, 255, 0.3)'
+                      : '#000000',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: (!editingRouteTitle.trim() || editingRouteTitle.trim() === managingRoute.title)
+                      ? 'default'
+                      : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Check size={14} />
+                  <span>{isEn ? 'Save' : 'Enregistrer'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Actions rapides */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Lancer ce parcours */}
+              <button
+                type="button"
+                onClick={() => {
+                  const target = managingRoute;
+                  setManagingRoute(null);
+                  loadAndStartRoute(target);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Play size={18} fill="#FFFFFF" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
+                    {isEn ? 'Start this route' : 'Lancer ce trajet'}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    {isEn ? 'Start GPS session using this route' : 'Démarrer une session de course sur ce parcours'}
+                  </div>
+                </div>
+              </button>
+
+              {/* Voir sur la carte */}
+              <button
+                type="button"
+                onClick={() => {
+                  const target = managingRoute;
+                  setManagingRoute(null);
+                  setViewingRouteForMap(target);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MapPin size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
+                    {isEn ? 'View route details & map' : 'Voir le tracé GPS & carte'}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    {isEn ? 'Altitude profile, full map & elevation' : 'Profil d\'altitude, carte interactive et dénivelé'}
+                  </div>
+                </div>
+              </button>
+
+              {/* Ouvrir dans Apple Maps */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  openInNativeAppleMaps(managingRoute, e);
+                  setManagingRoute(null);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Navigation size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
+                    {isEn ? 'Open in Apple Maps' : 'Ouvrir dans Plans (Apple Maps)'}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    {isEn ? 'Export navigation to Apple Maps' : 'Lancer l\'itinéraire GPS dans Apple Maps'}
+                  </div>
+                </div>
+                <ExternalLink size={14} style={{ color: 'var(--text-secondary)' }} />
+              </button>
+
+              {/* Partager la Story */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  const target = managingRoute;
+                  setManagingRoute(null);
+                  shareStoredRoute(target, e);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Share2 size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
+                    {isEn ? 'Share route' : 'Partager ce trajet'}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    {isEn ? 'Export as Stoic Story or image' : 'Exporter sous forme de Story Stoic'}
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Zone de suppression */}
+            <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              {!showRouteDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRouteDeleteConfirm(true)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 69, 58, 0.1)',
+                    border: '1px solid rgba(255, 69, 58, 0.25)',
+                    color: '#FF453A',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <Trash2 size={15} />
+                  <span>{isEn ? 'Delete this route' : 'Supprimer ce trajet'}</span>
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 69, 58, 0.08)', border: '1px solid rgba(255, 69, 58, 0.3)', borderRadius: '12px', padding: '12px' }}>
+                  <div style={{ fontSize: '12.5px', color: '#FFFFFF', textAlign: 'center', fontWeight: 500 }}>
+                    {isEn ? 'Are you sure you want to delete this route?' : 'Voulez-vous vraiment supprimer ce trajet ?'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowRouteDeleteConfirm(false)}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isEn ? 'Cancel' : 'Annuler'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const idToDelete = managingRoute.id;
+                        deleteRoute(idToDelete);
+                        setManagingRoute(null);
+                        setShowRouteDeleteConfirm(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '8px',
+                        background: '#FF453A',
+                        border: 'none',
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isEn ? 'Confirm Delete' : 'Confirmer'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
