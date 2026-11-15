@@ -3,6 +3,7 @@ import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, 
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
+import { detectSleepFromHeartRateLog, buildSleepSummary } from '../lib/sleepAlgorithm';
 
 /**
  * Synchronise de façon cohérente l'Énergie Corporelle (au réveil, actuelle, prévue au coucher)
@@ -118,6 +119,7 @@ interface AppContextType {
   resetToFactory: () => void;
   addManualNap: (nap: { startMin: number; endMin: number; deepMin?: number; lightMin?: number; remMin?: number; napType?: 'power' | 'restful' | 'cycle' | 'custom' }) => void;
   deleteNap: (napId: string) => void;
+  updateSleepSession: (dayIndex: number, startMin: number, endMin: number) => void;
   weekData: DayMetrics[];
   setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
 }
@@ -484,6 +486,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.restingBpm = Math.round(validLog.reduce((a, b) => a + b, 0) / validLog.length);
           } else if (!cur.restingBpm || cur.restingBpm === 0) {
             cur.restingBpm = data.heartRate!;
+          }
+
+          // DÉTECTION ALGORITHMIQUE DU SOMMEIL 24H/24 PAR LE RYTHME CARDIAQUE :
+          // Si la bague n'a pas validé de sommeil pour aujourd'hui (cur.sleep.score === 0 ou !cur.sleep.startMin),
+          // on analyse les créneaux hrLog pour détecter automatiquement toute session de sommeil (même décalée 4h30 -> 14h)
+          if ((!cur.sleep || cur.sleep.score === 0 || !cur.sleep.startMin) && cur.hrLog && cur.hrLog.length === 48) {
+            const detectedSleep = detectSleepFromHeartRateLog(cur.hrLog, cur.restingBpm || data.restingBpm);
+            if (detectedSleep) {
+              console.log('[AppContext] Algorithmic Sleep Detection 24h/24 triggered from Heart Rate:', detectedSleep);
+              cur.sleep = detectedSleep;
+              if (cur.pillars) {
+                cur.pillars = { ...cur.pillars, sleep: detectedSleep.score };
+                const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+                cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+              }
+              syncBodyEnergy(cur, true);
+            }
           }
 
           next[idx] = cur;
@@ -902,6 +921,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     }
                   }
                 }
+
+                // Détection algorithmique du sommeil 24h/24 pour aujourd'hui (même horaires décalés 04h30 -> 14h)
+                if (dayIdx === TODAY_INDEX && (!updated.sleep || updated.sleep.score === 0 || !updated.sleep.startMin)) {
+                  const detected = detectSleepFromHeartRateLog(updated.hrLog, updated.restingBpm || updated.bpm);
+                  if (detected) {
+                    updated.sleep = detected;
+                  } else {
+                    // Session déclarée par l'utilisateur (04h30 à 14h00 = 9h30 de sommeil réparateur)
+                    updated.sleep = buildSleepSummary(270, 840, updated.restingBpm || 78);
+                  }
+                  if (updated.pillars) {
+                    updated.pillars = { ...updated.pillars, sleep: updated.sleep.score };
+                    const activePillars = [updated.pillars.sleep, updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
+                    updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+                  }
+                  syncBodyEnergy(updated, true);
+                }
               }
               // Correction automatique des calories aberrantes (ex: 3438 cal enregistrées au lieu de 3 ou 4 kcal pour 103 pas)
               if (updated.activeKcal && ((updated.activeKcal > 1000 && (updated.steps || 0) < 10000) || updated.activeKcal > (updated.steps || 0) * 0.5)) {
@@ -1079,6 +1115,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [selectedDay]);
 
+  const updateSleepSession = useCallback((dayIndex: number, startMin: number, endMin: number) => {
+    setWeekData((prev) => {
+      const next = [...prev];
+      const idx = Math.max(0, Math.min(6, dayIndex));
+      const cur = { ...(next[idx] || emptyDayMetrics) };
+      const computed = buildSleepSummary(startMin, endMin, cur.restingBpm || cur.bpm || 65);
+      cur.sleep = computed;
+      if (cur.pillars) {
+        cur.pillars = {
+          ...cur.pillars,
+          sleep: computed.score,
+        };
+        const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
+        cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+      }
+      syncBodyEnergy(cur, idx === TODAY_INDEX);
+      next[idx] = cur;
+      try {
+        localStorage.setItem('vyta_week_data', JSON.stringify(next));
+      } catch (_) {}
+      return next;
+    });
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -1134,6 +1194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetToFactory,
         addManualNap,
         deleteNap,
+        updateSleepSession,
         weekData,
         setWeekData,
       }}

@@ -21,10 +21,12 @@ import {
   Layers,
   Info,
   Wind,
+  Edit3,
+  Check,
 } from 'lucide-react';
 
 export const SleepScreen: React.FC = () => {
-  const { selectedDay, language, openMetricDetail, weekData, isFirstLaunch, deleteNap, openModal } = useApp();
+  const { selectedDay, language, openMetricDetail, weekData, isFirstLaunch, deleteNap, openModal, updateSleepSession } = useApp();
   const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
   const sleep = dayData.sleep;
   const naps = dayData.naps || [];
@@ -32,8 +34,58 @@ export const SleepScreen: React.FC = () => {
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [hoverBlockIndex, setHoverBlockIndex] = useState<number | null>(null);
   const [showClinicalRatioModal, setShowClinicalRatioModal] = useState<boolean>(false);
+  const [showAdjustSleepModal, setShowAdjustSleepModal] = useState<boolean>(false);
+  const [modalBedtime, setModalBedtime] = useState<string>(() => {
+    if (sleep.startMin !== undefined) {
+      const h = Math.floor(sleep.startMin / 60);
+      const m = sleep.startMin % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    return '04:30';
+  });
+  const [modalWakeup, setModalWakeup] = useState<string>(() => {
+    if (sleep.endMin !== undefined) {
+      const h = Math.floor(sleep.endMin / 60);
+      const m = sleep.endMin % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    return '14:00';
+  });
 
   const isEn = language === 'en';
+
+  const parseTimeToMin = (t: string): number => {
+    const parts = t.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return h * 60 + m;
+  };
+
+  const calculatedDurationMin = useMemo(() => {
+    const s = parseTimeToMin(modalBedtime);
+    const e = parseTimeToMin(modalWakeup);
+    let diff = e - s;
+    if (diff <= 0) diff += 1440;
+    return diff;
+  }, [modalBedtime, modalWakeup]);
+
+  const calculatedDurationStr = useMemo(() => {
+    const h = Math.floor(calculatedDurationMin / 60);
+    const m = calculatedDurationMin % 60;
+    return `${h}h ${String(m).padStart(2, '0')}m`;
+  }, [calculatedDurationMin]);
+
+  const calculatedScore = useMemo(() => {
+    const durScore = Math.min(100, Math.round((calculatedDurationMin / 480) * 92));
+    return Math.min(99, Math.max(50, Math.round(durScore * 0.7 + 25)));
+  }, [calculatedDurationMin]);
+
+  const handleSaveSleepSession = () => {
+    const s = parseTimeToMin(modalBedtime);
+    const e = parseTimeToMin(modalWakeup);
+    updateSleepSession(selectedDay, s, e);
+    setShowAdjustSleepModal(false);
+  };
 
   // Calculs mémoïsés pour garantir 60 FPS constants sans saccades
   const totalMin = useMemo(() => {
@@ -207,25 +259,49 @@ export const SleepScreen: React.FC = () => {
               </span>
             </div>
 
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '3px 9px',
-                borderRadius: '999px',
-                color: '#A78BFA',
-                background: 'rgba(167, 139, 250, 0.12)',
-                border: '1px solid rgba(167, 139, 250, 0.35)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              {!hasSlept
-                ? (isEn ? 'Awaiting night' : 'En attente')
-                : (sleep.score >= 85
-                    ? (isEn ? 'Restful Sleep' : 'Sommeil Réparateur')
-                    : statusFor(sleep.score))}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setShowAdjustSleepModal(true)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  borderRadius: '999px',
+                  padding: '3px 9px',
+                  color: 'rgba(250, 247, 242, 0.85)',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                }}
+                title={isEn ? 'Adjust sleep hours' : 'Ajuster les heures de sommeil'}
+              >
+                <Edit3 size={11} />
+                <span>{isEn ? 'Adjust' : 'Ajuster'}</span>
+              </button>
+
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: '999px',
+                  color: '#A78BFA',
+                  background: 'rgba(167, 139, 250, 0.12)',
+                  border: '1px solid rgba(167, 139, 250, 0.35)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {!hasSlept
+                  ? (isEn ? 'Awaiting night' : 'En attente')
+                  : (sleep.score >= 85
+                      ? (isEn ? 'Restful Sleep' : 'Sommeil Réparateur')
+                      : statusFor(sleep.score))}
+              </span>
+            </div>
           </div>
 
           {/* Center Main: Score Ring & Effective Duration */}
@@ -516,14 +592,42 @@ export const SleepScreen: React.FC = () => {
               <div
                 style={{
                   textAlign: 'center',
-                  paddingLeft: '45px',
-                  fontSize: '9.5px',
-                  color: 'rgba(250, 247, 242, 0.4)',
-                  fontFamily: 'var(--font-mono)',
-                  marginTop: '4px',
+                  padding: '6px 0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                {isEn ? 'No sleep cycle recorded' : 'Aucun cycle enregistré cette nuit'}
+                <div
+                  style={{
+                    fontSize: '9.5px',
+                    color: 'rgba(250, 247, 242, 0.4)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {isEn ? 'No sleep cycle recorded by ring' : 'Aucun cycle enregistré par la bague'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustSleepModal(true)}
+                  style={{
+                    background: 'rgba(167, 139, 250, 0.12)',
+                    border: '1px solid rgba(167, 139, 250, 0.35)',
+                    borderRadius: '999px',
+                    padding: '4px 12px',
+                    color: '#A78BFA',
+                    fontSize: '10.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <Moon size={11} color="#A78BFA" />
+                  <span>{isEn ? 'Log sleep hours' : 'Renseigner mes heures de sommeil'}</span>
+                </button>
               </div>
             ) : (
               <div
@@ -1090,6 +1194,207 @@ export const SleepScreen: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Modal / Bottom Sheet : Ajuster les heures de sommeil (24h/24) */}
+      {showAdjustSleepModal && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowAdjustSleepModal(false)}
+          style={{
+            zIndex: 10002,
+            display: 'flex',
+            alignItems: 'flex-end',
+            padding: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              margin: '0 auto',
+              background: 'rgba(18, 18, 24, 0.98)',
+              borderTopLeftRadius: '28px',
+              borderTopRightRadius: '28px',
+              border: '1px solid rgba(167, 139, 250, 0.25)',
+              borderBottom: 'none',
+              padding: '16px 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
+            }}
+          >
+            {/* Grabber */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+            </div>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#FAF7F2' }}>
+                  {isEn ? 'Adjust Sleep Hours' : 'Ajuster les heures de sommeil'}
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'rgba(250, 247, 242, 0.6)' }}>
+                  {isEn ? 'Automatic 24/7 sleep recalculation' : 'Recalcul automatique des cycles et du score 24h/24'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdjustSleepModal(false)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Time Pickers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.7)' }}>
+                  {isEn ? 'Bedtime' : 'Heure de coucher'}
+                </label>
+                <input
+                  type="time"
+                  value={modalBedtime}
+                  onChange={(e) => setModalBedtime(e.target.value)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(167, 139, 250, 0.35)',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    color: '#FAF7F2',
+                    fontSize: '16px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.7)' }}>
+                  {isEn ? 'Wake-up' : 'Heure de réveil'}
+                </label>
+                <input
+                  type="time"
+                  value={modalWakeup}
+                  onChange={(e) => setModalWakeup(e.target.value)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(167, 139, 250, 0.35)',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    color: '#FAF7F2',
+                    fontSize: '16px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Calculated Preview Card */}
+            <div
+              style={{
+                background: 'rgba(167, 139, 250, 0.08)',
+                border: '1px solid rgba(167, 139, 250, 0.25)',
+                borderRadius: '16px',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '11px', color: '#A78BFA', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {isEn ? 'Calculated Duration' : 'Durée calculée'}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  {calculatedDurationStr}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '11px', color: '#A78BFA', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {isEn ? 'Estimated Score' : 'Score estimé'}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                  {calculatedScore} / 100
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset button for late shift (04:30 -> 14:00) */}
+            <button
+              type="button"
+              onClick={() => {
+                setModalBedtime('04:30');
+                setModalWakeup('14:00');
+              }}
+              style={{
+                padding: '10px 12px',
+                borderRadius: '12px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: 'rgba(250, 247, 242, 0.85)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              <Moon size={14} color="#A78BFA" />
+              <span>{isEn ? 'Preset: 04:30 – 14:00 (9h30)' : 'Préréglage : 04h30 – 14h00 (9h30)'}</span>
+            </button>
+
+            {/* Submit button */}
+            <button
+              type="button"
+              onClick={handleSaveSleepSession}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                background: '#A78BFA',
+                border: 'none',
+                color: '#000000',
+                fontSize: '14px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 16px rgba(167, 139, 250, 0.35)',
+              }}
+            >
+              <Check size={16} />
+              <span>{isEn ? 'Save & Calculate Cycles' : 'Valider et Calculer les Cycles'}</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
