@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes } from '../data/health';
+import { qringBle } from '../lib/qringBleService';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
 import { PrecisionFindingView } from './PrecisionFindingView';
 import L from 'leaflet';
@@ -47,6 +48,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
+  const isConnected = ring.isConnected || qringBle.isConnected();
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const appleMapInstanceRef = useRef<any>(null);
@@ -606,29 +608,31 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                     style={{
                       fontSize: '10.5px',
                       fontWeight: 600,
-                      color: '#30D158',
-                      background: 'rgba(48, 209, 88, 0.14)',
+                      color: isConnected ? '#30D158' : '#F59E0B',
+                      background: isConnected ? 'rgba(48, 209, 88, 0.14)' : 'rgba(245, 158, 11, 0.14)',
                       padding: '1px 6px',
                       borderRadius: '6px',
-                      border: '1px solid rgba(48, 209, 88, 0.3)',
+                      border: isConnected ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
                     }}
                   >
-                    {isEn ? 'Last known location' : 'Dernière position connue'}
+                    {isConnected
+                      ? isEn ? 'BLE Active' : 'Bluetooth actif'
+                      : isEn ? 'Last known location' : 'Dernière position connue'}
                   </span>
                   <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                    {isEn ? '4m ago' : 'Il y a 4 min'}
+                    {isConnected ? (isEn ? 'Direct link' : 'Liaison directe') : (isEn ? 'GPS recorded' : 'Enregistrée par GPS')}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Distance estimée */}
+            {/* Statut de liaison */}
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
-                {isEn ? 'Near you' : 'Près de vous'}
+              <span style={{ fontSize: '13px', fontWeight: 600, color: isConnected ? '#30D158' : 'rgba(250, 247, 242, 0.5)' }}>
+                {isConnected ? (isEn ? 'Connected' : 'À portée') : (isEn ? 'Disconnected' : 'Hors de portée')}
               </span>
               <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', display: 'block', marginTop: '1px' }}>
-                ~1,2 m
+                {isConnected ? (isEn ? 'Signal locked' : 'Signal capté') : '--'}
               </span>
             </div>
           </div>
@@ -702,11 +706,11 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                       border: '1px solid rgba(48, 209, 88, 0.4)',
                     }}
                   >
-                    AirPods Pro 2
+                    BLE RADAR
                   </span>
                 </div>
                 <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                  {isEn ? 'Directional arrow & exact meter distance' : 'Flèche directionnelle et distance exacte en mètres'}
+                  {isEn ? 'Directional arrow & live BLE signal' : 'Flèche directionnelle et signal Bluetooth direct'}
                 </span>
               </div>
             </div>
@@ -726,47 +730,6 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               {isEn ? 'START' : 'LANCER'}
             </span>
           </button>
-
-          {/* Radar de Proximité UWB / BLE */}
-          {showProximityRadar && (
-            <div
-              style={{
-                padding: '12px',
-                borderRadius: '14px',
-                background: 'rgba(0, 0, 0, 0.6)',
-                border: '1px solid rgba(48, 209, 88, 0.35)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                animation: 'fadeIn 0.2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: '#30D158' }}>
-                  {isEn ? 'UWB / BLE Precision Radar' : 'Radar de précision UWB / BLE'}
-                </span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-                  -42 dBm · 0,8 m
-                </span>
-              </div>
-              <div
-                style={{
-                  position: 'relative',
-                  height: '70px',
-                  borderRadius: '10px',
-                  background: 'rgba(48, 209, 88, 0.05)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <div style={{ position: 'absolute', width: '40px', height: '40px', borderRadius: '50%', border: '1px solid rgba(48,209,88,0.5)', animation: 'findMyPulse 1.8s infinite ease-out' }} />
-                <div style={{ position: 'absolute', width: '20px', height: '20px', borderRadius: '50%', border: '1px solid rgba(48,209,88,0.7)', animation: 'findMyPulse 1.8s infinite ease-out 0.4s' }} />
-                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#30D158', boxShadow: '0 0 12px #30D158' }} />
-              </div>
-            </div>
-          )}
 
           {/* Boutons d'Action Rapide */}
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '8px', marginTop: '2px' }}>
@@ -1208,7 +1171,6 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
         {showPrecisionView && (
           <PrecisionFindingView
             onClose={() => setShowPrecisionView(false)}
-            initialDistance={1.2}
           />
         )}
       </div>

@@ -451,20 +451,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </span>
 
               <div
-                onClick={() => {
-                  const current = ring.batteryRing ?? 87;
-                  const steps = [87, 50, 20, 2, 100];
-                  const next = steps[(steps.findIndex((s) => Math.abs(s - current) <= 3) + 1) % steps.length] ?? 87;
-                  updateRing({ batteryRing: next });
-                }}
-                role="button"
-                tabIndex={0}
-                title={isEn ? 'Click to simulate battery levels (87%, 50%, 20%, 2%, 100%)' : 'Cliquer pour simuler les niveaux de batterie (87%, 50%, 20%, 2%, 100%)'}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'baseline',
-                  cursor: 'pointer',
-                  userSelect: 'none',
                   width: 'fit-content',
                 }}
               >
@@ -478,7 +467,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     transition: 'color 0.2s ease',
                   }}
                 >
-                  {isConnected && ring.batteryRing > 0 ? `${ring.batteryRing}%` : '--'}
+                  {isConnected && (ring.batteryRing || 0) > 0 ? `${ring.batteryRing}%` : '--'}
                 </span>
               </div>
 

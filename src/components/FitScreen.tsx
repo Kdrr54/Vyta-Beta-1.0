@@ -2685,7 +2685,7 @@ export const FitScreen: React.FC = () => {
                     }}
                   />
                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#30D158', letterSpacing: '0.04em' }}>
-                    {isEn ? 'SIMULATION' : 'SIMULATION'}
+                    {isEn ? 'REPLAY' : 'REPLAY'}
                   </span>
                   <span style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)' }}>
                     {simSpeed}x
@@ -3066,10 +3066,10 @@ export const FitScreen: React.FC = () => {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-                    {isEn ? 'Simulate route' : 'Lancer ce trajet (Simulation)'}
+                    {isEn ? 'Replay route' : 'Rejouer ce parcours'}
                   </div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                    {isEn ? 'Replay run simulation on Apple Maps' : 'Rejouer et visualiser la simulation sur Apple Maps'}
+                    {isEn ? 'Replay run trajectory on Apple Maps' : 'Visualiser l’animation du tracé sur Apple Maps'}
                   </div>
                 </div>
               </button>
