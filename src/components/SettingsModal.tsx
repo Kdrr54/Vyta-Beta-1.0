@@ -631,7 +631,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </span>
           </div>
 
-          {/* Apple Find My Network Row */}
+          {/* Localiser ma bague (Stoic Radar) */}
           <div
             onClick={() => openModal('find_my')}
             style={{
@@ -663,16 +663,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Apple Find My™ Network' : 'Réseau Localiser d’Apple'}
+                  {isEn ? 'Find My Ring (Stoic Radar)' : 'Localiser ma bague (Radar Stoic)'}
                 </span>
                 <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                  {typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true'
-                    ? isEn
-                      ? 'Paired · End-to-end encrypted on iCloud'
-                      : 'Associée · Chiffré de bout en bout sur iCloud'
-                    : isEn
-                    ? 'MFi Certified · Ready to pair'
-                    : 'Certifié MFi · Prête pour le jumelage'}
+                  {isEn
+                    ? 'GPS last known position · BLE precision finding'
+                    : 'Dernière position GPS · Radar Bluetooth en direct'}
                 </span>
               </div>
             </div>
@@ -681,16 +677,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               style={{
                 fontSize: '10px',
                 fontWeight: 700,
-                color: typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true' ? '#30D158' : 'rgba(250, 247, 242, 0.65)',
-                background: typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true' ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.08)',
+                color: '#30D158',
+                background: 'rgba(48, 209, 88, 0.16)',
                 padding: '3px 8px',
                 borderRadius: '6px',
                 letterSpacing: '0.03em',
               }}
             >
-              {typeof window !== 'undefined' && localStorage.getItem('vyta_apple_find_my_paired') === 'true'
-                ? isEn ? 'PAIRED' : 'ASSOCIÉE'
-                : isEn ? 'CONFIG' : 'CONFIGURER'}
+              {isEn ? 'RADAR' : 'RADAR'}
             </span>
           </div>
 
