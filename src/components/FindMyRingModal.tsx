@@ -65,7 +65,6 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
 
   // Système de Localisation Stoic Radar
-  const [showAppleFindMyGuide, setShowAppleFindMyGuide] = useState<boolean>(false);
   const [separationAlertEnabled, setSeparationAlertEnabled] = useState<boolean>(() => {
     return localStorage.getItem('vyta_separation_alert') !== 'false';
   });
@@ -655,391 +654,134 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             </span>
           </div>
 
-          {/* Bannière Apple Precision Finding (AirPods Pro 2 / AirTag Style) */}
-          <button
-            type="button"
-            onClick={() => setShowPrecisionView(true)}
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, rgba(48, 209, 88, 0.22) 0%, rgba(13, 40, 18, 0.8) 100%)',
-              border: '1.5px solid rgba(48, 209, 88, 0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(48, 209, 88, 0.2)',
-              transition: 'all 0.18s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: '#30D158',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#051b0a',
-                  boxShadow: '0 0 14px rgba(48, 209, 88, 0.8)',
-                  flexShrink: 0,
-                }}
-              >
-                <Navigation size={17} strokeWidth={2.5} />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
-                    {isEn ? 'Find Nearby (Precision Finding)' : 'Localisation précise à proximité'}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      color: '#30D158',
-                      background: 'rgba(48, 209, 88, 0.2)',
-                      padding: '1px 5px',
-                      borderRadius: '4px',
-                      border: '1px solid rgba(48, 209, 88, 0.4)',
-                    }}
-                  >
-                    BLE RADAR
-                  </span>
-                </div>
-                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                  {isEn ? 'Directional arrow & live BLE signal' : 'Flèche directionnelle et signal Bluetooth direct'}
-                </span>
-              </div>
-            </div>
-
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#30D158',
-                background: 'rgba(48, 209, 88, 0.15)',
-                padding: '5px 10px',
-                borderRadius: '8px',
-                border: '1px solid rgba(48, 209, 88, 0.3)',
-                flexShrink: 0,
-              }}
-            >
-              {isEn ? 'START' : 'LANCER'}
-            </span>
-          </button>
-
-          {/* Boutons d'Action Rapide */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '8px', marginTop: '2px' }}>
-            {/* Faire Clignoter la Bague */}
+          {/* Actions épurées Apple Find My */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '4px' }}>
+            {/* 1. Clignoter */}
             <button
               type="button"
               onClick={handleFlashLeds}
               style={{
-                padding: '11px 8px',
-                borderRadius: '14px',
-                background: isFlashing ? '#30D158' : 'rgba(255, 255, 255, 0.08)',
-                border: isFlashing ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.16)',
-                color: isFlashing ? '#0A0A0C' : '#FAF7F2',
-                fontSize: '11.5px',
-                fontWeight: 600,
+                padding: '12px 6px',
+                borderRadius: '16px',
+                background: isFlashing ? '#30D158' : 'rgba(255, 255, 255, 0.06)',
+                border: isFlashing ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.12)',
+                color: isFlashing ? '#08080C' : '#FAF7F2',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '6px',
                 cursor: 'pointer',
                 transition: 'all 0.18s ease',
               }}
             >
-              <Volume2 size={16} />
-              <span>{isFlashing ? (isEn ? 'Flashing...' : 'Clignotement...') : (isEn ? 'Flash LEDs' : 'Faire clignoter')}</span>
+              <Volume2 size={18} />
+              <span style={{ fontSize: '11px', fontWeight: 600 }}>
+                {isFlashing ? (isEn ? 'Flashing...' : 'Clignote...') : (isEn ? 'Flash LEDs' : 'Faire clignoter')}
+              </span>
             </button>
 
-            {/* Itinéraire Apple Plans */}
+            {/* 2. Itinéraire */}
             <button
               type="button"
               onClick={handleOpenAppleMapsDirections}
               style={{
-                padding: '11px 8px',
-                borderRadius: '14px',
-                background: 'rgba(0, 122, 255, 0.16)',
-                border: '1px solid rgba(0, 122, 255, 0.4)',
-                color: '#38BDF8',
-                fontSize: '11.5px',
-                fontWeight: 600,
+                padding: '12px 6px',
+                borderRadius: '16px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#FAF7F2',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '6px',
                 cursor: 'pointer',
                 transition: 'all 0.18s ease',
               }}
             >
-              <Navigation size={16} />
-              <span>{isEn ? 'Directions' : 'Itinéraire Plans'}</span>
+              <Navigation size={18} />
+              <span style={{ fontSize: '11px', fontWeight: 600 }}>
+                {isEn ? 'Directions' : 'Itinéraire'}
+              </span>
             </button>
 
-            {/* Rechercher à proximité (Precision Finding) */}
+            {/* 3. Rechercher */}
             <button
               type="button"
               onClick={() => setShowPrecisionView(true)}
               style={{
-                padding: '11px 8px',
-                borderRadius: '14px',
-                background: 'rgba(48, 209, 88, 0.16)',
-                border: '1px solid rgba(48, 209, 88, 0.45)',
-                color: '#30D158',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-              }}
-            >
-              <Navigation size={16} />
-              <span>{isEn ? 'Find Nearby' : 'Rechercher'}</span>
-            </button>
-          </div>
-
-          {/* 5. MODULE SYSTÈME DE LOCALISATION STOIC RADAR (GPS & BLE) */}
-          <div
-            style={{
-              marginTop: '4px',
-              padding: '14px',
-              borderRadius: '18px',
-              background: 'linear-gradient(145deg, rgba(20, 24, 33, 0.95), rgba(12, 14, 20, 0.95))',
-              border: '1px solid rgba(48, 209, 88, 0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
-            }}
-          >
-            {/* Titre & Statut */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    background: 'rgba(48, 209, 88, 0.2)',
-                    border: '1px solid #30D158',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Compass size={15} color="#30D158" />
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                      {isEn ? 'Stoic Ring Radar System' : 'Système de Localisation Stoic'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        color: '#30D158',
-                        background: 'rgba(48, 209, 88, 0.15)',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(48, 209, 88, 0.3)',
-                      }}
-                    >
-                      GPS + BLE
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', display: 'block', marginTop: '1px' }}>
-                    {isEn ? 'Last known GPS fix & Direct proximity radar' : 'Dernière position GPS & Radar de proximité direct'}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAppleFindMyGuide(!showAppleFindMyGuide)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(250, 247, 242, 0.65)',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-                title={isEn ? 'How it works' : 'Comment ça marche'}
-              >
-                {showAppleFindMyGuide ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-            </div>
-
-            {/* Description claire */}
-            <p style={{ margin: 0, fontSize: '11px', lineHeight: 1.45, color: 'rgba(250, 247, 242, 0.72)' }}>
-              {isEn
-                ? 'Your ring is located via your phone’s background GPS log upon disconnect, then pinpointed in meters using Bluetooth live signal.'
-                : 'Votre bague est localisée grâce à l’historique GPS enregistré par votre iPhone lors de la dernière connexion, puis retrouvée au mètre près via le radar Bluetooth.'}
-            </p>
-
-            {/* Guide dépliable */}
-            {showAppleFindMyGuide && (
-              <div
-                style={{
-                  padding: '12px',
-                  borderRadius: '14px',
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  animation: 'fadeIn 0.2s ease',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <HelpCircle size={14} color="#38BDF8" />
-                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                    {isEn ? 'How to find your ring:' : 'Comment retrouver votre bague :'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '11px', color: 'rgba(250, 247, 242, 0.8)' }}>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>1</span>
-                    <span>{isEn ? 'Check the map: it shows the exact address where the ring was last synced.' : 'Consultez la carte : elle indique l’adresse exacte où la bague a été connectée pour la dernière fois.'}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>2</span>
-                    <span>{isEn ? 'Get there using Apple Maps directions button.' : 'Rendez-vous sur place en touchant le bouton « Itinéraire Plans ».'}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>3</span>
-                    <span>{isEn ? 'Launch Precision Finding: the directional arrow and meters will guide you to it.' : 'Lancez la « Localisation Précise » : la flèche et les mètres vous guident jusqu’à elle.'}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0, fontSize: '10px' }}>4</span>
-                    <span>{isEn ? 'Tap "Flash LEDs" to spot it in the dark or under a cushion.' : 'Touchez « Faire clignoter » pour repérer ses lumières vertes sous un meuble ou dans le noir.'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Options de Sécurité et Alertes */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
-              {/* Alertes de séparation */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 10px',
-                  borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <BellRing size={14} color={separationAlertEnabled ? '#30D158' : 'rgba(250,247,242,0.4)'} />
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Notify When Left Behind' : 'M’avertir en cas d’oubli'}
-                    </span>
-                    <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                      {isEn ? 'Alert when Bluetooth connection breaks' : 'Alerte si la liaison Bluetooth est rompue'}
-                    </span>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={separationAlertEnabled}
-                  onChange={handleToggleSeparationAlert}
-                  style={{
-                    accentColor: '#30D158',
-                    cursor: 'pointer',
-                    width: '18px',
-                    height: '18px',
-                  }}
-                />
-              </div>
-
-              {/* Mode Perdu (Lost Mode) */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 10px',
-                  borderRadius: '12px',
-                  background: lostModeEnabled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                  border: lostModeEnabled ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Lock size={14} color={lostModeEnabled ? '#EF4444' : 'rgba(250,247,242,0.4)'} />
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Lost Mode (NFC Tagging)' : 'Mode Perdu (NFC & Message)'}
-                    </span>
-                    <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                      {lostModeEnabled
-                        ? isEn
-                          ? 'ACTIVE · Contact details broadcast'
-                          : 'ACTIF · Coordonnées de contact diffusées'
-                        : isEn
-                        ? 'Lock and leave contact info'
-                        : 'Verrouiller et laisser un message'}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLostModeModal(true)}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '8px',
-                    padding: '4px 8px',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#FAF7F2',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {isEn ? 'Configure' : 'Configurer'}
-                </button>
-              </div>
-            </div>
-
-            {/* Bouton Grand Format : Lancer la Recherche à proximité */}
-            <button
-              type="button"
-              onClick={() => setShowPrecisionView(true)}
-              style={{
-                marginTop: '4px',
-                padding: '12px 14px',
-                borderRadius: '14px',
+                padding: '12px 6px',
+                borderRadius: '16px',
                 background: '#30D158',
                 border: 'none',
                 color: '#08080C',
-                fontSize: '12px',
-                fontWeight: 700,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
+                gap: '6px',
                 cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(48, 209, 88, 0.35)',
+                boxShadow: '0 4px 14px rgba(48, 209, 88, 0.35)',
                 transition: 'all 0.18s ease',
               }}
             >
-              <Navigation size={15} strokeWidth={2.5} />
-              <span>{isEn ? 'Launch Precision Finding (Meters Live)' : 'Lancer la Localisation Précise (Mètres en direct)'}</span>
+              <Compass size={18} strokeWidth={2.5} />
+              <span style={{ fontSize: '11px', fontWeight: 700 }}>
+                {isEn ? 'Find' : 'Rechercher'}
+              </span>
             </button>
+          </div>
+
+          {/* Options de sécurité minimalistes */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+            {/* Alerte séparation */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                borderRadius: '14px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <BellRing size={15} color={separationAlertEnabled ? '#30D158' : 'rgba(250,247,242,0.4)'} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isEn ? 'Notify when left behind' : 'M’avertir en cas d’oubli'}
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={separationAlertEnabled}
+                onChange={handleToggleSeparationAlert}
+                style={{ accentColor: '#30D158', width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+            </div>
+
+            {/* Mode perdu */}
+            <div
+              onClick={() => setShowLostModeModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                borderRadius: '14px',
+                background: lostModeEnabled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                border: lostModeEnabled ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Lock size={15} color={lostModeEnabled ? '#EF4444' : 'rgba(250,247,242,0.4)'} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isEn ? 'Lost Mode' : 'Mode Perdu'}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: lostModeEnabled ? '#EF4444' : 'rgba(250, 247, 242, 0.6)' }}>
+                {lostModeEnabled ? (isEn ? 'Active' : 'Actif') : (isEn ? 'Configure' : 'Configurer')}
+              </span>
+            </div>
           </div>
         </div>
 
