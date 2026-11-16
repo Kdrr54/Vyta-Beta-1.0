@@ -47,6 +47,56 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const isGenerating = orbStatus !== 'idle';
 
+  // Suivi temps-réel du Visual Viewport pour ancrer la saisie sur le clavier iOS sans décaler le haut de page
+  const [viewportMetrics, setViewportMetrics] = useState(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    return {
+      height: vv ? vv.height : (typeof window !== 'undefined' ? window.innerHeight : 844),
+      offsetTop: vv ? vv.offsetTop : 0,
+      isKeyboard: false,
+    };
+  });
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const updateMetrics = () => {
+      const vh = vv.height;
+      const winH = window.innerHeight;
+      const diff = winH - vh;
+      const isKb = diff > 100;
+
+      setViewportMetrics({
+        height: vh,
+        offsetTop: Math.max(0, vv.offsetTop),
+        isKeyboard: isKb,
+      });
+
+      // Empêche iOS Safari de faire scroller toute la page vers le haut
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    const handleScroll = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    vv.addEventListener('resize', updateMetrics);
+    vv.addEventListener('scroll', updateMetrics);
+    window.addEventListener('scroll', handleScroll);
+    updateMetrics();
+
+    return () => {
+      vv.removeEventListener('resize', updateMetrics);
+      vv.removeEventListener('scroll', updateMetrics);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   const thinkLabels = isEn ? THINK_LABELS_EN : THINK_LABELS_FR;
   const activeOrbLabel =
     orbStatus === 'done'
@@ -174,7 +224,20 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
-      style={{ zIndex: 1200 }}
+      style={{
+        zIndex: 1200,
+        position: 'fixed',
+        top: `${viewportMetrics.offsetTop}px`,
+        left: 0,
+        right: 0,
+        bottom: 'auto',
+        height: `${viewportMetrics.height}px`,
+        maxHeight: `${viewportMetrics.height}px`,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+      }}
     >
       <style>{`
         @keyframes prismAuraPulse {
@@ -184,6 +247,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         .prism-scroll-area {
           scrollbar-width: none !important;
           -ms-overflow-style: none !important;
+          overscroll-behavior: contain !important;
+          -webkit-overflow-scrolling: touch !important;
         }
         .prism-scroll-area::-webkit-scrollbar {
           display: none !important;
@@ -199,15 +264,16 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: '92dvh',
-          maxHeight: '840px',
-          borderRadius: '34px 34px 0 0',
+          height: viewportMetrics.isKeyboard ? '100%' : '92dvh',
+          maxHeight: viewportMetrics.isKeyboard ? '100%' : '840px',
+          borderRadius: viewportMetrics.isKeyboard ? '20px 20px 0 0' : '34px 34px 0 0',
           background: 'linear-gradient(180deg, #09090D 0%, #060608 100%)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
           borderTop: '1px solid rgba(255, 255, 255, 0.16)',
+          transition: 'height 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.2s ease',
         }}
       >
         {/* Iridescent Top Aura */}
@@ -329,16 +395,17 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 justifyContent: 'center',
                 textAlign: 'center',
                 padding: '10px 8px',
-                gap: '12px',
+                gap: viewportMetrics.isKeyboard ? '6px' : '12px',
+                transition: 'gap 0.2s ease',
               }}
             >
-              <ZenonOrb status="idle" size={172} />
+              <ZenonOrb status="idle" size={viewportMetrics.isKeyboard ? 104 : 172} />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <span style={{ fontSize: '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: viewportMetrics.isKeyboard ? '2px' : '5px' }}>
+                <span style={{ fontSize: viewportMetrics.isKeyboard ? '16px' : '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
                   Zénon
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.62)', maxWidth: '280px', lineHeight: 1.45 }}>
+                <span style={{ fontSize: viewportMetrics.isKeyboard ? '11.5px' : '12px', color: 'rgba(250, 247, 242, 0.62)', maxWidth: '280px', lineHeight: 1.4 }}>
                   {isEn
                     ? 'Ask Zénon anything about your ring biometrics, sleep architecture, recovery, or workouts.'
                     : 'Posez votre question à Zénon sur vos biométries, votre sommeil, votre récupération ou votre entraînement.'}
@@ -350,8 +417,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                   display: 'flex',
                   flexWrap: 'wrap',
                   justifyContent: 'center',
-                  gap: '7px',
-                  marginTop: '6px',
+                  gap: '6px',
+                  marginTop: viewportMetrics.isKeyboard ? '2px' : '6px',
                   maxWidth: '340px',
                 }}
               >
@@ -508,8 +575,11 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         <div
           style={{
             flexShrink: 0,
-            padding: '10px 14px max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) 14px',
+            padding: viewportMetrics.isKeyboard
+              ? '8px 14px 10px 14px'
+              : '10px 14px max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) 14px',
             zIndex: 10,
+            transition: 'padding 0.18s ease',
           }}
         >
           <form
@@ -552,6 +622,16 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
+              onFocus={() => {
+                setTimeout(() => {
+                  window.scrollTo(0, 0);
+                  document.body.scrollTop = 0;
+                }, 30);
+                setTimeout(() => {
+                  window.scrollTo(0, 0);
+                  chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }, 120);
+              }}
               placeholder={isEn ? 'Ask Zénon anything…' : 'Posez une question à Zénon…'}
               maxLength={300}
               style={{

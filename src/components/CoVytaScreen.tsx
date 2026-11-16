@@ -136,6 +136,29 @@ export const CoVytaScreen: React.FC = () => {
   const [isListening, setIsListening] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      const vh = vv.height;
+      const winH = window.innerHeight;
+      const diff = Math.max(0, winH - vh);
+      setKeyboardOffset(diff > 100 ? diff : 0);
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    vv.addEventListener('resize', handleResize);
+    vv.addEventListener('scroll', handleResize);
+    return () => {
+      vv.removeEventListener('resize', handleResize);
+      vv.removeEventListener('scroll', handleResize);
+    };
+  }, []);
 
   // Sauvegarde temporaire par session uniquement
   useEffect(() => {
@@ -544,7 +567,10 @@ export const CoVytaScreen: React.FC = () => {
       </div>
 
       {/* 4. Barre de saisie ancrée tout en bas au-dessus de la TabBar */}
-      <div className="covyta-docked-input">
+      <div
+        className="covyta-docked-input"
+        style={keyboardOffset > 0 ? { marginBottom: `${keyboardOffset}px`, transition: 'margin-bottom 0.2s ease' } : undefined}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -568,6 +594,16 @@ export const CoVytaScreen: React.FC = () => {
             placeholder={isEn ? 'Ask Zénon a question...' : 'Posez une question à Zénon...'}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
+            onFocus={() => {
+              setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+              }, 30);
+              setTimeout(() => {
+                window.scrollTo(0, 0);
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 120);
+            }}
             disabled={isThinking}
           />
 
