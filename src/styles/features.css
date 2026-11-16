@@ -243,11 +243,78 @@
 /* --------------------------------------------------------------------------
    2. HORIZONTAL WEEK SELECTOR (7 DAYS L M M J V S D)
    -------------------------------------------------------------------------- */
+.week-selector-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.week-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 6px 4px;
+}
+
+.week-nav-chevron-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #FAF7F2;
+  cursor: pointer;
+  transition: all var(--duration-quick) ease;
+}
+
+.week-nav-chevron-btn:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.week-nav-chevron-btn:not(:disabled):active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.week-nav-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.week-nav-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(250, 247, 242, 0.85);
+  letter-spacing: -0.01em;
+}
+
+.week-nav-today-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(217, 249, 112, 0.15);
+  border: 1px solid rgba(217, 249, 112, 0.35);
+  color: #D9F970;
+  cursor: pointer;
+  transition: all var(--duration-quick) ease;
+}
+
+.week-nav-today-badge:active {
+  transform: scale(0.94);
+}
+
 .week-selector {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
-  padding: 4px 0 10px 0;
+  padding: 2px 0 10px 0;
 }
 
 .week-day-btn {

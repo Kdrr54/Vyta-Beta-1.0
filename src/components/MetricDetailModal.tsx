@@ -404,7 +404,7 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
-  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab } = useApp();
+  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab, weekDays, weekOffset } = useApp();
   // Jour inspecte local a la modale : isole completement l'ecran d'accueil Sante
   const [modalDay, setModalDay] = useState<number>(() => (selectedDay !== undefined ? selectedDay : TODAY_INDEX));
   const dayData = (weekData && weekData[modalDay]) || emptyDayMetrics;
@@ -659,8 +659,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const displayTitle = isEn ? detail.titleEn : detail.title;
   const displaySubtitle = isEn ? theme.subtitleEn : theme.subtitleFr;
   const displayBadge = isEn ? detail.badgeEn : detail.badge;
-  const selectedDayInfo = WEEK[modalDay] || WEEK[TODAY_INDEX];
-  const displayPeriodText = `${selectedDayInfo?.long} ${selectedDayInfo?.date}${modalDay === TODAY_INDEX ? (isEn ? " (Today)" : " (Aujourd'hui)") : ""}`;
+  const selectedDayInfo = weekDays?.[modalDay] || WEEK[modalDay] || WEEK[TODAY_INDEX];
+  const isToday = modalDay === TODAY_INDEX && weekOffset === 0;
+  const displayPeriodText = `${selectedDayInfo?.long} ${selectedDayInfo?.date}${isToday ? (isEn ? " (Today)" : " (Aujourd'hui)") : ""}`;
   const displaySummary = isEn ? detail.summaryEn : detail.summary;
   const displayAdvice = isEn ? detail.adviceEn : detail.advice;
   const displayStats = isEn ? detail.statsEn : detail.stats;

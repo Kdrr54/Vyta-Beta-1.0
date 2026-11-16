@@ -10,7 +10,7 @@ import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm } = useApp();
+  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm, weekOffset, goToCurrentWeek, weekDays } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
@@ -518,7 +518,7 @@ export const HealthScreen: React.FC = () => {
       </div>
 
       {/* Bannière visuelle claire si un jour passé est sélectionné, avec bouton de retour instantané à Aujourd'hui */}
-      {selectedDay !== TODAY_INDEX && (
+      {(weekOffset !== 0 || selectedDay !== TODAY_INDEX) && (
         <div
           style={{
             display: 'flex',
@@ -536,13 +536,13 @@ export const HealthScreen: React.FC = () => {
             <span style={{ fontSize: '13px' }}>📅</span>
             <span style={{ fontSize: '12.5px', color: '#FAF7F2', fontWeight: 500 }}>
               {language === 'fr'
-                ? `Relevés du ${WEEK[selectedDay]?.long || ''} ${WEEK[selectedDay]?.date || ''} ${WEEK[selectedDay]?.month || ''}`
-                : `Records for ${WEEK[selectedDay]?.long || ''} ${WEEK[selectedDay]?.date || ''} ${WEEK[selectedDay]?.month || ''}`}
+                ? `Relevés du ${weekDays[selectedDay]?.long || ''} ${weekDays[selectedDay]?.date || ''} ${weekDays[selectedDay]?.month || ''}`
+                : `Records for ${weekDays[selectedDay]?.long || ''} ${weekDays[selectedDay]?.date || ''} ${weekDays[selectedDay]?.month || ''}`}
             </span>
           </div>
           <button
             type="button"
-            onClick={() => setSelectedDay(TODAY_INDEX)}
+            onClick={goToCurrentWeek}
             style={{
               padding: '5px 12px',
               borderRadius: '12px',
@@ -708,9 +708,9 @@ export const HealthScreen: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
-              {selectedDay === TODAY_INDEX
+              {selectedDay === TODAY_INDEX && weekOffset === 0
                 ? (language === 'fr' ? <>Pas effectués<br />aujourd'hui</> : <>Steps Taken<br />Today</>)
-                : (language === 'fr' ? <>Pas effectués<br />{WEEK[selectedDay]?.long || ''}</> : <>Steps ·<br />{WEEK[selectedDay]?.long || ''}</>)}
+                : (language === 'fr' ? <>Pas effectués<br />{weekDays[selectedDay]?.long || ''}</> : <>Steps ·<br />{weekDays[selectedDay]?.long || ''}</>)}
             </span>
             <div
               style={{

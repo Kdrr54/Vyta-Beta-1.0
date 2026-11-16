@@ -41,9 +41,9 @@ export let TODAY_INDEX = realCalendar.todayIndex;
 export let MONTH = realCalendar.month;
 export let WEEK = realCalendar.week;
 
-export function refreshCalendar(baseDate: Date = new Date()) {
+export function refreshCalendar(baseDate: Date = new Date(), forceAllPast = false) {
   realCalendar = computeRealCurrentWeek(baseDate);
-  TODAY_INDEX = realCalendar.todayIndex;
+  TODAY_INDEX = forceAllPast ? 7 : realCalendar.todayIndex;
   MONTH = realCalendar.month;
   WEEK = realCalendar.week;
   return realCalendar;

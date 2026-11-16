@@ -151,6 +151,14 @@ interface AppContextType {
   updateSleepSession: (dayIndex: number, startMin: number, endMin: number) => void;
   weekData: DayMetrics[];
   setWeekData: React.Dispatch<React.SetStateAction<DayMetrics[]>>;
+  weekOffset: number;
+  setWeekOffset: React.Dispatch<React.SetStateAction<number>>;
+  goToPreviousWeek: () => void;
+  goToNextWeek: () => void;
+  goToCurrentWeek: () => void;
+  weekDays: { short: string; long: string; date: number; month: string }[];
+  weekRangeLabel: string;
+  todayIndex: number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -859,6 +867,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
+  // Gestion de l'historique multi-semaines
+  const [weekOffset, setWeekOffset] = useState<number>(0);
+
+  const currentBaseDate = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + weekOffset * 7);
+    return d;
+  }, [weekOffset]);
+
+  const currentWeekCalendar = React.useMemo(() => {
+    return computeRealCurrentWeek(currentBaseDate);
+  }, [currentBaseDate]);
+
+  const todayIndex = weekOffset === 0 ? currentWeekCalendar.todayIndex : -1;
+  const weekDays = currentWeekCalendar.week;
+
+  const weekRangeLabel = React.useMemo(() => {
+    const d = new Date(currentBaseDate);
+    const dayIdx = (d.getDay() + 6) % 7;
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - dayIdx);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+
+    const isEn = language === 'en';
+    const mD = mon.getDate();
+    const mM = mon.toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { month: 'short' });
+    const sD = sun.getDate();
+    const sM = sun.toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { month: 'short' });
+    const rangeStr = mM === sM ? `${mD} – ${sD} ${mM}` : `${mD} ${mM} – ${sD} ${sM}`;
+
+    if (weekOffset === 0) {
+      return isEn ? `This week • ${rangeStr}` : `Cette semaine • ${rangeStr}`;
+    }
+    if (weekOffset === -1) {
+      return isEn ? `Last week • ${rangeStr}` : `Semaine passée • ${rangeStr}`;
+    }
+    return isEn ? `Week of ${mM} ${mD} • ${rangeStr}` : `Semaine du ${mD} ${mM} • ${rangeStr}`;
+  }, [currentBaseDate, weekOffset, language]);
+
+  const goToPreviousWeek = useCallback(() => {
+    setWeekOffset((prev) => prev - 1);
+  }, []);
+
+  const goToNextWeek = useCallback(() => {
+    setWeekOffset((prev) => Math.min(0, prev + 1));
+  }, []);
+
+  const goToCurrentWeek = useCallback(() => {
+    setWeekOffset(0);
+    setSelectedDay(TODAY_INDEX);
+  }, []);
+
   // Données biométriques réelles de la semaine (strictement réelles ou 0)
   const [weekData, setWeekData] = useState<DayMetrics[]>(() => {
     if (typeof window !== 'undefined') {
@@ -867,13 +928,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const currentCal = computeRealCurrentWeek();
         const storedWeekId = localStorage.getItem('vyta_week_id');
 
-        // Si ancien cache ou nouvelle semaine civile débutée, initialiser une semaine vierge
-        if (v !== 'v60_real_only' || (storedWeekId && storedWeekId !== currentCal.weekId)) {
+        // Si nouvelle semaine civile débutée, archiver la semaine précédente
+        if (storedWeekId && storedWeekId !== currentCal.weekId) {
+          const prevData = localStorage.getItem('vyta_week_data');
+          if (prevData) {
+            localStorage.setItem(`vyta_week_${storedWeekId}`, prevData);
+          }
           localStorage.removeItem('vyta_week_data');
-          localStorage.removeItem('vyta_simulated_date');
-          localStorage.removeItem('vyta_stored_routes');
-          localStorage.removeItem('vyta_workout_exercises');
-          localStorage.removeItem('vyta_push_notifications');
+          localStorage.setItem('vyta_week_id', currentCal.weekId);
+        }
+        if (v !== 'v60_real_only') {
           localStorage.setItem('vyta_data_ver', 'v60_real_only');
           localStorage.setItem('vyta_week_id', currentCal.weekId);
           return createEmptyWeekMetrics();
@@ -1001,6 +1065,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return createEmptyWeekMetrics();
   });
 
+  // Met à jour le calendrier global dans health.ts et charge la semaine correspondante lors d'un changement de semaine
+  useEffect(() => {
+    refreshCalendar(currentBaseDate, weekOffset < 0);
+    const weekKey = `vyta_week_${currentWeekCalendar.weekId}`;
+    try {
+      const saved = localStorage.getItem(weekKey);
+      if (saved) {
+        setWeekData(JSON.parse(saved));
+        return;
+      }
+      if (weekOffset === 0) {
+        const legacy = localStorage.getItem('vyta_week_data');
+        if (legacy) {
+          setWeekData(JSON.parse(legacy));
+          return;
+        }
+      }
+    } catch (_) {}
+    setWeekData(createEmptyWeekMetrics());
+  }, [weekOffset, currentWeekCalendar.weekId, currentBaseDate]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const weekKey = `vyta_week_${currentWeekCalendar.weekId}`;
+        localStorage.setItem(weekKey, JSON.stringify(weekData));
+        if (weekOffset === 0) {
+          localStorage.setItem('vyta_week_data', JSON.stringify(weekData));
+        }
+      } catch (_) {}
+    }
+  }, [weekData, currentWeekCalendar.weekId, weekOffset]);
+
   // Moteur de simulation accélérée (1 seconde réelle = 1 heure de vie de bague)
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [simulationHoursElapsed, setSimulationHoursElapsed] = useState<number>(0);
@@ -1028,6 +1125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLiveBpm(0);
     const startCleanDate = new Date();
     setSimulatedDate(startCleanDate);
+    setWeekOffset(0);
     setSelectedDay(TODAY_INDEX);
     try {
       localStorage.setItem('vyta_first_launch', 'true');
@@ -1231,6 +1329,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSleepSession,
         weekData,
         setWeekData,
+        weekOffset,
+        setWeekOffset,
+        goToPreviousWeek,
+        goToNextWeek,
+        goToCurrentWeek,
+        weekDays,
+        weekRangeLabel,
+        todayIndex,
       }}
     >
       {children}
