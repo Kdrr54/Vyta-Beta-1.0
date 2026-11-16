@@ -104,7 +104,6 @@ export async function testGeminiApiKey(apiKey: string): Promise<GeminiKeyTestRes
           contents: [{ role: 'user', parts: [{ text: 'Ping test. Reply: OK' }] }],
           generationConfig: {
             maxOutputTokens: 60,
-            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       });
@@ -305,9 +304,6 @@ export async function queryGeminiBiometricAI(ctx: BiometricPromptContext): Promi
           generationConfig: {
             temperature: 0.6,
             maxOutputTokens: 1200,
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
           },
         }),
       });

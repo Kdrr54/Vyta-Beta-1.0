@@ -117,7 +117,6 @@ export async function testPrismApiKey(apiKey: string): Promise<PrismKeyTestResul
           contents: [{ role: 'user', parts: [{ text: 'Ping Prism test. Reply OK' }] }],
           generationConfig: {
             maxOutputTokens: 60,
-            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       });
@@ -277,30 +276,42 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
 
   const contents: any[] = [];
   if (ctx.conversationHistory && ctx.conversationHistory.length > 0) {
-    const recent = ctx.conversationHistory.slice(-6);
+    const recent = ctx.conversationHistory.slice(-8);
+    let lastRole: string | null = null;
     for (const msg of recent) {
-      contents.push({
-        role: msg.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }],
-      });
+      if (!msg.text || !msg.text.trim()) continue;
+      const role = msg.sender === 'user' ? 'user' : 'model';
+      // Gemini impose une stricte alternance de rôles (user -> model -> user -> model)
+      if (role !== lastRole) {
+        contents.push({
+          role,
+          parts: [{ text: msg.text.trim() }],
+        });
+        lastRole = role;
+      }
+    }
+    // S'assurer que le dernier message de l'historique n'est pas déjà 'user'
+    if (lastRole === 'user') {
+      contents.pop();
     }
   }
 
   contents.push({
     role: 'user',
-    parts: [{ text: ctx.prompt }],
+    parts: [{ text: ctx.prompt.trim() }],
   });
 
   const fallbackList = [
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
     'gemini-flash-latest',
-    'gemini-3.7-flash',
   ];
 
   let candidateModels: string[];
   if (cachedWorkingModel) {
-    candidateModels = Array.from(new Set([cachedWorkingModel, ...fallbackList])).slice(0, 4);
+    candidateModels = Array.from(new Set([cachedWorkingModel, ...fallbackList])).slice(0, 5);
   } else {
     const dynamicModels = await fetchActiveGeminiModels(apiKey);
     const sortedDynamic = dynamicModels
@@ -316,11 +327,11 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
       .sort((a, b) => {
         if (a === 'gemini-3.5-flash') return -1;
         if (b === 'gemini-3.5-flash') return 1;
-        if (a.includes('3.5') && !b.includes('3.5')) return -1;
-        if (!a.includes('3.5') && b.includes('3.5')) return 1;
+        if (a === 'gemini-3.5-flash-lite') return -1;
+        if (b === 'gemini-3.5-flash-lite') return 1;
         return 0;
       });
-    candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList])).slice(0, 4);
+    candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList])).slice(0, 5);
   }
 
   let lastError = '';
@@ -329,7 +340,7 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     try {
-      const response = await fetchWithTimeout(apiUrl, {
+      let response = await fetchWithTimeout(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -338,14 +349,24 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
             parts: [{ text: systemInstruction }],
           },
           generationConfig: {
-            temperature: 0.5,
+            temperature: 0.6,
             maxOutputTokens: 1200,
-            thinkingConfig: {
-              thinkingBudget: 0,
-            },
           },
         }),
-      }, 14000);
+      }, 25000);
+
+      // Si le modèle refuse systemInstruction ou generationConfig avec HTTP 400, réessai minimal universel
+      if (response.status === 400) {
+        response = await fetchWithTimeout(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: `${systemInstruction}\n\nQuestion de l'utilisateur : ${ctx.prompt.trim()}` }] }
+            ],
+          }),
+        }, 20000);
+      }
 
       if (response.ok) {
         cachedWorkingModel = model;
