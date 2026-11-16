@@ -75,9 +75,9 @@ export const translations = {
     'energy.title': 'Énergie Corporelle',
     'energy.recharged': 'Rechargé',
     'energy.moderate': 'Modéré',
-    'energy.wake': 'Au réveil (07:00)',
-    'energy.current': 'Disponible actuellement',
-    'energy.bedtime': 'Prévu au coucher (23:00)',
+    'energy.wake': 'Au réveil',
+    'energy.current': 'Maintenant',
+    'energy.bedtime': 'Prévu au coucher',
 
     // Immunity Radar
     'immunity.title': "Radar d'Immunité",
@@ -252,9 +252,9 @@ export const translations = {
     'energy.title': 'Body Energy',
     'energy.recharged': 'Recharged',
     'energy.moderate': 'Moderate',
-    'energy.wake': 'At wake (07:00)',
-    'energy.current': 'Available now',
-    'energy.bedtime': 'Expected at bedtime (23:00)',
+    'energy.wake': 'At wake',
+    'energy.current': 'At now',
+    'energy.bedtime': 'Expected at bedtime',
 
     // Immunity Radar
     'immunity.title': 'Immunity Radar',

@@ -5,10 +5,10 @@ import { Zap } from 'lucide-react';
 interface BodyEnergyGaugeProps {
   energy: number;
   wake: number;
-  bedtime: number;
+  wakeTime?: string;
 }
 
-export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, bedtime }) => {
+export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, wakeTime = '07:00' }) => {
   const { t, isFirstLaunch, cardThemeMode } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const isZeroState = isFirstLaunch || energy === 0;
@@ -114,19 +114,23 @@ export const BodyEnergyGauge: React.FC<BodyEnergyGaugeProps> = ({ energy, wake, 
           </div>
         </div>
 
-        {/* Right: 3 Key Metrics Breakdown */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0 }}>
+        {/* Right: Exactly 2 Key Metrics (At Wake with actual wake time & At Now) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: 0, justifyContent: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.wake')}</span>
-            <span style={{ fontSize: '12px', fontWeight: 400, color: '#FAF7F2', whiteSpace: 'nowrap' }}>{isZeroState ? '--' : `${wake}%`}</span>
+            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>
+              {`${t('energy.wake')} (${wakeTime})`}
+            </span>
+            <span style={{ fontSize: '12.5px', fontWeight: 400, color: '#FAF7F2', whiteSpace: 'nowrap' }}>
+              {isZeroState ? '--' : `${wake}%`}
+            </span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.current')}</span>
-            <span style={{ fontSize: '12.5px', fontWeight: 500, color: isMono ? '#FAF7F2' : '#38BDF8', whiteSpace: 'nowrap' }}>{isZeroState ? '--' : `${energy}%`}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{t('energy.bedtime')}</span>
-            <span style={{ fontSize: '12px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>{isZeroState ? '--' : `${bedtime}%`}</span>
+            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', whiteSpace: 'nowrap' }}>
+              {t('energy.current')}
+            </span>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: isMono ? '#FAF7F2' : '#38BDF8', whiteSpace: 'nowrap' }}>
+              {isZeroState ? '--' : `${energy}%`}
+            </span>
           </div>
         </div>
       </div>

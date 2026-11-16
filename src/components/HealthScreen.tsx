@@ -1114,11 +1114,19 @@ export const HealthScreen: React.FC = () => {
       {/* =====================================================================
           7. COMPLEMENTARY BIOMETRIC MODULES
           ===================================================================== */}
-      <BodyEnergyGauge
-        energy={dayData.bodyEnergy}
-        wake={dayData.bodyEnergyWake}
-        bedtime={dayData.bodyEnergyBedtime}
-      />
+      {(() => {
+        const sleep = dayData.sleep;
+        const wakeTimeStr = sleep && typeof sleep.endMin === 'number' && sleep.endMin > 0
+          ? `${String(Math.floor((((sleep.endMin % 1440) + 1440) % 1440) / 60)).padStart(2, '0')}:${String((((sleep.endMin % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`
+          : '07:15';
+        return (
+          <BodyEnergyGauge
+            energy={dayData.bodyEnergy}
+            wake={dayData.bodyEnergyWake}
+            wakeTime={wakeTimeStr}
+          />
+        );
+      })()}
 
       <ImmunityRadar
         anomaly={dayData.anomaly}

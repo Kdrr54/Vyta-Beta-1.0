@@ -66,6 +66,35 @@ function syncBodyEnergy(cur: DayMetrics, isToday: boolean): void {
   }
 }
 
+/**
+ * Calcule l'anomalie immunitaire à partir des données biométriques réelles transmises par la bague.
+ * Détecte les prodromes d'infection / fièvre / stress physiologique :
+ * - Hausse nette de température cutanée (>= +0.5°C)
+ * - Chute marquée de la VRC sous la baseline personnelle (<= -12ms)
+ * - Signe combiné prodromique (tempDelta >= +0.35°C et hrvDelta <= -8ms)
+ */
+function computeImmunityAnomaly(cur: DayMetrics): { tempDelta: number; hrvDelta: number } | null {
+  const hasTemp = (cur.skinTemp ?? 0) > 0 || (cur.tempDelta !== undefined && cur.tempDelta !== 0);
+  const hasHrv = (cur.hrv ?? 0) > 0;
+  if (!hasTemp && !hasHrv) return null;
+
+  const tempDelta = cur.tempDelta ?? (cur.skinTemp ? parseFloat((cur.skinTemp - 36.5).toFixed(2)) : 0);
+  const baselineHrv = cur.hrvBaseline || 45;
+  const hrvDelta = cur.hrv > 0 ? Math.round(cur.hrv - baselineHrv) : 0;
+
+  const isTempAnomaly = tempDelta >= 0.5;
+  const isHrvAnomaly = cur.hrv > 0 && hrvDelta <= -12;
+  const isCombinedAnomaly = tempDelta >= 0.35 && cur.hrv > 0 && hrvDelta <= -8;
+
+  if (isTempAnomaly || isHrvAnomaly || isCombinedAnomaly) {
+    return {
+      tempDelta: tempDelta > 0 ? parseFloat(tempDelta.toFixed(1)) : 0,
+      hrvDelta,
+    };
+  }
+  return null;
+}
+
 interface AppContextType {
   tab: TabType;
   setTab: (tab: TabType) => void;
@@ -540,6 +569,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
           syncBodyEnergy(cur, true);
+          cur.anomaly = computeImmunityAnomaly(cur);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -569,6 +599,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
           syncBodyEnergy(cur, true);
+          cur.anomaly = computeImmunityAnomaly(cur);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -607,6 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             cur.tempLog = slots;
           }
+          cur.anomaly = computeImmunityAnomaly(cur);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -669,6 +701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
           syncBodyEnergy(cur, true);
+          cur.anomaly = computeImmunityAnomaly(cur);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -954,6 +987,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 updated.resp = Math.max(12.0, Math.min(17.5, computedResp));
               }
               syncBodyEnergy(updated, dayIdx === TODAY_INDEX);
+              updated.anomaly = computeImmunityAnomaly(updated);
               return updated;
             });
             try {
