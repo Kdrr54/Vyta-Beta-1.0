@@ -52,7 +52,10 @@ import {
   Route,
   Bookmark,
   MoreVertical,
-  ExternalLink
+  ExternalLink,
+  ArrowLeft,
+  ChevronRight,
+  Target
 } from 'lucide-react';
 
 export interface StoredRoute {
@@ -914,6 +917,7 @@ export const FitScreen: React.FC = () => {
   const liveElevation = 0;
 
   // ------------------ MUSCULATION (SÉANCE PERSONNALISÉE) ------------------
+  const [isWorkoutActive, setIsWorkoutActive] = useState<boolean>(false);
   const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
@@ -1174,6 +1178,25 @@ export const FitScreen: React.FC = () => {
     setTimerRunning(false);
     setShowNewSessionModal(false);
     setNewSessionTitleInput('');
+    setIsWorkoutActive(true);
+  };
+
+  const handleSelectWorkout = (preset: { title: string; exercises: GymExercise[] }) => {
+    const cloned: GymExercise[] = preset.exercises.map((ex, i) => ({
+      id: `ex-${Date.now()}-${i + 1}`,
+      name: ex.name,
+      sets: ex.sets.map((s, si) => ({
+        id: `s-${Date.now()}-${i + 1}-${si + 1}`,
+        weightKg: s.weightKg,
+        reps: s.reps,
+        done: false,
+      })),
+    }));
+    setSessionTitle(preset.title);
+    setExercises(cloned);
+    setRestSeconds(targetRestSeconds);
+    setTimerRunning(false);
+    setIsWorkoutActive(true);
   };
 
   // Live tonnage calculation
@@ -1252,6 +1275,279 @@ export const FitScreen: React.FC = () => {
       ],
     });
   };
+
+  const workoutPresetsList = [
+    {
+      id: 'push',
+      title: isEn ? 'Push • Chest, Shoulders & Triceps' : 'Push • Pectoraux, Épaules & Triceps',
+      category: isEn ? 'Upper Body' : 'Haut du corps',
+      durationMin: 45,
+      icon: <Flame size={17} color="#FC5200" />,
+      exercises: [
+        {
+          id: 'push-1',
+          name: 'Développé couché (barre)',
+          sets: [
+            { id: 's1', weightKg: 75, reps: 10, done: false },
+            { id: 's2', weightKg: 75, reps: 10, done: false },
+            { id: 's3', weightKg: 80, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'push-2',
+          name: 'Développé incliné haltères',
+          sets: [
+            { id: 's1', weightKg: 26, reps: 10, done: false },
+            { id: 's2', weightKg: 26, reps: 10, done: false },
+            { id: 's3', weightKg: 28, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'push-3',
+          name: 'Élévations latérales haltères',
+          sets: [
+            { id: 's1', weightKg: 12, reps: 12, done: false },
+            { id: 's2', weightKg: 12, reps: 12, done: false },
+            { id: 's3', weightKg: 12, reps: 12, done: false },
+          ],
+        },
+        {
+          id: 'push-4',
+          name: 'Extensions triceps poulie',
+          sets: [
+            { id: 's1', weightKg: 25, reps: 12, done: false },
+            { id: 's2', weightKg: 25, reps: 12, done: false },
+            { id: 's3', weightKg: 30, reps: 10, done: false },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'pull',
+      title: isEn ? 'Pull • Back, Biceps & Rear Delts' : "Pull • Dos, Biceps & Arrière d'épaules",
+      category: isEn ? 'Upper Body' : 'Haut du corps',
+      durationMin: 45,
+      icon: <Zap size={17} color="#38BDF8" />,
+      exercises: [
+        {
+          id: 'pull-1',
+          name: 'Tractions lestées',
+          sets: [
+            { id: 's1', weightKg: 10, reps: 8, done: false },
+            { id: 's2', weightKg: 10, reps: 8, done: false },
+            { id: 's3', weightKg: 10, reps: 6, done: false },
+          ],
+        },
+        {
+          id: 'pull-2',
+          name: 'Rowing barre buste penché',
+          sets: [
+            { id: 's1', weightKg: 70, reps: 10, done: false },
+            { id: 's2', weightKg: 70, reps: 10, done: false },
+            { id: 's3', weightKg: 75, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'pull-3',
+          name: 'Tirage vertical poitrine',
+          sets: [
+            { id: 's1', weightKg: 65, reps: 10, done: false },
+            { id: 's2', weightKg: 65, reps: 10, done: false },
+            { id: 's3', weightKg: 70, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'pull-4',
+          name: 'Curl biceps barre EZ',
+          sets: [
+            { id: 's1', weightKg: 35, reps: 10, done: false },
+            { id: 's2', weightKg: 35, reps: 10, done: false },
+            { id: 's3', weightKg: 30, reps: 12, done: false },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'legs',
+      title: isEn ? 'Legs • Quads, Hamstrings & Glutes' : 'Legs • Jambes, Ischios & Fessiers',
+      category: isEn ? 'Lower Body' : 'Bas du corps',
+      durationMin: 50,
+      icon: <Dumbbell size={17} color="#30D158" />,
+      exercises: [
+        {
+          id: 'legs-1',
+          name: 'Squat arrière barre olympique',
+          sets: [
+            { id: 's1', weightKg: 100, reps: 8, done: false },
+            { id: 's2', weightKg: 100, reps: 8, done: false },
+            { id: 's3', weightKg: 105, reps: 6, done: false },
+          ],
+        },
+        {
+          id: 'legs-2',
+          name: 'Presse à cuisses 45°',
+          sets: [
+            { id: 's1', weightKg: 180, reps: 12, done: false },
+            { id: 's2', weightKg: 180, reps: 12, done: false },
+            { id: 's3', weightKg: 190, reps: 10, done: false },
+          ],
+        },
+        {
+          id: 'legs-3',
+          name: 'Soulevé de terre roumain',
+          sets: [
+            { id: 's1', weightKg: 90, reps: 10, done: false },
+            { id: 's2', weightKg: 90, reps: 10, done: false },
+            { id: 's3', weightKg: 90, reps: 9, done: false },
+          ],
+        },
+        {
+          id: 'legs-4',
+          name: 'Mollets debout à la machine',
+          sets: [
+            { id: 's1', weightKg: 60, reps: 15, done: false },
+            { id: 's2', weightKg: 60, reps: 15, done: false },
+            { id: 's3', weightKg: 60, reps: 15, done: false },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'upper',
+      title: isEn ? 'Upper Body • Complete Performance' : 'Upper Body • Haut du Corps Complet',
+      category: isEn ? 'Compound' : 'Polyarticulaire',
+      durationMin: 45,
+      icon: <Trophy size={17} color="#FFD60A" />,
+      exercises: [
+        {
+          id: 'upper-1',
+          name: 'Développé couché (barre)',
+          sets: [
+            { id: 's1', weightKg: 75, reps: 10, done: false },
+            { id: 's2', weightKg: 75, reps: 10, done: false },
+            { id: 's3', weightKg: 80, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'upper-2',
+          name: 'Rowing barre buste penché',
+          sets: [
+            { id: 's1', weightKg: 70, reps: 10, done: false },
+            { id: 's2', weightKg: 70, reps: 10, done: false },
+            { id: 's3', weightKg: 75, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'upper-3',
+          name: 'Développé militaire haltères',
+          sets: [
+            { id: 's1', weightKg: 22, reps: 10, done: false },
+            { id: 's2', weightKg: 22, reps: 10, done: false },
+            { id: 's3', weightKg: 24, reps: 8, done: false },
+          ],
+        },
+        {
+          id: 'upper-4',
+          name: 'Tractions prise neutre',
+          sets: [
+            { id: 's1', weightKg: 0, reps: 8, done: false },
+            { id: 's2', weightKg: 0, reps: 8, done: false },
+            { id: 's3', weightKg: 0, reps: 8, done: false },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'lower',
+      title: isEn ? 'Lower Body & Core' : 'Lower Body & Abdos',
+      category: isEn ? 'Lower Body' : 'Bas du corps',
+      durationMin: 40,
+      icon: <Award size={17} color="#BF5AF2" />,
+      exercises: [
+        {
+          id: 'lower-1',
+          name: 'Front Squat barre olympique',
+          sets: [
+            { id: 's1', weightKg: 75, reps: 8, done: false },
+            { id: 's2', weightKg: 75, reps: 8, done: false },
+            { id: 's3', weightKg: 80, reps: 6, done: false },
+          ],
+        },
+        {
+          id: 'lower-2',
+          name: 'Fentes marchées haltères',
+          sets: [
+            { id: 's1', weightKg: 20, reps: 12, done: false },
+            { id: 's2', weightKg: 20, reps: 12, done: false },
+            { id: 's3', weightKg: 20, reps: 12, done: false },
+          ],
+        },
+        {
+          id: 'lower-3',
+          name: 'Leg curl couché (ischios)',
+          sets: [
+            { id: 's1', weightKg: 45, reps: 12, done: false },
+            { id: 's2', weightKg: 45, reps: 12, done: false },
+            { id: 's3', weightKg: 50, reps: 10, done: false },
+          ],
+        },
+        {
+          id: 'lower-4',
+          name: 'Gainage planche abdominale',
+          sets: [
+            { id: 's1', weightKg: 10, reps: 10, done: false },
+            { id: 's2', weightKg: 10, reps: 10, done: false },
+            { id: 's3', weightKg: 10, reps: 10, done: false },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'fullbody',
+      title: isEn ? 'Full Body Performance' : 'Full Body Performance',
+      category: isEn ? 'Full Body' : 'Corps complet',
+      durationMin: 50,
+      icon: <Sparkles size={17} color="#FF9F0A" />,
+      exercises: [
+        {
+          id: 'fb-1',
+          name: 'Soulevé de terre conventionnel',
+          sets: [
+            { id: 's1', weightKg: 110, reps: 6, done: false },
+            { id: 's2', weightKg: 110, reps: 6, done: false },
+            { id: 's3', weightKg: 120, reps: 5, done: false },
+          ],
+        },
+        {
+          id: 'fb-2',
+          name: 'Développé militaire barre',
+          sets: [
+            { id: 's1', weightKg: 50, reps: 8, done: false },
+            { id: 's2', weightKg: 50, reps: 8, done: false },
+            { id: 's3', weightKg: 55, reps: 6, done: false },
+          ],
+        },
+        {
+          id: 'fb-3',
+          name: 'Tractions pronation',
+          sets: [
+            { id: 's1', weightKg: 0, reps: 8, done: false },
+            { id: 's2', weightKg: 0, reps: 8, done: false },
+            { id: 's3', weightKg: 0, reps: 7, done: false },
+          ],
+        },
+        {
+          id: 'fb-4',
+          name: 'Goblet squat haltère',
+          sets: [
+            { id: 's1', weightKg: 30, reps: 12, done: false },
+            { id: 's2', weightKg: 30, reps: 12, done: false },
+            { id: 's3', weightKg: 32, reps: 10, done: false },
+          ],
+        },
+      ],
+    },
+  ];
 
   return (
     <>
@@ -1840,328 +2136,530 @@ export const FitScreen: React.FC = () => {
 
       {/* ==================== 3. MODE MUSCULATION (GYM LOGGER) ==================== */}
       {subTab === 'gym' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Header de la Séance Personnalisée */}
-          <div className="session-header-card">
-            <div className="session-title-row">
-              {isEditingTitle ? (
-                <div className="session-title-edit">
-                  <input
-                    type="text"
-                    className="settings-input"
-                    style={{ padding: '6px 10px', fontSize: '14px', height: '34px', flex: 1 }}
-                    value={sessionTitle}
-                    onChange={(e) => setSessionTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') setIsEditingTitle(false);
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="gear-btn"
-                    style={{ width: '34px', height: '34px' }}
-                    onClick={() => setIsEditingTitle(false)}
-                    title="Valider le titre"
-                  >
-                    <Check size={14} color="var(--gold)" />
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                  <span className="session-title-text">{sessionTitle}</span>
-                  <button
-                    type="button"
-                    className="gear-btn"
-                    style={{ width: '26px', height: '26px', border: 'none', background: 'transparent' }}
-                    onClick={() => setIsEditingTitle(true)}
-                    title="Modifier le titre"
-                  >
-                    <Edit3 size={13} color="var(--text-secondary)" />
-                  </button>
-                </div>
-              )}
-              <span
-                className="health-badge"
-                style={{
-                  background: 'rgba(184, 35, 72, 0.12)',
-                  color: 'var(--gold)',
-                  border: '1px solid var(--gold-border)',
-                  flexShrink: 0,
-                  fontSize: '10.5px',
-                  padding: '3px 8px',
-                }}
-              >
-                {isEn ? 'In progress' : 'En cours'}
-              </span>
-            </div>
-
-            <div className="session-actions-row">
+        !isWorkoutActive ? (
+          /* ==================== VUE 1 : SÉLECTION DE LA SÉANCE ==================== */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Header Sélection */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 18px',
+                borderRadius: '22px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(20px)',
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
+                  {isEn ? 'Select a Workout' : 'Choisir une séance'}
+                </h2>
+                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px', display: 'block' }}>
+                  {isEn ? 'Choose a program to load exercises' : 'Sélectionnez un programme pour charger vos exercices'}
+                </span>
+              </div>
               <button
                 type="button"
                 className="add-exercise-btn-main"
-                onClick={() => setShowAddModal(true)}
+                style={{ padding: '8px 12px', fontSize: '11.5px' }}
+                onClick={() => setShowNewSessionModal(true)}
               >
-                <Plus size={14} />
-                <span>{isEn ? 'Add exercise' : 'Ajouter un exercice'}</span>
+                <Plus size={13} />
+                <span>{isEn ? 'Custom' : 'Séance libre'}</span>
               </button>
+            </div>
 
+            {/* Si une séance a déjà été chargée/démarrée avec des séries faites */}
+            {exercises.length > 0 && doneSetsCount > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  borderRadius: '18px',
+                  background: 'linear-gradient(135deg, rgba(184, 35, 72, 0.22), rgba(255, 255, 255, 0.05))',
+                  border: '1.5px solid var(--gold)',
+                  boxShadow: '0 4px 20px rgba(184, 35, 72, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--gold)', boxShadow: '0 0 10px var(--gold)' }} />
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#FFFFFF' }}>
+                      {sessionTitle}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                      {doneSetsCount} {isEn ? 'sets completed' : 'séries faites'} • {totalTonnageKg} kg
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="add-exercise-btn-main"
+                  style={{ padding: '7px 14px', fontSize: '11.5px' }}
+                  onClick={() => setIsWorkoutActive(true)}
+                >
+                  <span>{isEn ? 'Resume' : 'Reprendre'}</span>
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            )}
+
+            {/* Grille / Liste des programmes */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {workoutPresetsList.map((preset) => (
+                <div
+                  key={preset.id}
+                  onClick={() => handleSelectWorkout(preset)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    padding: '16px 18px',
+                    borderRadius: '20px',
+                    background: 'rgba(18, 18, 22, 0.85)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 180ms ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div
+                        style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '12px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {preset.icon}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
+                          {preset.title}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px' }}>
+                          {preset.category} • ~{preset.durationMin} min
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="gear-btn"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#FFFFFF',
+                        flexShrink: 0,
+                      }}
+                      title={isEn ? 'Start workout' : 'Démarrer cette séance'}
+                    >
+                      <Play size={13} fill="#FFFFFF" />
+                    </button>
+                  </div>
+
+                  {/* Aperçu des exercices inclus */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                      paddingTop: '6px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                    }}
+                  >
+                    {preset.exercises.map((ex) => (
+                      <span
+                        key={ex.name}
+                        style={{
+                          fontSize: '10.5px',
+                          color: 'rgba(250, 247, 242, 0.75)',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                        }}
+                      >
+                        {ex.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* ==================== VUE 2 : EXERCICES & SÉANCES ACTIVES ==================== */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Header de la Séance Personnalisée */}
+            <div className="session-header-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsWorkoutActive(false)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'rgba(250, 247, 242, 0.75)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '4px 0',
+                  }}
+                >
+                  <ArrowLeft size={13} />
+                  <span>{isEn ? 'Change workout' : 'Choisir une autre séance'}</span>
+                </button>
+                <span
+                  className="health-badge"
+                  style={{
+                    background: 'rgba(184, 35, 72, 0.12)',
+                    color: 'var(--gold)',
+                    border: '1px solid var(--gold-border)',
+                    flexShrink: 0,
+                    fontSize: '10px',
+                    padding: '2px 8px',
+                  }}
+                >
+                  {isEn ? 'In progress' : 'En cours'}
+                </span>
+              </div>
+
+              <div className="session-title-row">
+                {isEditingTitle ? (
+                  <div className="session-title-edit">
+                    <input
+                      type="text"
+                      className="settings-input"
+                      style={{ padding: '6px 10px', fontSize: '14px', height: '34px', flex: 1 }}
+                      value={sessionTitle}
+                      onChange={(e) => setSessionTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setIsEditingTitle(false);
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="gear-btn"
+                      style={{ width: '34px', height: '34px' }}
+                      onClick={() => setIsEditingTitle(false)}
+                      title="Valider le titre"
+                    >
+                      <Check size={14} color="var(--gold)" />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <span className="session-title-text">{sessionTitle}</span>
+                    <button
+                      type="button"
+                      className="gear-btn"
+                      style={{ width: '26px', height: '26px', border: 'none', background: 'transparent' }}
+                      onClick={() => setIsEditingTitle(true)}
+                      title="Modifier le titre"
+                    >
+                      <Edit3 size={13} color="var(--text-secondary)" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="session-actions-row">
+                <button
+                  type="button"
+                  className="add-exercise-btn-main"
+                  onClick={() => setShowAddModal(true)}
+                >
+                  <Plus size={14} />
+                  <span>{isEn ? 'Add exercise' : 'Ajouter un exercice'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="new-session-btn"
+                  onClick={() => setIsWorkoutActive(false)}
+                >
+                  <RotateCcw size={13} />
+                  <span>{isEn ? 'Change workout' : 'Changer de séance'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tonnage Total Counter Header */}
+            <div className="activity-raw-card" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="activity-raw-item">
+                <span className="activity-raw-label">
+                  <Dumbbell size={12} />
+                  <span>{isEn ? 'Volume Lifted' : 'Tonnage Soulevé'}</span>
+                </span>
+                <div>
+                  <span className="activity-raw-val">
+                    {totalTonnageKg >= 1000
+                      ? `${(totalTonnageKg / 1000).toFixed(1)} t`
+                      : `${totalTonnageKg} kg`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="activity-raw-item">
+                <span className="activity-raw-label">
+                  <Award size={12} />
+                  <span>{isEn ? 'Completed Sets' : 'Séries Validées'}</span>
+                </span>
+                <div>
+                  <span className="activity-raw-val">
+                    {doneSetsCount} / {totalSetsCount}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Chronomètre de repos configurable avec presets */}
+            <div className="rest-timer-card">
+              <div className="rest-timer-top">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                  <Timer size={18} color="var(--gold)" />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
+                        {isEn ? 'Rest Timer' : 'Chronomètre de repos'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '9.5px',
+                          background: 'rgba(184, 35, 72, 0.15)',
+                          color: 'var(--gold)',
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {fmtMMSS(targetRestSeconds)}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '18px',
+                        fontWeight: 700,
+                        color: timerRunning ? 'var(--gold-light)' : '#FFFFFF',
+                        fontFamily: 'var(--font-mono)',
+                        letterSpacing: '-0.02em',
+                        display: 'block',
+                        marginTop: '1px',
+                      }}
+                    >
+                      {fmtMMSS(restSeconds)}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <button
+                    type="button"
+                    className="rest-adjust-btn"
+                    onClick={() => adjustRestBy(-15)}
+                    title={isEn ? 'Subtract 15 seconds' : 'Retirer 15 secondes'}
+                  >
+                    -15s
+                  </button>
+                  <button
+                    type="button"
+                    className="rest-adjust-btn"
+                    onClick={() => adjustRestBy(15)}
+                    title={isEn ? 'Add 15 seconds' : 'Ajouter 15 secondes'}
+                  >
+                    +15s
+                  </button>
+
+                  <button
+                    type="button"
+                    className="gear-btn"
+                    style={{ width: '32px', height: '32px' }}
+                    onClick={() => setTimerRunning(!timerRunning)}
+                    title={isEn ? (timerRunning ? 'Pause' : 'Start') : (timerRunning ? 'Pause' : 'Démarrer')}
+                  >
+                    {timerRunning ? <Pause size={13} /> : <Play size={13} fill="#fff" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="gear-btn"
+                    style={{ width: '32px', height: '32px' }}
+                    onClick={() => {
+                      setTimerRunning(false);
+                      setRestSeconds(targetRestSeconds);
+                    }}
+                    title={`Réinitialiser à ${fmtMMSS(targetRestSeconds)}`}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Rangée de presets rapides (30s, 45s, 1m, 1m30, 2m, 3m) */}
+              <div className="rest-preset-pills">
+                {restPresets.map((p) => {
+                  const isSelected = targetRestSeconds === p.sec;
+                  return (
+                    <button
+                      key={p.sec}
+                      type="button"
+                      className={`rest-preset-pill ${isSelected ? 'active' : ''}`}
+                      onClick={() => setChosenRest(p.sec)}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Exercise Log Sets */}
+            {exercises.map((ex) => (
+              <div key={ex.id} className="gym-exercise-card">
+                <div className="gym-exercise-header">
+                  <div>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
+                      {ex.name}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                      {ex.sets.length} {ex.sets.length > 1 ? (isEn ? 'sets' : 'séries') : (isEn ? 'set' : 'série')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="exercise-manage-pill-btn"
+                    onClick={() => setManagingExId(ex.id)}
+                    title={isEn ? 'Exercise settings (weight, sets, delete)' : "Paramètres de l'exercice (poids, séries, suppression)"}
+                  >
+                    <Sliders size={12} color="var(--gold)" />
+                    <span>{isEn ? 'Manage' : 'Gérer'}</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {ex.sets.map((s, setIdx) => (
+                    <div key={s.id} className="gym-set-row">
+                      <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                        S{setIdx + 1}
+                      </span>
+
+                      {/* Stepper kg */}
+                      <div className="set-mini-control">
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() => adjustWeight(ex.id, s.id, -2.5)}
+                          title="-2.5 kg"
+                        >
+                          -
+                        </button>
+                        <span className="mini-step-val">{s.weightKg} kg</span>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() => adjustWeight(ex.id, s.id, 2.5)}
+                          title="+2.5 kg"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Stepper reps */}
+                      <div className="set-mini-control">
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() => adjustReps(ex.id, s.id, -1)}
+                          title="-1 rep"
+                        >
+                          -
+                        </button>
+                        <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() => adjustReps(ex.id, s.id, 1)}
+                          title="+1 rep"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Checkmark button */}
+                      <button
+                        type="button"
+                        className={`set-check-btn ${s.done ? 'done' : ''}`}
+                        onClick={() => toggleSetDone(ex.id, s.id)}
+                        title={s.done ? (isEn ? 'Set completed' : 'Série validée') : (isEn ? 'Complete set' : 'Valider la série')}
+                      >
+                        {s.done ? <Check size={14} /> : <Plus size={13} />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* + Ajouter une série */}
+                <button
+                  type="button"
+                  className="add-set-link-btn"
+                  onClick={() => addSetToExercise(ex.id)}
+                >
+                  <Plus size={13} />
+                  <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
+                </button>
+              </div>
+            ))}
+
+            {/* Bottom Actions Row */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
               <button
                 type="button"
                 className="new-session-btn"
-                onClick={() => setShowNewSessionModal(true)}
+                style={{ flex: 1, padding: '12px', borderRadius: '14px' }}
+                onClick={() => setIsWorkoutActive(false)}
               >
-                <RotateCcw size={13} />
-                <span>{isEn ? 'New workout' : 'Nouvelle séance'}</span>
+                <ArrowLeft size={14} />
+                <span>{isEn ? 'Workouts' : 'Changer de séance'}</span>
               </button>
-            </div>
-          </div>
-
-          {/* Tonnage Total Counter Header */}
-          <div className="activity-raw-card" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">
-                <Dumbbell size={12} />
-                <span>{isEn ? 'Volume Lifted' : 'Tonnage Soulevé'}</span>
-              </span>
-              <div>
-                <span className="activity-raw-val">
-                  {totalTonnageKg >= 1000
-                    ? `${(totalTonnageKg / 1000).toFixed(1)} t`
-                    : `${totalTonnageKg} kg`}
-                </span>
-              </div>
-            </div>
-
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">
-                <Award size={12} />
-                <span>{isEn ? 'Completed Sets' : 'Séries Validées'}</span>
-              </span>
-              <div>
-                <span className="activity-raw-val">
-                  {doneSetsCount} / {totalSetsCount}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Chronomètre de repos configurable avec presets */}
-          <div className="rest-timer-card">
-            <div className="rest-timer-top">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                <Timer size={18} color="var(--gold)" />
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-                      {isEn ? 'Rest Timer' : 'Chronomètre de repos'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '9.5px',
-                        background: 'rgba(184, 35, 72, 0.15)',
-                        color: 'var(--gold)',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {fmtMMSS(targetRestSeconds)}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontSize: '18px',
-                      fontWeight: 700,
-                      color: timerRunning ? 'var(--gold-light)' : '#FFFFFF',
-                      fontFamily: 'var(--font-mono)',
-                      letterSpacing: '-0.02em',
-                      display: 'block',
-                      marginTop: '1px',
-                    }}
-                  >
-                    {fmtMMSS(restSeconds)}
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              {doneSetsCount > 0 && (
                 <button
                   type="button"
-                  className="rest-adjust-btn"
-                  onClick={() => adjustRestBy(-15)}
-                  title={isEn ? 'Subtract 15 seconds' : 'Retirer 15 secondes'}
-                >
-                  -15s
-                </button>
-                <button
-                  type="button"
-                  className="rest-adjust-btn"
-                  onClick={() => adjustRestBy(15)}
-                  title={isEn ? 'Add 15 seconds' : 'Ajouter 15 secondes'}
-                >
-                  +15s
-                </button>
-
-                <button
-                  type="button"
-                  className="gear-btn"
-                  style={{ width: '32px', height: '32px' }}
-                  onClick={() => setTimerRunning(!timerRunning)}
-                  title={isEn ? (timerRunning ? 'Pause' : 'Start') : (timerRunning ? 'Pause' : 'Démarrer')}
-                >
-                  {timerRunning ? <Pause size={13} /> : <Play size={13} fill="#fff" />}
-                </button>
-
-                <button
-                  type="button"
-                  className="gear-btn"
-                  style={{ width: '32px', height: '32px' }}
-                  onClick={() => {
-                    setTimerRunning(false);
-                    setRestSeconds(targetRestSeconds);
+                  className="apple-pay-btn"
+                  style={{
+                    flex: 1.6,
+                    background: '#FFFFFF',
+                    color: '#000000',
+                    fontWeight: 700,
+                    boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
+                    borderRadius: '14px',
                   }}
-                  title={`Réinitialiser à ${fmtMMSS(targetRestSeconds)}`}
+                  onClick={openGymStory}
                 >
-                  <RotateCcw size={13} />
+                  <Share2 size={15} />
+                  <span>{isEn ? 'Finish & Share' : 'Terminer & Partager'}</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Rangée de presets rapides (30s, 45s, 1m, 1m30, 2m, 3m) */}
-            <div className="rest-preset-pills">
-              {restPresets.map((p) => {
-                const isSelected = targetRestSeconds === p.sec;
-                return (
-                  <button
-                    key={p.sec}
-                    type="button"
-                    className={`rest-preset-pill ${isSelected ? 'active' : ''}`}
-                    onClick={() => setChosenRest(p.sec)}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
+              )}
             </div>
           </div>
-
-          {/* Exercise Log Sets */}
-          {exercises.map((ex) => (
-            <div key={ex.id} className="gym-exercise-card">
-              <div className="gym-exercise-header">
-                <div>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
-                    {ex.name}
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                    {ex.sets.length} {ex.sets.length > 1 ? (isEn ? 'sets' : 'séries') : (isEn ? 'set' : 'série')}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="exercise-manage-pill-btn"
-                  onClick={() => setManagingExId(ex.id)}
-                  title={isEn ? 'Exercise settings (weight, sets, delete)' : "Paramètres de l'exercice (poids, séries, suppression)"}
-                >
-                  <Sliders size={12} color="var(--gold)" />
-                  <span>{isEn ? 'Manage' : 'Gérer'}</span>
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {ex.sets.map((s, setIdx) => (
-                  <div key={s.id} className="gym-set-row">
-                    <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-                      S{setIdx + 1}
-                    </span>
-
-                    {/* Stepper kg */}
-                    <div className="set-mini-control">
-                      <button
-                        type="button"
-                        className="mini-step-btn"
-                        onClick={() => adjustWeight(ex.id, s.id, -2.5)}
-                        title="-2.5 kg"
-                      >
-                        -
-                      </button>
-                      <span className="mini-step-val">{s.weightKg} kg</span>
-                      <button
-                        type="button"
-                        className="mini-step-btn"
-                        onClick={() => adjustWeight(ex.id, s.id, 2.5)}
-                        title="+2.5 kg"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    {/* Stepper reps */}
-                    <div className="set-mini-control">
-                      <button
-                        type="button"
-                        className="mini-step-btn"
-                        onClick={() => adjustReps(ex.id, s.id, -1)}
-                        title="-1 rep"
-                      >
-                        -
-                      </button>
-                      <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
-                      <button
-                        type="button"
-                        className="mini-step-btn"
-                        onClick={() => adjustReps(ex.id, s.id, 1)}
-                        title="+1 rep"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    {/* Checkmark button */}
-                    <button
-                      type="button"
-                      className={`set-check-btn ${s.done ? 'done' : ''}`}
-                      onClick={() => toggleSetDone(ex.id, s.id)}
-                      title={s.done ? (isEn ? 'Set completed' : 'Série validée') : (isEn ? 'Complete set' : 'Valider la série')}
-                    >
-                      {s.done ? <Check size={14} /> : <Plus size={13} />}
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* + Ajouter une série */}
-              <button
-                type="button"
-                className="add-set-link-btn"
-                onClick={() => addSetToExercise(ex.id)}
-              >
-                <Plus size={13} />
-                <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
-              </button>
-            </div>
-          ))}
-
-          {/* Partager Ma Séance CTA (uniquement si des séries ont été effectuées) */}
-          {doneSetsCount > 0 && (
-            <button
-              type="button"
-              className="apple-pay-btn"
-              style={{
-                background: '#FFFFFF',
-                color: '#000000',
-                fontWeight: 700,
-                boxShadow: '0 8px 24px rgba(255, 255, 255, 0.16)',
-                marginTop: '4px',
-              }}
-              onClick={openGymStory}
-            >
-              <Share2 size={16} />
-              <span>{isEn ? 'Share My Workout' : 'Partager Ma Séance'}</span>
-            </button>
-          )}
-        </div>
+        )
       )}
 
       {/* ==================== 3. CERCLE VYTA (SOCIAL FEED) ==================== */}
