@@ -44,7 +44,7 @@ export const RingImage: React.FC<RingImageProps> = ({
     >
       <img
         src={imageSrc}
-        alt="Stoic Ring One"
+        alt="Aurel Ring One"
         style={{
           width: '100%',
           height: '100%',

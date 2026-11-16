@@ -20,7 +20,7 @@ export function buildSleepSummary(
   const awakeMin = Math.max(10, Math.round(totalMin * 0.06));
   const lightMin = Math.max(10, totalMin - deepMin - remMin - awakeMin);
 
-  // Calcul du score Stoic
+  // Calcul du score Aurel
   const durationScore = Math.min(100, Math.round((totalMin / 480) * 92));
   const effRatio = (totalMin - awakeMin) / totalMin;
   const deepRemRatio = (deepMin + remMin) / totalMin;

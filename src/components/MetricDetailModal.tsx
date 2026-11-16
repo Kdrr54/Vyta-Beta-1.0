@@ -1788,7 +1788,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             </div>
           )}
 
-          <p className="metric-hero-summary-txt">{isZeroState ? (isEn ? "Waiting for first biometric measurement from your Stoic Ring One." : "En attente de la première mesure biométrique de votre bague Stoic Ring One.") : displaySummary}</p>
+          <p className="metric-hero-summary-txt">{isZeroState ? (isEn ? "Waiting for first biometric measurement from your Aurel Ring One." : "En attente de la première mesure biométrique de votre bague Aurel Ring One.") : displaySummary}</p>
         </div>
 
         {/* Dynamic Interactive SVG Chart */}
@@ -2379,7 +2379,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     {isEn ? 'No Events Detected Today' : 'Aucun événement marquant aujourd\'hui'}
                   </span>
                   <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '4px', display: 'block', lineHeight: 1.4 }}>
-                    {isEn ? 'Wear your Stoic Ring One during activity or rest to record key biometric moments.' : 'Portez votre bague Stoic Ring One durant votre journée ou votre sommeil pour enregistrer vos variations.'}
+                    {isEn ? 'Wear your Aurel Ring One during activity or rest to record key biometric moments.' : 'Portez votre bague Aurel Ring One durant votre journée ou votre sommeil pour enregistrer vos variations.'}
                   </span>
                 </div>
               ) : (

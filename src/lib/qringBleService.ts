@@ -542,7 +542,7 @@ class QRingBleService {
 
       // Step 2: Direct connect using saved device UUID without scanning
       const savedId = this.getSavedDeviceId();
-      const savedName = this.getSavedDeviceName() || 'Stoic Ring One';
+      const savedName = this.getSavedDeviceName() || 'Aurel Ring One';
       if (savedId) {
         try {
           console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
@@ -1060,7 +1060,7 @@ class QRingBleService {
     });
 
     this.device = device;
-    const deviceName = device.name || 'Stoic Ring One';
+    const deviceName = device.name || 'Aurel Ring One';
 
     device.addEventListener('gattserverdisconnected', () => {
       console.warn('[QRing BLE Web] Device disconnected');

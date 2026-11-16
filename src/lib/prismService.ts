@@ -88,24 +88,37 @@ export async function testPrismApiKey(apiKey: string): Promise<PrismKeyTestResul
   const dynamicModels = await fetchActiveGeminiModels(clean);
 
   const fallbackList = [
-    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
     'gemini-3.5-flash-lite',
-    'gemini-flash-latest',
-    'gemini-3.7-flash',
-    'gemini-3.8-flash',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash',
   ];
 
   const sortedDynamic = dynamicModels
-    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .filter((m) =>
+      !m.includes('tts') &&
+      !m.includes('image') &&
+      !m.includes('audio') &&
+      !m.includes('transcribe') &&
+      !m.includes('tool') &&
+      !m.includes('banana') &&
+      !m.includes('robotics') &&
+      !m.includes('computer-use') &&
+      !m.includes('embedding') &&
+      !m.includes('2.5') &&
+      !m.includes('2.0') &&
+      !m.includes('1.5')
+    )
     .sort((a, b) => {
-      if (a === 'gemini-3.5-flash') return -1;
-      if (b === 'gemini-3.5-flash') return 1;
-      if (a.includes('3.5') && !b.includes('3.5')) return -1;
-      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      if (a === 'gemini-3-flash-preview') return -1;
+      if (b === 'gemini-3-flash-preview') return 1;
+      if (a.includes('3.1-flash-lite')) return -1;
+      if (b.includes('3.1-flash-lite')) return 1;
       return 0;
     });
 
-  const models = Array.from(new Set([...sortedDynamic, ...fallbackList]));
+  const models = Array.from(new Set([...fallbackList, ...sortedDynamic]));
 
   for (const model of models) {
     try {
@@ -196,7 +209,7 @@ function buildPrismSystemPrompt(ctx: PrismPromptContext): string {
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
 
   if (isEn) {
-    return `You are "Zénon", the biological intelligence and performance coach for the "Stoic Ring One" smart ring by Stoic Labs.
+    return `You are "Zénon", the biological intelligence and performance coach for the "Aurel Ring One" smart ring by Aurel Labs (Aurel).
 Your mission is to analyze the user's real biometric data and provide clear, reassuring, expert, and actionable advice.
 
 CORE GUIDELINES:
@@ -224,7 +237,7 @@ CURRENT REAL-TIME BIOMETRICS (${dayName}, ${isToday ? 'Today' : 'Archive'}):
 • Activity: ${dayData.steps.toLocaleString()} steps, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal.`;
   }
 
-  return `Tu es "Zénon", l'intelligence biologique et coach de santé & performance de la bague connectée "Stoic Ring One" de Stoic Labs.
+  return `Tu es "Zénon", l'intelligence biologique et coach de santé & performance de la bague connectée "Aurel Ring One" d'Aurel Labs (Aurel).
 Ton rôle est d'analyser les données biométriques réelles de l'utilisateur pour lui donner des réponses claires, chaleureuses, expertes et immédiatement compréhensibles.
 
 DIRECTIVES ESSENTIELLES :
@@ -276,22 +289,21 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
 
   const contents: any[] = [];
   if (ctx.conversationHistory && ctx.conversationHistory.length > 0) {
-    const recent = ctx.conversationHistory.slice(-8);
-    let lastRole: string | null = null;
+    const recent = ctx.conversationHistory.slice(-6);
+    let expectedRole: 'user' | 'model' = 'user';
     for (const msg of recent) {
       if (!msg.text || !msg.text.trim()) continue;
       const role = msg.sender === 'user' ? 'user' : 'model';
-      // Gemini impose une stricte alternance de rôles (user -> model -> user -> model)
-      if (role !== lastRole) {
+      if (role === expectedRole) {
         contents.push({
           role,
           parts: [{ text: msg.text.trim() }],
         });
-        lastRole = role;
+        expectedRole = expectedRole === 'user' ? 'model' : 'user';
       }
     }
-    // S'assurer que le dernier message de l'historique n'est pas déjà 'user'
-    if (lastRole === 'user') {
+    // S'assurer que le dernier message de l'historique n'est pas 'user'
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
       contents.pop();
     }
   }
@@ -302,36 +314,41 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
   });
 
   const fallbackList = [
-    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
     'gemini-3.5-flash-lite',
-    'gemini-3.8-flash',
-    'gemini-3.6-flash',
-    'gemini-flash-latest',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash',
   ];
 
   let candidateModels: string[];
-  if (cachedWorkingModel) {
-    candidateModels = Array.from(new Set([cachedWorkingModel, ...fallbackList])).slice(0, 5);
+  if (cachedWorkingModel && fallbackList.includes(cachedWorkingModel)) {
+    candidateModels = Array.from(new Set([cachedWorkingModel, ...fallbackList]));
   } else {
     const dynamicModels = await fetchActiveGeminiModels(apiKey);
     const sortedDynamic = dynamicModels
       .filter((m) =>
-        m.includes('flash') &&
         !m.includes('image') &&
         !m.includes('tts') &&
         !m.includes('audio') &&
+        !m.includes('transcribe') &&
+        !m.includes('tool') &&
+        !m.includes('banana') &&
+        !m.includes('robotics') &&
+        !m.includes('computer-use') &&
+        !m.includes('embedding') &&
         !m.includes('2.5') &&
         !m.includes('2.0') &&
         !m.includes('1.5')
       )
       .sort((a, b) => {
-        if (a === 'gemini-3.5-flash') return -1;
-        if (b === 'gemini-3.5-flash') return 1;
-        if (a === 'gemini-3.5-flash-lite') return -1;
-        if (b === 'gemini-3.5-flash-lite') return 1;
+        if (a === 'gemini-3-flash-preview') return -1;
+        if (b === 'gemini-3-flash-preview') return 1;
+        if (a.includes('3.1-flash-lite')) return -1;
+        if (b.includes('3.1-flash-lite')) return 1;
         return 0;
       });
-    candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList])).slice(0, 5);
+    candidateModels = Array.from(new Set([...fallbackList, ...sortedDynamic])).slice(0, 5);
   }
 
   let lastError = '';
@@ -353,7 +370,7 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
             maxOutputTokens: 1200,
           },
         }),
-      }, 25000);
+      }, 10000);
 
       // Si le modèle refuse systemInstruction ou generationConfig avec HTTP 400, réessai minimal universel
       if (response.status === 400) {
@@ -365,7 +382,7 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
               { role: 'user', parts: [{ text: `${systemInstruction}\n\nQuestion de l'utilisateur : ${ctx.prompt.trim()}` }] }
             ],
           }),
-        }, 20000);
+        }, 10000);
       }
 
       if (response.ok) {
@@ -410,9 +427,17 @@ export async function queryPrismAI(ctx: PrismPromptContext): Promise<PrismRespon
     }
   }
 
+  // Nettoyage de l'erreur pour ne pas afficher du jargon API Google Cloud
+  let userFriendlyError = lastError;
+  if (lastError.includes('invalid argument') || lastError.includes('API key not valid') || lastError.includes('HTTP 400') || lastError.includes('503')) {
+    userFriendlyError = ctx.language === 'en'
+      ? 'The AI server is momentarily busy. Please try again.'
+      : 'Le serveur IA est momentanément indisponible. Veuillez réessayer.';
+  }
+
   return {
     text: '',
     isRealAI: false,
-    error: lastError || 'Erreur de connexion aux serveurs Gemini.',
+    error: userFriendlyError || (ctx.language === 'en' ? 'Connection timeout' : 'Délai de connexion dépassé'),
   };
 }

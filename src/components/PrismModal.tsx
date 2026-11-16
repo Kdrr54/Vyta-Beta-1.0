@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { queryPrismAI } from '../lib/prismService';
@@ -96,6 +96,14 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
+
+  const keyboardOffset = useMemo(() => {
+    if (typeof window === 'undefined') return 0;
+    const vv = window.visualViewport;
+    if (!vv) return 0;
+    const diff = window.innerHeight - vv.height;
+    return diff > 80 ? Math.max(0, Math.round(diff - vv.offsetTop)) : 0;
+  }, [viewportMetrics]);
 
   const thinkLabels = isEn ? THINK_LABELS_EN : THINK_LABELS_FR;
   const activeOrbLabel =
@@ -227,16 +235,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       style={{
         zIndex: 1200,
         position: 'fixed',
-        top: `${viewportMetrics.offsetTop}px`,
-        left: 0,
-        right: 0,
-        bottom: 'auto',
-        height: `${viewportMetrics.height}px`,
-        maxHeight: `${viewportMetrics.height}px`,
+        inset: 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-end',
+        alignItems: 'center',
       }}
     >
       <style>{`
@@ -264,16 +268,15 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: viewportMetrics.isKeyboard ? '100%' : '92dvh',
-          maxHeight: viewportMetrics.isKeyboard ? '100%' : '840px',
-          borderRadius: viewportMetrics.isKeyboard ? '20px 20px 0 0' : '34px 34px 0 0',
+          height: '92dvh',
+          maxHeight: '840px',
+          borderRadius: '34px 34px 0 0',
           background: 'linear-gradient(180deg, #09090D 0%, #060608 100%)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
           borderTop: '1px solid rgba(255, 255, 255, 0.16)',
-          transition: 'height 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), border-radius 0.2s ease',
         }}
       >
         {/* Iridescent Top Aura */}
@@ -344,7 +347,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 </span>
               </div>
               <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '1px' }}>
-                {isEn ? 'Biological Intelligence · Stoic Ring One' : 'Intelligence Biologique · Stoic Ring One'}
+                {isEn ? 'Biological Intelligence · Aurel Ring One' : 'Intelligence Biologique · Aurel Ring One'}
               </span>
             </div>
           </div>
@@ -378,6 +381,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             minHeight: 0,
             overflowY: 'auto',
             padding: '12px 16px 16px 16px',
+            paddingBottom: keyboardOffset > 0 ? `${keyboardOffset + 16}px` : '16px',
+            transition: 'padding-bottom 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
@@ -395,53 +400,55 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 justifyContent: 'center',
                 textAlign: 'center',
                 padding: '10px 8px',
-                gap: viewportMetrics.isKeyboard ? '6px' : '12px',
+                gap: keyboardOffset > 0 ? '4px' : '12px',
                 transition: 'gap 0.2s ease',
               }}
             >
-              <ZenonOrb status="idle" size={viewportMetrics.isKeyboard ? 104 : 172} />
+              <ZenonOrb status="idle" size={keyboardOffset > 0 ? 80 : 172} />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: viewportMetrics.isKeyboard ? '2px' : '5px' }}>
-                <span style={{ fontSize: viewportMetrics.isKeyboard ? '16px' : '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: keyboardOffset > 0 ? '1px' : '5px' }}>
+                <span style={{ fontSize: keyboardOffset > 0 ? '15px' : '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
                   Zénon
                 </span>
-                <span style={{ fontSize: viewportMetrics.isKeyboard ? '11.5px' : '12px', color: 'rgba(250, 247, 242, 0.62)', maxWidth: '280px', lineHeight: 1.4 }}>
+                <span style={{ fontSize: keyboardOffset > 0 ? '11px' : '12px', color: 'rgba(250, 247, 242, 0.62)', maxWidth: '280px', lineHeight: 1.35 }}>
                   {isEn
                     ? 'Ask Zénon anything about your ring biometrics, sleep architecture, recovery, or workouts.'
                     : 'Posez votre question à Zénon sur vos biométries, votre sommeil, votre récupération ou votre entraînement.'}
                 </span>
               </div>
 
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  marginTop: viewportMetrics.isKeyboard ? '2px' : '6px',
-                  maxWidth: '340px',
-                }}
-              >
-                {quickSuggestions.map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => sendPrompt(q)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '999px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.14)',
-                      color: 'rgba(250, 247, 242, 0.86)',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
+              {keyboardOffset === 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    marginTop: '6px',
+                    maxWidth: '340px',
+                  }}
+                >
+                  {quickSuggestions.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => sendPrompt(q)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: 'rgba(250, 247, 242, 0.86)',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -575,11 +582,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         <div
           style={{
             flexShrink: 0,
-            padding: viewportMetrics.isKeyboard
+            padding: keyboardOffset > 0
               ? '8px 14px 10px 14px'
               : '10px 14px max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) 14px',
+            transform: keyboardOffset > 0 ? `translateY(-${keyboardOffset}px)` : 'none',
+            transition: 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), padding 0.18s ease',
             zIndex: 10,
-            transition: 'padding 0.18s ease',
           }}
         >
           <form

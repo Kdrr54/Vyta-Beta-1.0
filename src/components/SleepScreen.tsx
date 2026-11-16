@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { weekMetrics, TODAY_INDEX, buildHypnogram, statusFor, emptyDayMetrics } from '../data/health';
 import { WeekSelector } from './WeekSelector';
@@ -1293,7 +1294,7 @@ export const SleepScreen: React.FC = () => {
           <p style={{ fontSize: '11.5px', lineHeight: 1.45, color: 'rgba(250, 247, 242, 0.8)', margin: 0 }}>
             {!hasSlept
               ? (isEn
-                  ? 'Wear your Stoic Ring tonight to analyze your sleep architecture, resting nadir and circadian recovery.'
+                  ? 'Wear your Aurel Ring tonight to analyze your sleep architecture, resting nadir and circadian recovery.'
                   : 'Portez votre bague Stoïk cette nuit pour mesurer votre architecture de sommeil, vos creux cardiaques et votre récupération.')
               : (isEn
                   ? `Night session measured with ${deepPct}% deep sleep and ${remPct}% REM sleep (${efficiency}% efficiency). Aim for a consistent bedtime to stabilize circadian rhythm.`
@@ -1302,29 +1303,33 @@ export const SleepScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal / Bottom Sheet : Ajuster les heures de sommeil (24h/24) */}
-      {showAdjustSleepModal && (
+      {/* Modal / Bottom Sheet : Ajuster les heures de sommeil (24h/24) via Portal pour éviter tout décalage */}
+      {showAdjustSleepModal && typeof document !== 'undefined' && createPortal(
         <div
           className="modal-backdrop"
           onClick={() => setShowAdjustSleepModal(false)}
           style={{
+            position: 'fixed',
+            inset: 0,
             zIndex: 10002,
             display: 'flex',
-            alignItems: 'flex-end',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
             padding: 0,
-            background: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
           }}
         >
           <div
-            className="modal-card"
+            className="modal-sheet"
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: '520px',
+              maxWidth: '430px',
               margin: '0 auto',
-              background: 'rgba(18, 18, 24, 0.98)',
+              background: '#121218',
               borderTopLeftRadius: '28px',
               borderTopRightRadius: '28px',
               border: '1px solid rgba(167, 139, 250, 0.25)',
@@ -1334,6 +1339,7 @@ export const SleepScreen: React.FC = () => {
               flexDirection: 'column',
               gap: '16px',
               boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
+              animation: 'slideUp 260ms cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
             {/* Grabber */}
@@ -1527,7 +1533,8 @@ export const SleepScreen: React.FC = () => {
               <span>{isEn ? 'Save & Calculate Cycles' : 'Valider et Calculer les Cycles'}</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

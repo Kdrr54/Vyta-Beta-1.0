@@ -200,7 +200,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 {t('settings.title')}
               </h2>
               <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 500 }}>
-                {isEn ? 'Stoic Ring One · System & Biometrics' : 'Bague Stoic Ring One · Système & Biométrie'}
+                {isEn ? 'Aurel Ring One · System & Biometrics' : 'Bague Aurel Ring One · Système & Biométrie'}
               </span>
             </div>
           </div>
@@ -527,7 +527,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             >
               <img
                 src="/assets/ring/ring-iso-transparent.png"
-                alt="Stoic Ring One Smart Ring"
+                alt="Aurel Ring One Smart Ring"
                 style={{
                   width: '100%',
                   height: '100%',
@@ -540,12 +540,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Garantie Vyta Care Active ou Non (Dedicated Capsule Card) */}
+          {/* Garantie Aurel Care Active ou Non (Dedicated Capsule Card) */}
           <div
             onClick={() => updateRing({ vytaCareActive: !isVytaCareActive })}
             role="button"
             tabIndex={0}
-            title={isEn ? 'Click to toggle Stoic Care warranty status' : 'Cliquer pour basculer le statut de garantie'}
+            title={isEn ? 'Click to toggle Aurel Care warranty status' : 'Cliquer pour basculer le statut de garantie'}
             style={{
               padding: '10px 12px',
               borderRadius: '14px',
@@ -584,7 +584,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Stoic Care Warranty' : 'Garantie Stoic Care'}
+                  {isEn ? 'Aurel Care Warranty' : 'Garantie Aurel Care'}
                 </span>
                 <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
                   {isVytaCareActive
@@ -620,7 +620,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </span>
           </div>
 
-          {/* Localiser ma bague (Stoic Radar) */}
+          {/* Localiser ma bague (Aurel Radar) */}
           <div
             onClick={() => openModal('find_my')}
             style={{
@@ -652,7 +652,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Find My Ring (Stoic Radar)' : 'Localiser ma bague (Radar Stoic)'}
+                  {isEn ? 'Find My Ring (Aurel Radar)' : 'Localiser ma bague (Radar Aurel)'}
                 </span>
                 <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
                   {isEn
@@ -1425,7 +1425,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                {isEn ? 'Stoic Ring One Size' : 'Taille de bague Stoic Ring One'}
+                {isEn ? 'Aurel Ring One Size' : 'Taille de bague Aurel Ring One'}
               </span>
               <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
                 {isEn ? 'Standard index/middle finger fit' : 'Ajustement index ou majeur'}

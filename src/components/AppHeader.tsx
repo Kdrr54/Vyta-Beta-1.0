@@ -16,14 +16,14 @@ export const AppHeader: React.FC = () => {
         />
       </div>
 
-      {/* Centre exact : Bouton Bague Stoic Ring One */}
+      {/* Centre exact : Bouton Bague Aurel Ring One */}
       <div className="header-center-ring">
         <button
           type="button"
           className="ring-header-btn"
           onClick={() => openModal('settings')}
-          title={t('header.ring_title') || 'Stoic Ring One · Réglages & Diagnostics'}
-          aria-label={t('header.ring_title') || 'Stoic Ring One'}
+          title={t('header.ring_title') || 'Aurel Ring One · Réglages & Diagnostics'}
+          aria-label={t('header.ring_title') || 'Aurel Ring One'}
         >
           <div className="ring-header-btn-inner">
             <RingImage size={34} noShadow angle="front" />

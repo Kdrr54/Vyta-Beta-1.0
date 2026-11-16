@@ -73,26 +73,39 @@ export async function testGeminiApiKey(apiKey: string): Promise<GeminiKeyTestRes
   // 1. Découverte dynamique des modèles sur le compte de l'utilisateur
   const dynamicModels = await fetchActiveGeminiModels(clean);
 
-  // 2. Modèles prioritaires (gemini-3.5-flash en premier)
+  // 2. Modèles prioritaires ultra-stables et rapides
   const fallbackList = [
-    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
     'gemini-3.5-flash-lite',
-    'gemini-flash-latest',
-    'gemini-3.7-flash',
-    'gemini-3.8-flash',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash',
   ];
 
   const sortedDynamic = dynamicModels
-    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .filter((m) =>
+      !m.includes('image') &&
+      !m.includes('tts') &&
+      !m.includes('audio') &&
+      !m.includes('transcribe') &&
+      !m.includes('tool') &&
+      !m.includes('banana') &&
+      !m.includes('robotics') &&
+      !m.includes('computer-use') &&
+      !m.includes('embedding') &&
+      !m.includes('2.5') &&
+      !m.includes('2.0') &&
+      !m.includes('1.5')
+    )
     .sort((a, b) => {
-      if (a === 'gemini-3.5-flash') return -1;
-      if (b === 'gemini-3.5-flash') return 1;
-      if (a.includes('3.5') && !b.includes('3.5')) return -1;
-      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      if (a === 'gemini-3-flash-preview') return -1;
+      if (b === 'gemini-3-flash-preview') return 1;
+      if (a.includes('3.1-flash-lite')) return -1;
+      if (b.includes('3.1-flash-lite')) return 1;
       return 0;
     });
 
-  const models = Array.from(new Set([...sortedDynamic, ...fallbackList]));
+  const models = Array.from(new Set([...fallbackList, ...sortedDynamic]));
 
   for (const model of models) {
     try {
@@ -179,7 +192,7 @@ function buildBiometricSystemPrompt(ctx: BiometricPromptContext): string {
 
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
 
-  return `Tu es "Zénon", l'intelligence biologique conversationnelle et coach de santé officielle de la bague connectée en titane "Stoic Ring One" créée par Stoic Labs.
+  return `Tu es "Zénon", l'intelligence biologique conversationnelle et coach de santé officielle de la bague connectée en titane "Aurel Ring One" créée par Aurel Labs (Aurel).
 ${isZeroState ? `
 [ÉTAT DU MATÉRIEL : La bague connectée est actuellement réinitialisée à 0 donnée de santé en attente de première utilisation. Si l'utilisateur te demande d'analyser ses scores ou sa nuit du jour, rappelle-lui gentiment que la bague attend ses premières synchronisations. Pour toute autre question (santé, sport, bien-être, physiologie, entraînement, conversation générale), réponds-lui de manière naturelle, experte et complète sans bloquer la discussion.]` : ''}
 
@@ -223,7 +236,7 @@ DIRECTIVES CRUCIALES DE RAISONNEMENT :
 2. Après la balise </thinking>, fournis la réponse destinée à l'utilisateur :
    - Structure ta réponse avec des titres Markdown ("### Titre"), du gras ("**mot**"), et des puces ("•").
    - Intègre toujours une section "🔗 Synthèse Causale" (format Bevel : \`Facteur A\` ➔ \`Signal B\` ➔ \`Conséquence C\`).
-   - Réponds en ${isEn ? 'anglais' : 'français'}, avec clarté, expertise et naturel. Ne dis jamais que tu es un simple modèle de texte : tu es Zénon, l'intelligence biologique vivante de la bague Stoic Ring One de Stoic Labs.`;
+   - Réponds en ${isEn ? 'anglais' : 'français'}, avec clarté, expertise et naturel. Ne dis jamais que tu es un simple modèle de texte : tu es Zénon, l'intelligence biologique vivante de la bague Aurel Ring One d'Aurel Labs (Aurel).`;
 }
 
 /**
@@ -246,44 +259,63 @@ export async function queryGeminiBiometricAI(ctx: BiometricPromptContext): Promi
   const contents: any[] = [];
   
   if (ctx.conversationHistory && ctx.conversationHistory.length > 0) {
-    // Ne garder que les 6 derniers messages pour rester réactif et concentré
     const recent = ctx.conversationHistory.slice(-6);
+    let expectedRole: 'user' | 'model' = 'user';
     for (const msg of recent) {
-      contents.push({
-        role: msg.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }],
-      });
+      if (!msg.text || !msg.text.trim()) continue;
+      const role = msg.sender === 'user' ? 'user' : 'model';
+      if (role === expectedRole) {
+        contents.push({
+          role,
+          parts: [{ text: msg.text.trim() }],
+        });
+        expectedRole = expectedRole === 'user' ? 'model' : 'user';
+      }
+    }
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents.pop();
     }
   }
 
   // Ajouter la question actuelle
   contents.push({
     role: 'user',
-    parts: [{ text: ctx.prompt }],
+    parts: [{ text: ctx.prompt.trim() }],
   });
 
-  // 1. Découverte dynamique des modèles sur le compte de l'utilisateur
-  const dynamicModels = await fetchActiveGeminiModels(apiKey);
-
   const fallbackList = [
-    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
     'gemini-3.5-flash-lite',
-    'gemini-flash-latest',
-    'gemini-3.7-flash',
-    'gemini-3.8-flash',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash',
   ];
 
+  const dynamicModels = await fetchActiveGeminiModels(apiKey);
   const sortedDynamic = dynamicModels
-    .filter((m) => !m.includes('2.5') && !m.includes('2.0') && !m.includes('1.5'))
+    .filter((m) =>
+      !m.includes('image') &&
+      !m.includes('tts') &&
+      !m.includes('audio') &&
+      !m.includes('transcribe') &&
+      !m.includes('tool') &&
+      !m.includes('banana') &&
+      !m.includes('robotics') &&
+      !m.includes('computer-use') &&
+      !m.includes('embedding') &&
+      !m.includes('2.5') &&
+      !m.includes('2.0') &&
+      !m.includes('1.5')
+    )
     .sort((a, b) => {
-      if (a === 'gemini-3.5-flash') return -1;
-      if (b === 'gemini-3.5-flash') return 1;
-      if (a.includes('3.5') && !b.includes('3.5')) return -1;
-      if (!a.includes('3.5') && b.includes('3.5')) return 1;
+      if (a === 'gemini-3-flash-preview') return -1;
+      if (b === 'gemini-3-flash-preview') return 1;
+      if (a.includes('3.1-flash-lite')) return -1;
+      if (b.includes('3.1-flash-lite')) return 1;
       return 0;
     });
 
-  const candidateModels = Array.from(new Set([...sortedDynamic, ...fallbackList]));
+  const candidateModels = Array.from(new Set([...fallbackList, ...sortedDynamic])).slice(0, 5);
 
   let lastError = '';
 

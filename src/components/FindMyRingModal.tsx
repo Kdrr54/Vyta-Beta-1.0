@@ -64,7 +64,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [locationAddress, setLocationAddress] = useState<string>('Paris, France');
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
 
-  // Système de Localisation Stoic Radar
+  // Système de Localisation Aurel Radar
   const [separationAlertEnabled, setSeparationAlertEnabled] = useState<boolean>(() => {
     return localStorage.getItem('vyta_separation_alert') !== 'false';
   });
@@ -78,7 +78,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const [lostMsg, setLostMsg] = useState<string>(() => {
     return (
       localStorage.getItem('vyta_lost_msg') ||
-      'Cette bague Stoic Ring One appartient à Julien. Merci de me contacter si vous la trouvez.'
+      'Cette bague Aurel Ring One appartient à Julien. Merci de me contacter si vous la trouvez.'
     );
   });
 
@@ -145,7 +145,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
             const ringAnnotation = new mapkit.MarkerAnnotation(ringCoord, {
               color: '#30D158',
               glyphText: '💍',
-              title: isEn ? 'Stoic Ring One' : 'Bague Stoic Ring One',
+              title: isEn ? 'Aurel Ring One' : 'Bague Aurel Ring One',
               subtitle: isEn ? 'Last known position (4m ago)' : 'Dernière position connue (il y a 4 min)',
               selected: true,
             });
@@ -414,7 +414,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                 }}
               />
               <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                {isEn ? 'Stoic Radar · BLE Active' : 'Radar Stoic · Bluetooth BLE actif'}
+                {isEn ? 'Aurel Radar · BLE Active' : 'Radar Aurel · Bluetooth BLE actif'}
               </span>
             </div>
           </div>
@@ -587,7 +587,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               >
                 <img
                   src="/assets/ring/ring-iso-transparent.png"
-                  alt="Stoic Ring One Smart Ring"
+                  alt="Aurel Ring One Smart Ring"
                   style={{
                     width: '100%',
                     height: '100%',
@@ -600,7 +600,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: '15px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Stoic Ring One
+                  Aurel Ring One
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                   <span

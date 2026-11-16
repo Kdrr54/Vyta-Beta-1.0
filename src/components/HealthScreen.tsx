@@ -477,7 +477,7 @@ export const HealthScreen: React.FC = () => {
         >
           <img
             src="/assets/ring/ring-iso-transparent.png"
-            alt="Stoic Ring One Smart Ring Sensors"
+            alt="Aurel Ring One Smart Ring Sensors"
             style={{
               width: '100%',
               height: '100%',

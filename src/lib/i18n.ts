@@ -12,7 +12,7 @@ export const translations = {
     // Header
     'header.covyta_on': 'Zénon ACTIF',
     'header.covyta_off': 'Zénon OFF',
-    'header.ring_title': 'Bague Stoic Ring One • Réglages & Diagnostics',
+    'header.ring_title': 'Bague Aurel Ring One • Réglages & Diagnostics',
     'header.battery_tooltip': 'Batterie bague : ',
 
     // Week & Dates
@@ -38,7 +38,7 @@ export const translations = {
     'settings.age': 'Âge (ans)',
     'settings.height': 'Taille (cm)',
     'settings.weight': 'Poids (kg)',
-    'settings.my_ring': 'Ma Bague (Stoic Ring One)',
+    'settings.my_ring': 'Ma Bague (Aurel Ring One)',
     'settings.ring_battery': 'Batterie Bague',
     'settings.days_left': '5 jours restants',
     'settings.case_battery': 'Boîtier Nomade',
@@ -189,7 +189,7 @@ export const translations = {
     // Header
     'header.covyta_on': 'Zénon ACTIF',
     'header.covyta_off': 'Zénon OFF',
-    'header.ring_title': 'Stoic Ring One Ring • Settings & Diagnostics',
+    'header.ring_title': 'Aurel Ring One • Settings & Diagnostics',
     'header.battery_tooltip': 'Ring battery: ',
 
     // Week & Dates
@@ -215,7 +215,7 @@ export const translations = {
     'settings.age': 'Age (yrs)',
     'settings.height': 'Height (cm)',
     'settings.weight': 'Weight (kg)',
-    'settings.my_ring': 'My Ring (Stoic Ring One)',
+    'settings.my_ring': 'My Ring (Aurel Ring One)',
     'settings.ring_battery': 'Ring Battery',
     'settings.days_left': '5 days left',
     'settings.case_battery': 'Travel Case',

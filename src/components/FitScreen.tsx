@@ -720,7 +720,7 @@ export const FitScreen: React.FC = () => {
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
-      title: `Course Stoic · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
+      title: `Course Aurel · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
       location: finalDist >= 0.05 ? 'Course extérieure' : 'Session statique',
       distanceKm: finalDist,
       durationSec: finalDur,
@@ -1242,7 +1242,7 @@ export const FitScreen: React.FC = () => {
 
     openStory({
       mode: 'run',
-      title: 'Course GPS Stoic',
+      title: 'Course GPS Aurel',
       dateStr: new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }),
       accentText: 'Séance GPS Enregistrée',
       stats: [
@@ -1642,10 +1642,10 @@ export const FitScreen: React.FC = () => {
                   <span className="gps-pulse-dot" />
                   <span>
                     {runState === 'running'
-                      ? (isEn ? 'Stoic GPS Active (Live)' : 'GPS Stoic Actif (Live)')
+                      ? (isEn ? 'Aurel GPS Active (Live)' : 'GPS Aurel Actif (Live)')
                       : runState === 'paused'
                       ? (isEn ? 'GPS Paused' : 'GPS en pause')
-                      : (isEn ? 'Stoic GPS Ready' : 'GPS Stoic Prêt')}
+                      : (isEn ? 'Aurel GPS Ready' : 'GPS Aurel Prêt')}
                   </span>
                 </span>
               </div>
@@ -2682,12 +2682,12 @@ export const FitScreen: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Kudos / Stoic Boost button */}
+                  {/* Kudos / Aurel Boost button */}
                   <button
                     type="button"
                     className={`boost-btn ${isBoosted ? 'boosted' : ''}`}
                     onClick={() => handleBoost(post.id)}
-                    title="Envoyer un Stoic Boost"
+                    title="Envoyer un Aurel Boost"
                   >
                     <Flame size={13} color={isBoosted ? 'var(--gold)' : '#FFFFFF'} />
                     <span>{post.boosts} Boosts</span>
@@ -3705,7 +3705,7 @@ export const FitScreen: React.FC = () => {
                     {isEn ? 'Share route' : 'Partager ce trajet'}
                   </div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                    {isEn ? 'Export as Stoic Story or image' : 'Exporter sous forme de Story Stoic'}
+                    {isEn ? 'Export as Aurel Story or image' : 'Exporter sous forme de Story Aurel'}
                   </div>
                 </div>
               </button>

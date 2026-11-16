@@ -239,8 +239,8 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
             />
             {isConnected
               ? isEn
-                ? 'Stoic Ring One · Connected'
-                : 'Stoic Ring One · Connectée en direct'
+                ? 'Aurel Ring One · Connected'
+                : 'Aurel Ring One · Connectée en direct'
               : isEn
               ? 'Disconnected · Out of range'
               : 'Déconnectée · Hors de portée'}
@@ -470,8 +470,8 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
                   ? 'Gyroscope active · Rotate your phone'
                   : 'Capteurs d’orientation actifs · Tournez votre iPhone'
                 : isEn
-                ? 'Signal locked on Stoic Ring One'
-                : 'Signal capté sur la bague Stoic Ring One'}
+                ? 'Signal locked on Aurel Ring One'
+                : 'Signal capté sur la bague Aurel Ring One'}
             </span>
           </div>
         )}
