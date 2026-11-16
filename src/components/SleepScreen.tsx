@@ -36,20 +36,20 @@ export const SleepScreen: React.FC = () => {
   const [showClinicalRatioModal, setShowClinicalRatioModal] = useState<boolean>(false);
   const [showAdjustSleepModal, setShowAdjustSleepModal] = useState<boolean>(false);
   const [modalBedtime, setModalBedtime] = useState<string>(() => {
-    if (sleep.startMin !== undefined) {
+    if (sleep.startMin !== undefined && sleep.startMin > 0) {
       const h = Math.floor(sleep.startMin / 60);
       const m = sleep.startMin % 60;
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
-    return '04:30';
+    return '23:30';
   });
   const [modalWakeup, setModalWakeup] = useState<string>(() => {
-    if (sleep.endMin !== undefined) {
+    if (sleep.endMin !== undefined && sleep.endMin > 0) {
       const h = Math.floor(sleep.endMin / 60);
       const m = sleep.endMin % 60;
       return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
-    return '14:00';
+    return '07:30';
   });
 
   const isEn = language === 'en';
@@ -105,6 +105,24 @@ export const SleepScreen: React.FC = () => {
   const lightPct = useMemo(() => (hasSlept && totalMin > 0 ? Math.round((sleep.lightMin / totalMin) * 100) : 0), [hasSlept, totalMin, sleep.lightMin]);
   const awakePct = useMemo(() => (hasSlept && totalMin > 0 ? Math.max(1, 100 - (deepPct + remPct + lightPct)) : 0), [hasSlept, totalMin, deepPct, remPct, lightPct]);
   const efficiency = useMemo(() => (hasSlept && totalMin > 0 ? Math.round((effectiveMin / totalMin) * 100) : 0), [hasSlept, totalMin, effectiveMin]);
+
+  // Synchronise les heures lors de l'ouverture ou du changement de jour
+  React.useEffect(() => {
+    if (hasSlept && sleep.startMin !== undefined && sleep.startMin > 0) {
+      const h = Math.floor(sleep.startMin / 60);
+      const m = sleep.startMin % 60;
+      setModalBedtime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    } else {
+      setModalBedtime('23:30');
+    }
+    if (hasSlept && sleep.endMin !== undefined && sleep.endMin > 0) {
+      const h = Math.floor(sleep.endMin / 60);
+      const m = sleep.endMin % 60;
+      setModalWakeup(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    } else {
+      setModalWakeup('07:30');
+    }
+  }, [selectedDay, hasSlept, sleep.startMin, sleep.endMin]);
 
   const fmtClockMin = (min?: number) => {
     if (min === undefined || min === null || isNaN(min)) return '--:--';
@@ -205,8 +223,7 @@ export const SleepScreen: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
-        padding: '0 16px 120px 16px',
-        contain: 'content',
+        padding: '0 16px 24px 16px',
       }}
     >
       {/* 1. SÉLECTEUR DE JOUR (SEMAINE) */}
@@ -218,25 +235,113 @@ export const SleepScreen: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: '14px',
-          animation: 'fadeIn 200ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* 2. HERO SCORE & SOMMEIL RÉPARATEUR (STYLE ÉPURÉ OURA / APPLE HEALTH) */}
-        <div
-          style={{
-            position: 'relative',
-            width: '100%',
-            padding: '20px 22px',
-            borderRadius: '24px',
-            background: 'linear-gradient(180deg, #13141F 0%, #0D0E16 100%)',
-            border: '1px solid rgba(167, 139, 250, 0.22)',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.55), 0 0 20px rgba(167, 139, 250, 0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            userSelect: 'none',
-          }}
-        >
+        {!hasSlept ? (
+          /* État compact quand aucune nuit n'est encore enregistrée (Évite le grand trou noir et le défilement inutile) */
+          <div
+            style={{
+              width: '100%',
+              padding: '16px 18px',
+              borderRadius: '20px',
+              background: 'linear-gradient(180deg, #13141F 0%, #0D0E16 100%)',
+              border: '1px solid rgba(167, 139, 250, 0.22)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'rgba(167, 139, 250, 0.16)',
+                    border: '1px solid rgba(167, 139, 250, 0.4)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Moon size={14} color="#A78BFA" />
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isEn ? 'Sleep Architecture' : 'Score de Sommeil'}
+                </span>
+              </div>
+
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: '999px',
+                  color: '#A78BFA',
+                  background: 'rgba(167, 139, 250, 0.12)',
+                  border: '1px solid rgba(167, 139, 250, 0.35)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {isEn ? 'Awaiting night' : 'En attente'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2', display: 'block' }}>
+                  {isEn ? 'No sleep recorded yet' : 'Aucune nuit enregistrée'}
+                </span>
+                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
+                  {isEn ? 'Wear your ring tonight or adjust hours manually.' : 'Portez votre bague cette nuit ou ajustez vos horaires.'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAdjustSleepModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.25) 0%, rgba(129, 140, 248, 0.15) 100%)',
+                  border: '1px solid rgba(167, 139, 250, 0.45)',
+                  borderRadius: '12px',
+                  padding: '8px 14px',
+                  color: '#A78BFA',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 10px rgba(167, 139, 250, 0.15)',
+                }}
+              >
+                <Edit3 size={12} />
+                <span>{isEn ? 'Log Sleep' : 'Renseigner'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* 2. HERO SCORE & SOMMEIL RÉPARATEUR (STYLE ÉPURÉ OURA / APPLE HEALTH) */}
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                padding: '20px 22px',
+                borderRadius: '24px',
+                background: 'linear-gradient(180deg, #13141F 0%, #0D0E16 100%)',
+                border: '1px solid rgba(167, 139, 250, 0.22)',
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.55), 0 0 20px rgba(167, 139, 250, 0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                userSelect: 'none',
+              }}
+            >
           {/* Top Row: Pill Tag + Status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -757,6 +862,8 @@ export const SleepScreen: React.FC = () => {
             </div>
           )}
         </div>
+        </>
+      )}
 
         {/* 4. BIOMARQUEURS NOCTURNES (ÉPURÉ, STYLE APPLE HEALTH) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1342,31 +1449,58 @@ export const SleepScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Preset button for late shift (04:30 -> 14:00) */}
-            <button
-              type="button"
-              onClick={() => {
-                setModalBedtime('04:30');
-                setModalWakeup('14:00');
-              }}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '12px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: 'rgba(250, 247, 242, 0.85)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              <Moon size={14} color="#A78BFA" />
-              <span>{isEn ? 'Preset: 04:30 – 14:00 (9h30)' : 'Préréglage : 04h30 – 14h00 (9h30)'}</span>
-            </button>
+            {/* Quick Preset buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalBedtime('23:30');
+                  setModalWakeup('07:30');
+                }}
+                style={{
+                  padding: '9px 10px',
+                  borderRadius: '12px',
+                  background: modalBedtime === '23:30' && modalWakeup === '07:30' ? 'rgba(167, 139, 250, 0.22)' : 'rgba(255, 255, 255, 0.06)',
+                  border: modalBedtime === '23:30' && modalWakeup === '07:30' ? '1px solid rgba(167, 139, 250, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  color: 'rgba(250, 247, 242, 0.9)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Moon size={12} color="#A78BFA" />
+                <span>23:30 – 07:30 (8h)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setModalBedtime('00:00');
+                  setModalWakeup('08:00');
+                }}
+                style={{
+                  padding: '9px 10px',
+                  borderRadius: '12px',
+                  background: modalBedtime === '00:00' && modalWakeup === '08:00' ? 'rgba(167, 139, 250, 0.22)' : 'rgba(255, 255, 255, 0.06)',
+                  border: modalBedtime === '00:00' && modalWakeup === '08:00' ? '1px solid rgba(167, 139, 250, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  color: 'rgba(250, 247, 242, 0.9)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Moon size={12} color="#A78BFA" />
+                <span>00:00 – 08:00 (8h)</span>
+              </button>
+            </div>
 
             {/* Submit button */}
             <button
