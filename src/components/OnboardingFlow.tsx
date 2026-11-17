@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { PairingModal } from './PairingModal';
 import {
@@ -12,6 +12,10 @@ import {
   ChevronLeft,
   ShieldCheck,
   Flame,
+  Bluetooth,
+  MapPin,
+  Bell,
+  Check,
 } from 'lucide-react';
 
 interface OnboardingFlowProps {
@@ -21,8 +25,8 @@ interface OnboardingFlowProps {
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const { profile, updateProfile } = useApp();
 
-  // Étape courante : 1 = Bienvenue, 2 = Questionnaire profil, 3 = Appairage piédestal & BLE
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Étape courante : 1 = Bienvenue, 2 = Profil, 3 = Permissions Système, 4 = Appairage BLE
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   // Formulaire profil corporel
   const [firstName, setFirstName] = useState<string>(profile.firstName || '');
@@ -31,6 +35,74 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   const [heightCm, setHeightCm] = useState<number>(profile.heightCm || 180);
   const [weightKg, setWeightKg] = useState<number>(profile.weightKg || 75);
   const [goal, setGoal] = useState<string>('recovery');
+
+  // Statuts des permissions système (Position, Bluetooth, Notifications)
+  const [geoStatus, setGeoStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
+  const [notifStatus, setNotifStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
+  const [bleStatus, setBleStatus] = useState<'pending' | 'granted'>('pending');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') setNotifStatus('granted');
+        else if (Notification.permission === 'denied') setNotifStatus('denied');
+      }
+      if ('permissions' in navigator && navigator.permissions?.query) {
+        navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((p) => {
+          if (p.state === 'granted') setGeoStatus('granted');
+          else if (p.state === 'denied') setGeoStatus('denied');
+        }).catch(() => {});
+      }
+      if ('bluetooth' in navigator) {
+        setBleStatus('granted');
+      }
+    }
+  }, []);
+
+  const requestGeolocation = async (): Promise<boolean> => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGeoStatus('granted');
+      return true;
+    }
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          setGeoStatus('granted');
+          resolve(true);
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            setGeoStatus('denied');
+          }
+          resolve(false);
+        },
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    });
+  };
+
+  const requestNotifications = async (): Promise<boolean> => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotifStatus('granted');
+      return true;
+    }
+    try {
+      const res = await Notification.requestPermission();
+      if (res === 'granted') {
+        setNotifStatus('granted');
+        return true;
+      } else if (res === 'denied') {
+        setNotifStatus('denied');
+        return false;
+      }
+    } catch (_) {}
+    return false;
+  };
+
+  const requestBluetooth = async (): Promise<boolean> => {
+    setBleStatus('granted');
+    return true;
+  };
 
   const handleNextToProfile = () => {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -41,7 +113,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
     setStep(2);
   };
 
-  const handleNextToPairing = () => {
+  const handleNextToPermissions = () => {
     const trimmed = firstName.trim() || 'Alexandre';
     updateProfile({
       firstName: trimmed,
@@ -59,9 +131,19 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
     setStep(3);
   };
 
-  // Si on est à l'étape 3, afficher le piédestal romain haute précision avec appairage BLE
-  if (step === 3) {
-    return <PairingModal onClose={onComplete} onBack={() => setStep(2)} />;
+  const handleAuthorizeAll = async () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(25); } catch (_) {}
+    }
+    await requestNotifications();
+    await requestGeolocation();
+    await requestBluetooth();
+    setStep(4);
+  };
+
+  // Étape 4 : piédestal romain haute précision avec appairage BLE
+  if (step === 4) {
+    return <PairingModal onClose={onComplete} onBack={() => setStep(3)} />;
   }
 
   return (
@@ -357,7 +439,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 color: '#D9F970',
               }}
             >
-              Étape 1 sur 2 · Profil Biologique
+              Étape 1 sur 3 · Profil Biologique
             </span>
             <h2
               style={{
@@ -662,11 +744,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             </div>
           </div>
 
-          {/* Bouton Continuer vers l'appairage */}
+          {/* Bouton Continuer vers les autorisations */}
           <div style={{ paddingTop: '8px' }}>
             <button
               type="button"
-              onClick={handleNextToPairing}
+              onClick={handleNextToPermissions}
               style={{
                 width: '100%',
                 height: '54px',
@@ -684,9 +766,344 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 boxShadow: '0 8px 24px rgba(255, 255, 255, 0.25)',
               }}
             >
-              <span>Continuer vers l’appairage</span>
+              <span>Continuer vers les autorisations</span>
               <ArrowRight size={17} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          ÉTAPE 3 : AUTORISATIONS SYSTÈME (POSITION, BLUETOOTH, NOTIFICATIONS)
+          =================================================================== */}
+      {step === 3 && (
+        <div
+          style={{
+            minHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding:
+              'calc(max(24px, env(safe-area-inset-top)) + 12px) 20px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 20px',
+            gap: '16px',
+          }}
+        >
+          {/* Header */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.6)',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                }}
+              >
+                <ChevronLeft size={16} />
+                <span>Retour</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(4)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.55)',
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '2px',
+                }}
+              >
+                Passer
+              </button>
+            </div>
+
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#38BDF8',
+              }}
+            >
+              Étape 2 sur 3 · Autorisations Système
+            </span>
+            <h2
+              style={{
+                fontSize: '26px',
+                fontWeight: 800,
+                color: '#FAF7F2',
+                letterSpacing: '-0.02em',
+                margin: '4px 0 6px 0',
+              }}
+            >
+              Autoriser Aurel Labs
+            </h2>
+            <p
+              style={{
+                fontSize: '12.5px',
+                color: 'rgba(250, 247, 242, 0.65)',
+                lineHeight: 1.45,
+                margin: 0,
+              }}
+            >
+              Pour synchroniser votre bague Aurel Ring One et enregistrer vos séances de sport en temps réel, veuillez autoriser ces 3 accès essentiels.
+            </p>
+          </div>
+
+          {/* 3 Cartes d'autorisation interactives */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              flex: 1,
+              justifyContent: 'center',
+            }}
+          >
+            {/* 1. Bluetooth */}
+            <div
+              onClick={requestBluetooth}
+              style={{
+                background: bleStatus === 'granted' ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+                border: bleStatus === 'granted' ? '1.5px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '18px',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    background: 'rgba(56, 189, 248, 0.16)',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Bluetooth size={20} color="#38BDF8" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
+                    Bluetooth (Bague Aurel Ring One)
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
+                    Connexion sans fil pour synchroniser sommeil, pouls et température cutanée.
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  background: bleStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(56, 189, 248, 0.18)',
+                  border: bleStatus === 'granted' ? '1px solid #30D158' : '1px solid #38BDF8',
+                  color: bleStatus === 'granted' ? '#30D158' : '#38BDF8',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                {bleStatus === 'granted' ? (
+                  <>
+                    <Check size={12} />
+                    <span>Autorisé</span>
+                  </>
+                ) : (
+                  <span>Activer</span>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Position GPS */}
+            <div
+              onClick={requestGeolocation}
+              style={{
+                background: geoStatus === 'granted' ? 'rgba(48, 209, 88, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+                border: geoStatus === 'granted' ? '1.5px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '18px',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    background: 'rgba(48, 209, 88, 0.16)',
+                    border: '1px solid rgba(48, 209, 88, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MapPin size={20} color="#30D158" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
+                    Position GPS (Course & Radar)
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
+                    Tracé GPS des séances de course, distance et radar de proximité de la bague.
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  background: geoStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.1)',
+                  border: geoStatus === 'granted' ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
+                  color: geoStatus === 'granted' ? '#30D158' : '#FAF7F2',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                {geoStatus === 'granted' ? (
+                  <>
+                    <Check size={12} />
+                    <span>Autorisé</span>
+                  </>
+                ) : (
+                  <span>Autoriser</span>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Notifications */}
+            <div
+              onClick={requestNotifications}
+              style={{
+                background: notifStatus === 'granted' ? 'rgba(192, 132, 252, 0.08)' : 'rgba(255, 255, 255, 0.05)',
+                border: notifStatus === 'granted' ? '1.5px solid rgba(192, 132, 252, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '18px',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    background: 'rgba(192, 132, 252, 0.16)',
+                    border: '1px solid rgba(192, 132, 252, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Bell size={20} color="#C084FC" />
+                </div>
+                <div>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
+                    Notifications & Alertes
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
+                    Alertes de batterie faible, fin de sommeil et synthèses personnalisées de Zénon.
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  background: notifStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.1)',
+                  border: notifStatus === 'granted' ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
+                  color: notifStatus === 'granted' ? '#30D158' : '#FAF7F2',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                {notifStatus === 'granted' ? (
+                  <>
+                    <Check size={12} />
+                    <span>Autorisé</span>
+                  </>
+                ) : (
+                  <span>Autoriser</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bouton CTA Tout autoriser & Continuer */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={handleAuthorizeAll}
+              style={{
+                width: '100%',
+                height: '56px',
+                borderRadius: '28px',
+                background: 'linear-gradient(135deg, #FAF7F2 0%, #D8D4CC 100%)',
+                color: '#0A0A0C',
+                border: 'none',
+                fontSize: '15px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(255, 255, 255, 0.25)',
+              }}
+            >
+              <span>Tout autoriser & Continuer</span>
+              <ArrowRight size={17} />
+            </button>
+            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', textAlign: 'center' }}>
+              Vos données restent stockées en local sur votre appareil
+            </span>
           </div>
         </div>
       )}
