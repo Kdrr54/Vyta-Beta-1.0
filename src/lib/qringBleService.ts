@@ -1757,6 +1757,12 @@ class QRingBleService {
             if (dAgo === 0) {
               const now = new Date();
               const nowMin = now.getHours() * 60 + now.getMinutes();
+              if (nowMin < 360) {
+                console.warn(
+                  `[QRing BLE] Middle of the night (${nowMin} min < 6h00). Premature night sleep ignored for today.`
+                );
+                continue;
+              }
               if (endClockMin > nowMin && (realEndNorm > 0 || nowMin < 720)) {
                 console.warn(
                   `[QRing BLE] Sleep end (${endClockMin} min) is in the future compared to now (${nowMin} min). Ignored for today.`

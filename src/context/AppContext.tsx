@@ -709,17 +709,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = targetDayIdx;
 
           // Verrou temporel strict pour AUJOURD'HUI :
-          // Si le réveil indiqué est dans le futur par rapport à l'heure courante (ex: 12h06 alors qu'il est 02h37),
-          // ce relevé appartient au passé et ne doit JAMAIS polluer aujourd'hui !
+          // 1) En pleine nuit avant 6h du matin (nowMin < 360), l'utilisateur est éveillé et la nuit n'est pas terminée.
+          //    Aucun relevé nocturne ne doit être validé ou attribué à aujourd'hui !
+          // 2) Si le réveil indiqué est dans le futur par rapport à l'heure courante, rejet immédiat.
           if (idx === TODAY_INDEX) {
             const now = new Date();
             const nowMin = now.getHours() * 60 + now.getMinutes();
-            if (data.sleepEndMin !== undefined && data.sleepEndMin > nowMin) {
-              console.warn(`[AppContext] Rejected future wake-up (${data.sleepEndMin} min) for today at ${nowMin} min`);
+            if (nowMin < 360) {
+              console.warn(`[AppContext] Rejected premature sleep during the night (< 6h00) at ${nowMin} min`);
               return prev;
             }
-            if (nowMin < 360 && data.sleepHours! * 60 > nowMin + 120) {
-              console.warn(`[AppContext] Rejected impossible sleep duration (${data.sleepHours}h) at ${nowMin} min`);
+            if (data.sleepEndMin !== undefined && data.sleepEndMin > nowMin) {
+              console.warn(`[AppContext] Rejected future wake-up (${data.sleepEndMin} min) for today at ${nowMin} min`);
               return prev;
             }
           }
@@ -973,16 +974,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   if (updated.spo2Log) updated.spo2Log = clearOffFinger(updated.spo2Log);
                 }
 
-                // Verrou sommeil pour aujourd'hui :
-                // Si le réveil enregistré est dans le futur par rapport à l'heure courante (ex: 12h06 alors qu'il est 02h37),
-                // ou si une durée de sommeil est enregistrée en pleine nuit avant que l'utilisateur n'ait dormi,
-                // réinitialiser le sommeil à zéro pour aujourd'hui !
+                // Verrou sommeil strict pour AUJOURD'HUI :
+                // 1) En pleine nuit avant 6h du matin (nowMin < 360), l'utilisateur n'a pas dormi / nuit non terminée :
+                //    toute session nocturne antérieurement persistée dans localStorage (ex: 00:00 -> 03:00 ou 00:00 -> 03:30) est immédiatement purgée à 0 !
+                // 2) Si le réveil enregistré est dans le futur par rapport à l'heure courante (endMin > nowMin), purge immédiate.
                 const hasFutureEnd = updated.sleep?.endMin !== undefined && updated.sleep.endMin > nowMin;
-                const totalSleepMin = updated.sleep
-                  ? (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0) + (updated.sleep.awakeMin || 0)
-                  : 0;
-                const isImpossibleEarlySleep = nowMin < 360 && totalSleepMin > 0 && hasFutureEnd;
-                if (hasFutureEnd || isImpossibleEarlySleep) {
+                const hasPhantomNocturnalSleep = nowMin < 360 && ((updated.sleep?.score || 0) > 0 || (updated.sleep?.startMin === 0 && (updated.sleep?.endMin || 0) > 0));
+
+                if (hasFutureEnd || hasPhantomNocturnalSleep) {
                   updated.sleep = { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
                   if (updated.pillars) {
                     updated.pillars = { ...updated.pillars, sleep: 0 };
@@ -990,24 +989,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
                   }
                 } else if (updated.sleep && updated.sleep.startMin !== undefined && updated.sleep.endMin !== undefined) {
-                  // Nettoyage de la session fantôme 00:00 -> 03:00 générée précédemment par erreur
-                  if (dayIdx === TODAY_INDEX && updated.sleep.startMin === 0 && updated.sleep.endMin === 180) {
-                    updated.sleep = { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
-                    if (updated.pillars) {
-                      updated.pillars = { ...updated.pillars, sleep: 0 };
-                      const activePillars = [updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
-                      updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
-                    }
-                  } else {
-                    // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
-                    const sMin = updated.sleep.startMin;
-                    const eMin = updated.sleep.endMin;
-                    const totStages = (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0);
-                    if (totStages >= 60) {
-                      const expectedE = (sMin + totStages) % 1440;
-                      if (eMin > expectedE && (eMin - expectedE >= 15 && eMin - expectedE <= 240)) {
-                        updated.sleep.endMin = expectedE;
-                      }
+                  // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
+                  const sMin = updated.sleep.startMin;
+                  const eMin = updated.sleep.endMin;
+                  const totStages = (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0);
+                  if (totStages >= 60) {
+                    const expectedE = (sMin + totStages) % 1440;
+                    if (eMin > expectedE && (eMin - expectedE >= 15 && eMin - expectedE <= 240)) {
+                      updated.sleep.endMin = expectedE;
                     }
                   }
                 }
