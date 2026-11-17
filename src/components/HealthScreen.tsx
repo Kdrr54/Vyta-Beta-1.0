@@ -5,7 +5,7 @@ import { WeekSelector } from './WeekSelector';
 import { BodyEnergyGauge } from './BodyEnergyGauge';
 import { ImmunityRadar } from './ImmunityRadar';
 import { CardioAge } from './CardioAge';
-import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind, Heart } from 'lucide-react';
+import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind, Heart, Camera } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
 
@@ -360,22 +360,49 @@ export const HealthScreen: React.FC = () => {
         </div>
 
         {/* Action Button Pill */}
-        <div
-          style={{
-            padding: '5px 10px',
-            borderRadius: '999px',
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid rgba(255, 255, 255, 0.16)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
-            {language === 'fr' ? 'Ouvrir' : 'Open'}
-          </span>
-          <ArrowUpRight size={12} color="#FAF7F2" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openModal('calai');
+            }}
+            title={language === 'fr' ? 'Scanner un repas (Cal AI)' : 'Scan meal (Cal AI)'}
+            style={{
+              padding: '5px 9px',
+              borderRadius: '999px',
+              background: 'rgba(48, 209, 88, 0.18)',
+              border: '1px solid rgba(48, 209, 88, 0.38)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              color: '#30D158',
+              cursor: 'pointer',
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+          >
+            <Camera size={12} strokeWidth={2.4} />
+            <span>Cal AI</span>
+          </button>
+
+          <div
+            style={{
+              padding: '5px 10px',
+              borderRadius: '999px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+              {language === 'fr' ? 'Ouvrir' : 'Open'}
+            </span>
+            <ArrowUpRight size={12} color="#FAF7F2" />
+          </div>
         </div>
       </div>
 

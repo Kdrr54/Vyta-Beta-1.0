@@ -19,6 +19,7 @@ import { OnboardingFlow } from './components/OnboardingFlow';
 import { GeneralStateModal } from './components/GeneralStateModal';
 import { FindMyRingModal } from './components/FindMyRingModal';
 import { PrismModal } from './components/PrismModal';
+import { CalAiModal } from './components/CalAiModal';
 import { NapModal } from './components/NapModal';
 import { AppleNotificationBanner } from './components/AppleNotificationBanner';
 import { TODAY_INDEX } from './data/health';
@@ -102,10 +103,11 @@ const AppInner: React.FC = () => {
         header={!isLiveRunningViewOpen ? <AppHeader /> : null}
         overlay={
           <>
-            {!isLiveRunningViewOpen && !metricDetail && !storyData && !isDateModalOpen && modal !== 'nap' && modal !== 'prism' && <TabBar />}
+            {!isLiveRunningViewOpen && !metricDetail && !storyData && !isDateModalOpen && modal !== 'nap' && modal !== 'prism' && modal !== 'calai' && <TabBar />}
             <AppleNotificationBanner />
             {modal === 'settings' && <SettingsModal onClose={closeModal} />}
             {modal === 'prism' && <PrismModal onClose={closeModal} />}
+            {modal === 'calai' && <CalAiModal onClose={closeModal} />}
             {modal === 'find_my' && (
               <FindMyRingModal
                 onClose={closeModal}

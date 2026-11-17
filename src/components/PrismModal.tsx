@@ -11,6 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowUp,
+  Camera,
+  Flame,
 } from 'lucide-react';
 
 interface PrismModalProps {
@@ -31,7 +33,7 @@ const THINK_LABELS_FR = ['Analyse biométrique', 'Recoupement', 'Synthèse clini
 const THINK_LABELS_EN = ['Thinking', 'Searching', 'Analyzing', 'Composing'];
 
 export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
-  const { profile, selectedDay, language, weekData, isFirstLaunch } = useApp();
+  const { profile, selectedDay, language, weekData, isFirstLaunch, openModal } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
 
@@ -134,6 +136,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     const text = rawText.trim();
     if (!text || isGenerating) return;
 
+    if (text.includes('Cal AI') || text.includes('Scanner mon plat') || text.includes('Scan meal')) {
+      handleClose();
+      setTimeout(() => openModal('calai'), 180);
+      return;
+    }
+
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       sender: 'user',
@@ -221,8 +229,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   };
 
   const quickSuggestions = isEn
-    ? ['How is my recovery today?', 'Analyze my sleep architecture', 'Can I train hard today?']
-    : ['Comment est ma récupération ?', 'Analyse ma nuit de sommeil', 'Puis-je m’entraîner fort ?'];
+    ? ['📸 Scan meal (Cal AI)', 'How is my recovery today?', 'Analyze my sleep architecture', 'Can I train hard today?']
+    : ['📸 Scanner mon plat (Cal AI)', 'Comment est ma récupération ?', 'Analyse ma nuit de sommeil', 'Puis-je m’entraîner fort ?'];
 
   const ready = inputText.trim().length > 0 && !isGenerating;
 
@@ -625,6 +633,36 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 filter: 'drop-shadow(0 0 6px rgba(192, 132, 252, 0.5))',
               }}
             />
+
+            {/* Bouton Caméra Cal AI Instantané */}
+            <button
+              type="button"
+              onClick={() => {
+                handleClose();
+                setTimeout(() => openModal('calai'), 180);
+              }}
+              title={isEn ? 'Cal AI - Scan meal calories & macros' : 'Cal AI - Scanner un plat'}
+              aria-label="Cal AI Scanner"
+              style={{
+                position: 'relative',
+                zIndex: 2,
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                background: 'rgba(48, 209, 88, 0.16)',
+                border: '1px solid rgba(48, 209, 88, 0.35)',
+                color: '#30D158',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 0 10px rgba(48, 209, 88, 0.25)',
+                flexShrink: 0,
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <Camera size={15} strokeWidth={2.2} />
+            </button>
 
             <input
               type="text"
