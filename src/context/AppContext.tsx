@@ -3,7 +3,7 @@ import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, 
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
-import { detectSleepFromHeartRateLog, buildSleepSummary } from '../lib/sleepAlgorithm';
+import { buildSleepSummary } from '../lib/sleepAlgorithm';
 
 /**
  * Synchronise de façon cohérente l'Énergie Corporelle (au réveil, actuelle, prévue au coucher)
@@ -525,23 +525,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.restingBpm = data.heartRate!;
           }
 
-          // DÉTECTION ALGORITHMIQUE DU SOMMEIL 24H/24 PAR LE RYTHME CARDIAQUE :
-          // Si la bague n'a pas validé de sommeil pour aujourd'hui (cur.sleep.score === 0 ou !cur.sleep.startMin),
-          // on analyse les créneaux hrLog pour détecter automatiquement toute session de sommeil (même décalée 4h30 -> 14h)
-          if ((!cur.sleep || cur.sleep.score === 0 || !cur.sleep.startMin) && cur.hrLog && cur.hrLog.length === 48) {
-            const detectedSleep = detectSleepFromHeartRateLog(cur.hrLog, cur.restingBpm || data.restingBpm);
-            if (detectedSleep) {
-              console.log('[AppContext] Algorithmic Sleep Detection 24h/24 triggered from Heart Rate:', detectedSleep);
-              cur.sleep = detectedSleep;
-              if (cur.pillars) {
-                cur.pillars = { ...cur.pillars, sleep: detectedSleep.score };
-                const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
-                cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
-              }
-              syncBodyEnergy(cur, true);
-            }
-          }
-
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -1007,33 +990,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
                   }
                 } else if (updated.sleep && updated.sleep.startMin !== undefined && updated.sleep.endMin !== undefined) {
-                  // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
-                  const sMin = updated.sleep.startMin;
-                  const eMin = updated.sleep.endMin;
-                  const totStages = (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0);
-                  if (totStages >= 60) {
-                    const expectedE = (sMin + totStages) % 1440;
-                    if (eMin > expectedE && (eMin - expectedE >= 15 && eMin - expectedE <= 240)) {
-                      updated.sleep.endMin = expectedE;
+                  // Nettoyage de la session fantôme 00:00 -> 03:00 générée précédemment par erreur
+                  if (dayIdx === TODAY_INDEX && updated.sleep.startMin === 0 && updated.sleep.endMin === 180) {
+                    updated.sleep = { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
+                    if (updated.pillars) {
+                      updated.pillars = { ...updated.pillars, sleep: 0 };
+                      const activePillars = [updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
+                      updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
+                    }
+                  } else {
+                    // Rétablissement du réveil physiologique si une synchro antérieure avait étiré endMin jusqu'à l'heure d'ouverture
+                    const sMin = updated.sleep.startMin;
+                    const eMin = updated.sleep.endMin;
+                    const totStages = (updated.sleep.deepMin || 0) + (updated.sleep.remMin || 0) + (updated.sleep.lightMin || 0);
+                    if (totStages >= 60) {
+                      const expectedE = (sMin + totStages) % 1440;
+                      if (eMin > expectedE && (eMin - expectedE >= 15 && eMin - expectedE <= 240)) {
+                        updated.sleep.endMin = expectedE;
+                      }
                     }
                   }
-                }
-
-                // Détection algorithmique du sommeil 24h/24 pour aujourd'hui (même horaires décalés 04h30 -> 14h)
-                if (dayIdx === TODAY_INDEX && (!updated.sleep || updated.sleep.score === 0 || !updated.sleep.startMin)) {
-                  const detected = detectSleepFromHeartRateLog(updated.hrLog, updated.restingBpm || updated.bpm);
-                  if (detected) {
-                    updated.sleep = detected;
-                  } else {
-                    // Session déclarée par l'utilisateur (04h30 à 14h00 = 9h30 de sommeil réparateur)
-                    updated.sleep = buildSleepSummary(270, 840, updated.restingBpm || 78);
-                  }
-                  if (updated.pillars) {
-                    updated.pillars = { ...updated.pillars, sleep: updated.sleep.score };
-                    const activePillars = [updated.pillars.sleep, updated.pillars.recovery, updated.pillars.activity].filter((v) => v > 0);
-                    updated.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
-                  }
-                  syncBodyEnergy(updated, true);
                 }
               }
               // Correction automatique des calories aberrantes (ex: 3438 cal enregistrées au lieu de 3 ou 4 kcal pour 103 pas)
