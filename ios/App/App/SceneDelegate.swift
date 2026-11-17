@@ -224,6 +224,7 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
         case "stop":
             isWorkoutActive = false
             locationManager.stopUpdatingLocation()
+            recordedPoints.removeAll()
             UIApplication.shared.isIdleTimerDisabled = false
             print("[Vyta Native] Workout GPS tracking stopped")
 
@@ -260,11 +261,16 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             "accuracy": accuracy,
             "time": time
         ]
-        recordedPoints.append(pointDict)
 
-        let script = "window.dispatchEvent(new CustomEvent('nativeGpsUpdate', { detail: { latitude: \(lat), longitude: \(lng), speed: \(speed), accuracy: \(accuracy), time: \(time) } }));"
-        DispatchQueue.main.async { [weak self] in
-            self?.webView?.evaluateJavaScript(script, completionHandler: nil)
+        // Ne bufferiser QUE si l'application est en tâche de fond (écran éteint / verrouillé)
+        if UIApplication.shared.applicationState != .active {
+            recordedPoints.append(pointDict)
+        } else {
+            // En premier plan, envoyer immédiatement au web view en temps réel
+            let script = "window.dispatchEvent(new CustomEvent('nativeGpsUpdate', { detail: { latitude: \(lat), longitude: \(lng), speed: \(speed), accuracy: \(accuracy), time: \(time) } }));"
+            DispatchQueue.main.async { [weak self] in
+                self?.webView?.evaluateJavaScript(script, completionHandler: nil)
+            }
         }
     }
 
@@ -273,7 +279,10 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
     }
 
     func flushBufferedPointsToWeb() {
-        guard !recordedPoints.isEmpty else { return }
+        guard isWorkoutActive, !recordedPoints.isEmpty else {
+            recordedPoints.removeAll()
+            return
+        }
         let pointsToSend = recordedPoints
         recordedPoints.removeAll()
         guard let data = try? JSONSerialization.data(withJSONObject: pointsToSend, options: []),

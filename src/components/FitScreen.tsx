@@ -179,6 +179,23 @@ export function formatRouteDateStr(route: StoredRoute): string {
   return route.dateStr || 'Récent';
 }
 
+function sanitizeRouteGpsPoints(pts?: [number, number][]): [number, number][] | undefined {
+  if (!pts || pts.length < 3) return pts;
+  const clean: [number, number][] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = clean[clean.length - 1];
+    const curr = pts[i];
+    const distM = calculateGpsDistanceMeters(prev[0], prev[1], curr[0], curr[1]);
+    // S'il y a un saut brutal de plus de 85m entre deux points consécutifs alors que le tracé est bien avancé,
+    // c'est un artefact de resynchronisation / téléportation de fin de course : on coupe la queue corrompue
+    if (distM > 85 && clean.length > 10) {
+      break;
+    }
+    clean.push(curr);
+  }
+  return clean;
+}
+
 export const FitScreen: React.FC = () => {
   const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive } = useApp();
   const isEn = language === 'en';
@@ -204,6 +221,23 @@ export const FitScreen: React.FC = () => {
                   location: (!r.distanceKm || r.distanceKm < 0.05) ? 'Session statique' : r.location,
                 };
               }
+
+              // Nettoyer les artefacts de téléportation en fin de parcours
+              if (r.realGpsPoints && r.realGpsPoints.length > 10) {
+                const cleanedPoints = sanitizeRouteGpsPoints(r.realGpsPoints);
+                if (cleanedPoints && cleanedPoints.length < r.realGpsPoints.length) {
+                  const pathInfo = convertGpsPointsToSvgPath(cleanedPoints);
+                  const trimmedFraction = cleanedPoints.length / r.realGpsPoints.length;
+                  return {
+                    ...r,
+                    realGpsPoints: cleanedPoints,
+                    pointsSvgPath: pathInfo.pathD,
+                    durationSec: Math.round(r.durationSec * trimmedFraction),
+                    distanceKm: Math.round(r.distanceKm * trimmedFraction * 100) / 100,
+                  };
+                }
+              }
+
               return r;
             });
           }
@@ -398,10 +432,29 @@ export const FitScreen: React.FC = () => {
 
   // Traitement universel des coordonnées GPS (Foreground + Native Background iOS CoreLocation)
   const processGpsFix = (latitude: number, longitude: number, speed: number | null, accuracy: number, timestamp?: number) => {
+    // 0. N'enregistrer QUE si la course est activement en cours d'enregistrement
+    if (runState !== 'running') return;
+
     // 1. Filtrer les coordonnées aberrantes ou de trop faible précision (> 35m)
     if (accuracy > 35 || accuracy < 0) return;
     const coords: [number, number] = [latitude, longitude];
     const now = timestamp && timestamp > 0 ? timestamp : Date.now();
+
+    // 1b. DÉDUPLICATION CHRONOLOGIQUE STRICTE : Rejeter tout point déjà traité ou antérieur
+    if (timestamp && lastValidGpsTimestampRef.current > 0 && timestamp <= lastValidGpsTimestampRef.current) {
+      return;
+    }
+
+    // 1c. ANTI-TÉLÉPORTATION : Rejeter les sauts de position anormaux (> 85m en moins de 5s)
+    if (lastGpsFixRef.current) {
+      const jumpMeters = calculateGpsDistanceMeters(lastGpsFixRef.current.lat, lastGpsFixRef.current.lng, latitude, longitude);
+      const dtSec = Math.max(0.2, (now - lastGpsFixRef.current.time) / 1000);
+      const impliedSpeedKmh = (jumpMeters / dtSec) * 3.6;
+      if (jumpMeters > 85 && impliedSpeedKmh > 35) {
+        console.warn('GPS teleportation jump ignored:', jumpMeters, 'm at', impliedSpeedKmh, 'km/h');
+        return;
+      }
+    }
 
     setUserPosition(coords);
     try {
@@ -570,6 +623,7 @@ export const FitScreen: React.FC = () => {
 
     // Écoute des points GPS natifs iOS en arrière-plan (quand l'écran est éteint)
     const handleNativeGps = (e: any) => {
+      if (runState !== 'running') return;
       const { latitude, longitude, speed, accuracy, time } = e.detail || {};
       if (typeof latitude === 'number' && typeof longitude === 'number') {
         processGpsFix(latitude, longitude, speed, accuracy, time);
@@ -577,9 +631,11 @@ export const FitScreen: React.FC = () => {
     };
 
     const handleNativeBatch = (e: any) => {
+      if (runState !== 'running') return;
       const points = e.detail;
       if (Array.isArray(points)) {
-        points.forEach((pt: any) => {
+        const sorted = [...points].sort((a, b) => (a.time || 0) - (b.time || 0));
+        sorted.forEach((pt: any) => {
           processGpsFix(pt.latitude, pt.longitude, pt.speed, pt.accuracy, pt.time);
         });
       }
@@ -689,6 +745,7 @@ export const FitScreen: React.FC = () => {
   };
 
   const stopRun = () => {
+    setRunState('finished');
     notifyNativeWorkout('stop');
     if (isLiveHrActive) {
       setIsLiveHrActive(false);
@@ -726,8 +783,10 @@ export const FitScreen: React.FC = () => {
     const finalDist = Math.round(runDistanceKm * 100) / 100;
     const finalDur = runDurationSec;
     const finalHr = liveHr > 40 ? liveHr : 0;
-    const hasGps = realGpsPoints && realGpsPoints.length >= 2 && finalDist >= 0.05;
-    const pathInfo = hasGps ? convertGpsPointsToSvgPath(realGpsPoints) : null;
+    const cleanedGps = sanitizeRouteGpsPoints(realGpsPoints);
+    const effectivePoints = cleanedGps && cleanedGps.length >= 2 ? cleanedGps : realGpsPoints;
+    const hasGps = effectivePoints && effectivePoints.length >= 2 && finalDist >= 0.05;
+    const pathInfo = hasGps ? convertGpsPointsToSvgPath(effectivePoints) : null;
     const now = new Date();
 
     const newRoute: StoredRoute = {
@@ -740,7 +799,7 @@ export const FitScreen: React.FC = () => {
       avgHr: finalHr,
       dateStr: `Aujourd'hui · ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       pointsSvgPath: pathInfo ? pathInfo.pathD : '',
-      realGpsPoints: hasGps ? realGpsPoints : (realGpsPoints.length === 1 ? [realGpsPoints[0]] : (userPosition ? [userPosition] : undefined)),
+      realGpsPoints: hasGps ? effectivePoints : (effectivePoints.length === 1 ? [effectivePoints[0]] : (userPosition ? [userPosition] : undefined)),
       progress: 1,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);

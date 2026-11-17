@@ -166,15 +166,12 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
     );
 
-    // Continuous watch
+    // Continuous watch for map marker centering
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
+        const { latitude, longitude } = pos.coords;
         const coords: [number, number] = [latitude, longitude];
         setUserPosition(coords);
-        if (accuracy <= 30 && runState === 'running') {
-          setRealGpsPoints(prev => [...prev, coords]);
-        }
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 1000 }
