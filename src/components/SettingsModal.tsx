@@ -2,15 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
+import { RingFinish } from '../types';
 import { qringBle } from '../lib/qringBleService';
 import {
   X,
   Battery,
-  Radio,
   User,
   Disc,
   Globe,
-  Sparkles,
   Bluetooth,
   Heart,
   Bell,
@@ -19,19 +18,26 @@ import {
   Check,
   Minus,
   Plus,
-  Volume2,
   Sliders,
   Zap,
   RefreshCw,
-  Play,
-  Pause,
   RotateCcw,
   Compass,
+  Radio,
+  Cpu,
+  Palette,
+  AlertTriangle,
+  Info,
+  CheckCircle2,
+  Lock,
+  Sparkles,
 } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
 }
+
+type SettingsTab = 'ring' | 'profile' | 'sensors' | 'system';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const {
@@ -40,6 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     ring,
     updateRing,
     finish,
+    setFinish,
     language,
     setLanguage,
     cardThemeMode,
@@ -48,28 +55,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     openModal,
     sensorIntervals,
     updateSensorIntervals,
-    isSimulating,
-    toggleSimulation,
-    simulationHoursElapsed,
-    isFirstLaunch,
     resetToFactory,
   } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
 
   const isEn = language === 'en';
+  const [activeTab, setActiveTab] = useState<SettingsTab>('ring');
+  const [isSyncingRing, setIsSyncingRing] = useState(false);
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [calibrationProgress, setCalibrationProgress] = useState(0);
+  const [calibrationStep, setCalibrationStep] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
-  // Find My Ring radar state
-  const [showRadar, setShowRadar] = useState<boolean>(false);
-  const [pingActive, setPingActive] = useState<boolean>(false);
-  const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
-  const [calibrationProgress, setCalibrationProgress] = useState<number>(0);
-  const [calibrationStep, setCalibrationStep] = useState<string>('');
+  const isConnected = Boolean(ring.isConnected);
+  const isVytaCareActive = ring.vytaCareActive !== false;
+  const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
+  const estimatedDays = calculateEstimatedBatteryDays(sensorIntervals);
+  const remainingBatteryTime = formatRemainingBatteryTime(
+    ring.batteryRing || 0,
+    sensorIntervals,
+    isEn
+  );
+
+  // Auto-switch tab if requested via query params
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('scroll') === 'radar') {
+        setActiveTab('ring');
+      }
+    }
+  }, []);
+
+  const triggerHaptic = () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(18);
+      } catch (_) {}
+    }
+  };
+
+  const handleSyncRing = async () => {
+    triggerHaptic();
+    setIsSyncingRing(true);
+    setSyncFeedback(null);
+    try {
+      await qringBle.syncAllRingData();
+      setSyncFeedback(isEn ? 'Synchronized!' : 'Synchronisé !');
+    } catch (_) {
+      setSyncFeedback(isEn ? 'Sync finished' : 'Synchro terminée');
+    }
+    setTimeout(() => {
+      setIsSyncingRing(false);
+      setTimeout(() => setSyncFeedback(null), 2500);
+    }, 1100);
+  };
 
   const handleStartCalibration = async () => {
+    triggerHaptic();
     setIsCalibrating(true);
     setCalibrationProgress(0);
     setCalibrationStep(isEn ? 'Optical PPG coupling...' : 'Couplage optique PPG...');
-    
+
     await qringBle.startWearCalibration((prog, step) => {
       setCalibrationProgress(prog);
       setCalibrationStep(step);
@@ -84,51 +132,91 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       setIsCalibrating(false);
     }, 1200);
   };
-  const isConnected = Boolean(ring.isConnected);
-  const isVytaCareActive = ring.vytaCareActive !== false;
-  const [isSyncingRing, setIsSyncingRing] = useState(false);
-  const handleSyncRing = async () => {
-    setIsSyncingRing(true);
-    try {
-      await qringBle.syncAllRingData();
-    } catch (_) {}
-    setTimeout(() => {
-      setIsSyncingRing(false);
-    }, 1200);
+
+  // BMI calculations
+  const heightM = (profile.heightCm || 175) / 100;
+  const bmiNum = Number((profile.weightKg / (heightM * heightM)).toFixed(1));
+  const getBmiCategory = (bmi: number) => {
+    if (bmi < 18.5) return { label: isEn ? 'Underweight' : 'Insuffisance pondérale', color: '#38BDF8' };
+    if (bmi <= 24.9) return { label: isEn ? 'Normal weight · Optimal' : 'Corpulence normale · Optimal', color: '#30D158' };
+    if (bmi <= 29.9) return { label: isEn ? 'Overweight' : 'Surpoids léger', color: '#FF9F0A' };
+    return { label: isEn ? 'Obese' : 'Obésité', color: '#FF453A' };
   };
+  const bmiCat = getBmiCategory(bmiNum);
 
-  const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
-  const estimatedDays = calculateEstimatedBatteryDays(sensorIntervals);
-  const remainingBatteryTime = formatRemainingBatteryTime(
-    ring.batteryRing || 0,
-    sensorIntervals,
-    isEn
-  );
-  const bmi = (profile.weightKg / Math.pow((profile.heightCm || 175) / 100, 2)).toFixed(1);
+  const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'ring', label: isEn ? 'Ring' : 'Bague', icon: <Disc size={13} /> },
+    { id: 'profile', label: isEn ? 'Profile' : 'Profil', icon: <User size={13} /> },
+    { id: 'sensors', label: isEn ? 'Sensors' : 'Capteurs', icon: <Zap size={13} /> },
+    { id: 'system', label: isEn ? 'System' : 'Système', icon: <Cpu size={13} /> },
+  ];
 
-  useEffect(() => {
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    if (params?.get('scroll') === 'radar') {
-      setShowRadar(true);
-      const scrollNow = () => {
-        const sheet = document.querySelector('.modal-sheet');
-        if (sheet) sheet.scrollTop = sheet.scrollHeight;
-      };
-      scrollNow();
-      setTimeout(scrollNow, 100);
-      setTimeout(scrollNow, 300);
-    }
-  }, []);
-
-  const triggerPing = () => {
-    setPingActive(true);
-    try {
-      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate([30, 60, 30]);
-      }
-    } catch (e) {}
-    setTimeout(() => setPingActive(false), 2200);
-  };
+  const SENSORS_LIST = [
+    {
+      nameFr: 'Fréquence Cardiaque',
+      nameEn: 'Heart Rate',
+      descFr: 'PPG vert haute sensibilité 24/7',
+      descEn: 'Green optical PPG sensor 24/7',
+      key: 'heartRate' as const,
+      color: '#FF2D55',
+    },
+    {
+      nameFr: 'Variabilité Cardiaque (VRC)',
+      nameEn: 'Heart Rate Variability (HRV)',
+      descFr: 'Micro-intervalles R-R & tonus vagal',
+      descEn: 'R-R intervals & parasympathetic tone',
+      key: 'hrv' as const,
+      color: '#AF52DE',
+    },
+    {
+      nameFr: 'Oxygène Sanguin (SpO2)',
+      nameEn: 'Blood Oxygen (SpO2)',
+      descFr: 'LED rouge & infrarouge pulsées',
+      descEn: 'Pulsed red and infrared diodes',
+      key: 'spo2' as const,
+      color: '#38BDF8',
+    },
+    {
+      nameFr: 'Température Cutanée Nocturne',
+      nameEn: 'Nocturnal Skin Temperature',
+      descFr: 'Thermistance haute précision ±0.05°C',
+      descEn: 'High-precision NTC thermistor ±0.05°C',
+      key: 'temperature' as const,
+      color: '#FF9F0A',
+    },
+    {
+      nameFr: 'Niveau de Stress Physiologique',
+      nameEn: 'Physiological Stress Index',
+      descFr: 'Balance sympathique / parasympathique',
+      descEn: 'Sympathetic / parasympathetic balance',
+      key: 'stress' as const,
+      color: '#FFD60A',
+    },
+    {
+      nameFr: 'Dynamique Vasculaire & Tension',
+      nameEn: 'Vascular & Pressure Wave',
+      descFr: 'Analyse d’onde de pouls artérielle',
+      descEn: 'Arterial pulse wave velocity analysis',
+      key: 'bloodPressure' as const,
+      color: '#30D158',
+    },
+    {
+      nameFr: 'Indice Métabolique & Glucose',
+      nameEn: 'Metabolic & Glucose Stability',
+      descFr: 'Estimation énergétique basale continue',
+      descEn: 'Continuous basal energy expenditure',
+      key: 'glucose' as const,
+      color: '#5E5CE6',
+    },
+    {
+      nameFr: 'Fréquence Respiratoire Nocturne',
+      nameEn: 'Nocturnal Respiratory Rate',
+      descFr: 'Cycles respiratoires sinusaux (brpm)',
+      descEn: 'Sinus arrhythmia breath cycles (brpm)',
+      key: 'respiratory' as const,
+      color: '#64D2FF',
+    },
+  ];
 
   return (
     <div
@@ -141,125 +229,101 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         className={`modal-sheet ${isClosing ? 'is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#0D0D10',
-          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+          position: 'relative',
+          width: '100%',
+          maxWidth: '430px',
+          height: '92dvh',
+          maxHeight: '840px',
+          background: '#0B0B0E',
           borderRadius: '32px 32px 0 0',
-          boxShadow: '0 -24px 60px rgba(0, 0, 0, 0.95)',
-          maxHeight: '92%',
-          padding: '12px 18px 96px 18px',
-          gap: '16px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 -20px 60px rgba(0, 0, 0, 0.95)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: 0,
+          gap: 0,
         }}
       >
-        {/* Top Grabber */}
+        {/* Subtle Ambient Background Highlight */}
         <div
           style={{
-            width: '38px',
-            height: '4.5px',
-            borderRadius: '999px',
-            background: 'rgba(255, 255, 255, 0.22)',
-            margin: '0 auto 2px auto',
-            flexShrink: 0,
+            position: 'absolute',
+            top: '-60px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '280px',
+            height: '140px',
+            borderRadius: '50%',
+            background: 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.08) 0%, transparent 70%)',
+            filter: 'blur(32px)',
+            pointerEvents: 'none',
+            zIndex: 0,
           }}
         />
 
-        {/* Modal Header */}
+        {/* ==============================================================
+            FIXED TOP HEADER: Grabber, Title, Close & Segmented Navigation
+            ============================================================== */}
         <div
           style={{
+            position: 'relative',
+            zIndex: 10,
+            flexShrink: 0,
+            padding: '12px 18px 12px 18px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+            background: 'rgba(11, 11, 14, 0.85)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingBottom: '4px',
+            flexDirection: 'column',
+            gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '11px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 14px rgba(255, 255, 255, 0.14)',
-              }}
-            >
-              <Disc size={17} color="#FAF7F2" />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              <h2
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#FAF7F2',
-                  margin: 0,
-                  letterSpacing: '-0.3px',
-                }}
-              >
-                {t('settings.title')}
-              </h2>
-              <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 500 }}>
-                {isEn ? 'Aurel Ring One · System & Biometrics' : 'Bague Aurel Ring One · Système & Biométrie'}
-              </span>
-            </div>
-          </div>
+          {/* iOS Grab Handle */}
+          <div
+            style={{
+              width: '38px',
+              height: '4px',
+              borderRadius: '999px',
+              background: 'rgba(255, 255, 255, 0.22)',
+              margin: '0 auto',
+            }}
+          />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Quick Language Switcher Header Pill */}
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '2.5px',
-                borderRadius: '999px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
-                gap: '2px',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setLanguage('fr')}
+          {/* Title Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
                 style={{
-                  padding: '3px 8px',
-                  borderRadius: '999px',
-                  background: language === 'fr' ? 'rgba(255, 255, 255, 0.24)' : 'transparent',
-                  color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
-                  fontSize: '11px',
-                  fontWeight: language === 'fr' ? 700 : 500,
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '11px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px',
+                  justifyContent: 'center',
                 }}
               >
-                <span>🇫🇷</span>
-                <span>FR</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanguage('en')}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: '999px',
-                  background: language === 'en' ? 'rgba(255, 255, 255, 0.24)' : 'transparent',
-                  color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
-                  fontSize: '11px',
-                  fontWeight: language === 'en' ? 700 : 500,
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                }}
-              >
-                <span>🇬🇧</span>
-                <span>EN</span>
-              </button>
+                <Disc size={17} color="#FAF7F2" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h2
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: '#FAF7F2',
+                    margin: 0,
+                    letterSpacing: '-0.3px',
+                  }}
+                >
+                  {t('settings.title')}
+                </h2>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 500 }}>
+                  {isEn ? 'Aurel Ring One · Settings & Health' : 'Aurel Ring One · Réglages & Santé'}
+                </span>
+              </div>
             </div>
 
             <button
@@ -267,1575 +331,1569 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               className="modal-close-btn"
               onClick={handleClose}
               aria-label={t('settings.close')}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#FAF7F2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
             >
-              <X size={16} />
+              <X size={15} />
             </button>
+          </div>
+
+          {/* Segmented Control Bar */}
+          <div
+            style={{
+              display: 'flex',
+              padding: '3px',
+              borderRadius: '13px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              gap: '3px',
+            }}
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    setActiveTab(tab.id);
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    padding: '8px 4px',
+                    borderRadius: '10px',
+                    background: isActive ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                    border: isActive ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid transparent',
+                    color: isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                    fontSize: '11.5px',
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                    boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.4)' : 'none',
+                  }}
+                >
+                  <span style={{ opacity: isActive ? 1 : 0.7 }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* ====================================================================
-            1. HERO CARD : MA BAGUE VYTA ONE (Série, Garantie, Batterie, Statut)
-            ==================================================================== */}
+        {/* ==============================================================
+            SCROLLABLE CONTENT AREA
+            ============================================================== */}
         <div
           style={{
             position: 'relative',
-            width: '100%',
-            flexShrink: 0,
-            padding: '16px',
-            borderRadius: '26px',
-            overflow: 'hidden',
-            background:
-              'radial-gradient(ellipse at 75% 100%, rgba(217, 249, 112, 0.24) 0%, rgba(82, 102, 42, 0.14) 48%, rgba(10, 10, 12, 0.96) 82%), #0A0A0C',
-            borderTop: '1px solid rgba(255, 248, 240, 0.16)',
-            borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
-            borderRight: '1px solid rgba(255, 248, 240, 0.12)',
-            borderBottom: '1.5px solid rgba(217, 249, 112, 0.6)',
-            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 20px rgba(255, 255, 255, 0.08)',
+            zIndex: 1,
+            flex: 1,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            padding: '16px 18px 40px 18px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px',
+            gap: '16px',
           }}
         >
-          {/* 1. ROW 1: Statut de Connexion & Synchronisation Ring BLE */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              zIndex: 2,
-            }}
-          >
-            {/* Statut connectée ou pas */}
-            <button
-              type="button"
-              onClick={async () => {
-                if (!isConnected) {
-                  const success = await qringBle.autoConnectSavedDevice();
-                  if (!success) {
-                    onClose();
-                    openModal('pairing');
-                  }
-                }
-              }}
-              title={
-                isEn
-                  ? isConnected
-                    ? 'Ring connected'
-                    : 'Click to connect ring'
-                  : isConnected
-                  ? 'Bague connectée'
-                  : 'Cliquer pour connecter la bague'
-              }
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '999px',
-                background: isConnected
-                  ? 'rgba(48, 209, 88, 0.15)'
-                  : 'rgba(255, 69, 58, 0.15)',
-                border: isConnected
-                  ? '1px solid rgba(48, 209, 88, 0.45)'
-                  : '1px solid rgba(255, 69, 58, 0.45)',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <span
-                style={{
-                  width: '6.5px',
-                  height: '6.5px',
-                  borderRadius: '50%',
-                  background: isConnected ? '#FAF7F2' : '#FF453A',
-                  boxShadow: isConnected
-                    ? '0 0 8px #FAF7F2'
-                    : '0 0 6px #FF453A',
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: isConnected ? '#FAF7F2' : '#FF453A',
-                  letterSpacing: '0.02em',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {isConnected
-                  ? isEn
-                    ? 'Connected'
-                    : 'Connectée'
-                  : isEn
-                  ? 'Disconnected'
-                  : 'Non connectée'}
-              </span>
-            </button>
-
-            {/* Statut de Synchronisation de la Bague */}
-            <button
-              type="button"
-              onClick={handleSyncRing}
-              disabled={isSyncingRing}
-              title={isEn ? 'Click to sync ring biomarkers' : 'Cliquer pour synchroniser les biomarqueurs de la bague'}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 10px',
-                borderRadius: '999px',
-                background: isSyncingRing
-                  ? 'rgba(217, 249, 112, 0.16)'
-                  : 'rgba(255, 255, 255, 0.06)',
-                border: isSyncingRing
-                  ? '1px solid rgba(255, 255, 255, 0.35)'
-                  : '1px solid rgba(255, 255, 255, 0.12)',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <RefreshCw
-                size={11}
-                color={isSyncingRing ? '#D9F970' : '#FAF7F2'}
-                style={{
-                  transform: isSyncingRing ? 'rotate(360deg)' : 'none',
-                  transition: isSyncingRing ? 'transform 0.75s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
-                }}
-              />
-              <span
-                style={{
-                  fontSize: '10.5px',
-                  fontWeight: 600,
-                  color: isSyncingRing ? '#D9F970' : 'rgba(250, 247, 242, 0.75)',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {isSyncingRing
-                  ? isEn
-                    ? 'Syncing...'
-                    : 'Synchronisation...'
-                  : isEn
-                  ? 'Synced just now'
-                  : "Synchro : à l'instant"}
-              </span>
-            </button>
-          </div>
-
-          {/* 3. ROW 3: Batterie Bague (Gauche) & Rendu 3D Bague (Droite) - SANS mention du boîtier nomade */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              position: 'relative',
-              minHeight: '104px',
-              padding: '2px 0',
-              zIndex: 2,
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxWidth: '58%' }}>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  color: 'rgba(250, 247, 242, 0.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {t('settings.ring_battery')}
-              </span>
-
+          {/* ==========================================================
+              TAB 1: BAGUE & MATÉRIEL (HARDWARE & BLE)
+              ========================================================== */}
+          {activeTab === 'ring' && (
+            <>
+              {/* 1. Hero Ring Card */}
               <div
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'baseline',
-                  width: 'fit-content',
+                  position: 'relative',
+                  width: '100%',
+                  padding: '16px',
+                  borderRadius: '24px',
+                  background: 'linear-gradient(180deg, #131317 0%, #0E0E12 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 12px 30px rgba(0, 0, 0, 0.65)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
                 }}
               >
-                <span
+                {/* Status Bar & Sync Action */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      triggerHaptic();
+                      if (!isConnected) {
+                        const success = await qringBle.autoConnectSavedDevice();
+                        if (!success) {
+                          onClose();
+                          openModal('pairing');
+                        }
+                      }
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      background: isConnected ? 'rgba(48, 209, 88, 0.14)' : 'rgba(255, 69, 58, 0.14)',
+                      border: isConnected ? '1px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(255, 69, 58, 0.4)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '6.5px',
+                        height: '6.5px',
+                        borderRadius: '50%',
+                        background: isConnected ? '#30D158' : '#FF453A',
+                        boxShadow: isConnected ? '0 0 8px #30D158' : '0 0 8px #FF453A',
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: isConnected ? '#30D158' : '#FF453A',
+                      }}
+                    >
+                      {isConnected
+                        ? (isEn ? 'Connected' : 'Bague Connectée')
+                        : (isEn ? 'Disconnected' : 'Non Connectée')}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSyncRing}
+                    disabled={isSyncingRing}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      background: isSyncingRing ? 'rgba(56, 189, 248, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                      border: isSyncingRing ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                      cursor: isSyncingRing ? 'default' : 'pointer',
+                      color: isSyncingRing ? '#38BDF8' : 'rgba(250, 247, 242, 0.8)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <RefreshCw
+                      size={11}
+                      style={{
+                        transform: isSyncingRing ? 'rotate(360deg)' : 'none',
+                        transition: isSyncingRing ? 'transform 0.8s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
+                      }}
+                    />
+                    <span>
+                      {syncFeedback
+                        ? syncFeedback
+                        : isSyncingRing
+                        ? (isEn ? 'Syncing...' : 'Synchro...')
+                        : (isEn ? 'Sync now' : 'Synchroniser')}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Battery & 3D Ring Display */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '100px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '58%' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: 'rgba(250, 247, 242, 0.5)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      {t('settings.ring_battery')}
+                    </span>
+
+                    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '3px' }}>
+                      <span
+                        style={{
+                          fontSize: '44px',
+                          fontWeight: 300,
+                          color: (ring.batteryRing || 0) <= 15 ? '#FF453A' : '#FAF7F2',
+                          lineHeight: 1,
+                          letterSpacing: '-1.5px',
+                        }}
+                      >
+                        {isConnected && (ring.batteryRing || 0) > 0 ? `${ring.batteryRing}%` : '--'}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div
+                      style={{
+                        width: '100%',
+                        maxWidth: '160px',
+                        height: '5px',
+                        borderRadius: '999px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        overflow: 'hidden',
+                        marginTop: '3px',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: isConnected && ring.batteryRing > 0 ? `${ring.batteryRing}%` : '0%',
+                          height: '100%',
+                          borderRadius: '999px',
+                          background:
+                            ring.batteryRing <= 20
+                              ? 'linear-gradient(90deg, #FF453A, #FF9F0A)'
+                              : 'linear-gradient(90deg, #30D158, #34C759)',
+                          boxShadow:
+                            ring.batteryRing <= 20
+                              ? '0 0 10px rgba(255, 69, 58, 0.5)'
+                              : '0 0 10px rgba(48, 209, 88, 0.4)',
+                        }}
+                      />
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: !isConnected
+                          ? 'rgba(250, 247, 242, 0.45)'
+                          : (ring.batteryRing || 0) <= 15
+                          ? '#FF453A'
+                          : 'rgba(250, 247, 242, 0.7)',
+                        marginTop: '4px',
+                      }}
+                    >
+                      {isConnected && ring.batteryRing > 0
+                        ? remainingBatteryTime
+                        : (isEn ? 'Ring disconnected' : 'Bague non connectée')}
+                    </span>
+                  </div>
+
+                  {/* 3D Isometric Ring Render */}
+                  <div
+                    style={{
+                      width: '128px',
+                      height: '108px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <img
+                      src="/assets/ring/ring-iso-transparent.png"
+                      alt="Aurel Ring One Smart Ring"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        transform: 'scale(1.15)',
+                        filter: currentFinish.imgFilter + ' drop-shadow(0 14px 26px rgba(0, 0, 0, 0.95))',
+                        transition: 'filter 0.25s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Hardware Action Buttons */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      onClose();
+                      openModal('pairing');
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '13px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      color: '#FAF7F2',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Bluetooth size={14} color="#38BDF8" />
+                    <span>{isEn ? 'Pair / Scan' : 'Appairer la bague'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      openModal('find_my');
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '13px',
+                      background: 'rgba(48, 209, 88, 0.12)',
+                      border: '1px solid rgba(48, 209, 88, 0.3)',
+                      color: '#30D158',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Radio size={14} color="#30D158" />
+                    <span>{isEn ? 'Find My Ring' : 'Radar Localiser'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Finition de la Bague (Finish Options) */}
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                    <Palette size={14} color="#FAF7F2" />
+                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Ring Finish' : 'Finition du Titane'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 500 }}>
+                    {currentFinish.label}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {finishes.map((f) => {
+                    const isSelected = finish === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic();
+                          setFinish(f.id);
+                        }}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: '12px',
+                          background: isSelected ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                          border: isSelected ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: f.swatch,
+                            boxShadow: isSelected ? '0 0 10px rgba(255, 255, 255, 0.5)' : 'none',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: '9.5px',
+                            color: isSelected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                            fontWeight: isSelected ? 700 : 500,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {f.label.split(' ')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Diagnostics & Calibrage de Port */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sliders size={14} color="#30D158" />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Wear Calibration' : 'Calibrage du Port'}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: '#30D158',
+                      background: 'rgba(48, 209, 88, 0.14)',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {ring.wearCalibrationScore || 99}% {isEn ? 'OPTIMAL' : 'OPTIMAL'}
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', lineHeight: 1.45, margin: 0 }}>
+                  {isEn
+                    ? 'Calibrates optical PPG sensor contact impedance and microvascular alignment against your skin.'
+                    : 'Calibre le couplage optique PPG et l’impédance cutanée pour une fidélité biométrique maximale.'}
+                </p>
+
+                {isCalibrating && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 0, 0, 0.6)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: '#FAF7F2' }}>
+                      <span>{calibrationStep}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)' }}>{calibrationProgress}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.12)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${calibrationProgress}%`,
+                          height: '100%',
+                          background: '#30D158',
+                          transition: 'width 0.25s ease',
+                          boxShadow: '0 0 8px rgba(48, 209, 88, 0.6)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleStartCalibration}
+                  disabled={isCalibrating}
                   style={{
-                    fontSize: '42px',
-                    fontWeight: 300,
-                    color: (ring.batteryRing || 0) <= 15 ? '#FF453A' : '#FAF7F2',
-                    lineHeight: 1,
-                    letterSpacing: '-1.5px',
-                    transition: 'color 0.2s ease',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '12px',
+                    background: isCalibrating ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#FAF7F2',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    cursor: isCalibrating ? 'default' : 'pointer',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  {isConnected && (ring.batteryRing || 0) > 0 ? `${ring.batteryRing}%` : '--'}
+                  <RefreshCw size={12} className={isCalibrating ? 'spin' : ''} />
+                  <span>
+                    {isCalibrating
+                      ? (isEn ? 'Calibrating PPG...' : 'Calibrage en cours...')
+                      : (isEn ? 'Run Calibration (15s)' : 'Lancer le calibrage de port')}
+                  </span>
+                </button>
+              </div>
+
+              {/* 4. Garantie Aurel Care */}
+              <div
+                onClick={() => {
+                  triggerHaptic();
+                  updateRing({ vytaCareActive: !isVytaCareActive });
+                }}
+                role="button"
+                tabIndex={0}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '18px',
+                  background: isVytaCareActive ? 'rgba(48, 209, 88, 0.06)' : 'rgba(255, 255, 255, 0.03)',
+                  border: isVytaCareActive ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '9px',
+                      background: isVytaCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <ShieldCheck size={16} color={isVytaCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)'} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Aurel Care Warranty' : 'Garantie Aurel Care'}
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
+                      {isVytaCareActive
+                        ? (isEn ? `Valid until ${ring.vytaCareExpires || 'Oct 2028'}` : `Couverture active · Jusqu'en ${ring.vytaCareExpires || 'Oct 2028'}`)
+                        : (isEn ? 'Inactive · No active coverage' : 'Non active · Aucune couverture')}
+                    </span>
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: isVytaCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)',
+                    background: isVytaCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {isVytaCareActive ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </div>
 
-              {/* Battery Progress Bar */}
+              {/* 5. Hardware Specifications */}
               <div
                 style={{
-                  width: '100%',
-                  maxWidth: '170px',
-                  height: '5px',
-                  borderRadius: '999px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  overflow: 'hidden',
-                  marginTop: '4px',
+                  padding: '14px 16px',
+                  borderRadius: '18px',
+                  background: 'rgba(255, 255, 255, 0.025)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  fontSize: '11px',
                 }}
               >
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
+                  <span>{isEn ? 'Model' : 'Modèle'}</span>
+                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Ring One (Grade 5 Titanium)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
+                  <span>{isEn ? 'Serial Number' : 'Numéro de Série'}</span>
+                  <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.serial || 'AY-9942-X'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
+                  <span>{isEn ? 'BLE MAC Address' : 'Adresse MAC BLE'}</span>
+                  <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.macAddress || 'C8:2B:96:4A:99:84'}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ==========================================================
+              TAB 2: PROFIL BIOMÉTRIQUE & MORPHOLOGIE
+              ========================================================== */}
+          {activeTab === 'profile' && (
+            <>
+              {/* Sexe Biologique Switcher */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <User size={14} color="#A78BFA" />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Biological Sex' : 'Sexe Biologique'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                    {isEn ? 'Calibrates metabolic baselines' : 'Calibre le métabolisme'}
+                  </span>
+                </div>
+
                 <div
                   style={{
-                    width: isConnected && ring.batteryRing > 0 ? String(ring.batteryRing) + '%' : '0%',
-                    height: '100%',
-                    borderRadius: '999px',
-                    background:
-                      ring.batteryRing <= 20
-                        ? 'linear-gradient(90deg, #FF453A, #FF9F0A)'
-                        : 'linear-gradient(90deg, #D9F970, #FAF7F2)',
-                    boxShadow:
-                      ring.batteryRing <= 20
-                        ? '0 0 10px rgba(255, 69, 58, 0.6)'
-                        : '0 0 10px rgba(217, 249, 112, 0.6)',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '8px',
+                    padding: '4px',
+                    borderRadius: '13px',
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
                   }}
-                />
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      updateProfile({ sex: 'homme' });
+                    }}
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      background: profile.sex === 'homme' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                      border: profile.sex === 'homme' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent',
+                      color: profile.sex === 'homme' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                      fontSize: '12.5px',
+                      fontWeight: profile.sex === 'homme' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {profile.sex === 'homme' && <Check size={13} strokeWidth={2.4} />}
+                    <span>{t('settings.male')}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      updateProfile({ sex: 'femme' });
+                    }}
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      background: profile.sex === 'femme' ? 'rgba(232, 121, 249, 0.16)' : 'transparent',
+                      border: profile.sex === 'femme' ? '1px solid rgba(232, 121, 249, 0.4)' : '1px solid transparent',
+                      color: profile.sex === 'femme' ? '#E879F9' : 'rgba(250, 247, 242, 0.5)',
+                      fontSize: '12.5px',
+                      fontWeight: profile.sex === 'femme' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {profile.sex === 'femme' && <Check size={13} strokeWidth={2.4} />}
+                    <span>{t('settings.female')}</span>
+                  </button>
+                </div>
+
+                {profile.sex === 'femme' && (
+                  <div
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      background: 'rgba(232, 121, 249, 0.08)',
+                      border: '1px solid rgba(232, 121, 249, 0.2)',
+                      fontSize: '10.5px',
+                      color: '#E879F9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Sparkles size={12} />
+                    <span>
+                      {isEn
+                        ? 'Female Cycle tracking and basal temperature tracking unlocked.'
+                        : 'Suivi du cycle féminin et analyse thermique basale activés.'}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Sous-titre synchronisé avec le % réel de la batterie */}
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: !isConnected ? 'rgba(250, 247, 242, 0.45)' : ((ring.batteryRing || 0) <= 15 ? '#FF453A' : '#D9F970'),
-                  marginTop: '4px',
-                  letterSpacing: '0.01em',
-                }}
-              >
-                {isConnected && ring.batteryRing > 0 ? remainingBatteryTime : (isEn ? 'Ring disconnected' : 'Bague non connectée')}
-              </span>
-            </div>
+              {/* 2x2 Bento Grid: Prénom, Âge, Taille, Poids */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {/* Prénom */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase' }}>
+                    {t('settings.first_name')}
+                  </span>
+                  <input
+                    type="text"
+                    value={profile.firstName}
+                    onChange={(e) => updateProfile({ firstName: e.target.value })}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: '#FAF7F2',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      width: '100%',
+                      padding: 0,
+                    }}
+                  />
+                </div>
 
-            {/* 3D Isometric Ring Render */}
-            <div
-              style={{
-                width: '136px',
-                height: '114px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'none',
-              }}
-            >
-              <img
-                src="/assets/ring/ring-iso-transparent.png"
-                alt="Aurel Ring One Smart Ring"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  transform: 'scale(1.18)',
-                  filter: currentFinish.imgFilter + ' drop-shadow(0 14px 28px rgba(0, 0, 0, 0.9))',
-                  transition: 'filter 0.25s ease',
-                }}
-              />
-            </div>
-          </div>
+                {/* Âge */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase' }}>
+                      {t('settings.age')}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>{isEn ? 'yrs' : 'ans'}</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={profile.age}
+                    onChange={(e) => updateProfile({ age: Number(e.target.value) || 28 })}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: '#FAF7F2',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      width: '100%',
+                      padding: 0,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  />
+                </div>
 
-          {/* Garantie Aurel Care Active ou Non (Dedicated Capsule Card) */}
-          <div
-            onClick={() => updateRing({ vytaCareActive: !isVytaCareActive })}
-            role="button"
-            tabIndex={0}
-            title={isEn ? 'Click to toggle Aurel Care warranty status' : 'Cliquer pour basculer le statut de garantie'}
-            style={{
-              padding: '10px 12px',
-              borderRadius: '14px',
-              background: isVytaCareActive
-                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04))'
-                : 'rgba(255, 255, 255, 0.04)',
-              border: isVytaCareActive
-                ? '1px solid rgba(255, 255, 255, 0.25)'
-                : '1px solid rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              zIndex: 2,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Taille */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase' }}>
+                      {t('settings.height')}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>cm</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={profile.heightCm}
+                    onChange={(e) => updateProfile({ heightCm: Number(e.target.value) || 180 })}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: '#FAF7F2',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      width: '100%',
+                      padding: 0,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  />
+                </div>
+
+                {/* Poids */}
+                <div
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase' }}>
+                      {t('settings.weight')}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>kg</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={profile.weightKg}
+                    onChange={(e) => updateProfile({ weightKg: Number(e.target.value) || 75 })}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: '#FAF7F2',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      width: '100%',
+                      padding: 0,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic BMI Card */}
               <div
                 style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '8px',
-                  background: isVytaCareActive
-                    ? 'rgba(255, 255, 255, 0.14)'
-                    : 'rgba(255, 255, 255, 0.08)',
+                  padding: '14px 16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                <ShieldCheck
-                  size={14}
-                  color={isVytaCareActive ? '#D9F970' : 'rgba(250, 247, 242, 0.5)'}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Aurel Care Warranty' : 'Garantie Aurel Care'}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                  {isVytaCareActive
-                    ? isEn
-                      ? `Active coverage · Valid until ${ring.vytaCareExpires || 'Oct 2028'}`
-                      : `Couverture active · Valide jusqu'en ${ring.vytaCareExpires || 'Octobre 2028'}`
-                    : isEn
-                    ? 'Inactive · No active coverage'
-                    : 'Non active · Aucune couverture'}
-                </span>
-              </div>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    {isEn ? 'Body Mass Index (BMI)' : 'Indice de Masse Corporelle (IMC)'}
+                  </span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: bmiCat.color }}>
+                    {bmiCat.label}
+                  </span>
+                </div>
 
-            <span
-              style={{
-                fontSize: '10.5px',
-                fontWeight: 700,
-                color: isVytaCareActive ? '#000000' : 'rgba(250, 247, 242, 0.65)',
-                background: isVytaCareActive ? '#FAF7F2' : 'rgba(255, 255, 255, 0.08)',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                letterSpacing: '0.03em',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {isVytaCareActive
-                ? isEn
-                  ? 'ACTIVE'
-                  : 'ACTIVE'
-                : isEn
-                ? 'INACTIVE'
-                : 'NON ACTIVE'}
-            </span>
-          </div>
+                <div
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#FAF7F2',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {bmiNum}
+                </div>
+              </div>
 
-          {/* Localiser ma bague (Aurel Radar) */}
-          <div
-            onClick={() => openModal('find_my')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.035)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              zIndex: 2,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Ring Size Stepper */}
               <div
                 style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '8px',
-                  background: 'rgba(48, 209, 88, 0.14)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
                 }}
               >
-                <Compass size={14} color="#30D158" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                    {isEn ? 'Aurel Ring Size (US)' : 'Taille de bague Aurel (US)'}
+                  </span>
+                  <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                    {isEn ? 'Index or middle finger recommended' : 'Ajustement index ou majeur recommandé'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      updateRing({ ringSize: Math.max(6, ring.ringSize - 1) });
+                    }}
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '9px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#FAF7F2',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Minus size={13} />
+                  </button>
+
+                  <span
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: '#FAF7F2',
+                      fontFamily: 'var(--font-mono)',
+                      minWidth: '24px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {ring.ringSize}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      updateRing({ ringSize: Math.min(14, ring.ringSize + 1) });
+                    }}
+                    style={{
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '9px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#FAF7F2',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Plus size={13} />
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Find My Ring (Aurel Radar)' : 'Localiser ma bague (Radar Aurel)'}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                  {isEn
-                    ? 'GPS last known position · BLE precision finding'
-                    : 'Dernière position GPS · Radar Bluetooth en direct'}
-                </span>
-              </div>
-            </div>
+            </>
+          )}
 
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                color: '#30D158',
-                background: 'rgba(48, 209, 88, 0.16)',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                letterSpacing: '0.03em',
-              }}
-            >
-              {isEn ? 'RADAR' : 'RADAR'}
-            </span>
-          </div>
-
-          {/* Quick Ring Actions: Appairer & Localiser */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', zIndex: 2 }}>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                openModal('pairing');
-              }}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '14px',
-                background: 'rgba(255, 255, 255, 0.07)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#FAF7F2',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-              }}
-            >
-              <Bluetooth size={14} color="#FAF7F2" />
-              <span>{isEn ? 'Pair / Sync Ring' : 'Appairer la bague'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openModal('find_my')}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '14px',
-                background: 'rgba(48, 209, 88, 0.12)',
-                border: '1px solid rgba(48, 209, 88, 0.35)',
-                color: '#30D158',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-              }}
-            >
-              <Radio size={14} color="#30D158" />
-              <span>{t('settings.find_my_ring')}</span>
-            </button>
-          </div>
-
-          {/* Calibrage de Port de la Bague (Wear Calibration - SDK QC) */}
-          <div
-            style={{
-              padding: '13px 14px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.035)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              zIndex: 2,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={13} color="#FAF7F2" />
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Ring Wear Calibration' : 'Calibrage du Port de la Bague'}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: '#FAF7F2',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  padding: '2px 7px',
-                  borderRadius: '999px',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {ring.wearCalibrationScore || 99}% {isEn ? 'OPTIMAL' : 'OPTIMAL'}
-              </span>
-            </div>
-
-            <p style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', lineHeight: 1.4, margin: 0 }}>
-              {isEn
-                ? 'Calibrates optical PPG sensor contact impedance and microvascular alignment against your skin.'
-                : 'Calibre le couplage optique PPG et l’impédance cutanée pour une précision biométrique maximale.'}
-            </p>
-
-            {/* Live Calibration HUD when active */}
-            {isCalibrating && (
+          {/* ==========================================================
+              TAB 3: CAPTEURS BIOMÉTRIQUES & AUTONOMIE
+              ========================================================== */}
+          {activeTab === 'sensors' && (
+            <>
+              {/* Presets d'autonomie Card */}
               <div
                 style={{
-                  padding: '12px',
-                  borderRadius: '14px',
-                  background: 'rgba(0, 0, 0, 0.6)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  padding: '16px',
+                  borderRadius: '22px',
+                  background: 'linear-gradient(180deg, #131317 0%, #0E0E12 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Zap size={14} color="#30D158" />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Sampling Frequency & Battery' : 'Fréquence de Mesure & Autonomie'}
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#30D158',
+                      background: 'rgba(48, 209, 88, 0.14)',
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    ~{estimatedDays} {isEn ? 'days autonomy' : 'jours d’autonomie'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {[
+                    {
+                      id: '1h',
+                      title: isEn ? 'Balanced' : 'Équilibré',
+                      sub: '1h · ~8j',
+                      isActive: sensorIntervals?.heartRate === '1h',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '1h',
+                          hrv: '1h',
+                          spo2: '1h',
+                          temperature: '1h',
+                          stress: '1h',
+                          bloodPressure: '1h',
+                          glucose: '1h',
+                          respiratory: '1h',
+                        });
+                        qringBle.setAllSensorIntervals(60);
+                      },
+                    },
+                    {
+                      id: '30min',
+                      title: isEn ? 'Precision' : 'Précision',
+                      sub: '30m · ~5j',
+                      isActive: (sensorIntervals?.heartRate || '30min') === '30min',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '30min',
+                          hrv: '30min',
+                          spo2: '30min',
+                          temperature: '30min',
+                          stress: '30min',
+                          bloodPressure: '30min',
+                          glucose: '30min',
+                          respiratory: '30min',
+                        });
+                        qringBle.setAllSensorIntervals(30);
+                      },
+                    },
+                    {
+                      id: 'pause',
+                      title: isEn ? 'Standby' : 'Veille',
+                      sub: '0 LED',
+                      isActive: (sensorIntervals?.heartRate as string) === 'pause',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: 'pause' as any,
+                          hrv: 'pause' as any,
+                          spo2: 'pause' as any,
+                          temperature: 'pause' as any,
+                          stress: 'pause' as any,
+                          bloodPressure: 'pause' as any,
+                          glucose: 'pause' as any,
+                          respiratory: 'pause' as any,
+                        });
+                        qringBle.setAllSensorIntervals(0);
+                      },
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={preset.action}
+                      style={{
+                        padding: '10px 6px',
+                        borderRadius: '12px',
+                        background: preset.isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                        border: preset.isActive ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.6)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '3px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: preset.isActive ? 700 : 500 }}>
+                        {preset.title}
+                      </span>
+                      <span style={{ fontSize: '9.5px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                        {preset.sub}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Les 8 Capteurs Actifs List */}
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {isEn ? 'Active Biometric Sensors (8)' : 'Les 8 Capteurs Biométriques Actifs'}
+                </span>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {SENSORS_LIST.map((s) => (
+                    <div
+                      key={s.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 255, 255, 0.025)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                        <span
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            background: s.color,
+                            boxShadow: `0 0 6px ${s.color}`,
+                          }}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                            {isEn ? s.nameEn : s.nameFr}
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                            {isEn ? s.descEn : s.descFr}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          color: '#FAF7F2',
+                          fontFamily: 'var(--font-mono)',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        {sensorIntervals?.[s.key] || '30min'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ==========================================================
+              TAB 4: SYSTÈME, ÉCOSYSTÈME & PRÉFÉRENCES
+              ========================================================== */}
+          {activeTab === 'system' && (
+            <>
+              {/* Écosystème Connecté (HealthKit & APNs) */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {isEn ? 'Connected Ecosystem' : 'Écosystème & Passerelles'}
+                </span>
+
+                {/* Apple Santé / HealthKit */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    onClose();
+                    openModal('healthkit');
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '11px 12px',
+                    borderRadius: '14px',
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '9px',
+                        background: 'rgba(255, 45, 85, 0.15)',
+                        border: '1px solid rgba(255, 45, 85, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Heart size={15} color="#FF2D55" fill="#FF2D55" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                        {isEn ? 'Apple Health (HealthKit)' : 'Pont Apple Santé & Forme'}
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
+                        {isEn ? 'Bidirectional sync active' : 'Synchronisation temps réel'}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={15} color="rgba(250, 247, 242, 0.4)" />
+                </button>
+
+                {/* Notifications & Push Alerts */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic();
+                    onClose();
+                    openModal('notifications');
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '11px 12px',
+                    borderRadius: '14px',
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '9px',
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Bell size={15} color="#38BDF8" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                        {isEn ? 'Biometric Notifications' : 'Alertes & Notifications'}
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
+                        {isEn ? 'HRV, Temp & Battery alerts' : 'Seuils VRC, Température & Batterie'}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={15} color="rgba(250, 247, 242, 0.4)" />
+                </button>
+              </div>
+
+              {/* App Visual Style & Language */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}
+              >
+                {/* Glow Theme Mode */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.6)' }}>
+                    {isEn ? 'Biometric Cards Visual Style' : 'Style Visuel des Constantes'}
+                  </span>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '8px',
+                      padding: '4px',
+                      borderRadius: '13px',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setCardThemeMode('colored');
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                        border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                        color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                        fontSize: '11.5px',
+                        fontWeight: cardThemeMode === 'colored' ? 700 : 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isEn ? 'Colored Glow ✨' : 'Coloré ✨'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setCardThemeMode('monochrome');
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                        border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                        color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                        fontSize: '11.5px',
+                        fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isEn ? 'Monochrome' : 'Noir & Blanc'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* App Language */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.6)' }}>
+                    {isEn ? 'Language' : 'Langue de l’application'}
+                  </span>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '8px',
+                      padding: '4px',
+                      borderRadius: '13px',
+                      background: 'rgba(0, 0, 0, 0.4)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setLanguage('fr');
+                      }}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        background: language === 'fr' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                        border: language === 'fr' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                        color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                        fontSize: '12px',
+                        fontWeight: language === 'fr' ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>🇫🇷</span>
+                      <span>Français</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        setLanguage('en');
+                      }}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '10px',
+                        background: language === 'en' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                        border: language === 'en' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+                        color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                        fontSize: '12px',
+                        fontWeight: language === 'en' ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>🇬🇧</span>
+                      <span>English</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Maintenance & Reset */}
+              <div
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '20px',
+                  background: 'rgba(255, 69, 58, 0.05)',
+                  border: '1px solid rgba(255, 69, 58, 0.18)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '8px',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', color: '#FAF7F2', fontWeight: 500 }}>
-                    {calibrationStep}
-                  </span>
-                  <span style={{ fontSize: '11px', color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-                    {calibrationProgress}%
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <RotateCcw size={14} color="#FF453A" />
+                  <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FF453A' }}>
+                    {isEn ? 'Device & App Reset' : 'Maintenance & Réinitialisation'}
                   </span>
                 </div>
-                <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.15)', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width: `${calibrationProgress}%`,
-                      height: '100%',
-                      background: '#FAF7F2',
-                      transition: 'width 0.3s ease',
-                      boxShadow: '0 0 8px rgba(255, 255, 255, 0.6)',
+
+                <p style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.4, margin: 0 }}>
+                  {isEn
+                    ? 'Clears on-device biometric cache and resets app settings to pristine factory state.'
+                    : 'Efface le cache local et remet l’application à zéro comme au premier déballage.'}
+                </p>
+
+                {showResetConfirm ? (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(false)}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '11px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#FAF7F2',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isEn ? 'Cancel' : 'Annuler'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic();
+                        resetToFactory();
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '9px',
+                        borderRadius: '11px',
+                        background: '#FF453A',
+                        border: 'none',
+                        color: '#FFFFFF',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {isEn ? 'Confirm Reset' : 'Confirmer'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic();
+                      setShowResetConfirm(true);
                     }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleStartCalibration}
-              disabled={isCalibrating}
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                borderRadius: '12px',
-                background: isCalibrating ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
-                color: '#FAF7F2',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                cursor: isCalibrating ? 'default' : 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <RefreshCw size={13} className={isCalibrating ? 'spin' : ''} />
-              <span>
-                {isCalibrating
-                  ? (isEn ? 'Calibrating PPG Sensors...' : 'Calibrage en cours...')
-                  : (isEn ? 'Launch Wear Calibration (15s)' : 'Lancer le calibrage de port (15s)')}
-              </span>
-            </button>
-          </div>
-
-          {/* Expandable Bioluminescent Radar Stage */}
-          {showRadar && (
-            <div
-              style={{
-                marginTop: '4px',
-                padding: '14px',
-                borderRadius: '18px',
-                background: 'rgba(0, 0, 0, 0.55)',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                zIndex: 2,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Radio size={13} color="#FAF7F2" />
-                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#FAF7F2' }}>
-                    {isEn ? 'UWB Proximity Radar' : 'Radar de Proximité UWB'}
-                  </span>
-                </div>
-                <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
-                  0,8 m · -42 dBm
-                </span>
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '11px',
+                      background: 'rgba(255, 69, 58, 0.14)',
+                      border: '1px solid rgba(255, 69, 58, 0.3)',
+                      color: '#FF453A',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <RotateCcw size={12} />
+                    <span>{isEn ? 'Factory Reset' : 'Remise à Zéro de l’Application'}</span>
+                  </button>
+                )}
               </div>
 
-              <div className="radar-stage" style={{ height: '120px', borderRadius: '14px' }}>
-                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.35)' }} />
-                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.25)' }} />
-                <div className="radar-wave" style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }} />
-                <div
-                  className="radar-center-ring"
-                  style={{
-                    background: '#FAF7F2',
-                    boxShadow: '0 0 20px rgba(255, 255, 255, 0.7)',
-                  }}
-                >
-                  <Disc size={18} color="#000000" />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={triggerPing}
+              {/* Local Security Vault Footer */}
+              <div
                 style={{
-                  width: '100%',
-                  padding: '9px',
-                  borderRadius: '12px',
-                  background: pingActive ? '#D9F970' : 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.35)',
-                  color: pingActive ? '#0A0A0C' : '#D9F970',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
+                  fontSize: '10.5px',
+                  color: 'rgba(250, 247, 242, 0.4)',
+                  padding: '8px 0',
                 }}
               >
-                <Volume2 size={14} />
+                <Lock size={12} color="rgba(250, 247, 242, 0.5)" />
                 <span>
-                  {pingActive
-                    ? isEn
-                      ? 'Flashing LEDs & Vibrating...'
-                      : 'Clignotement LED Capteurs actif...'
-                    : isEn
-                    ? 'Flash Ring Sensor LEDs'
-                    : 'Faire clignoter les LED de la bague'}
+                  {isEn
+                    ? 'Encrypted On-Device Vault · Zero telemetry shared'
+                    : 'Chiffrement biométrique local On-Device Vault'}
                 </span>
-              </button>
-            </div>
+              </div>
+            </>
           )}
-        </div>
-
-                {/* ====================================================================
-            2. FRÉQUENCE D'ÉCHANTILLONNAGE & MESURE DES 8 CAPTEURS BIOMÉTRIQUES
-            ==================================================================== */}
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '18px 16px',
-            borderRadius: '26px',
-            background:
-              'radial-gradient(ellipse at 50% 0%, rgba(217, 249, 112, 0.07) 0%, rgba(16, 16, 20, 0.98) 75%), #0A0A0C',
-            border: '1px solid rgba(255, 248, 240, 0.12)',
-            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.55)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-          }}
-        >
-          {/* Section Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.16)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Sliders size={15} color="#FAF7F2" strokeWidth={1.8} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                  {isEn ? 'Sensor Measurement Intervals' : 'Intervalles de Mesure des Capteurs'}
-                </span>
-                <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '1px' }}>
-                  {isEn ? 'Autonomous Ring Sampling' : 'Fréquence de relevé autonome'}
-                </span>
-              </div>
-            </div>
-
-            {/* Dynamic Battery Impact Pill */}
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '4px 10px',
-                borderRadius: '999px',
-                background: estimatedDays >= 6 ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 159, 10, 0.16)',
-                border: estimatedDays >= 6 ? '1px solid rgba(48, 209, 88, 0.38)' : '1px solid rgba(255, 159, 10, 0.38)',
-                boxShadow: estimatedDays >= 6 ? '0 0 10px rgba(48, 209, 88, 0.18)' : 'none',
-              }}
-            >
-              <Zap size={11} color={estimatedDays >= 6 ? '#30D158' : '#FF9F0A'} fill={estimatedDays >= 6 ? '#30D158' : '#FF9F0A'} />
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  color: estimatedDays >= 6 ? '#FAF7F2' : '#FF9F0A',
-                  fontFamily: 'var(--font-mono, monospace)',
-                }}
-              >
-                ~{estimatedDays} {isEn ? 'days' : 'jours'}
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Presets Bar: 1h vs 30min */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              padding: '4px',
-              borderRadius: '14px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
-            }}
-          >
-            {[
-              {
-                id: '1h',
-                labelFr: 'Toutes les heures (1 h)',
-                labelEn: 'Every hour (1h)',
-                subFr: 'Chaque heure · ~8j (Optimal)',
-                subEn: 'Hourly · ~8d (Optimal)',
-                isActive: sensorIntervals?.heartRate === '1h',
-                action: () => {
-                  updateSensorIntervals({
-                    heartRate: '1h',
-                    hrv: '1h',
-                    spo2: '1h',
-                    temperature: '1h',
-                    stress: '1h',
-                    bloodPressure: '1h',
-                    glucose: '1h',
-                    respiratory: '1h',
-                  });
-                  qringBle.setAllSensorIntervals(60);
-                },
-              },
-              {
-                id: '30min',
-                labelFr: 'Toutes les 30 min',
-                labelEn: 'Every 30 min',
-                subFr: '2× / heure · ~5j (Précis)',
-                subEn: '2x / hr · ~5d (Precise)',
-                isActive: (sensorIntervals?.heartRate || '30min') === '30min',
-                action: () => {
-                  updateSensorIntervals({
-                    heartRate: '30min',
-                    hrv: '30min',
-                    spo2: '30min',
-                    temperature: '30min',
-                    stress: '30min',
-                    bloodPressure: '30min',
-                    glucose: '30min',
-                    respiratory: '30min',
-                  });
-                  qringBle.setAllSensorIntervals(30);
-                },
-              },
-              {
-                id: 'pause',
-                labelFr: 'Bague retirée (Pause)',
-                labelEn: 'Ring off (Pause)',
-                subFr: 'Veille totale · 0 LED',
-                subEn: 'Sensors paused · 0 LED',
-                isActive: (sensorIntervals?.heartRate as string) === 'pause',
-                action: () => {
-                  updateSensorIntervals({
-                    heartRate: 'pause' as any,
-                    hrv: 'pause' as any,
-                    spo2: 'pause' as any,
-                    temperature: 'pause' as any,
-                    stress: 'pause' as any,
-                    bloodPressure: 'pause' as any,
-                    glucose: 'pause' as any,
-                    respiratory: 'pause' as any,
-                  });
-                  qringBle.setAllSensorIntervals(0);
-                },
-              },
-            ].map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={preset.action}
-                style={{
-                  flex: 1,
-                  padding: '8px 6px',
-                  borderRadius: '10px',
-                  background: preset.isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                  border: preset.isActive ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
-                  color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.75)',
-                  fontSize: '11px',
-                  fontWeight: preset.isActive ? 700 : 500,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '3px',
-                  transition: 'all 0.15s ease',
-                  boxShadow: preset.isActive ? '0 2px 10px rgba(0, 0, 0, 0.35)' : 'none',
-                }}
-              >
-                <span>{isEn ? preset.labelEn : preset.labelFr}</span>
-                <span style={{ fontSize: '9px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
-                  {isEn ? preset.subEn : preset.subFr}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          </div>
-
-        {/* ====================================================================
-            3. PROFIL BIOMÉTRIQUE & CALIBRAGE
-            ==================================================================== */}
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '18px',
-            borderRadius: '24px',
-            background:
-              'radial-gradient(ellipse at 50% 110%, rgba(167, 139, 250, 0.16) 0%, rgba(14, 14, 18, 0.96) 75%), #0A0A0C',
-            borderTop: '1px solid rgba(255, 248, 240, 0.14)',
-            borderLeft: '1px solid rgba(255, 248, 240, 0.1)',
-            borderRight: '1px solid rgba(255, 248, 240, 0.1)',
-            borderBottom: '1.5px solid rgba(167, 139, 250, 0.45)',
-            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.55)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-          }}
-        >
-          {/* Section Title */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '9px',
-                  background: 'rgba(167, 139, 250, 0.15)',
-                  border: '1px solid rgba(167, 139, 250, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <User size={14} color="#A78BFA" />
-              </span>
-              <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2' }}>
-                {t('settings.bio_title')}
-              </span>
-            </div>
-
-            <span
-              style={{
-                fontSize: '10.5px',
-                fontWeight: 600,
-                color: '#A78BFA',
-                background: 'rgba(167, 139, 250, 0.12)',
-                border: '1px solid rgba(167, 139, 250, 0.3)',
-                padding: '2.5px 8px',
-                borderRadius: '999px',
-              }}
-            >
-              IMC {bmi}
-            </span>
-          </div>
-
-          {/* Sexe Biologique Switcher (Homme / Femme) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span
-              style={{
-                fontSize: '10.5px',
-                fontWeight: 600,
-                color: 'rgba(250, 247, 242, 0.6)',
-              }}
-            >
-              {t('settings.bio_sex_label')}
-            </span>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '8px',
-                padding: '4px',
-                borderRadius: '14px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => updateProfile({ sex: 'homme' })}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  background:
-                    profile.sex === 'homme'
-                      ? 'linear-gradient(135deg, rgba(217, 249, 112, 0.22), rgba(217, 249, 112, 0.08))'
-                      : 'transparent',
-                  border:
-                    profile.sex === 'homme'
-                      ? '1px solid rgba(217, 249, 112, 0.55)'
-                      : '1px solid transparent',
-                  color: profile.sex === 'homme' ? '#D9F970' : 'rgba(250, 247, 242, 0.6)',
-                  fontSize: '12.5px',
-                  fontWeight: profile.sex === 'homme' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                {profile.sex === 'homme' && <Check size={13} strokeWidth={2.6} />}
-                <span>{t('settings.male')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => updateProfile({ sex: 'femme' })}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  background:
-                    profile.sex === 'femme'
-                      ? 'linear-gradient(135deg, rgba(232, 121, 249, 0.24), rgba(232, 121, 249, 0.08))'
-                      : 'transparent',
-                  border:
-                    profile.sex === 'femme'
-                      ? '1px solid rgba(232, 121, 249, 0.55)'
-                      : '1px solid transparent',
-                  color: profile.sex === 'femme' ? '#E879F9' : 'rgba(250, 247, 242, 0.6)',
-                  fontSize: '12.5px',
-                  fontWeight: profile.sex === 'femme' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                {profile.sex === 'femme' && <Check size={13} strokeWidth={2.6} />}
-                <span>{t('settings.female')}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 2x2 Bento Grid: Prénom, Âge, Taille, Poids */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {/* Prénom */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.09)',
-                borderRadius: '14px',
-                padding: '10px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: 'rgba(250, 247, 242, 0.5)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {t('settings.first_name')}
-              </span>
-              <input
-                type="text"
-                value={profile.firstName}
-                onChange={(e) => updateProfile({ firstName: e.target.value })}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#FAF7F2',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  width: '100%',
-                  padding: 0,
-                }}
-              />
-            </div>
-
-            {/* Âge */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.09)',
-                borderRadius: '14px',
-                padding: '10px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: 'rgba(250, 247, 242, 0.5)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {t('settings.age')}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>
-                  {isEn ? 'yrs' : 'ans'}
-                </span>
-              </div>
-              <input
-                type="number"
-                value={profile.age}
-                onChange={(e) => updateProfile({ age: Number(e.target.value) || 28 })}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#FAF7F2',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  width: '100%',
-                  padding: 0,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              />
-            </div>
-
-            {/* Taille */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.09)',
-                borderRadius: '14px',
-                padding: '10px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: 'rgba(250, 247, 242, 0.5)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {t('settings.height')}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>cm</span>
-              </div>
-              <input
-                type="number"
-                value={profile.heightCm}
-                onChange={(e) => updateProfile({ heightCm: Number(e.target.value) || 180 })}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#FAF7F2',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  width: '100%',
-                  padding: 0,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              />
-            </div>
-
-            {/* Poids */}
-            <div
-              style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.09)',
-                borderRadius: '14px',
-                padding: '10px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: 'rgba(250, 247, 242, 0.5)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  {t('settings.weight')}
-                </span>
-                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.4)' }}>kg</span>
-              </div>
-              <input
-                type="number"
-                value={profile.weightKg}
-                onChange={(e) => updateProfile({ weightKg: Number(e.target.value) || 75 })}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#FAF7F2',
-                  fontSize: '15px',
-                  fontWeight: 600,
-                  width: '100%',
-                  padding: 0,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Ring Size Stepper */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 12px',
-              borderRadius: '14px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                {isEn ? 'Aurel Ring One Size' : 'Taille de bague Aurel Ring One'}
-              </span>
-              <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                {isEn ? 'Standard index/middle finger fit' : 'Ajustement index ou majeur'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => updateRing({ ringSize: Math.max(6, ring.ringSize - 1) })}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                  color: '#FAF7F2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <Minus size={13} />
-              </button>
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: '#FAF7F2',
-                  fontFamily: 'var(--font-mono)',
-                  minWidth: '22px',
-                  textAlign: 'center',
-                }}
-              >
-                {ring.ringSize}
-              </span>
-              <button
-                type="button"
-                onClick={() => updateRing({ ringSize: Math.min(14, ring.ringSize + 1) })}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '8px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                  color: '#FAF7F2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ====================================================================
-            4. ÉCOSYSTÈME & SERVICES CONNECTÉS
-            ==================================================================== */}
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '16px',
-            borderRadius: '24px',
-            background: '#111115',
-            border: '1px solid rgba(255, 248, 240, 0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '10.5px',
-              fontWeight: 700,
-              color: 'rgba(250, 247, 242, 0.5)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              paddingLeft: '2px',
-            }}
-          >
-            {isEn ? 'Connected Ecosystem' : 'Écosystème & Services'}
-          </span>
-
-          {/* Apple Santé / HealthKit */}
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              openModal('healthkit');
-            }}
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.035)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  background: 'rgba(255, 45, 85, 0.15)',
-                  border: '1px solid rgba(255, 45, 85, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Heart size={16} color="#FF2D55" fill="#FF2D55" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Apple Health & Fitness' : 'Pont Apple Santé & Forme'}
-                </span>
-                <span style={{ fontSize: '11px', color: '#FAF7F2', fontWeight: 500 }}>
-                  {isEn ? 'Real-time HealthKit Sync Active' : 'Synchronisation HealthKit temps réel'}
-                </span>
-              </div>
-            </div>
-            <ChevronRight size={16} color="rgba(250, 247, 242, 0.4)" />
-          </button>
-
-          {/* Centre d'Alertes APNs */}
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              openModal('notifications');
-            }}
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.035)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '10px',
-                  background: 'rgba(56, 189, 248, 0.15)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Bell size={16} color="#38BDF8" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
-                  {isEn ? 'Biometric Push Alerts' : 'Alertes & Notifications Biométriques'}
-                </span>
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                  {isEn ? 'HRV, Temp & Battery thresholds' : 'Seuils VRC, Température & Batterie'}
-                </span>
-              </div>
-            </div>
-            <ChevronRight size={16} color="rgba(250, 247, 242, 0.4)" />
-          </button>
-        </div>
-
-        {/* ====================================================================
-            5. PRÉFÉRENCES SYSTÈME & LANGUE
-            ==================================================================== */}
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '16px',
-            borderRadius: '24px',
-            background: '#111115',
-            border: '1px solid rgba(255, 248, 240, 0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Globe size={15} color="#38BDF8" />
-              <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2' }}>
-                {t('settings.language_title')}
-              </span>
-            </div>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>
-              {language === 'fr' ? 'Français' : 'English'}
-            </span>
-          </div>
-
-          {/* Style des métriques : Coloré vs Noir & Blanc */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', fontWeight: 600 }}>
-              {isEn ? 'Biometric Glow Theme' : 'Style Visuel des Constantes'}
-            </span>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '8px',
-                padding: '4px',
-                borderRadius: '14px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setCardThemeMode('colored')}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                  border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-                  color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '12px',
-                  fontWeight: cardThemeMode === 'colored' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Coloré ✨
-              </button>
-              <button
-                type="button"
-                onClick={() => setCardThemeMode('monochrome')}
-                style={{
-                  padding: '9px 12px',
-                  borderRadius: '10px',
-                  background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                  border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-                  color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '12px',
-                  fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Noir & Blanc
-              </button>
-            </div>
-          </div>
-
-          {/* Sélecteur de Langue de l'Application */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)', fontWeight: 600 }}>
-              {isEn ? 'App Language · Langue' : 'Langue de l’application'}
-            </span>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '8px',
-                padding: '4px',
-                borderRadius: '14px',
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setLanguage('fr')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  background: language === 'fr' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                  border:
-                    language === 'fr'
-                      ? '1px solid rgba(255, 255, 255, 0.28)'
-                      : '1px solid transparent',
-                  color: language === 'fr' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '13px',
-                  fontWeight: language === 'fr' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>🇫🇷</span>
-                <span>Français</span>
-                {language === 'fr' && <Check size={13} color="#D9F970" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLanguage('en')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  background: language === 'en' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                  border:
-                    language === 'en'
-                      ? '1px solid rgba(255, 255, 255, 0.28)'
-                      : '1px solid transparent',
-                  color: language === 'en' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '13px',
-                  fontWeight: language === 'en' ? 700 : 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>🇬🇧</span>
-                <span>English</span>
-                {language === 'en' && <Check size={13} color="#D9F970" />}
-              </button>
-            </div>
-          </div>
-
-          {/* ====================================================================
-              6. MAINTENANCE & RÉINITIALISATION
-              ==================================================================== */}
-          <div
-            style={{
-              marginTop: '6px',
-              padding: '14px',
-              borderRadius: '16px',
-              background: 'rgba(0, 0, 0, 0.45)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <RotateCcw size={14} color="#FAF7F2" />
-                <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? 'Device Maintenance' : 'Maintenance & Réinitialisation'}
-                </span>
-              </div>
-            </div>
-
-            <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35 }}>
-              {isEn
-                ? 'Clear local device cache and reset application data to factory state.'
-                : 'Effacez le cache local et remettez l\'application à son état d\'origine.'}
-            </span>
-
-            {/* Bouton Remise à Zéro Usine */}
-            <button
-              type="button"
-              onClick={resetToFactory}
-              title="Remettre l'application à zéro comme au premier déballage"
-              style={{
-                width: '100%',
-                padding: '9px 10px',
-                borderRadius: '10px',
-                background: 'rgba(255, 69, 58, 0.12)',
-                border: '1px solid rgba(255, 69, 58, 0.35)',
-                color: '#FF453A',
-                fontSize: '11px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <RotateCcw size={12} />
-              <span>{isEn ? 'Factory Reset' : 'Remise à Zéro de l\'Application'}</span>
-            </button>
-          </div>
-
-          {/* Footer Hardware Certification */}
-          <div
-            style={{
-              marginTop: '4px',
-              paddingTop: '10px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: '10.5px',
-              color: 'rgba(250, 247, 242, 0.4)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <ShieldCheck size={13} color="#FAF7F2" />
-              <span>{isEn ? 'Encrypted On-Device Vault' : 'Chiffrement Biométrique Local'}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-mono)' }}><span>MAC: {ring.macAddress || 'C8:2B:96:4A:99:84'}</span><span>·</span><span>{ring.serial}</span></div>
-          </div>
         </div>
       </div>
     </div>
