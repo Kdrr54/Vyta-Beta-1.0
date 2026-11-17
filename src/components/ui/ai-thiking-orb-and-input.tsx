@@ -26,7 +26,7 @@ export interface MorphOrbProps {
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 172;
+const CARD_H_DEFAULT = 210;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
 const CARD_H = CARD_H_DEFAULT;
 const FLY_D = 138;
@@ -40,7 +40,7 @@ const cardW = (el?: HTMLElement | null) => {
 };
 const homeDy = (el?: HTMLElement | null) => {
   const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
-  return h * 0.54 - 96;
+  return Math.max(44, h * 0.54 - Math.max(64, Math.min(92, h * 0.14)));
 };
 
 /* ───────────────────────── math + easing ───────────────────────── */
@@ -885,12 +885,17 @@ export default function MorphOrb(props: MorphOrbProps) {
     const onResize = () => {
       if (phaseRef.current === "idle" && !rt.busy()) rt.home();
     };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+    ro?.observe(root);
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
 
     return () => {
+      ro?.disconnect();
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
       mq.removeEventListener("change", onMq);
       window.clearTimeout(timers.current.typing);
       window.clearTimeout(timers.current.shake);
@@ -941,6 +946,7 @@ export default function MorphOrb(props: MorphOrbProps) {
     if (!rt || rt.busy() || phaseRef.current !== "idle") return;
     const text = value.trim();
     if (!text) { shake(); return; }
+    inputRef.current?.blur();
     lastTextRef.current = text;
     rt.start(text, makeCfg());
   };

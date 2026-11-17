@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { queryPrismAI } from '../lib/prismService';
@@ -14,6 +14,27 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   const { profile, selectedDay, language, weekData, isFirstLaunch, openModal } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
+  const [kbSheetHeight, setKbSheetHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onVvChange = () => {
+      const diff = window.innerHeight - vv.height;
+      if (diff > 100) {
+        setKbSheetHeight(Math.max(320, Math.round(vv.height - 8)));
+        if (window.scrollY !== 0) window.scrollTo(0, 0);
+      } else {
+        setKbSheetHeight(null);
+      }
+    };
+    vv.addEventListener('resize', onVvChange);
+    vv.addEventListener('scroll', onVvChange);
+    return () => {
+      vv.removeEventListener('resize', onVvChange);
+      vv.removeEventListener('scroll', onVvChange);
+    };
+  }, []);
 
   const dayData =
     (weekData && weekData[selectedDay]) ||
@@ -124,8 +145,9 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: '92dvh',
+          height: kbSheetHeight ? `${kbSheetHeight}px` : '92dvh',
           maxHeight: '840px',
+          transition: 'height 0.18s ease-out',
           borderRadius: '34px 34px 0 0',
           background: 'linear-gradient(180deg, #09090D 0%, #060608 100%)',
           overflow: 'hidden',
