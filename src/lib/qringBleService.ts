@@ -1024,6 +1024,103 @@ class QRingBleService {
   }
 
   /**
+   * Start a passive Bluetooth LE discovery scan without auto-connecting,
+   * so the UI can list detected rings and let the user select one.
+   */
+  public async startDiscoveryScan(): Promise<{ success: boolean; error?: string }> {
+    if (!this.isSupported()) {
+      return { success: false, error: 'Bluetooth non supporté sur ce navigateur.' };
+    }
+
+    try {
+      const systemRings = await this.getSystemConnectedRings();
+      for (const r of systemRings) {
+        this.notifyDiscoveredDevice(r);
+      }
+
+      if (!Capacitor.isNativePlatform()) {
+        return { success: true };
+      }
+
+      if (!this.isNativeInitialized) {
+        await BleClient.initialize();
+        this.isNativeInitialized = true;
+      }
+
+      try {
+        await BleClient.stopLEScan();
+      } catch (_) {}
+
+      const seenIds = new Set<string>(systemRings.map((r) => r.deviceId));
+      await BleClient.requestLEScan({ allowDuplicates: true }, (result) => {
+        const rawName = (result.localName || result.device?.name || '').trim();
+        if (!rawName || rawName.toLowerCase() === 'unknown') return;
+
+        const upper = rawName.toUpperCase();
+        const isBlacklisted = [
+          'ELK-BLEDOM',
+          'OLED',
+          'TV',
+          'SAMSUNG',
+          'LG',
+          'SONY',
+          'APPLE',
+          'MACBOOK',
+          'IPAD',
+          'IPHONE',
+          'AIRPODS',
+          'JBL',
+          'BOSE',
+          'SONOS',
+          'PHILIPS',
+          'HUE',
+          'TILE',
+        ].some((b) => upper.includes(b));
+        if (isBlacklisted) return;
+
+        const deviceId = result.device?.deviceId;
+        if (!deviceId || seenIds.has(deviceId)) return;
+        seenIds.add(deviceId);
+
+        const isRing = [
+          'QRING',
+          'AUREL',
+          'VYTA',
+          'R0',
+          'R1',
+          'R2',
+          'R3',
+          'R4',
+          'R5',
+          'R6',
+          'R7',
+          'R8',
+          'NOVA',
+          'COLMI',
+          'SMART',
+          'SOX',
+          'HEALTH',
+          'WEAR',
+          'JSTYLE',
+          'BAND',
+        ].some((k) => upper.includes(k));
+
+        this.notifyDiscoveredDevice({
+          deviceId,
+          name: rawName,
+          rssi: result.rssi,
+          isRing,
+        });
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('[QRing BLE Discovery] Scan error:', err);
+      return { success: false, error: err?.message || 'Erreur lors du scan Bluetooth.' };
+    }
+  }
+
+  /**
    * Stop active LE scan if in progress
    */
   public async stopScan() {

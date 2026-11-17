@@ -1,150 +1,205 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { PairingModal } from './PairingModal';
+import { qringBle, DiscoveredBleDevice } from '../lib/qringBleService';
 import {
   Sparkles,
   ArrowRight,
-  User,
-  Heart,
-  Moon,
-  Zap,
-  Activity,
   ChevronLeft,
   ShieldCheck,
-  Flame,
+  Activity,
   Bluetooth,
-  MapPin,
-  Bell,
-  Check,
+  Mail,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  CheckCircle2,
+  Radio,
+  Disc,
+  Info,
 } from 'lucide-react';
 
 interface OnboardingFlowProps {
   onComplete: () => void;
 }
 
+type OnboardingStep = 'welcome' | 'account' | 'dock' | 'no-ring';
+
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
-  const { profile, updateProfile } = useApp();
+  const { profile, updateProfile, updateRing, setIsPaired } = useApp();
 
-  // Étape courante : 1 = Bienvenue, 2 = Profil, 3 = Permissions Système, 4 = Appairage BLE
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<OnboardingStep>('welcome');
 
-  // Formulaire profil corporel
+  // Étape Compte
+  const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
   const [firstName, setFirstName] = useState<string>(profile.firstName || '');
-  const [sex, setSex] = useState<'homme' | 'femme'>(profile.sex || 'homme');
-  const [age, setAge] = useState<number>(profile.age || 28);
-  const [heightCm, setHeightCm] = useState<number>(profile.heightCm || 180);
-  const [weightKg, setWeightKg] = useState<number>(profile.weightKg || 75);
-  const [goal, setGoal] = useState<string>('recovery');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Statuts des permissions système (Position, Bluetooth, Notifications)
-  const [geoStatus, setGeoStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
-  const [notifStatus, setNotifStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
-  const [bleStatus, setBleStatus] = useState<'pending' | 'granted'>('pending');
+  // Étape Dock & Bluetooth
+  const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredBleDevice[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
+  const [connectedDeviceName, setConnectedDeviceName] = useState<string | null>(null);
+  const [bleError, setBleError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if ('Notification' in window) {
-        if (Notification.permission === 'granted') setNotifStatus('granted');
-        else if (Notification.permission === 'denied') setNotifStatus('denied');
-      }
-      if ('permissions' in navigator && navigator.permissions?.query) {
-        navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((p) => {
-          if (p.state === 'granted') setGeoStatus('granted');
-          else if (p.state === 'denied') setGeoStatus('denied');
-        }).catch(() => {});
-      }
-      if ('bluetooth' in navigator) {
-        setBleStatus('granted');
-      }
-    }
-  }, []);
-
-  const requestGeolocation = async (): Promise<boolean> => {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-      setGeoStatus('granted');
-      return true;
-    }
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        () => {
-          setGeoStatus('granted');
-          resolve(true);
-        },
-        (err) => {
-          if (err.code === err.PERMISSION_DENIED) {
-            setGeoStatus('denied');
-          }
-          resolve(false);
-        },
-        { timeout: 8000, enableHighAccuracy: true }
-      );
-    });
-  };
-
-  const requestNotifications = async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setNotifStatus('granted');
-      return true;
-    }
-    try {
-      const res = await Notification.requestPermission();
-      if (res === 'granted') {
-        setNotifStatus('granted');
-        return true;
-      } else if (res === 'denied') {
-        setNotifStatus('denied');
-        return false;
-      }
-    } catch (_) {}
-    return false;
-  };
-
-  const requestBluetooth = async (): Promise<boolean> => {
-    setBleStatus('granted');
-    return true;
-  };
-
-  const handleNextToProfile = () => {
+  const triggerHaptic = () => {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(20);
-      } catch (e) {}
+      } catch (_) {}
     }
-    setStep(2);
   };
 
-  const handleNextToPermissions = () => {
-    const trimmed = firstName.trim() || 'Alexandre';
-    updateProfile({
-      firstName: trimmed,
-      sex,
-      age: Number(age) || 28,
-      heightCm: Number(heightCm) || 180,
-      weightKg: Number(weightKg) || 75,
+  // Scan Bluetooth automatique dès l'arrivée sur l'écran Dock de charge
+  useEffect(() => {
+    if (step !== 'dock') {
+      qringBle.stopScan().catch(() => {});
+      return;
+    }
+
+    let isMounted = true;
+    setBleError(null);
+    setIsScanning(true);
+
+    const unsub = qringBle.onDeviceDiscovered((dev) => {
+      if (!isMounted) return;
+      setDiscoveredDevices((prev) => {
+        const existingIdx = prev.findIndex((p) => p.deviceId === dev.deviceId);
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = dev;
+          return updated;
+        }
+        // Prioriser les bagues reconnues en haut de la liste
+        return dev.isRing ? [dev, ...prev] : [...prev, dev];
+      });
     });
 
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(25);
-      } catch (e) {}
+    qringBle.startDiscoveryScan().then((res) => {
+      if (!isMounted) return;
+      if (!res.success && res.error) {
+        setBleError(res.error);
+        setIsScanning(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+      qringBle.stopScan().catch(() => {});
+    };
+  }, [step]);
+
+  const handleRefreshScan = async () => {
+    triggerHaptic();
+    setBleError(null);
+    setIsScanning(true);
+    setDiscoveredDevices([]);
+    const res = await qringBle.startDiscoveryScan();
+    if (!res.success && res.error) {
+      setBleError(res.error);
+      setIsScanning(false);
     }
-    setStep(3);
   };
 
-  const handleAuthorizeAll = async () => {
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate(25); } catch (_) {}
+  const handleNativeWebScan = async () => {
+    triggerHaptic();
+    setBleError(null);
+    setIsScanning(true);
+    try {
+      const res = await qringBle.requestAndConnect();
+      if (res.success) {
+        setConnectedDeviceName(res.deviceName || 'Aurel Ring One');
+        updateRing({
+          isConnected: true,
+          ...(res.battery && res.battery > 0 ? { batteryRing: res.battery } : {}),
+        });
+        setTimeout(() => {
+          setIsPaired(true);
+          onComplete();
+        }, 850);
+      } else {
+        setIsScanning(false);
+        if (res.error) setBleError(res.error);
+      }
+    } catch (_) {
+      setIsScanning(false);
+      setBleError('Impossible de lancer la détection Bluetooth.');
     }
-    await requestNotifications();
-    await requestGeolocation();
-    await requestBluetooth();
-    setStep(4);
   };
 
-  // Étape 4 : piédestal romain haute précision avec appairage BLE
-  if (step === 4) {
-    return <PairingModal onClose={onComplete} onBack={() => setStep(3)} />;
-  }
+  const handleSelectDevice = async (dev: DiscoveredBleDevice) => {
+    if (connectingDeviceId || connectedDeviceName) return;
+    triggerHaptic();
+    setBleError(null);
+    setConnectingDeviceId(dev.deviceId);
+
+    try {
+      await qringBle.stopScan();
+      const res = await qringBle.connectDirectly(dev.deviceId, dev.name);
+      if (res.success) {
+        setConnectedDeviceName(res.deviceName || dev.name);
+        setConnectingDeviceId(null);
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate(35);
+          } catch (_) {}
+        }
+        updateRing({
+          isConnected: true,
+          ...(res.battery && res.battery > 0 ? { batteryRing: res.battery } : {}),
+        });
+        setTimeout(() => {
+          setIsPaired(true);
+          onComplete();
+        }, 850);
+      } else {
+        setConnectingDeviceId(null);
+        setBleError(res.error || 'Échec de connexion à cette bague.');
+      }
+    } catch (_) {
+      setConnectingDeviceId(null);
+      setBleError('Erreur lors de la connexion Bluetooth.');
+    }
+  };
+
+  const handleAccountSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    if (!email.trim() || !email.includes('@')) {
+      setAuthError('Veuillez saisir une adresse e-mail valide.');
+      return;
+    }
+    if (password.length < 4) {
+      setAuthError('Le mot de passe doit contenir au moins 4 caractères.');
+      return;
+    }
+
+    triggerHaptic();
+    if (authMode === 'signup' && firstName.trim()) {
+      updateProfile({ firstName: firstName.trim() });
+    } else if (!profile.firstName) {
+      const inferredName = email.split('@')[0];
+      updateProfile({
+        firstName: inferredName.charAt(0).toUpperCase() + inferredName.slice(1),
+      });
+    }
+    try {
+      localStorage.setItem('aurel_account_email', email.trim());
+    } catch (_) {}
+
+    setStep('dock');
+  };
+
+  const handleSkipAccount = () => {
+    triggerHaptic();
+    setStep('dock');
+  };
 
   return (
     <div
@@ -155,7 +210,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         background: '#040605',
         display: 'flex',
         flexDirection: 'column',
-        color: '#FFFFFF',
+        color: '#FAF7F2',
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif",
         overflowY: 'auto',
         overflowX: 'hidden',
@@ -163,9 +218,9 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       }}
     >
       {/* ===================================================================
-          ÉTAPE 1 : BIENVENUE & PRÉSENTATION LUXE VYTA ONE
+          ÉTAPE 1 : PAGE D'ACCUEIL / CONNEXION INITIALE (START + PAS ENCORE D'AUREL RING)
           =================================================================== */}
-      {step === 1 && (
+      {step === 'welcome' && (
         <div
           style={{
             minHeight: '100%',
@@ -173,7 +228,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             flexDirection: 'column',
             justifyContent: 'space-between',
             padding:
-              'calc(max(28px, env(safe-area-inset-top)) + 16px) 24px calc(max(28px, env(safe-area-inset-bottom)) + 16px) 24px',
+              'calc(max(28px, env(safe-area-inset-top)) + 16px) 24px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 24px',
             textAlign: 'center',
             position: 'relative',
           }}
@@ -182,20 +237,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
           <div
             style={{
               position: 'absolute',
-              top: '8%',
+              top: '10%',
               left: '50%',
               transform: 'translateX(-50%)',
               width: '320px',
               height: '320px',
               background:
-                'radial-gradient(circle, rgba(217, 249, 112, 0.12) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 70%)',
+                'radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(56, 189, 248, 0.05) 50%, transparent 70%)',
               filter: 'blur(50px)',
               pointerEvents: 'none',
               zIndex: 1,
             }}
           />
 
-          {/* Logo & Header */}
+          {/* Logo & Titre */}
           <div style={{ position: 'relative', zIndex: 2 }}>
             <div
               style={{
@@ -214,8 +269,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 marginBottom: '14px',
               }}
             >
-              <Sparkles size={13} color="#D9F970" />
-              <span>Titane Aérospatial · Grade 5</span>
+              <Sparkles size={13} color="#FAF7F2" />
+              <span>Aurel Labs · Grade 5 Titanium</span>
             </div>
 
             <h1
@@ -233,7 +288,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             <p
               style={{
                 fontSize: '14px',
-                color: 'rgba(250, 247, 242, 0.65)',
+                color: 'rgba(250, 247, 242, 0.6)',
                 lineHeight: 1.45,
                 maxWidth: '300px',
                 margin: '0 auto',
@@ -243,13 +298,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             </p>
           </div>
 
-          {/* Rendu Photoréaliste de la Bague sur le Piédestal */}
+          {/* Visuel Bague sur Piédestal */}
           <div
             style={{
               position: 'relative',
               zIndex: 2,
               width: '100%',
-              maxHeight: '340px',
+              maxHeight: '320px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -260,15 +315,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               src="/assets/v2-orynn-ring-pedestal.png"
               alt="Bague Aurel Ring One sur Piédestal"
               style={{
-                maxWidth: '280px',
-                maxHeight: '300px',
+                maxWidth: '270px',
+                maxHeight: '290px',
                 objectFit: 'contain',
-                filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.95))',
+                filter: 'drop-shadow(0 20px 35px rgba(0, 0, 0, 0.95))',
               }}
             />
           </div>
 
-          {/* Points Clés Technologiques */}
+          {/* Points Clés */}
           <div
             style={{
               position: 'relative',
@@ -276,12 +331,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: '8px',
-              marginBottom: '16px',
+              marginBottom: '18px',
             }}
           >
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: 'rgba(255, 255, 255, 0.035)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '14px',
                 padding: '10px 12px',
@@ -292,15 +347,15 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Activity size={13} color="#D9F970" />
+                <Activity size={13} color="#30D158" />
                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#FAF7F2' }}>Capteurs PPG</span>
               </div>
-              <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>Flux thermique & VFC</span>
+              <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>Flux thermique & VRC</span>
             </div>
 
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: 'rgba(255, 255, 255, 0.035)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 borderRadius: '14px',
                 padding: '10px 12px',
@@ -318,19 +373,22 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             </div>
           </div>
 
-          {/* Bouton Démarrer la Configuration */}
+          {/* Boutons : START & PAS ENCORE D'AUREL RING */}
           <div
             style={{
               position: 'relative',
               zIndex: 2,
               display: 'flex',
               flexDirection: 'column',
-              gap: '10px',
+              gap: '12px',
             }}
           >
             <button
               type="button"
-              onClick={handleNextToProfile}
+              onClick={() => {
+                triggerHaptic();
+                setStep('account');
+              }}
               style={{
                 width: '100%',
                 height: '56px',
@@ -338,48 +396,53 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 background: 'linear-gradient(135deg, #FAF7F2 0%, #D8D4CC 100%)',
                 color: '#0A0A0C',
                 border: 'none',
-                fontSize: '15px',
-                fontWeight: 700,
-                letterSpacing: '-0.2px',
+                fontSize: '16px',
+                fontWeight: 800,
+                letterSpacing: '0.01em',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
                 cursor: 'pointer',
-                boxShadow: '0 10px 30px rgba(255, 255, 255, 0.25)',
+                boxShadow: '0 10px 30px rgba(255, 255, 255, 0.22)',
               }}
             >
-              <span>Commencer la configuration</span>
-              <ArrowRight size={17} />
+              <span>Start</span>
+              <ArrowRight size={18} />
             </button>
+
             <button
               type="button"
-              onClick={onComplete}
+              onClick={() => {
+                triggerHaptic();
+                setStep('no-ring');
+              }}
               style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'rgba(250, 247, 242, 0.55)',
-                fontSize: '12.5px',
-                fontWeight: 500,
+                width: '100%',
+                height: '46px',
+                borderRadius: '23px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: 'rgba(250, 247, 242, 0.85)',
+                fontSize: '13.5px',
+                fontWeight: 600,
                 cursor: 'pointer',
-                padding: '6px 0',
-                textDecoration: 'underline',
-                textUnderlineOffset: '3px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
               }}
             >
-              Accéder au tableau de bord
+              <span>Pas encore d’Aurel Ring</span>
             </button>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.4)' }}>
-              Configuration personnalisée en moins de 60 secondes
-            </span>
           </div>
         </div>
       )}
 
       {/* ===================================================================
-          ÉTAPE 2 : QUESTIONNAIRE PHYSIOLOGIQUE (PRÉNOM, SEXE, ÂGE, POIDS, TAILLE)
+          VUE SECONDAIRE : PAS ENCORE D'AUREL RING
           =================================================================== */}
-      {step === 2 && (
+      {step === 'no-ring' && (
         <div
           style={{
             minHeight: '100%',
@@ -387,396 +450,131 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             flexDirection: 'column',
             justifyContent: 'space-between',
             padding:
-              'calc(max(24px, env(safe-area-inset-top)) + 12px) 20px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 20px',
-            gap: '16px',
+              'calc(max(24px, env(safe-area-inset-top)) + 12px) 22px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 22px',
+            gap: '20px',
           }}
         >
-          {/* Header de l'étape */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(250, 247, 242, 0.6)',
-                  fontSize: '13px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                }}
-              >
-                <ChevronLeft size={16} />
-                <span>Retour</span>
-              </button>
-              <button
-                type="button"
-                onClick={onComplete}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '12.5px',
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '2px',
-                }}
-              >
-                Passer
-              </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setStep('welcome');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'rgba(250, 247, 242, 0.7)',
+                fontSize: '13.5px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+                padding: '4px 0',
+                marginBottom: '16px',
+              }}
+            >
+              <ChevronLeft size={18} />
+              <span>Retour</span>
+            </button>
+
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '16px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '16px',
+              }}
+            >
+              <Disc size={22} color="#FAF7F2" />
             </div>
 
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: '#D9F970',
-              }}
-            >
-              Étape 1 sur 3 · Profil Biologique
-            </span>
-            <h2
-              style={{
-                fontSize: '26px',
-                fontWeight: 800,
-                color: '#FAF7F2',
-                letterSpacing: '-0.02em',
-                margin: '4px 0 6px 0',
-              }}
-            >
-              Vos paramètres corporels
+            <h2 style={{ fontSize: '26px', fontWeight: 800, color: '#FAF7F2', margin: '0 0 8px 0', letterSpacing: '-0.02em' }}>
+              Pas encore d’Aurel Ring ?
             </h2>
-            <p
-              style={{
-                fontSize: '12.5px',
-                color: 'rgba(250, 247, 242, 0.65)',
-                lineHeight: 1.45,
-                margin: 0,
-              }}
-            >
-              Nécessaires pour calibrer vos seuils de VFC, de sommeil et votre Target Strain.
+            <p style={{ fontSize: '14px', color: 'rgba(250, 247, 242, 0.6)', lineHeight: 1.5, margin: 0 }}>
+              Découvrez l’écosystème Aurel Labs. Vous pouvez explorer l’interface dès maintenant ou configurer votre compte en attendant de recevoir votre bague.
             </p>
           </div>
 
-          {/* Formulaire des champs */}
           <div
             style={{
+              padding: '18px',
+              borderRadius: '22px',
+              background: 'rgba(255, 255, 255, 0.035)',
+              border: '1px solid rgba(255, 255, 255, 0.09)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '14px',
-              flex: 1,
-              overflowY: 'auto',
-              scrollbarWidth: 'none',
+              gap: '12px',
             }}
           >
-            {/* 1. Prénom */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.85)' }}>
-                Comment vous appelez-vous ?
-              </label>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.14)',
-                  borderRadius: '16px',
-                  padding: '12px 14px',
-                }}
-              >
-                <User size={18} color="rgba(250, 247, 242, 0.5)" />
-                <input
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="Votre prénom (ex: Alexandre)"
-                  style={{
-                    flex: 1,
-                    background: 'none',
-                    border: 'none',
-                    outline: 'none',
-                    color: '#FAF7F2',
-                    fontSize: '15px',
-                    fontWeight: 600,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* 2. Sexe biologique */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.85)' }}>
-                Sexe biologique
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setSex('homme')}
-                  style={{
-                    padding: '14px',
-                    borderRadius: '16px',
-                    background:
-                      sex === 'homme'
-                        ? 'rgba(217, 249, 112, 0.14)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                    border:
-                      sex === 'homme'
-                        ? '1.5px solid #D9F970'
-                        : '1px solid rgba(255, 255, 255, 0.1)',
-                    color: sex === 'homme' ? '#D9F970' : 'rgba(250, 247, 242, 0.75)',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.18s ease',
-                  }}
-                >
-                  <span>♂ Homme</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSex('femme')}
-                  style={{
-                    padding: '14px',
-                    borderRadius: '16px',
-                    background:
-                      sex === 'femme'
-                        ? 'rgba(232, 121, 249, 0.14)'
-                        : 'rgba(255, 255, 255, 0.05)',
-                    border:
-                      sex === 'femme'
-                        ? '1.5px solid #E879F9'
-                        : '1px solid rgba(255, 255, 255, 0.1)',
-                    color: sex === 'femme' ? '#E879F9' : 'rgba(250, 247, 242, 0.75)',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.18s ease',
-                  }}
-                >
-                  <span>♀ Femme</span>
-                </button>
-              </div>
-              <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.45)', paddingLeft: '2px' }}>
-                {sex === 'femme'
-                  ? 'Active l’onglet Suivi de Cycle et adapte les phases hormonales.'
-                  : 'Calibre le métabolisme de base et la charge d’effort athlétique.'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Info size={16} color="#38BDF8" />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
+                Mode Découverte disponible
               </span>
             </div>
-
-            {/* 3. Âge, Poids & Taille */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-              {/* Âge */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '16px',
-                  padding: '10px 12px',
-                }}
-              >
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600 }}>
-                  Âge
-                </span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                  <input
-                    type="number"
-                    value={age}
-                    onChange={(e) =>
-                      setAge(Math.max(12, Math.min(100, Number(e.target.value) || 28)))
-                    }
-                    style={{
-                      width: '42px',
-                      background: 'none',
-                      border: 'none',
-                      outline: 'none',
-                      color: '#FAF7F2',
-                      fontSize: '18px',
-                      fontWeight: 800,
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>ans</span>
-                </div>
-              </div>
-
-              {/* Taille */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '16px',
-                  padding: '10px 12px',
-                }}
-              >
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600 }}>
-                  Taille
-                </span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                  <input
-                    type="number"
-                    value={heightCm}
-                    onChange={(e) =>
-                      setHeightCm(Math.max(100, Math.min(230, Number(e.target.value) || 180)))
-                    }
-                    style={{
-                      width: '46px',
-                      background: 'none',
-                      border: 'none',
-                      outline: 'none',
-                      color: '#FAF7F2',
-                      fontSize: '18px',
-                      fontWeight: 800,
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>cm</span>
-                </div>
-              </div>
-
-              {/* Poids */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '16px',
-                  padding: '10px 12px',
-                }}
-              >
-                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600 }}>
-                  Poids
-                </span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                  <input
-                    type="number"
-                    value={weightKg}
-                    onChange={(e) =>
-                      setWeightKg(Math.max(30, Math.min(220, Number(e.target.value) || 75)))
-                    }
-                    style={{
-                      width: '42px',
-                      background: 'none',
-                      border: 'none',
-                      outline: 'none',
-                      color: '#FAF7F2',
-                      fontSize: '18px',
-                      fontWeight: 800,
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>kg</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Objectif prioritaire */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.85)' }}>
-                Votre objectif prioritaire
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {[
-                  { id: 'recovery', label: 'Sommeil & Récupération', icon: Moon, color: '#818CF8' },
-                  { id: 'athletic', label: 'Performance Athlétique', icon: Zap, color: '#D9F970' },
-                  { id: 'stress', label: 'Gestion du Stress & VFC', icon: Heart, color: '#FB7185' },
-                  { id: 'longevity', label: 'Santé & Longévité', icon: Flame, color: '#38BDF8' },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const isSelected = goal === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setGoal(item.id)}
-                      style={{
-                        padding: '12px 10px',
-                        borderRadius: '14px',
-                        background: isSelected
-                          ? 'rgba(255, 255, 255, 0.12)'
-                          : 'rgba(255, 255, 255, 0.04)',
-                        border: isSelected
-                          ? `1.5px solid ${item.color}`
-                          : '1px solid rgba(255, 255, 255, 0.08)',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px',
-                        transition: 'all 0.18s ease',
-                      }}
-                    >
-                      <Icon size={16} color={item.color} />
-                      <span
-                        style={{
-                          fontSize: '11.5px',
-                          fontWeight: isSelected ? 700 : 500,
-                          color: '#FAF7F2',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {item.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <p style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.45, margin: 0 }}>
+              Vos entraînements GPS, votre scanner nutritionnel Cal AI et Zénon restent accessibles même avant l’appairage de votre bague.
+            </p>
           </div>
 
-          {/* Bouton Continuer vers les autorisations */}
-          <div style={{ paddingTop: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               type="button"
-              onClick={handleNextToPermissions}
+              onClick={() => {
+                triggerHaptic();
+                setIsPaired(true);
+                onComplete();
+              }}
               style={{
                 width: '100%',
                 height: '54px',
                 borderRadius: '27px',
-                background: 'linear-gradient(135deg, #FAF7F2 0%, #D8D4CC 100%)',
+                background: '#FAF7F2',
                 color: '#0A0A0C',
                 border: 'none',
                 fontSize: '15px',
                 fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
                 cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(255, 255, 255, 0.25)',
               }}
             >
-              <span>Continuer vers les autorisations</span>
-              <ArrowRight size={17} />
+              Explorer l’application sans bague
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setStep('welcome');
+              }}
+              style={{
+                width: '100%',
+                height: '46px',
+                borderRadius: '23px',
+                background: 'transparent',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                color: 'rgba(250, 247, 242, 0.75)',
+                fontSize: '13.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Revenir à l’accueil
             </button>
           </div>
         </div>
       )}
 
       {/* ===================================================================
-          ÉTAPE 3 : AUTORISATIONS SYSTÈME (POSITION, BLUETOOTH, NOTIFICATIONS)
+          ÉTAPE 2 : COMPTE UTILISATEUR (AVEC BOUTON SKIP TEMPORAIRE POUR TEST)
           =================================================================== */}
-      {step === 3 && (
+      {step === 'account' && (
         <div
           style={{
             minHeight: '100%',
@@ -784,21 +582,24 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
             flexDirection: 'column',
             justifyContent: 'space-between',
             padding:
-              'calc(max(24px, env(safe-area-inset-top)) + 12px) 20px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 20px',
-            gap: '16px',
+              'calc(max(24px, env(safe-area-inset-top)) + 12px) 22px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 22px',
+            gap: '18px',
           }}
         >
-          {/* Header */}
+          {/* Header : Retour & Bouton Skip temporaire */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  triggerHaptic();
+                  setStep('welcome');
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'rgba(250, 247, 242, 0.6)',
-                  fontSize: '13px',
+                  color: 'rgba(250, 247, 242, 0.65)',
+                  fontSize: '13.5px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
@@ -806,24 +607,30 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   padding: '4px 0',
                 }}
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={18} />
                 <span>Retour</span>
               </button>
+
+              {/* Bouton Skip Temporaire pour les tests */}
               <button
                 type="button"
-                onClick={() => setStep(4)}
+                onClick={handleSkipAccount}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(250, 247, 242, 0.55)',
-                  fontSize: '12.5px',
+                  padding: '6px 13px',
+                  borderRadius: '999px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  color: '#FAF7F2',
+                  fontSize: '12px',
+                  fontWeight: 700,
                   cursor: 'pointer',
-                  padding: '4px 0',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
                 }}
               >
-                Passer
+                <span>Skip (Test)</span>
+                <ArrowRight size={13} />
               </button>
             </div>
 
@@ -833,277 +640,618 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                color: '#38BDF8',
+                color: 'rgba(250, 247, 242, 0.5)',
               }}
             >
-              Étape 2 sur 3 · Autorisations Système
+              Étape 1 sur 2 · Compte Aurel
             </span>
             <h2
               style={{
-                fontSize: '26px',
+                fontSize: '27px',
                 fontWeight: 800,
                 color: '#FAF7F2',
                 letterSpacing: '-0.02em',
-                margin: '4px 0 6px 0',
+                margin: '6px 0 6px 0',
               }}
             >
-              Autoriser Aurel Labs
+              {authMode === 'signup' ? 'Créer votre compte' : 'Se connecter'}
             </h2>
-            <p
-              style={{
-                fontSize: '12.5px',
-                color: 'rgba(250, 247, 242, 0.65)',
-                lineHeight: 1.45,
-                margin: 0,
-              }}
-            >
-              Pour synchroniser votre bague Aurel Ring One et enregistrer vos séances de sport en temps réel, veuillez autoriser ces 3 accès essentiels.
+            <p style={{ fontSize: '13.5px', color: 'rgba(250, 247, 242, 0.55)', margin: 0, lineHeight: 1.45 }}>
+              Sauvegardez vos constantes biométriques et synchronisez votre Aurel Ring One en toute sécurité.
             </p>
           </div>
 
-          {/* 3 Cartes d'autorisation interactives */}
+          {/* Sélecteur Créer un compte / Se connecter */}
           <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '6px',
+              padding: '4px',
+              borderRadius: '14px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setAuthMode('signup');
+                setAuthError(null);
+              }}
+              style={{
+                padding: '10px',
+                borderRadius: '10px',
+                background: authMode === 'signup' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                border: authMode === 'signup' ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
+                color: authMode === 'signup' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                fontSize: '13px',
+                fontWeight: authMode === 'signup' ? 700 : 500,
+                cursor: 'pointer',
+              }}
+            >
+              Créer un compte
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setAuthMode('login');
+                setAuthError(null);
+              }}
+              style={{
+                padding: '10px',
+                borderRadius: '10px',
+                background: authMode === 'login' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                border: authMode === 'login' ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
+                color: authMode === 'login' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
+                fontSize: '13px',
+                fontWeight: authMode === 'login' ? 700 : 500,
+                cursor: 'pointer',
+              }}
+            >
+              Connexion
+            </button>
+          </div>
+
+          {/* Formulaire Compte */}
+          <form
+            onSubmit={handleAccountSubmit}
             style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '12px',
               flex: 1,
-              justifyContent: 'center',
             }}
           >
-            {/* 1. Bluetooth */}
+            {authMode === 'signup' && (
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '16px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                <User size={16} color="rgba(250, 247, 242, 0.5)" />
+                <input
+                  type="text"
+                  placeholder="Prénom"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: '#FAF7F2',
+                    fontSize: '15px',
+                  }}
+                />
+              </div>
+            )}
+
             <div
-              onClick={requestBluetooth}
               style={{
-                background: bleStatus === 'granted' ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-                border: bleStatus === 'granted' ? '1.5px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '18px',
-                padding: '14px 16px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '16px',
+                padding: '12px 14px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                gap: '10px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    background: 'rgba(56, 189, 248, 0.16)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Bluetooth size={20} color="#38BDF8" />
-                </div>
-                <div>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
-                    Bluetooth (Bague Aurel Ring One)
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
-                    Connexion sans fil pour synchroniser sommeil, pouls et température cutanée.
-                  </span>
-                </div>
+              <Mail size={16} color="rgba(250, 247, 242, 0.5)" />
+              <input
+                type="email"
+                placeholder="Adresse e-mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoCapitalize="none"
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: '#FAF7F2',
+                  fontSize: '15px',
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '16px',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}
+            >
+              <Lock size={16} color="rgba(250, 247, 242, 0.5)" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: '#FAF7F2',
+                  fontSize: '15px',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.45)',
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            {authError && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 69, 58, 0.12)',
+                  border: '1px solid rgba(255, 69, 58, 0.3)',
+                  color: '#FF453A',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                }}
+              >
+                {authError}
               </div>
+            )}
+
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '12px' }}>
+              <button
+                type="submit"
+                style={{
+                  width: '100%',
+                  height: '54px',
+                  borderRadius: '27px',
+                  background: 'linear-gradient(135deg, #FAF7F2 0%, #D8D4CC 100%)',
+                  color: '#0A0A0C',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 8px 24px rgba(255, 255, 255, 0.18)',
+                }}
+              >
+                <span>{authMode === 'signup' ? 'Créer mon compte' : 'Se connecter'}</span>
+                <ArrowRight size={17} />
+              </button>
 
               <div
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  background: bleStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(56, 189, 248, 0.18)',
-                  border: bleStatus === 'granted' ? '1px solid #30D158' : '1px solid #38BDF8',
-                  color: bleStatus === 'granted' ? '#30D158' : '#38BDF8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
                   fontSize: '11px',
-                  fontWeight: 700,
-                  flexShrink: 0,
+                  color: 'rgba(250, 247, 242, 0.4)',
+                }}
+              >
+                <ShieldCheck size={12} />
+                <span>Données chiffrées localement sur votre appareil</span>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ===================================================================
+          ÉTAPE 3 : DOCK DE CHARGE & SÉLECTION DE LA BAGUE BLUETOOTH
+          =================================================================== */}
+      {step === 'dock' && (
+        <div
+          style={{
+            minHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding:
+              'calc(max(20px, env(safe-area-inset-top)) + 10px) 22px calc(max(20px, env(safe-area-inset-bottom)) + 14px) 22px',
+            gap: '14px',
+          }}
+        >
+          {/* Header */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic();
+                  setStep('account');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(250, 247, 242, 0.65)',
+                  fontSize: '13.5px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
+                  cursor: 'pointer',
+                  padding: '4px 0',
                 }}
               >
-                {bleStatus === 'granted' ? (
-                  <>
-                    <Check size={12} />
-                    <span>Autorisé</span>
-                  </>
-                ) : (
-                  <span>Activer</span>
-                )}
+                <ChevronLeft size={18} />
+                <span>Retour</span>
+              </button>
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  background: isScanning ? 'rgba(56, 189, 248, 0.14)' : 'rgba(255, 255, 255, 0.06)',
+                  border: isScanning ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(255, 255, 255, 0.12)',
+                }}
+              >
+                <Bluetooth size={12} color={isScanning ? '#38BDF8' : '#FAF7F2'} />
+                <span style={{ fontSize: '11px', fontWeight: 600, color: isScanning ? '#38BDF8' : '#FAF7F2' }}>
+                  {connectedDeviceName
+                    ? 'Connectée'
+                    : isScanning
+                    ? 'Scan BLE actif'
+                    : 'Bluetooth prêt'}
+                </span>
               </div>
             </div>
 
-            {/* 2. Position GPS */}
-            <div
-              onClick={requestGeolocation}
+            <span
               style={{
-                background: geoStatus === 'granted' ? 'rgba(48, 209, 88, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-                border: geoStatus === 'granted' ? '1.5px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '18px',
-                padding: '14px 16px',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: '#30D158',
+              }}
+            >
+              Étape 2 sur 2 · Activation & Bluetooth
+            </span>
+            <h2
+              style={{
+                fontSize: '24px',
+                fontWeight: 800,
+                color: '#FAF7F2',
+                letterSpacing: '-0.02em',
+                margin: '4px 0 4px 0',
+              }}
+            >
+              Posez la bague sur le dock
+            </h2>
+            <p style={{ fontSize: '13px', color: 'rgba(250, 247, 242, 0.6)', margin: 0, lineHeight: 1.4 }}>
+              Placez votre Aurel Ring One sur son dock de charge pour l’activer, puis sélectionnez-la ci-dessous.
+            </p>
+          </div>
+
+          {/* Image du Dock de Charge */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              borderRadius: '22px',
+              overflow: 'hidden',
+              background: '#08080A',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              maxHeight: '220px',
+            }}
+          >
+            <img
+              src="/assets/ring-charging-dock.jpg"
+              alt="Posez votre Aurel Ring sur le dock de charge"
+              style={{
+                width: '100%',
+                height: '220px',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '10px',
+                left: '12px',
+                right: '12px',
+                padding: '6px 10px',
+                borderRadius: '10px',
+                background: 'rgba(10, 10, 14, 0.78)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                fontSize: '11px',
+                color: 'rgba(250, 247, 242, 0.85)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    background: 'rgba(48, 209, 88, 0.16)',
-                    border: '1px solid rgba(48, 209, 88, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <MapPin size={20} color="#30D158" />
-                </div>
-                <div>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
-                    Position GPS (Course & Radar)
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
-                    Tracé GPS des séances de course, distance et radar de proximité de la bague.
-                  </span>
-                </div>
-              </div>
-
-              <div
+              <span>Voyant LED allumé = prête pour l’appairage</span>
+              <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  background: geoStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.1)',
-                  border: geoStatus === 'granted' ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
-                  color: geoStatus === 'granted' ? '#30D158' : '#FAF7F2',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: '#FFFFFF',
+                  boxShadow: '0 0 8px #FFFFFF',
                 }}
-              >
-                {geoStatus === 'granted' ? (
-                  <>
-                    <Check size={12} />
-                    <span>Autorisé</span>
-                  </>
-                ) : (
-                  <span>Autoriser</span>
-                )}
-              </div>
-            </div>
-
-            {/* 3. Notifications */}
-            <div
-              onClick={requestNotifications}
-              style={{
-                background: notifStatus === 'granted' ? 'rgba(192, 132, 252, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-                border: notifStatus === 'granted' ? '1.5px solid rgba(192, 132, 252, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '18px',
-                padding: '14px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    background: 'rgba(192, 132, 252, 0.16)',
-                    border: '1px solid rgba(192, 132, 252, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Bell size={20} color="#C084FC" />
-                </div>
-                <div>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
-                    Notifications & Alertes
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.35, display: 'block', marginTop: '2px' }}>
-                    Alertes de batterie faible, fin de sommeil et synthèses personnalisées de Zénon.
-                  </span>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  background: notifStatus === 'granted' ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.1)',
-                  border: notifStatus === 'granted' ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
-                  color: notifStatus === 'granted' ? '#30D158' : '#FAF7F2',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                {notifStatus === 'granted' ? (
-                  <>
-                    <Check size={12} />
-                    <span>Autorisé</span>
-                  </>
-                ) : (
-                  <span>Autoriser</span>
-                )}
-              </div>
+              />
             </div>
           </div>
 
-          {/* Bouton CTA Tout autoriser & Continuer */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {/* Liste des bagues détectées par Bluetooth */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              padding: '14px',
+              borderRadius: '20px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              minHeight: '150px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'rgba(250, 247, 242, 0.55)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                Bagues détectées ({discoveredDevices.length})
+              </span>
+
+              <button
+                type="button"
+                onClick={handleRefreshScan}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.07)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  borderRadius: '8px',
+                  padding: '4px 9px',
+                  color: '#FAF7F2',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer',
+                }}
+              >
+                <RefreshCw size={11} className={isScanning ? 'spin' : ''} />
+                <span>Actualiser</span>
+              </button>
+            </div>
+
+            {connectedDeviceName ? (
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '14px',
+                  background: 'rgba(48, 209, 88, 0.14)',
+                  border: '1px solid rgba(48, 209, 88, 0.45)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  color: '#30D158',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  marginTop: '8px',
+                }}
+              >
+                <CheckCircle2 size={18} />
+                <span>{connectedDeviceName} connectée !</span>
+              </div>
+            ) : discoveredDevices.length === 0 ? (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '16px 8px',
+                  textAlign: 'center',
+                }}
+              >
+                <Radio size={22} color="#38BDF8" style={{ opacity: 0.85 }} />
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isScanning
+                    ? 'Recherche de votre bague en cours...'
+                    : 'Aucune bague détectée pour le moment'}
+                </span>
+                <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', maxWidth: '240px' }}>
+                  Vérifiez que le Bluetooth est activé et que la bague est bien posée sur son dock.
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                {discoveredDevices.map((dev) => {
+                  const isConnectingThis = connectingDeviceId === dev.deviceId;
+                  return (
+                    <button
+                      key={dev.deviceId}
+                      type="button"
+                      onClick={() => handleSelectDevice(dev)}
+                      disabled={Boolean(connectingDeviceId)}
+                      style={{
+                        width: '100%',
+                        padding: '11px 14px',
+                        borderRadius: '14px',
+                        background: dev.isRing ? 'rgba(48, 209, 88, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                        border: dev.isRing ? '1px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#FAF7F2',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: connectingDeviceId ? 'default' : 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '10px',
+                            background: dev.isRing ? 'rgba(48, 209, 88, 0.18)' : 'rgba(255, 255, 255, 0.08)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Disc size={16} color={dev.isRing ? '#30D158' : '#FAF7F2'} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2' }}>
+                            {dev.name}
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', fontFamily: 'var(--font-mono)' }}>
+                            {dev.rssi ? `Signal: ${dev.rssi} dBm` : 'Bluetooth LE'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          color: dev.isRing ? '#0A0A0C' : '#FAF7F2',
+                          background: dev.isRing ? '#30D158' : 'rgba(255, 255, 255, 0.15)',
+                          padding: '5px 11px',
+                          borderRadius: '999px',
+                        }}
+                      >
+                        {isConnectingThis ? 'Connexion...' : 'Sélectionner'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {bleError && (
+              <div
+                style={{
+                  fontSize: '11px',
+                  color: '#FF9F0A',
+                  background: 'rgba(255, 159, 10, 0.1)',
+                  border: '1px solid rgba(255, 159, 10, 0.25)',
+                  padding: '8px 10px',
+                  borderRadius: '10px',
+                }}
+              >
+                {bleError}
+              </div>
+            )}
+          </div>
+
+          {/* Bouton Scan Manuel / Web Bluetooth & Continuer sans bague */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button
               type="button"
-              onClick={handleAuthorizeAll}
+              onClick={handleNativeWebScan}
+              disabled={Boolean(connectingDeviceId || connectedDeviceName)}
               style={{
                 width: '100%',
-                height: '56px',
-                borderRadius: '28px',
-                background: 'linear-gradient(135deg, #FAF7F2 0%, #D8D4CC 100%)',
-                color: '#0A0A0C',
+                height: '52px',
+                borderRadius: '26px',
+                background: '#FAF7F2',
                 border: 'none',
-                fontSize: '15px',
-                fontWeight: 700,
+                color: '#0A0A0C',
+                fontSize: '14.5px',
+                fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
                 cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(255, 255, 255, 0.25)',
               }}
             >
-              <span>Tout autoriser & Continuer</span>
-              <ArrowRight size={17} />
+              <Bluetooth size={17} />
+              <span>Rechercher et connecter ma bague</span>
             </button>
-            <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', textAlign: 'center' }}>
-              Vos données restent stockées en local sur votre appareil
-            </span>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic();
+                setIsPaired(true);
+                onComplete();
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(250, 247, 242, 0.45)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '6px',
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Continuer sans bague pour l’instant
+            </button>
           </div>
         </div>
       )}
