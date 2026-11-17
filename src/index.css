@@ -120,8 +120,7 @@
   border-radius: 50%;
   pointer-events: none;
   opacity: var(--oCenter, 0);
-  background: radial-gradient(circle, rgba(147, 197, 253, 0.16) 0%, rgba(192, 132, 252, 0.08) 40%, transparent 70%);
-  filter: blur(44px);
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.14) 0%, rgba(192, 132, 252, 0.06) 40%, transparent 70%);
   transition: opacity 0.35s ease;
   will-change: opacity;
 }
@@ -430,7 +429,7 @@
   color: #FAF7F2;
   margin: 0;
   overflow-y: auto;
-  max-height: 72px;
+  max-height: 112px;
   user-select: text;
   scrollbar-width: none;
 }

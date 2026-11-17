@@ -1,243 +1,56 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { queryPrismAI } from '../lib/prismService';
-import { PrismMessageRenderer } from './PrismMessageRenderer';
 import { weekMetrics, TODAY_INDEX, emptyDayMetrics } from '../data/health';
-import { ZenonOrb } from './ui/ai-thiking-orb-and-input';
-import {
-  X,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  ArrowUp,
-  Camera,
-  Flame,
-} from 'lucide-react';
+import MorphOrb from './ui/ai-thiking-orb-and-input';
+import { X, Sparkles, Camera } from 'lucide-react';
 
 interface PrismModalProps {
   onClose: () => void;
 }
-
-interface Message {
-  id: string;
-  sender: 'user' | 'prism';
-  text: string;
-  thinking?: string;
-  timestamp: string;
-  isRealAI?: boolean;
-  isError?: boolean;
-}
-
-const THINK_LABELS_FR = ['Analyse biométrique', 'Recoupement', 'Synthèse clinique', 'Rédaction'];
-const THINK_LABELS_EN = ['Thinking', 'Searching', 'Analyzing', 'Composing'];
 
 export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   const { profile, selectedDay, language, weekData, isFirstLaunch, openModal } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
 
-  const dayData = (weekData && weekData[selectedDay]) || (isFirstLaunch ? emptyDayMetrics : (weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]));
+  const dayData =
+    (weekData && weekData[selectedDay]) ||
+    (isFirstLaunch ? emptyDayMetrics : weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]);
   const dayName = isEn ? 'Today' : "Aujourd'hui";
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState<string>('');
-  const [orbStatus, setOrbStatus] = useState<'idle' | 'thinking' | 'done'>('idle');
-  const [thinkStep, setThinkStep] = useState<number>(0);
-  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const handleAskZenon = async (question: string): Promise<string> => {
+    const text = question.trim();
+    if (!text) return '';
 
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const isGenerating = orbStatus !== 'idle';
-
-  // Suivi temps-réel du Visual Viewport pour ancrer la saisie sur le clavier iOS sans décaler le haut de page
-  const [viewportMetrics, setViewportMetrics] = useState(() => {
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    return {
-      height: vv ? vv.height : (typeof window !== 'undefined' ? window.innerHeight : 844),
-      offsetTop: vv ? vv.offsetTop : 0,
-      isKeyboard: false,
-    };
-  });
-
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const updateMetrics = () => {
-      const vh = vv.height;
-      const winH = window.innerHeight;
-      const diff = winH - vh;
-      const isKb = diff > 100;
-      const nextOffsetTop = Math.max(0, vv.offsetTop);
-
-      setViewportMetrics((prev) => {
-        if (prev.height === vh && prev.offsetTop === nextOffsetTop && prev.isKeyboard === isKb) {
-          return prev;
-        }
-        return {
-          height: vh,
-          offsetTop: nextOffsetTop,
-          isKeyboard: isKb,
-        };
-      });
-
-      // Empêche iOS Safari de faire scroller toute la page vers le haut
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
-    };
-
-    const handleScroll = () => {
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
-    };
-
-    vv.addEventListener('resize', updateMetrics);
-    vv.addEventListener('scroll', updateMetrics);
-    window.addEventListener('scroll', handleScroll);
-
-    return () => {
-      vv.removeEventListener('resize', updateMetrics);
-      vv.removeEventListener('scroll', updateMetrics);
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  const keyboardOffset = useMemo(() => {
-    if (typeof window === 'undefined') return 0;
-    const vv = window.visualViewport;
-    if (!vv) return 0;
-    const diff = window.innerHeight - vv.height;
-    return diff > 80 ? Math.max(0, Math.round(diff - vv.offsetTop)) : 0;
-  }, [viewportMetrics]);
-
-  const thinkLabels = isEn ? THINK_LABELS_EN : THINK_LABELS_FR;
-  const activeOrbLabel =
-    orbStatus === 'done'
-      ? isEn
-        ? 'Done'
-        : 'Terminé'
-      : orbStatus === 'thinking'
-      ? thinkLabels[thinkStep % thinkLabels.length]
-      : undefined;
-
-  // Cycle thinking phase labels & 3D orb light programs while generating
-  useEffect(() => {
-    if (orbStatus !== 'thinking') return;
-    setThinkStep(0);
-    const id = window.setInterval(() => {
-      setThinkStep((s) => (s + 1) % thinkLabels.length);
-    }, 1150);
-    return () => window.clearInterval(id);
-  }, [orbStatus, thinkLabels.length]);
-
-  // Auto-scroll when messages or orb state update
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, orbStatus]);
-
-  const sendPrompt = async (rawText: string) => {
-    const text = rawText.trim();
-    if (!text || isGenerating) return;
-
-    if (text.includes('Cal AI') || text.includes('Scanner mon plat') || text.includes('Scan meal')) {
+    if (
+      text.toLowerCase().includes('cal ai') ||
+      text.toLowerCase().includes('scanner mon plat') ||
+      text.toLowerCase().includes('scan meal')
+    ) {
       handleClose();
       setTimeout(() => openModal('calai'), 180);
-      return;
+      return isEn ? 'Opening Cal AI scanner...' : 'Ouverture du scanner Cal AI...';
     }
 
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setInputText('');
-    setOrbStatus('thinking');
-
-    const minThinkStart = Date.now();
-    const MIN_ORB_MS = 900;
-
     try {
-      const history = messages
-        .filter((m) => !m.isError)
-        .map((m) => ({
-          sender: m.sender,
-          text: m.text,
-        }));
-
-      const res = await queryPrismAI({
+      const response = await queryPrismAI({
         prompt: text,
         profile,
         dayData,
         dayName,
-        isToday: true,
-        language: isEn ? 'en' : 'fr',
-        conversationHistory: history,
+        isToday: selectedDay === TODAY_INDEX,
+        language,
+        conversationHistory: [],
       });
-
-      // Ensure the 3D thinking orb has time to breathe before resolving
-      const elapsed = Date.now() - minThinkStart;
-      if (elapsed < MIN_ORB_MS) {
-        await new Promise((r) => setTimeout(r, MIN_ORB_MS - elapsed));
-      }
-
-      // Play the emerald green resolve sweep briefly
-      setOrbStatus('done');
-      await new Promise((r) => setTimeout(r, 520));
-
-      if (res.error) {
-        const errorMsg: Message = {
-          id: `prism-err-${Date.now()}`,
-          sender: 'prism',
-          text: isEn
-            ? `Zénon encountered an error: ${res.error}. Please check network connection.`
-            : `Zénon a rencontré une erreur de connexion : ${res.error}. Vérifiez la connexion réseau.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isError: true,
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      } else {
-        const prismMsg: Message = {
-          id: `prism-${Date.now()}`,
-          sender: 'prism',
-          text: res.text,
-          thinking: res.thinking,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isRealAI: res.isRealAI,
-        };
-        setMessages((prev) => [...prev, prismMsg]);
-      }
-    } catch (e: any) {
-      console.error('[Zénon] Generation error:', e);
-      const errorMsg: Message = {
-        id: `prism-err-${Date.now()}`,
-        sender: 'prism',
-        text: isEn ? `Network error: ${e?.message || 'Failed to reach AI'}` : `Erreur réseau : ${e?.message || 'Impossible de joindre l’IA'}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setOrbStatus('idle');
+      return response.text;
+    } catch (_) {
+      return isEn
+        ? 'Biometric connection interrupted. Please try again.'
+        : 'Connexion biométrique interrompue. Veuillez réessayer.';
     }
   };
-
-  const toggleThinking = (id: string) => {
-    setExpandedThinking((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const quickSuggestions = isEn
-    ? ['📸 Scan meal (Nutrition)', 'How is my recovery today?', 'Analyze my sleep architecture', 'Can I train hard today?']
-    : ['📸 Scanner mon plat (Nutrition)', 'Comment est ma récupération ?', 'Analyse ma nuit de sommeil', 'Puis-je m’entraîner fort ?'];
-
-  const ready = inputText.trim().length > 0 && !isGenerating;
 
   return (
     <div
@@ -302,17 +115,6 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         .zenon-sheet.is-closing {
           animation: zenonSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
         }
-        .prism-scroll-area {
-          scrollbar-width: none !important;
-          -ms-overflow-style: none !important;
-          overscroll-behavior: contain !important;
-          -webkit-overflow-scrolling: touch !important;
-        }
-        .prism-scroll-area::-webkit-scrollbar {
-          display: none !important;
-          width: 0 !important;
-          height: 0 !important;
-        }
       `}</style>
 
       <div
@@ -333,23 +135,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           borderTop: '1px solid rgba(255, 255, 255, 0.16)',
         }}
       >
-        {/* Iridescent Top Aura (Zero-cost radial gradient, no GPU blur lag) */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-30px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '320px',
-            height: '180px',
-            borderRadius: '50%',
-            background: 'radial-gradient(ellipse at center, rgba(56, 189, 248, 0.16) 0%, rgba(192, 132, 252, 0.12) 38%, rgba(48, 209, 88, 0.05) 65%, transparent 78%)',
-            pointerEvents: 'none',
-            zIndex: 1,
-          }}
-        />
-
-        {/* 1. Unified Header */}
+        {/* Unified Header */}
         <div
           style={{
             position: 'relative',
@@ -359,412 +145,123 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            zIndex: 10,
+            zIndex: 30,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
+                width: '30px',
+                height: '30px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Sparkles size={20} color="#FAF7F2" style={{ filter: 'drop-shadow(0 0 8px #C084FC)' }} />
+              <Sparkles size={15} color="#FAF7F2" />
             </div>
-
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                  Zénon
-                </span>
-                <span
-                  style={{
-                    fontSize: '9.5px',
-                    fontWeight: 600,
-                    padding: '1.5px 6px',
-                    borderRadius: '999px',
-                    background: 'rgba(56, 189, 248, 0.16)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    color: '#38BDF8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                  }}
-                >
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#38BDF8', boxShadow: '0 0 6px #38BDF8' }} />
-                  <span>ACTIF</span>
-                </span>
-              </div>
-              <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '1px' }}>
-                {isEn ? 'Biological Intelligence · Aurel Ring One' : 'Intelligence Biologique · Aurel Ring One'}
+              <span
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: '#FAF7F2',
+                  letterSpacing: '-0.3px',
+                }}
+              >
+                Zénon
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  color: 'rgba(250, 247, 242, 0.5)',
+                  fontWeight: 500,
+                }}
+              >
+                {isEn
+                  ? 'Biological Intelligence · Aurel Ring One'
+                  : 'Intelligence Biologique · Aurel Ring One'}
               </span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label={isEn ? 'Close' : 'Fermer'}
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              color: '#FAF7F2',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <X size={15} />
-          </button>
-        </div>
-
-        {/* 2. Unified Body: 3D Orb Welcome / Thinking / Rich Conversation */}
-        <div
-          className="prism-scroll-area"
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'auto',
-            padding: '12px 16px 16px 16px',
-            paddingBottom: keyboardOffset > 0 ? `${keyboardOffset + 16}px` : '16px',
-            transition: 'padding-bottom 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-            zIndex: 2,
-          }}
-        >
-          {/* Welcome state with living 3D Particle Orb */}
-          {messages.length === 0 && !isGenerating && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                padding: '10px 8px',
-                gap: keyboardOffset > 0 ? '4px' : '12px',
-                transition: 'gap 0.2s ease',
-              }}
-            >
-              <ZenonOrb status="idle" size={keyboardOffset > 0 ? 80 : 172} />
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: keyboardOffset > 0 ? '1px' : '5px' }}>
-                <span style={{ fontSize: keyboardOffset > 0 ? '15px' : '18px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Zénon
-                </span>
-                <span style={{ fontSize: keyboardOffset > 0 ? '11px' : '12px', color: 'rgba(250, 247, 242, 0.62)', maxWidth: '280px', lineHeight: 1.35 }}>
-                  {isEn
-                    ? 'Ask Zénon anything about your ring biometrics, sleep architecture, recovery, or workouts.'
-                    : 'Posez votre question à Zénon sur vos biométries, votre sommeil, votre récupération ou votre entraînement.'}
-                </span>
-              </div>
-
-              {keyboardOffset === 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    marginTop: '6px',
-                    maxWidth: '340px',
-                  }}
-                >
-                  {quickSuggestions.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => sendPrompt(q)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '999px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        color: 'rgba(250, 247, 242, 0.86)',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Message History */}
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                gap: '4px',
-              }}
-            >
-              <div
-                style={{
-                  maxWidth: '90%',
-                  padding: msg.sender === 'user' ? '10px 14px' : '14px 16px',
-                  borderRadius: msg.sender === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                  background:
-                    msg.sender === 'user'
-                      ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.08) 100%)'
-                      : msg.isError
-                      ? 'rgba(255, 90, 82, 0.12)'
-                      : 'rgba(18, 18, 24, 0.88)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
-                  border:
-                    msg.sender === 'user'
-                      ? '1px solid rgba(255, 255, 255, 0.24)'
-                      : msg.isError
-                      ? '1px solid rgba(255, 90, 82, 0.4)'
-                      : '1px solid rgba(255, 255, 255, 0.12)',
-                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
-                  color: msg.isError ? '#FF5A52' : '#FAF7F2',
-                  fontSize: '12.5px',
-                  lineHeight: 1.5,
-                }}
-              >
-                {msg.sender === 'prism' && msg.thinking && (
-                  <div
-                    style={{
-                      marginBottom: '10px',
-                      padding: '8px 10px',
-                      borderRadius: '10px',
-                      background: 'rgba(192, 132, 252, 0.08)',
-                      border: '1px solid rgba(192, 132, 252, 0.22)',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleThinking(msg.id)}
-                      style={{
-                        width: '100%',
-                        background: 'none',
-                        border: 'none',
-                        color: '#C084FC',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: '10.5px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: 0,
-                      }}
-                    >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Sparkles size={12} />
-                        {isEn ? 'Zénon Clinical Reasoning' : 'Raisonnement Clinique Zénon'}
-                      </span>
-                      {expandedThinking[msg.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </button>
-
-                    {expandedThinking[msg.id] && (
-                      <p
-                        style={{
-                          margin: '6px 0 0 0',
-                          fontSize: '11px',
-                          color: 'rgba(250, 247, 242, 0.72)',
-                          lineHeight: 1.45,
-                          fontFamily: 'var(--font-mono, monospace)',
-                          whiteSpace: 'pre-line',
-                        }}
-                      >
-                        {msg.thinking}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {msg.sender === 'prism' ? (
-                  <PrismMessageRenderer text={msg.text} />
-                ) : (
-                  <div style={{ whiteSpace: 'pre-line', fontSize: '13.5px', lineHeight: 1.55 }}>
-                    {msg.text}
-                  </div>
-                )}
-              </div>
-
-              <span style={{ fontSize: '9.5px', color: 'rgba(250, 247, 242, 0.38)', margin: '0 4px' }}>
-                {msg.timestamp}
-              </span>
-            </div>
-          ))}
-
-          {/* Active 3D Thinking Orb while Zénon processes */}
-          {isGenerating && (
-            <div
-              style={{
-                flex: messages.length <= 1 ? 1 : undefined,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '18px 0',
-              }}
-            >
-              <ZenonOrb
-                status={orbStatus === 'done' ? 'done' : 'thinking'}
-                label={activeOrbLabel}
-                prog={thinkStep}
-                size={messages.length <= 1 ? 190 : 140}
-              />
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
-        </div>
-
-        {/* 3. Unified Glowing Iridescent Pill Input (Flex-pinned, iOS-safe) */}
-        <div
-          style={{
-            flexShrink: 0,
-            padding: keyboardOffset > 0
-              ? '8px 14px 10px 14px'
-              : '10px 14px max(20px, calc(env(safe-area-inset-bottom, 0px) + 14px)) 14px',
-            transform: keyboardOffset > 0 ? `translateY(-${keyboardOffset}px)` : 'none',
-            transition: 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1), padding 0.18s ease',
-            zIndex: 10,
-          }}
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendPrompt(inputText);
-            }}
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              height: '54px',
-              padding: '0 8px 0 16px',
-              borderRadius: '999px',
-              background: 'rgba(18, 18, 24, 0.9)',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
-              boxShadow: '0 8px 28px rgba(0, 0, 0, 0.55), 0 0 24px rgba(192, 132, 252, 0.14)',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Subtle iridescent aurora shimmer */}
-            <div className="mo-aurora" style={{ opacity: 0.45 }} aria-hidden="true">
-              <i />
-              <i />
-            </div>
-
-            <Sparkles
-              size={17}
-              color="#C084FC"
-              style={{
-                flexShrink: 0,
-                position: 'relative',
-                zIndex: 2,
-                filter: 'drop-shadow(0 0 6px rgba(192, 132, 252, 0.5))',
-              }}
-            />
-
-            {/* Bouton Caméra Zénon Nutrition Instantané */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
               onClick={() => {
                 handleClose();
                 setTimeout(() => openModal('calai'), 180);
               }}
-              title={isEn ? 'Zénon Nutrition · Scan meal calories & macros' : 'Zénon Nutrition · Scanner un plat'}
-              aria-label="Zénon Nutrition"
               style={{
-                position: 'relative',
-                zIndex: 2,
-                width: '30px',
-                height: '30px',
+                height: '32px',
+                padding: '0 12px',
+                borderRadius: '999px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                color: '#FAF7F2',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+              }}
+              title={isEn ? 'Open Cal AI Food Scanner' : 'Ouvrir Cal AI Nutrition'}
+            >
+              <Camera size={13} color="#30D158" />
+              <span>Cal AI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label={isEn ? 'Close' : 'Fermer'}
+              style={{
+                width: '32px',
+                height: '32px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.22) 0%, rgba(192, 132, 252, 0.22) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.22)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 color: '#FAF7F2',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                boxShadow: '0 0 10px rgba(192, 132, 252, 0.28)',
-                flexShrink: 0,
-                transition: 'all 0.18s ease',
               }}
             >
-              <Camera size={14} strokeWidth={2} color="#FAF7F2" />
+              <X size={16} />
             </button>
+          </div>
+        </div>
 
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onFocus={() => {
-                setTimeout(() => {
-                  window.scrollTo(0, 0);
-                  document.body.scrollTop = 0;
-                }, 30);
-                setTimeout(() => {
-                  window.scrollTo(0, 0);
-                  chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                }, 120);
-              }}
-              placeholder={isEn ? 'Ask Zénon anything…' : 'Posez une question à Zénon…'}
-              maxLength={300}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                position: 'relative',
-                zIndex: 2,
-                background: 'none',
-                border: 'none',
-                outline: 'none',
-                color: '#FAF7F2',
-                fontSize: '15px',
-                lineHeight: 1.4,
-              }}
-            />
-
-            <button
-              type="submit"
-              disabled={!ready}
-              aria-label={isEn ? 'Send' : 'Envoyer'}
-              style={{
-                position: 'relative',
-                zIndex: 2,
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: ready
-                  ? 'linear-gradient(135deg, #38BDF8 0%, #C084FC 100%)'
-                  : 'rgba(255, 255, 255, 0.08)',
-                border: ready ? '1px solid rgba(255, 255, 255, 0.38)' : '1px solid rgba(255, 255, 255, 0.12)',
-                color: ready ? '#FAF7F2' : 'rgba(250, 247, 242, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: ready ? 'pointer' : 'default',
-                flexShrink: 0,
-                boxShadow: ready ? '0 0 16px rgba(192, 132, 252, 0.45)' : 'none',
-                transition: 'all 0.18s ease',
-              }}
-            >
-              <ArrowUp size={17} />
-            </button>
-          </form>
+        {/* Exact 21st.dev MorphOrb Thinking & Input Component */}
+        <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
+          <MorphOrb
+            onSubmit={handleAskZenon}
+            minThinkMs={1400}
+            copy={
+              isEn
+                ? {
+                    placeholder: 'Ask Zénon anything…',
+                    labels: ['Thinking', 'Searching', 'Analyzing', 'Composing'],
+                    done: 'Done',
+                    answerTitle: 'Zénon',
+                    reset: 'New question',
+                    send: 'Send',
+                  }
+                : {
+                    placeholder: 'Demandez à Zénon…',
+                    labels: ['Analyse biométrique', 'Recoupement', 'Synthèse clinique', 'Rédaction'],
+                    done: 'Terminé',
+                    answerTitle: 'Zénon',
+                    reset: 'Nouvelle question',
+                    send: 'Envoyer',
+                  }
+            }
+          />
         </div>
       </div>
     </div>

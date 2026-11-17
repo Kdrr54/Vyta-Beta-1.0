@@ -26,7 +26,7 @@ export interface MorphOrbProps {
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 132;
+const CARD_H_DEFAULT = 172;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
 const CARD_H = CARD_H_DEFAULT;
 const FLY_D = 138;
@@ -887,7 +887,6 @@ export default function MorphOrb(props: MorphOrbProps) {
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("resize", onResize);
-    inputRef.current?.focus({ preventScroll: true });
 
     return () => {
       window.removeEventListener("keydown", onKey);
