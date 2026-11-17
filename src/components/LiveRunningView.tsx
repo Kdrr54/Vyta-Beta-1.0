@@ -86,6 +86,13 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   // Progress computation
   const currentProg = Math.max(0, Math.min(1, runDistanceKm / 10));
 
+  // Automatically expand the telemetry charts sheet when the run finishes
+  useEffect(() => {
+    if (runState === 'finished') {
+      setIsSheetExpanded(true);
+    }
+  }, [runState]);
+
   // Sync with props
   useEffect(() => {
     if (propUserPosition) {

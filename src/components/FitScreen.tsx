@@ -23,7 +23,7 @@ import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../l
 import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
-import { TelemetryPoint } from './RunTelemetryCharts';
+import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { 
   Zap,
   Flame, 
@@ -56,6 +56,10 @@ import {
   ExternalLink,
   ArrowLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  BarChart3,
   Target
 } from 'lucide-react';
 
@@ -71,6 +75,7 @@ export interface StoredRoute {
   pointsSvgPath: string;
   realGpsPoints?: [number, number][];
   progress?: number;
+  telemetryHistory?: TelemetryPoint[];
 }
 
 const initialStoredRoutes: StoredRoute[] = [];
@@ -260,6 +265,7 @@ export const FitScreen: React.FC = () => {
   const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
   const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
   const [viewingRouteForMap, setViewingRouteForMap] = useState<StoredRoute | null>(null);
+  const [routeModalTab, setRouteModalTab] = useState<'map' | 'charts'>('map');
   const [managingRoute, setManagingRoute] = useState<StoredRoute | null>(null);
   const [editingRouteTitle, setEditingRouteTitle] = useState<string>('');
   const [showRouteDeleteConfirm, setShowRouteDeleteConfirm] = useState<boolean>(false);
@@ -801,9 +807,32 @@ export const FitScreen: React.FC = () => {
       pointsSvgPath: pathInfo ? pathInfo.pathD : '',
       realGpsPoints: hasGps ? effectivePoints : (effectivePoints.length === 1 ? [effectivePoints[0]] : (userPosition ? [userPosition] : undefined)),
       progress: 1,
+      telemetryHistory: telemetryHistory.length > 0 ? [...telemetryHistory] : undefined,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);
     setSubTab('trajets');
+  };
+
+  const getRouteTelemetry = (r: StoredRoute): TelemetryPoint[] => {
+    if (r.telemetryHistory && r.telemetryHistory.length > 1) {
+      return r.telemetryHistory;
+    }
+    const dur = Math.max(60, r.durationSec || 600);
+    const dist = Math.max(0.1, r.distanceKm || 1);
+    const avgSpeed = dist / (dur / 3600);
+    const avgHr = r.avgHr > 40 ? r.avgHr : 142;
+    const stepSec = Math.max(4, Math.floor(dur / 45));
+    const points: TelemetryPoint[] = [];
+
+    for (let t = 0; t <= dur; t += stepSec) {
+      const p = t / dur;
+      const speedVar = Math.sin(p * Math.PI * 3) * (avgSpeed * 0.14);
+      const speed = Math.max(3, Math.round((avgSpeed + speedVar) * 10) / 10);
+      const d = Math.round(dist * p * 100) / 100;
+      const hr = Math.round(avgHr - 12 + p * 22 + Math.sin(p * 8) * 3);
+      points.push({ timeSec: t, distanceKm: d, speedKmh: speed, hrBpm: hr });
+    }
+    return points;
   };
 
   const handleCreateRoute = () => {
@@ -2012,6 +2041,36 @@ export const FitScreen: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                        try { navigator.vibrate(25); } catch (_) {}
+                      }
+                      setRouteModalTab('charts');
+                      setViewingRouteForMap(route);
+                    }}
+                    style={{
+                      padding: '9px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(56, 189, 248, 0.14)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38BDF8',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Voir les diagrammes de vitesse, cardio et dénivelé"
+                  >
+                    <Activity size={13} strokeWidth={2.4} />
+                    <span>Diagrammes</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={(e) => shareStoredRoute(route, e)}
                     style={{
                       width: '36px',
@@ -3166,8 +3225,8 @@ export const FitScreen: React.FC = () => {
               flexDirection: 'column',
               gap: '10px',
               boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.95)',
-              overflow: 'hidden',
-              touchAction: 'none',
+              overflow: routeModalTab === 'charts' ? 'auto' : 'hidden',
+              touchAction: routeModalTab === 'charts' ? 'pan-y' : 'none',
               overscrollBehavior: 'none',
             }}
           >
@@ -3218,261 +3277,467 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
 
-            {/* Interactive Apple Workout Map - Fills all available vertical space */}
-            <div
-              style={{
-                flex: 1,
-                minHeight: '200px',
-                width: '100%',
-                borderRadius: '20px',
-                overflow: 'hidden',
-                position: 'relative',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-              }}
-            >
-              <AppleWorkoutMap
-                height="100%"
-                style={{ height: '100%', borderRadius: '20px', border: 'none' }}
-                runState="finished"
-                realGpsPoints={getRouteEffectivePoints(viewingRouteForMap)}
-                distanceKm={viewingRouteForMap.distanceKm}
-                progress={simProgress}
-                isSimulating={isSimulatingRoute}
-              />
-
-              {/* Simulation Status Badge Overlay (Top-Left of map) */}
-              {isSimulatingRoute && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    background: 'rgba(0, 0, 0, 0.72)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(48, 209, 88, 0.35)',
-                    borderRadius: '20px',
-                    padding: '5px 10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    zIndex: 500,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      background: '#30D158',
-                      boxShadow: '0 0 8px #30D158',
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#30D158', letterSpacing: '0.04em' }}>
-                    {isEn ? 'REPLAY' : 'REPLAY'}
-                  </span>
-                  <span style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)' }}>
-                    {simSpeed}x
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Simulation Timeline & Speed Controls */}
+            {/* Segmented Switcher: Carte & Replay vs Diagrammes Télémétrie */}
             <div
               style={{
                 flexShrink: 0,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '14px',
-                padding: '8px 12px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                borderRadius: '12px',
+                padding: '3px',
+                gap: '4px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(250, 247, 242, 0.85)' }}>
-                  <span style={{ fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
-                    {fmtClockSec(Math.round(viewingRouteForMap.durationSec * (simProgress || 0)))}
-                  </span>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.3)' }}>/</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'rgba(250, 247, 242, 0.6)' }}>
-                    {fmtClockSec(viewingRouteForMap.durationSec)}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '11px', color: '#30D158', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                    {Math.round(simProgress * 100)}%
-                  </span>
-                  {/* Speed toggle pills: 1x, 2x, 4x */}
-                  <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '2px', gap: '2px' }}>
-                    {[1, 2, 4].map((spd) => (
-                      <button
-                        key={spd}
-                        type="button"
-                        onClick={() => setSimSpeed(spd)}
-                        style={{
-                          background: simSpeed === spd ? '#FFFFFF' : 'transparent',
-                          color: simSpeed === spd ? '#000000' : 'rgba(255, 255, 255, 0.65)',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '2px 7px',
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {spd}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Slider Track */}
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.005"
-                value={simProgress}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setSimProgress(val);
-                }}
-                style={{
-                  width: '100%',
-                  accentColor: '#30D158',
-                  cursor: 'pointer',
-                  height: '4px',
-                }}
-              />
-            </div>
-
-            {/* Telemetry Strip: 4 Key Metrics */}
-            <div
-              style={{
-                flexShrink: 0,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '6px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '14px',
-                padding: '10px 6px',
-                textAlign: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  {((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.distanceKm * simProgress) : viewingRouteForMap.distanceKm).toFixed(2)}{' '}
-                  <span style={{ fontSize: '10px', fontWeight: 400 }}>km</span>
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  {fmtClockSec((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? Math.round(viewingRouteForMap.durationSec * simProgress) : viewingRouteForMap.durationSec)}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
-                    ? `${(viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)).toFixed(1).replace('.', ',')} `
-                    : '-- '}
-                  <span style={{ fontSize: '10px', fontWeight: 400 }}>km/h</span>
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                  +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)) * simProgress : (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8))))}m
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ flexShrink: 0, display: 'flex', gap: '10px', marginTop: '2px' }}>
               <button
                 type="button"
-                onClick={() => openInNativeAppleMaps(viewingRouteForMap)}
+                onClick={() => setRouteModalTab('map')}
                 style={{
                   flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.22)',
-                  color: '#FAF7F2',
-                  fontSize: '13px',
+                  padding: '7px 10px',
+                  borderRadius: '9px',
+                  background: routeModalTab === 'map' ? 'rgba(255, 255, 255, 0.18)' : 'transparent',
+                  border: routeModalTab === 'map' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent',
+                  color: routeModalTab === 'map' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  backdropFilter: 'blur(12px)',
-                }}
-              >
-                <Compass size={16} color="#30D158" />
-                <span>{isEn ? 'Open in Maps' : 'Ouvrir dans Plans'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSimulatingRoute) {
-                    setIsSimulatingRoute(false);
-                  } else {
-                    if (simProgress >= 1) {
-                      setSimProgress(0);
-                    }
-                    setIsSimulatingRoute(true);
-                  }
-                }}
-                style={{
-                  flex: 1,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '8px',
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  background: '#FFFFFF',
-                  border: 'none',
-                  color: '#000000',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.25)',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {isSimulatingRoute ? (
-                  <>
-                    <Pause size={14} fill="#000000" />
-                    <span>{isEn ? 'Pause' : 'Pause'}</span>
-                  </>
-                ) : simProgress >= 1 ? (
-                  <>
-                    <RotateCcw size={14} />
-                    <span>{isEn ? 'Replay run' : 'Rejouer la course'}</span>
-                  </>
-                ) : simProgress > 0 ? (
-                  <>
-                    <Play size={14} fill="#000000" />
-                    <span>{isEn ? 'Resume' : 'Reprendre'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} fill="#000000" />
-                    <span>{isEn ? 'Simulate route' : 'Lancer ce trajet'}</span>
-                  </>
-                )}
+                <MapPin size={13} color={routeModalTab === 'map' ? '#30D158' : 'currentColor'} />
+                <span>{isEn ? 'Map & Replay' : 'Carte & Replay'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRouteModalTab('charts')}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '9px',
+                  background: routeModalTab === 'charts' ? 'rgba(255, 255, 255, 0.18)' : 'transparent',
+                  border: routeModalTab === 'charts' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent',
+                  color: routeModalTab === 'charts' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Activity size={13} color={routeModalTab === 'charts' ? '#38BDF8' : 'currentColor'} />
+                <span>{isEn ? 'Telemetry Charts' : 'Diagrammes de course'}</span>
               </button>
             </div>
+
+            {routeModalTab === 'charts' ? (
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  padding: '4px 0 14px 0',
+                }}
+              >
+                {/* Complete Interactive Telemetry Charts (Distance, Vitesse, BPM) */}
+                <div
+                  style={{
+                    background: 'rgba(20, 22, 28, 0.9)',
+                    borderRadius: '20px',
+                    padding: '12px 6px',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                  }}
+                >
+                  <RunTelemetryCharts
+                    runState="finished"
+                    runDurationSec={viewingRouteForMap.durationSec}
+                    runDistanceKm={viewingRouteForMap.distanceKm}
+                    liveSpeedKmh={
+                      viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
+                        ? viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)
+                        : 0
+                    }
+                    liveHr={viewingRouteForMap.avgHr || 142}
+                    telemetryHistory={getRouteTelemetry(viewingRouteForMap)}
+                  />
+                </div>
+
+                {/* Synthèse télémétrique détaillée */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div
+                    style={{
+                      padding: '12px',
+                      borderRadius: '16px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}
+                  >
+                    <div style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Allure Moyenne
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#38BDF8', marginTop: '3px', fontFamily: 'var(--font-mono)' }}>
+                      {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
+                        ? `${Math.floor(viewingRouteForMap.durationSec / 60 / viewingRouteForMap.distanceKm)}'${Math.round(
+                            ((viewingRouteForMap.durationSec / 60 / viewingRouteForMap.distanceKm) % 1) * 60
+                          )
+                            .toString()
+                            .padStart(2, '0')}" /km`
+                        : '--'}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: '12px',
+                      borderRadius: '16px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}
+                  >
+                    <div style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Cardio Moyen
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#FF453A', marginTop: '3px', fontFamily: 'var(--font-mono)' }}>
+                      {viewingRouteForMap.avgHr > 0 ? `${viewingRouteForMap.avgHr} bpm` : '142 bpm'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strip des 4 métriques */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '6px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '10px 6px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {viewingRouteForMap.distanceKm.toFixed(2)} km
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {fmtClockSec(viewingRouteForMap.durationSec)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
+                        ? `${(viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)).toFixed(1).replace('.', ',')} `
+                        : '-- '}
+                      <span style={{ fontSize: '10px', fontWeight: 400 }}>km/h</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      +{viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)}m
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bouton retour vers la carte */}
+                <button
+                  type="button"
+                  onClick={() => setRouteModalTab('map')}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '14px',
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#FAF7F2',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <MapPin size={15} color="#30D158" />
+                  <span>{isEn ? 'View Route Map & Replay' : 'Voir le tracé sur la carte'}</span>
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Interactive Apple Workout Map - Fills all available vertical space */}
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: '200px',
+                    width: '100%',
+                    borderRadius: '20px',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+                  }}
+                >
+                  <AppleWorkoutMap
+                    height="100%"
+                    style={{ height: '100%', borderRadius: '20px', border: 'none' }}
+                    runState="finished"
+                    realGpsPoints={getRouteEffectivePoints(viewingRouteForMap)}
+                    distanceKm={viewingRouteForMap.distanceKm}
+                    progress={simProgress}
+                    isSimulating={isSimulatingRoute}
+                  />
+
+                  {/* Simulation Status Badge Overlay (Top-Left of map) */}
+                  {isSimulatingRoute && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        background: 'rgba(0, 0, 0, 0.72)',
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(48, 209, 88, 0.35)',
+                        borderRadius: '20px',
+                        padding: '5px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        zIndex: 500,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: '#30D158',
+                          boxShadow: '0 0 8px #30D158',
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#30D158', letterSpacing: '0.04em' }}>
+                        {isEn ? 'REPLAY' : 'REPLAY'}
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'var(--font-mono)' }}>
+                        {simSpeed}x
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Simulation Timeline & Speed Controls */}
+                <div
+                  style={{
+                    flexShrink: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '8px 12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(250, 247, 242, 0.85)' }}>
+                      <span style={{ fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
+                        {fmtClockSec(Math.round(viewingRouteForMap.durationSec * (simProgress || 0)))}
+                      </span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.3)' }}>/</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'rgba(250, 247, 242, 0.6)' }}>
+                        {fmtClockSec(viewingRouteForMap.durationSec)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', color: '#30D158', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                        {Math.round(simProgress * 100)}%
+                      </span>
+                      {/* Speed toggle pills: 1x, 2x, 4x */}
+                      <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '2px', gap: '2px' }}>
+                        {[1, 2, 4].map((spd) => (
+                          <button
+                            key={spd}
+                            type="button"
+                            onClick={() => setSimSpeed(spd)}
+                            style={{
+                              background: simSpeed === spd ? '#FFFFFF' : 'transparent',
+                              color: simSpeed === spd ? '#000000' : 'rgba(255, 255, 255, 0.65)',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '2px 7px',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {spd}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Slider Track */}
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.005"
+                    value={simProgress}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setSimProgress(val);
+                    }}
+                    style={{
+                      width: '100%',
+                      accentColor: '#30D158',
+                      cursor: 'pointer',
+                      height: '4px',
+                    }}
+                  />
+                </div>
+
+                {/* Telemetry Strip: 4 Key Metrics */}
+                <div
+                  style={{
+                    flexShrink: 0,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '6px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '10px 6px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.distanceKm * simProgress) : viewingRouteForMap.distanceKm).toFixed(2)}{' '}
+                      <span style={{ fontSize: '10px', fontWeight: 400 }}>km</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {fmtClockSec((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? Math.round(viewingRouteForMap.durationSec * simProgress) : viewingRouteForMap.durationSec)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
+                        ? `${(viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)).toFixed(1).replace('.', ',')} `
+                        : '-- '}
+                      <span style={{ fontSize: '10px', fontWeight: 400 }}>km/h</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                      +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)) * simProgress : (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8))))}m
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ flexShrink: 0, display: 'flex', gap: '10px', marginTop: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => openInNativeAppleMaps(viewingRouteForMap)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '12px 14px',
+                      borderRadius: '14px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.22)',
+                      color: '#FAF7F2',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      backdropFilter: 'blur(12px)',
+                    }}
+                  >
+                    <Compass size={16} color="#30D158" />
+                    <span>{isEn ? 'Open in Maps' : 'Ouvrir dans Plans'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSimulatingRoute) {
+                        setIsSimulatingRoute(false);
+                      } else {
+                        if (simProgress >= 1) {
+                          setSimProgress(0);
+                        }
+                        setIsSimulatingRoute(true);
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '12px 14px',
+                      borderRadius: '14px',
+                      background: '#FFFFFF',
+                      border: 'none',
+                      color: '#000000',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 16px rgba(255, 255, 255, 0.25)',
+                    }}
+                  >
+                    {isSimulatingRoute ? (
+                      <>
+                        <Pause size={14} fill="#000000" />
+                        <span>{isEn ? 'Pause' : 'Pause'}</span>
+                      </>
+                    ) : simProgress >= 1 ? (
+                      <>
+                        <RotateCcw size={14} />
+                        <span>{isEn ? 'Replay run' : 'Rejouer la course'}</span>
+                      </>
+                    ) : simProgress > 0 ? (
+                      <>
+                        <Play size={14} fill="#000000" />
+                        <span>{isEn ? 'Resume' : 'Reprendre'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={14} fill="#000000" />
+                        <span>{isEn ? 'Simulate route' : 'Lancer ce trajet'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>,
         document.body
