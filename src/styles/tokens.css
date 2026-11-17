@@ -25,32 +25,21 @@
   --text-tertiary: rgba(242, 234, 225, 0.45);
   --text-quaternary: rgba(242, 234, 225, 0.26);
 
-  /* Typography Fonts (Apple iOS San Francisco Pro) */
-  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro', system-ui, sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, sans-serif;
-  --font-mono: -apple-system, BlinkMacSystemFont, 'SF Mono', 'SF Pro Rounded', monospace;
-
-  /* Apple HIG System Accents */
-  --apple-green: #30D158;
-  --apple-blue: #0A84FF;
-  --apple-red: #FF453A;
-  --apple-pink: #FF2D55;
-  --apple-purple: #BF5AF2;
-  --apple-indigo: #5E5CE6;
-  --apple-orange: #FF9F0A;
-  --apple-yellow: #FFD60A;
-  --apple-teal: #64D2FF;
+  /* Typography Fonts */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Plus Jakarta Sans', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: -apple-system, BlinkMacSystemFont, 'SF Mono', 'JetBrains Mono', monospace;
 
   /* Bioluminescent Accents */
-  --accent-lime: #30D158;
-  --accent-orchid: #BF5AF2;
-  --accent-amber: #FF9F0A;
-  --accent-cyan: #64D2FF;
+  --accent-lime: #D9F970;
+  --accent-orchid: #D946EF;
+  --accent-amber: #FB923C;
+  --accent-cyan: #A5F3FC;
   --accent-white: #FAF7F2;
-  --accent-tint: rgba(48, 209, 88, 0.14);
-  --accent-green: #30D158;
-  --accent-red: #FF453A;
-  --accent-warn: #FF9F0A;
+  --accent-tint: rgba(217, 249, 112, 0.14);
+  --accent-green: #D9F970;
+  --accent-red: #FF5A52;
+  --accent-warn: #FB923C;
 
   /* Accent Mapping */
   --bordeaux-raw: #241D18;

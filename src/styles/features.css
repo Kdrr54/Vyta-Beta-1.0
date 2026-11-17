@@ -6,132 +6,58 @@
    1. APP HEADER PERSISTANT
    -------------------------------------------------------------------------- */
 .app-header {
-  padding: 0 16px;
+  padding: 4px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 52px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+  background: #000000;
+  border-bottom: 1px solid var(--border-subtle);
   position: relative;
+  overflow: hidden;
   z-index: 85;
 }
 
-.header-brand-side {
+.header-pillar-slot {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 5px;
+  height: 100%;
+  pointer-events: none;
 }
 
-.apple-brand-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
-  font-size: 17px;
-  font-weight: 800;
-  color: #FFFFFF;
-  letter-spacing: -0.4px;
+.header-pillar-slot.left-slot {
+  justify-content: flex-end;
+  padding-right: 6px;
 }
 
-.apple-brand-badge {
-  font-size: 9.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #30D158;
-  background: rgba(48, 209, 88, 0.12);
-  border: 1px solid rgba(48, 209, 88, 0.25);
-  padding: 1px 6px;
-  border-radius: 999px;
+.header-pillar-slot.right-slot {
+  justify-content: flex-start;
+  padding-left: 6px;
 }
 
-.header-center-capsule {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.header-pillar-h {
+  height: 26px;
+  width: 100%;
+  max-width: 168px;
+  object-fit: contain;
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.9)) brightness(1.15) contrast(1.15);
+  display: block;
+  transition: transform 220ms ease, opacity 220ms ease;
 }
 
-.ring-capsule-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: rgba(28, 28, 30, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  padding: 4px 10px 4px 6px;
-  border-radius: 999px;
-  color: #FAF7F2;
-  cursor: pointer;
-  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+.header-pillar-h.pillar-left {
+  transform: none;
 }
 
-.ring-capsule-btn:active {
-  transform: scale(0.96);
-  background: rgba(44, 44, 46, 0.95);
+.header-pillar-h.pillar-right {
+  transform: scaleX(-1);
 }
 
-.ring-capsule-thumb {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring-capsule-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.ring-capsule-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.ring-capsule-name {
-  font-size: 11px;
-  font-weight: 700;
-  color: #FFFFFF;
-  letter-spacing: -0.2px;
-}
-
-.ring-capsule-battery {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10.5px;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Mono', monospace;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
-  padding-left: 4px;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.header-actions-side {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.apple-header-icon-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: rgba(28, 28, 30, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 180ms ease;
-}
-
-.apple-header-icon-btn:active {
-  transform: scale(0.94);
-  background: rgba(50, 50, 54, 0.95);
+.app-header:hover .header-pillar-h {
+  opacity: 1;
 }
 
 .header-left-chips {
