@@ -1084,50 +1084,63 @@ export function ZenonOrb({ status, label, prog = 0, size = 180 }: ZenonOrbProps)
   const orbRef = useRef<ReturnType<typeof createOrb> | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
+  const [orbReady, setOrbReady] = useState(false);
 
-  useIsoLayoutEffect(() => {
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const orb = createOrb(canvas, () => 1, () => mq.matches);
-    orb.P.k = 1;
-    orb.P.alpha = 0.85;
-    orb.P.spin = 0.28;
-    orb.P.pop = 1;
-    orb.ensure();
-    orbRef.current = orb;
-
     let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-      last = now;
-      const st = statusRef.current;
-      const P = orb.P;
-      const tSpin = st === "thinking" ? 0.95 : st === "done" ? 0.35 : 0.25;
-      const tAlpha = st === "idle" ? 0.85 : 1;
-      const tSweep = st === "done" ? 1 : 0;
-      const tFloor = st === "done" ? 0.95 : 0;
-      const tGain = st === "thinking" ? 1.15 : st === "done" ? 0 : 0.7;
-      const tRad = st === "done" ? 0.16 : st === "thinking" ? 0.04 : 0;
+    let cancelled = false;
 
-      const k = 1 - Math.exp(-dt * 5.5);
-      P.spin = lerp(P.spin, tSpin, k);
-      P.alpha = lerp(P.alpha, tAlpha, k);
-      P.sweep = lerp(P.sweep, tSweep, k);
-      P.floor = lerp(P.floor, tFloor, k);
-      P.gain = lerp(P.gain, tGain, k);
-      P.rad = lerp(P.rad, tRad, k);
-      P.k = 1;
+    // Wait one animation frame + slight delay so modal slide-up starts at locked 60/120fps
+    const startTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const orb = createOrb(canvas, () => 1, () => mq.matches);
+      orb.P.k = 1;
+      orb.P.alpha = 0.85;
+      orb.P.spin = 0.28;
+      orb.P.pop = 1;
       orb.ensure();
+      orbRef.current = orb;
+      setOrbReady(true);
+
+      let last = performance.now();
+      const tick = (now: number) => {
+        if (cancelled) return;
+        const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+        last = now;
+        const st = statusRef.current;
+        const P = orb.P;
+        const tSpin = st === "thinking" ? 0.95 : st === "done" ? 0.35 : 0.25;
+        const tAlpha = st === "idle" ? 0.85 : 1;
+        const tSweep = st === "done" ? 1 : 0;
+        const tFloor = st === "done" ? 0.95 : 0;
+        const tGain = st === "thinking" ? 1.15 : st === "done" ? 0 : 0.7;
+        const tRad = st === "done" ? 0.16 : st === "thinking" ? 0.04 : 0;
+
+        const k = 1 - Math.exp(-dt * 5.5);
+        P.spin = lerp(P.spin, tSpin, k);
+        P.alpha = lerp(P.alpha, tAlpha, k);
+        P.sweep = lerp(P.sweep, tSweep, k);
+        P.floor = lerp(P.floor, tFloor, k);
+        P.gain = lerp(P.gain, tGain, k);
+        P.rad = lerp(P.rad, tRad, k);
+        P.k = 1;
+        orb.ensure();
+        raf = requestAnimationFrame(tick);
+      };
       raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
+    }, 120);
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
       cancelAnimationFrame(raf);
-      orb.destroy();
-      orbRef.current = null;
+      if (orbRef.current) {
+        orbRef.current.destroy();
+        orbRef.current = null;
+      }
     };
   }, []);
 
@@ -1158,19 +1171,18 @@ export function ZenonOrb({ status, label, prog = 0, size = 180 }: ZenonOrbProps)
           justifyContent: "center",
         }}
       >
-        {/* Iridescent / Emerald Glow Halo behind the 3D sphere */}
+        {/* Smooth Radial Glow Halo behind the 3D sphere (zero GPU blur filter cost) */}
         <div
           style={{
             position: "absolute",
-            inset: "-12px",
+            inset: "-24px",
             borderRadius: "50%",
             background:
               status === "done"
-                ? "radial-gradient(circle, rgba(52, 211, 153, 0.38) 0%, rgba(16, 185, 129, 0.12) 55%, transparent 75%)"
+                ? "radial-gradient(circle, rgba(52, 211, 153, 0.24) 0%, rgba(16, 185, 129, 0.08) 42%, transparent 72%)"
                 : status === "thinking"
-                ? "radial-gradient(circle, rgba(192, 132, 252, 0.34) 0%, rgba(56, 189, 248, 0.2) 50%, transparent 75%)"
-                : "radial-gradient(circle, rgba(147, 197, 253, 0.22) 0%, rgba(192, 132, 252, 0.12) 50%, transparent 75%)",
-            filter: "blur(24px)",
+                ? "radial-gradient(circle, rgba(192, 132, 252, 0.22) 0%, rgba(56, 189, 248, 0.12) 40%, transparent 72%)"
+                : "radial-gradient(circle, rgba(147, 197, 253, 0.15) 0%, rgba(192, 132, 252, 0.08) 40%, transparent 72%)",
             transition: "background 0.4s ease",
             pointerEvents: "none",
           }}
@@ -1183,6 +1195,8 @@ export function ZenonOrb({ status, label, prog = 0, size = 180 }: ZenonOrbProps)
             display: "block",
             position: "relative",
             zIndex: 2,
+            opacity: orbReady ? 1 : 0,
+            transition: "opacity 220ms ease-out",
           }}
           aria-hidden="true"
         />

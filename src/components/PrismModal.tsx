@@ -68,11 +68,17 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       const winH = window.innerHeight;
       const diff = winH - vh;
       const isKb = diff > 100;
+      const nextOffsetTop = Math.max(0, vv.offsetTop);
 
-      setViewportMetrics({
-        height: vh,
-        offsetTop: Math.max(0, vv.offsetTop),
-        isKeyboard: isKb,
+      setViewportMetrics((prev) => {
+        if (prev.height === vh && prev.offsetTop === nextOffsetTop && prev.isKeyboard === isKb) {
+          return prev;
+        }
+        return {
+          height: vh,
+          offsetTop: nextOffsetTop,
+          isKeyboard: isKb,
+        };
       });
 
       // Empêche iOS Safari de faire scroller toute la page vers le haut
@@ -90,7 +96,6 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     vv.addEventListener('resize', updateMetrics);
     vv.addEventListener('scroll', updateMetrics);
     window.addEventListener('scroll', handleScroll);
-    updateMetrics();
 
     return () => {
       vv.removeEventListener('resize', updateMetrics);
@@ -236,7 +241,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
 
   return (
     <div
-      className={`modal-backdrop ${isClosing ? 'is-closing' : ''}`}
+      className={`zenon-backdrop ${isClosing ? 'is-closing' : ''}`}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
@@ -249,12 +254,53 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         flexDirection: 'column',
         justifyContent: 'flex-end',
         alignItems: 'center',
+        background: 'rgba(0, 0, 0, 0.72)',
       }}
     >
       <style>{`
-        @keyframes prismAuraPulse {
-          0%, 100% { opacity: 0.6; transform: scale(1); }
-          50% { opacity: 0.95; transform: scale(1.08); }
+        @keyframes zenonBackdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes zenonBackdropOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        .zenon-backdrop {
+          animation: zenonBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: opacity;
+        }
+        .zenon-backdrop.is-closing {
+          animation: zenonBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+        }
+        @keyframes zenonSheetSlideUp {
+          0% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0.75;
+          }
+          100% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+        }
+        @keyframes zenonSheetSlideDown {
+          0% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+          100% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0;
+          }
+        }
+        .zenon-sheet {
+          animation: zenonSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .zenon-sheet.is-closing {
+          animation: zenonSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
         }
         .prism-scroll-area {
           scrollbar-width: none !important;
@@ -270,7 +316,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       `}</style>
 
       <div
-        className={`modal-sheet ${isClosing ? 'is-closing' : ''}`}
+        className={`zenon-sheet ${isClosing ? 'is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
@@ -287,21 +333,19 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           borderTop: '1px solid rgba(255, 255, 255, 0.16)',
         }}
       >
-        {/* Iridescent Top Aura */}
+        {/* Iridescent Top Aura (Zero-cost radial gradient, no GPU blur lag) */}
         <div
           style={{
             position: 'absolute',
-            top: '-50px',
+            top: '-30px',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '260px',
-            height: '140px',
+            width: '320px',
+            height: '180px',
             borderRadius: '50%',
-            background: 'radial-gradient(ellipse at center, rgba(56, 189, 248, 0.35) 0%, rgba(192, 132, 252, 0.3) 40%, rgba(48, 209, 88, 0.15) 70%, transparent 100%)',
-            filter: 'blur(36px)',
+            background: 'radial-gradient(ellipse at center, rgba(56, 189, 248, 0.16) 0%, rgba(192, 132, 252, 0.12) 38%, rgba(48, 209, 88, 0.05) 65%, transparent 78%)',
             pointerEvents: 'none',
             zIndex: 1,
-            animation: 'prismAuraPulse 4s infinite ease-in-out',
           }}
         />
 
