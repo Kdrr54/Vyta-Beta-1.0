@@ -14,6 +14,7 @@ function calculateGpsDistanceMeters(lat1: number, lon1: number, lat2: number, lo
 }
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { qringBle } from '../lib/qringBleService';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
@@ -233,6 +234,17 @@ export const FitScreen: React.FC = () => {
   const [simSpeed, setSimSpeed] = useState<number>(1);
   const simAnimRef = useRef<number | null>(null);
   const simLastTimeRef = useRef<number | null>(null);
+
+  // Verrouillage du scroll d'arrière-plan lorsque la modale de carte est active
+  useEffect(() => {
+    if (viewingRouteForMap) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [viewingRouteForMap]);
 
   // ------------------ COURSE & CARDIO (SESSION GPS VYTA LIVE) ------------------
   const initialRunState = (params?.get('run_state') as 'idle' | 'running' | 'paused' | 'finished') || 'idle';
@@ -3047,7 +3059,7 @@ export const FitScreen: React.FC = () => {
       )}
 
       {/* Modal Dédiée : Visualisation du trajet sur Apple Maps & Simulation */}
-      {viewingRouteForMap && (
+      {viewingRouteForMap && typeof document !== 'undefined' && createPortal(
         <div
           className="modal-backdrop"
           onClick={() => {
@@ -3056,13 +3068,22 @@ export const FitScreen: React.FC = () => {
             setViewingRouteForMap(null);
           }}
           style={{
-            zIndex: 10000,
+            position: 'fixed',
+            inset: 0,
+            width: '100vw',
+            height: '100dvh',
+            zIndex: 99999,
             display: 'flex',
-            alignItems: 'flex-end',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
             padding: 0,
-            background: 'rgba(0, 0, 0, 0.76)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            overflow: 'hidden',
+            touchAction: 'none',
+            overscrollBehavior: 'none',
           }}
         >
           <div
@@ -3070,42 +3091,45 @@ export const FitScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: '520px',
+              maxWidth: '430px',
+              height: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
+              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
               margin: '0 auto',
-              background: 'rgba(18, 18, 22, 0.98)',
+              background: '#0D0E12',
               borderTopLeftRadius: '28px',
               borderTopRightRadius: '28px',
               borderBottomLeftRadius: 0,
               borderBottomRightRadius: 0,
               border: '1px solid rgba(255, 255, 255, 0.14)',
               borderBottom: 'none',
-              padding: '16px 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px',
+              padding: '14px 16px calc(14px + env(safe-area-inset-bottom, 10px)) 16px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '14px',
-              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
-              maxHeight: '92vh',
-              overflowY: 'auto',
+              gap: '10px',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.95)',
+              overflow: 'hidden',
+              touchAction: 'none',
+              overscrollBehavior: 'none',
             }}
           >
             {/* Grabber Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
-              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-2px', marginBottom: '2px', flexShrink: 0 }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.28)' }} />
             </div>
 
             {/* Header: Title, Location & Close */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexShrink: 0 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <MapPin size={14} color="#30D158" />
-                  <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#30D158' }}>
+                  <MapPin size={13} color="#30D158" />
+                  <span style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#30D158' }}>
                     Trajet Apple Maps
                   </span>
                 </div>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FAF7F2', margin: '4px 0 2px 0', letterSpacing: '-0.3px' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#FAF7F2', margin: '3px 0 2px 0', letterSpacing: '-0.3px' }}>
                   {viewingRouteForMap.title}
                 </h3>
-                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
                   {viewingRouteForMap.location || (viewingRouteForMap.distanceKm < 0.05 ? 'Session statique' : 'Course extérieure')} · {formatRouteDateStr(viewingRouteForMap)}
                 </span>
               </div>
@@ -3135,11 +3159,12 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
 
-            {/* Interactive Apple Workout Map */}
+            {/* Interactive Apple Workout Map - Fills all available vertical space */}
             <div
               style={{
+                flex: 1,
+                minHeight: '200px',
                 width: '100%',
-                height: '310px',
                 borderRadius: '20px',
                 overflow: 'hidden',
                 position: 'relative',
@@ -3148,6 +3173,8 @@ export const FitScreen: React.FC = () => {
               }}
             >
               <AppleWorkoutMap
+                height="100%"
+                style={{ height: '100%', borderRadius: '20px', border: 'none' }}
                 runState="finished"
                 realGpsPoints={getRouteEffectivePoints(viewingRouteForMap)}
                 distanceKm={viewingRouteForMap.distanceKm}
@@ -3195,16 +3222,17 @@ export const FitScreen: React.FC = () => {
             {/* Simulation Timeline & Speed Controls */}
             <div
               style={{
+                flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px',
+                gap: '6px',
                 background: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '16px',
-                padding: '10px 14px',
+                borderRadius: '14px',
+                padding: '8px 12px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(250, 247, 242, 0.85)' }}>
                   <span style={{ fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
                     {fmtClockSec(Math.round(viewingRouteForMap.durationSec * (simProgress || 0)))}
@@ -3216,7 +3244,7 @@ export const FitScreen: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '11.5px', color: '#30D158', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ fontSize: '11px', color: '#30D158', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                     {Math.round(simProgress * 100)}%
                   </span>
                   {/* Speed toggle pills: 1x, 2x, 4x */}
@@ -3232,7 +3260,7 @@ export const FitScreen: React.FC = () => {
                           border: 'none',
                           borderRadius: '6px',
                           padding: '2px 7px',
-                          fontSize: '10.5px',
+                          fontSize: '10px',
                           fontWeight: 700,
                           cursor: 'pointer',
                         }}
@@ -3267,48 +3295,49 @@ export const FitScreen: React.FC = () => {
             {/* Telemetry Strip: 4 Key Metrics */}
             <div
               style={{
+                flexShrink: 0,
                 display: 'grid',
                 gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '8px',
+                gap: '6px',
                 background: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '16px',
-                padding: '12px 6px',
+                borderRadius: '14px',
+                padding: '10px 6px',
                 textAlign: 'center',
               }}
             >
               <div>
-                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Distance</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
                   {((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.distanceKm * simProgress) : viewingRouteForMap.distanceKm).toFixed(2)}{' '}
-                  <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km</span>
+                  <span style={{ fontSize: '10px', fontWeight: 400 }}>km</span>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Temps</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
                   {fmtClockSec((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? Math.round(viewingRouteForMap.durationSec * simProgress) : viewingRouteForMap.durationSec)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Vitesse Moy.</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
                   {viewingRouteForMap.distanceKm > 0 && viewingRouteForMap.durationSec > 0
                     ? `${(viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)).toFixed(1).replace('.', ',')} `
                     : '-- '}
-                  <span style={{ fontSize: '10.5px', fontWeight: 400 }}>km/h</span>
+                  <span style={{ fontSize: '10px', fontWeight: 400 }}>km/h</span>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
+                <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
                   +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)) * simProgress : (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8))))}m
                 </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+            <div style={{ flexShrink: 0, display: 'flex', gap: '10px', marginTop: '2px' }}>
               <button
                 type="button"
                 onClick={() => openInNativeAppleMaps(viewingRouteForMap)}
@@ -3318,7 +3347,7 @@ export const FitScreen: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '13px 14px',
+                  padding: '12px 14px',
                   borderRadius: '14px',
                   background: 'rgba(255, 255, 255, 0.1)',
                   border: '1px solid rgba(255, 255, 255, 0.22)',
@@ -3351,7 +3380,7 @@ export const FitScreen: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '13px 14px',
+                  padding: '12px 14px',
                   borderRadius: '14px',
                   background: '#FFFFFF',
                   border: 'none',
@@ -3386,11 +3415,12 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal / Bottom Sheet: Gestionnaire de Trajet (3 petits points) */}
-      {managingRoute && (
+      {managingRoute && typeof document !== 'undefined' && createPortal(
         <div
           className="modal-backdrop"
           onClick={() => {
@@ -3398,13 +3428,19 @@ export const FitScreen: React.FC = () => {
             setShowRouteDeleteConfirm(false);
           }}
           style={{
-            zIndex: 10001,
+            position: 'fixed',
+            inset: 0,
+            width: '100vw',
+            height: '100dvh',
+            zIndex: 99999,
             display: 'flex',
             alignItems: 'flex-end',
+            justifyContent: 'center',
             padding: 0,
             background: 'rgba(0, 0, 0, 0.78)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
+            overflow: 'hidden',
           }}
         >
           <div
@@ -3412,7 +3448,7 @@ export const FitScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: '520px',
+              maxWidth: '430px',
               margin: '0 auto',
               background: 'rgba(18, 18, 22, 0.98)',
               borderTopLeftRadius: '28px',
@@ -3786,7 +3822,8 @@ export const FitScreen: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       </div>
 

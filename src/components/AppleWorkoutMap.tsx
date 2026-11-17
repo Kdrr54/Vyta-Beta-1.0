@@ -14,6 +14,9 @@ interface AppleWorkoutMapProps {
   realGpsPoints?: [number, number][];
   userPosition?: [number, number] | null;
   isSimulating?: boolean;
+  height?: string | number;
+  style?: React.CSSProperties;
+  className?: string;
 }
 
 function getPointAtProgress(points: [number, number][], progress: number): [number, number] {
@@ -72,6 +75,9 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
   isSimulating = false,
+  height,
+  style = {},
+  className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -314,11 +320,24 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
       }
     };
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (leafletMapRef.current) {
+          leafletMapRef.current.invalidateSize();
+        }
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     setupMap();
 
     return () => {
       cancelled = true;
       stopCleaner();
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       if (appleMapInstanceRef.current) {
         appleMapInstanceRef.current.destroy();
         appleMapInstanceRef.current = null;
@@ -577,13 +596,21 @@ export const AppleWorkoutMap: React.FC<AppleWorkoutMapProps> = ({
   };
 
   return (
-    <div className="apple-maps-card-wrapper">
+    <div
+      className={`apple-maps-card-wrapper ${className}`}
+      style={{
+        width: '100%',
+        ...(height ? { height } : {}),
+        ...style,
+      }}
+    >
       {/* Map Stage Container */}
       <div
         className="apple-maps-stage"
         style={{
           position: 'relative',
-          height: '260px',
+          width: '100%',
+          height: height || '260px',
         }}
       >
         {/* Real Official Apple MapKit JS Canvas */}
