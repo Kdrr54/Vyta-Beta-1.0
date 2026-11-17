@@ -367,23 +367,24 @@ export const HealthScreen: React.FC = () => {
               e.stopPropagation();
               openModal('calai');
             }}
-            title={language === 'fr' ? 'Scanner un repas (Cal AI)' : 'Scan meal (Cal AI)'}
+            title={language === 'fr' ? 'Zénon Nutrition · Scanner un repas' : 'Zénon Nutrition · Scan meal'}
             style={{
-              padding: '5px 9px',
+              padding: '5px 10px',
               borderRadius: '999px',
-              background: 'rgba(48, 209, 88, 0.18)',
-              border: '1px solid rgba(48, 209, 88, 0.38)',
+              background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.18) 0%, rgba(192, 132, 252, 0.18) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.22)',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
-              color: '#30D158',
+              gap: '5px',
+              color: '#FAF7F2',
               cursor: 'pointer',
               fontSize: '11px',
-              fontWeight: 700,
+              fontWeight: 600,
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.4)',
             }}
           >
-            <Camera size={12} strokeWidth={2.4} />
-            <span>Cal AI</span>
+            <Camera size={12} strokeWidth={2} color="#FB923C" />
+            <span>Nutrition</span>
           </button>
 
           <div

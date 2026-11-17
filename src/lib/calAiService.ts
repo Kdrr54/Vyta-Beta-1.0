@@ -153,14 +153,13 @@ Structure JSON obligatoire :
 }
 Sois réaliste, rigoureux sur les portions visibles, et prends en compte les huiles de cuisson et sauces visibles.`;
 
-  // Modèles multimodaux supportant l'analyse d'images
+  // Modèles multimodaux fiables et disponibles pour la vision
   const candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-1.5-flash',
-    'gemini-2.0-flash',
-    'gemini-3.5-flash',
-    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
     'gemini-flash-lite-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.5-flash',
   ];
 
   let lastError = '';
@@ -266,7 +265,11 @@ Sois réaliste, rigoureux sur les portions visibles, et prends en compte les hui
     }
   }
 
-  throw new Error(`Cal AI n'a pas pu analyser le plat : ${lastError}`);
+  throw new Error(
+    isEn
+      ? 'Zénon Nutrition could not analyze the meal. Please take a closer photo and retry.'
+      : 'Zénon Nutrition n’a pas pu analyser le plat. Veuillez reprendre une photo bien éclairée et réessayer.'
+  );
 }
 
 function detectDefaultMealType(): 'breakfast' | 'lunch' | 'dinner' | 'snack' {

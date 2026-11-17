@@ -229,8 +229,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   };
 
   const quickSuggestions = isEn
-    ? ['📸 Scan meal (Cal AI)', 'How is my recovery today?', 'Analyze my sleep architecture', 'Can I train hard today?']
-    : ['📸 Scanner mon plat (Cal AI)', 'Comment est ma récupération ?', 'Analyse ma nuit de sommeil', 'Puis-je m’entraîner fort ?'];
+    ? ['📸 Scan meal (Nutrition)', 'How is my recovery today?', 'Analyze my sleep architecture', 'Can I train hard today?']
+    : ['📸 Scanner mon plat (Nutrition)', 'Comment est ma récupération ?', 'Analyse ma nuit de sommeil', 'Puis-je m’entraîner fort ?'];
 
   const ready = inputText.trim().length > 0 && !isGenerating;
 
@@ -634,34 +634,34 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
               }}
             />
 
-            {/* Bouton Caméra Cal AI Instantané */}
+            {/* Bouton Caméra Zénon Nutrition Instantané */}
             <button
               type="button"
               onClick={() => {
                 handleClose();
                 setTimeout(() => openModal('calai'), 180);
               }}
-              title={isEn ? 'Cal AI - Scan meal calories & macros' : 'Cal AI - Scanner un plat'}
-              aria-label="Cal AI Scanner"
+              title={isEn ? 'Zénon Nutrition · Scan meal calories & macros' : 'Zénon Nutrition · Scanner un plat'}
+              aria-label="Zénon Nutrition"
               style={{
                 position: 'relative',
                 zIndex: 2,
                 width: '30px',
                 height: '30px',
                 borderRadius: '50%',
-                background: 'rgba(48, 209, 88, 0.16)',
-                border: '1px solid rgba(48, 209, 88, 0.35)',
-                color: '#30D158',
+                background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.22) 0%, rgba(192, 132, 252, 0.22) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.22)',
+                color: '#FAF7F2',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                boxShadow: '0 0 10px rgba(48, 209, 88, 0.25)',
+                boxShadow: '0 0 10px rgba(192, 132, 252, 0.28)',
                 flexShrink: 0,
                 transition: 'all 0.18s ease',
               }}
             >
-              <Camera size={15} strokeWidth={2.2} />
+              <Camera size={14} strokeWidth={2} color="#FAF7F2" />
             </button>
 
             <input
