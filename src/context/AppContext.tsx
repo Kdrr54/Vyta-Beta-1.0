@@ -285,8 +285,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
       const hr = partial.heartRate || next.heartRate;
-      const mins = hr === '30min' ? 30 : hr === '1h' ? 60 : hr === 'pause' ? 0 : 30;
-      qringBle.setAllSensorIntervals(mins);
+      const mins = hr === '30min' ? 30 : hr === '1h' ? 60 : hr === 'pause' ? 0 : 60;
+      qringBle.setAllSensorIntervals(mins, true);
       try {
         localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));
       } catch (e) {}
@@ -295,8 +295,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    const mins = sensorIntervals?.heartRate === '30min' ? 30 : sensorIntervals?.heartRate === '1h' ? 60 : sensorIntervals?.heartRate === 'pause' ? 0 : 30;
-    qringBle.setAllSensorIntervals(mins);
+    const mins = sensorIntervals?.heartRate === '30min' ? 30 : sensorIntervals?.heartRate === '1h' ? 60 : sensorIntervals?.heartRate === 'pause' ? 0 : 60;
+    qringBle.setAllSensorIntervals(mins, false);
   }, []);
 
 

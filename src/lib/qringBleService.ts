@@ -158,10 +158,13 @@ class QRingBleService {
   private heartbeatInterval: any = null;
   private isAutoReconnecting = false;
   private reconnectTimer: any = null;
+  private reconnectAttempts = 0;
   private userExplicitlyDisconnected = false;
   private lastPeriodicSyncTime = 0;
-  // Strict 30-minute discrete cadence (48 slots/24h: 00:00, 00:30, 01:00, 01:30... — 0 continuous)
-  private configuredIntervalMinutes = 30;
+  private isSyncing = false;
+  // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
+  private configuredIntervalMinutes = 60;
+  private lastProgrammedIntervalMinutes: number | null = null;
   private isRealTimeHrActive = false;
   private realTimeHrTimer: any = null;
   private lastAutoMeasureSlot = -1;
@@ -173,10 +176,14 @@ class QRingBleService {
         const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
         if (intervalsStr) {
           const parsed = JSON.parse(intervalsStr);
-          if (parsed.heartRate === '30min') {
+          if (parsed.heartRate === 'pause') {
+            this.configuredIntervalMinutes = 0;
+          } else if (parsed.heartRate === '30min') {
             this.configuredIntervalMinutes = 30;
           } else if (parsed.heartRate === '1h') {
             this.configuredIntervalMinutes = 60;
+          } else if (parsed.heartRate === '2h') {
+            this.configuredIntervalMinutes = 120;
           } else if (parsed.heartRate === '15min') {
             this.configuredIntervalMinutes = 15;
           }
@@ -184,7 +191,7 @@ class QRingBleService {
           const saved = localStorage.getItem('vyta_ring_interval');
           if (saved) {
             const val = parseInt(saved, 10);
-            if (val === 5 || val === 10 || val === 15 || val === 30 || val === 60) {
+            if (val === 0 || val === 5 || val === 10 || val === 15 || val === 30 || val === 60 || val === 120) {
               this.configuredIntervalMinutes = val;
             }
           }
@@ -194,20 +201,24 @@ class QRingBleService {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           if (!this.isConnected() && !this.userExplicitlyDisconnected) {
+            this.reconnectAttempts = 0;
             console.log('[QRing BLE] App resumed to foreground, verifying ring connection...');
             this.autoConnectSavedDevice();
           } else if (this.isConnected()) {
-            console.log('[QRing BLE] App resumed to foreground, triggering quick data sync...');
-            this.syncAllRingData();
+            // Cooldown 90s to avoid waking the ring BLE radio repeatedly on rapid app switching
+            if (Date.now() - this.lastPeriodicSyncTime > 90 * 1000) {
+              console.log('[QRing BLE] App resumed to foreground, syncing stored ring memory...');
+              this.syncAllRingData();
+            }
           }
         }
       });
 
       window.addEventListener('focus', () => {
+        if (document.visibilityState !== 'visible') return;
         if (!this.isConnected() && !this.userExplicitlyDisconnected) {
-          console.log('[QRing BLE] Window focus regained, checking ring connection...');
           this.autoConnectSavedDevice();
-        } else if (this.isConnected()) {
+        } else if (this.isConnected() && Date.now() - this.lastPeriodicSyncTime > 90 * 1000) {
           this.syncAllRingData();
         }
       });
@@ -277,44 +288,36 @@ class QRingBleService {
   }
 
   /**
-   * Starts a 20-second keep-alive heartbeat:
-   * Sends Opcode 0x03 (Battery status request)
-   * 1. Resets the ring firmware's low-power dormant timer (prevents ring BLE sleep)
-   * 2. Continually keeps battery percentage updated in real time
-   * 3. Triggers syncEvery 10 minutes to pull new hourly records
+   * Low-power periodic maintenance timer (replaces aggressive 20s wake-up polling):
+   * Lets the ring firmware enter BLE dormant sleep naturally overnight & in background.
+   * Only queries battery & stored flash logs every 30 minutes when the app is actively visible,
+   * and NEVER illuminates optical LEDs automatically over BLE (the ring MCU runs its own autonomous schedule).
    */
   private startHeartbeat() {
     this.stopHeartbeat();
-    console.log('[QRing BLE] Starting periodic keep-alive heartbeat (every 20s)...');
+    console.log('[QRing BLE] Starting low-power periodic sync check (every 15m foreground only, allowing BLE dormant sleep)...');
     this.heartbeatInterval = setInterval(async () => {
-      if (this.isConnected()) {
-        try {
-          await this.sendBatteryRequest();
-
-          const nowDate = new Date();
-          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
-          const minuteInSlot = nowDate.getMinutes() % 30;
-
-          // Cadence 30 min : déclencher une mesure spot SpO2 & VRC au début de chaque créneau de 30 min (minute 0-3 ou 30-33)
-          if (this.configuredIntervalMinutes === 30 && !this.isAutoSpotMeasuring && !this.isRealTimeHrActive) {
-            if (this.lastAutoMeasureSlot !== currentSlot && minuteInSlot <= 5) {
-              this.lastAutoMeasureSlot = currentSlot;
-              this.triggerProactiveBiometricSpotCheck();
-            }
-          }
-
-          const now = Date.now();
-          if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
-            this.lastPeriodicSyncTime = now;
-            await this.syncAllRingData();
-          }
-        } catch (e) {
-          console.warn('[QRing BLE] Keep-alive ping error:', e);
-        }
-      } else {
+      if (!this.isConnected()) {
         this.stopHeartbeat();
+        return;
       }
-    }, 20000);
+
+      // When app is backgrounded or screen locked, NEVER poll BLE so the ring stays in deep sleep
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
+
+      try {
+        const now = Date.now();
+        if (now - this.lastPeriodicSyncTime > 30 * 60 * 1000) {
+          await this.syncAllRingData();
+        } else {
+          await this.sendBatteryRequest();
+        }
+      } catch (e) {
+        console.warn('[QRing BLE] Low-power periodic check notice:', e);
+      }
+    }, 15 * 60 * 1000);
   }
 
   private stopHeartbeat() {
@@ -325,7 +328,8 @@ class QRingBleService {
   }
 
   /**
-   * Schedules automatic silent background reconnection
+   * Schedules automatic silent background reconnection with exponential backoff
+   * and pauses when app is backgrounded to avoid continuous BLE radio scans.
    */
   public scheduleAutoReconnect() {
     if (this.isAutoReconnecting || this.userExplicitlyDisconnected || this.isConnected()) {
@@ -333,7 +337,7 @@ class QRingBleService {
     }
 
     this.isAutoReconnecting = true;
-    console.log('[QRing BLE AutoReconnect] Starting silent background auto-reconnect engine...');
+    console.log('[QRing BLE AutoReconnect] Starting silent auto-reconnect with backoff...');
 
     const runAttempt = async () => {
       if (!this.isAutoReconnecting || this.isConnected() || this.userExplicitlyDisconnected) {
@@ -341,17 +345,25 @@ class QRingBleService {
         return;
       }
 
+      // Avoid burning radio battery scanning in background while phone is locked / idle
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        this.stopAutoReconnect();
+        return;
+      }
+
       const success = await this.attemptSilentReconnect();
       if (success) {
         console.log('[QRing BLE AutoReconnect] Auto-reconnect successful!');
+        this.reconnectAttempts = 0;
         this.stopAutoReconnect();
-        // Trigger sync of logs upon successful reconnect
         this.syncAllRingData();
         return;
       }
 
       if (this.isAutoReconnecting && !this.userExplicitlyDisconnected) {
-        this.reconnectTimer = setTimeout(runAttempt, 4000);
+        this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, 5);
+        const backoffMs = Math.min(60000, 5000 * Math.pow(2, this.reconnectAttempts - 1));
+        this.reconnectTimer = setTimeout(runAttempt, backoffMs);
       }
     };
 
@@ -850,6 +862,7 @@ class QRingBleService {
         (disconnectedId) => {
           console.warn('[QRing BLE Native] Peripheral disconnected:', disconnectedId || deviceId);
           this.connectedDeviceId = null;
+          this.lastProgrammedIntervalMinutes = null;
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
@@ -1189,7 +1202,6 @@ class QRingBleService {
       });
 
       await this.sendTimeSync();
-      await this.setAllSensorIntervals(this.configuredIntervalMinutes);
       await this.syncAllRingData();
       this.startHeartbeat();
     } catch (e) {
@@ -1251,7 +1263,7 @@ class QRingBleService {
    * - Command 0x38 (CMD_HRV): [0x02, enabledByte, intervalMin]
    * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
-  public async setAllSensorIntervals(minutes?: number): Promise<boolean> {
+  public async setAllSensorIntervals(minutes?: number, force: boolean = false): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
     this.configuredIntervalMinutes = mins;
     try {
@@ -1259,7 +1271,18 @@ class QRingBleService {
         localStorage.setItem('vyta_ring_interval', String(mins));
       }
     } catch (_) {}
-    console.log('[QRing BLE] Programming all ring sensor monitoring intervals to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
+
+    if (!this.isConnected()) {
+      return false;
+    }
+
+    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
+    if (!force && this.lastProgrammedIntervalMinutes === mins) {
+      return true;
+    }
+
+    this.lastProgrammedIntervalMinutes = mins;
+    console.log('[QRing BLE] Programming ring autonomous sensor intervals once to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
 
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
 
@@ -2031,30 +2054,41 @@ class QRingBleService {
       console.warn('[QRing BLE] Cannot sync: ring is not connected.');
       return false;
     }
+    if (this.isSyncing) {
+      return false;
+    }
+    this.isSyncing = true;
+    this.lastPeriodicSyncTime = Date.now();
     console.log('[QRing BLE] === Starting Full Hardware Data Sync (Optical LED Silent Mode) ===');
     try {
       // 1. Clock synchronization with BCD (Essential: enables nocturnal sleep detection)
       await this.sendTimeSync();
       await new Promise((r) => setTimeout(r, 300));
 
-      // 2. Heart rate monitoring cadence & autonomous sensors (30 min or 60 min as configured by user)
+      // 2. Program autonomous firmware sensor intervals ONLY if not yet programmed on this connection or changed by user
       if (typeof window !== 'undefined') {
         try {
           const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
           if (intervalsStr) {
             const parsed = JSON.parse(intervalsStr);
-            if (parsed.heartRate === '30min') {
+            if (parsed.heartRate === 'pause') {
+              this.configuredIntervalMinutes = 0;
+            } else if (parsed.heartRate === '30min') {
               this.configuredIntervalMinutes = 30;
             } else if (parsed.heartRate === '1h') {
               this.configuredIntervalMinutes = 60;
+            } else if (parsed.heartRate === '2h') {
+              this.configuredIntervalMinutes = 120;
             } else if (parsed.heartRate === '15min') {
               this.configuredIntervalMinutes = 15;
             }
           }
         } catch (_) {}
       }
-      await this.setAllSensorIntervals(this.configuredIntervalMinutes);
-      await new Promise((r) => setTimeout(r, 300));
+      if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
+        await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
+        await new Promise((r) => setTimeout(r, 300));
+      }
 
       // 3. Stored full-day heart rate logs (flash memory only, 0 LEDs, given 1300ms to stream all 24 frames cleanly)
       await this.requestHeartRateLog();
@@ -2096,6 +2130,8 @@ class QRingBleService {
     } catch (e) {
       console.error('[QRing BLE] Sync error:', e);
       return false;
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -2272,36 +2308,13 @@ class QRingBleService {
    * Triggers discrete SpO2 (15s) + HRV (12s) + Skin Temp (8s) readings on the ring
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
+  /**
+   * Disabled automatic BLE optical spot-check: forcing 36s of continuous RED/IR/Green LEDs
+   * over BLE every 30 min caused severe ring battery drain. The ring firmware handles
+   * autonomous measurements natively at ultra-low power and stores them to flash.
+   */
   public async triggerProactiveBiometricSpotCheck() {
-    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive) return;
-    this.isAutoSpotMeasuring = true;
-    console.log('[QRing BLE] Running autonomous 30-min biometric spot check (SpO2, HRV & Skin Temp)...');
-    try {
-      // 1. SpO2 optical spot check (15s)
-      await this.startRealTimeBloodOxygen();
-      await new Promise((r) => setTimeout(r, 16000));
-      await this.stopRealTimeBloodOxygen();
-      await new Promise((r) => setTimeout(r, 800));
-
-      // 2. HRV optical spot check (12s)
-      await this.startRealTimeHrv();
-      await new Promise((r) => setTimeout(r, 12000));
-      await this.stopRealTimeHrv();
-      await new Promise((r) => setTimeout(r, 800));
-
-      // 3. Skin Temperature contact spot check (8s)
-      await this.startRealTimeTemperature();
-      await new Promise((r) => setTimeout(r, 8000));
-      await this.stopRealTimeTemperature();
-      await new Promise((r) => setTimeout(r, 800));
-
-      // 4. Pull latest history frames from ring memory
-      await this.syncAllRingData();
-    } catch (err) {
-      console.warn('[QRing BLE] Autonomous spot check notice:', err);
-    } finally {
-      this.isAutoSpotMeasuring = false;
-    }
+    return;
   }
 
   /**
@@ -2975,6 +2988,7 @@ class QRingBleService {
     this.rxChar = null;
     this.txChar = null;
     this.connectedDeviceId = null;
+    this.lastProgrammedIntervalMinutes = null;
     this.notify({ isConnected: false });
   }
 }
