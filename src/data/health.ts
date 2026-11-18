@@ -3,6 +3,10 @@ export type { DayMetrics };
 
 export const RING_IMAGE = '/assets/ring/ring-front.png';
 
+export function toLocalDateKey(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Semaine civile réelle en cours (du Lundi au Dimanche basée sur la date réelle) */
 export function computeRealCurrentWeek(baseDate: Date = new Date()) {
   const now = baseDate;
@@ -23,10 +27,11 @@ export function computeRealCurrentWeek(baseDate: Date = new Date()) {
       long: longs[i],
       date: d.getDate(),
       month: months[d.getMonth()],
+      dateKey: toLocalDateKey(d),
     };
   });
 
-  const weekId = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+  const weekId = toLocalDateKey(monday);
 
   return {
     week: weekList,

@@ -85,9 +85,6 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
           cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
           if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
           next[idx] = cur;
-          try {
-            localStorage.setItem('vyta_week_data', JSON.stringify(next));
-          } catch (_) {}
           return next;
         });
       } else {

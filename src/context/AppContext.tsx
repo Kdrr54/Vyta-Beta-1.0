@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
-import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek } from '../data/health';
+import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek, toLocalDateKey } from '../data/health';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
 import { buildSleepSummary } from '../lib/sleepAlgorithm';
@@ -119,6 +119,7 @@ interface AppContextType {
   closeStory: () => void;
   selectedDay: number;
   setSelectedDay: (day: number) => void;
+  selectedDateKey: string;
   liveBpm: number;
   setLiveBpm: (bpm: number | ((prev: number) => number)) => void;
   isLiveHrActive: boolean;
@@ -156,7 +157,7 @@ interface AppContextType {
   goToPreviousWeek: () => void;
   goToNextWeek: () => void;
   goToCurrentWeek: () => void;
-  weekDays: { short: string; long: string; date: number; month: string }[];
+  weekDays: { short: string; long: string; date: number; month: string; dateKey: string }[];
   weekRangeLabel: string;
   todayIndex: number;
 }
@@ -853,12 +854,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Gestion de l'historique multi-semaines
   const [weekOffset, setWeekOffset] = useState<number>(0);
+  const [calendarEpoch, setCalendarEpoch] = useState<number>(0);
 
   const currentBaseDate = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + weekOffset * 7);
     return d;
-  }, [weekOffset]);
+  }, [weekOffset, calendarEpoch]);
 
   const currentWeekCalendar = React.useMemo(() => {
     return computeRealCurrentWeek(currentBaseDate);
@@ -866,6 +868,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const todayIndex = weekOffset === 0 ? currentWeekCalendar.todayIndex : -1;
   const weekDays = currentWeekCalendar.week;
+  const selectedDateKey = React.useMemo(() => {
+    const clampedIdx = Math.max(0, Math.min(6, selectedDay));
+    return weekDays[clampedIdx]?.dateKey || toLocalDateKey();
+  }, [weekDays, selectedDay]);
 
   const weekRangeLabel = React.useMemo(() => {
     const d = new Date(currentBaseDate);
@@ -1133,15 +1139,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const checkMidnightAndRollover = () => {
       const cal = refreshCalendar();
       if (cal.weekId !== lastKnownWeekId) {
+        const oldWeekId = lastKnownWeekId;
         lastKnownWeekId = cal.weekId;
         lastKnownDay = cal.todayIndex;
-        localStorage.setItem('vyta_week_id', cal.weekId);
-        localStorage.removeItem('vyta_week_data');
+        try {
+          const prevData = localStorage.getItem('vyta_week_data');
+          if (prevData && oldWeekId) {
+            localStorage.setItem(`vyta_week_${oldWeekId}`, prevData);
+          }
+          localStorage.setItem('vyta_week_id', cal.weekId);
+          localStorage.removeItem('vyta_week_data');
+        } catch (_) {}
+        setCalendarEpoch((c) => c + 1);
         setWeekData(createEmptyWeekMetrics());
         setSelectedDay(cal.todayIndex);
       } else if (cal.todayIndex !== lastKnownDay) {
+        const oldDay = lastKnownDay;
         lastKnownDay = cal.todayIndex;
-        setSelectedDay((prev) => (prev === lastKnownDay - 1 ? cal.todayIndex : prev));
+        setCalendarEpoch((c) => c + 1);
+        setSelectedDay((prev) => (prev === oldDay ? cal.todayIndex : prev));
       }
     };
 
@@ -1202,9 +1218,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cur.naps = curNaps;
       syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
       next[selectedDay] = cur;
-      try {
-        localStorage.setItem('vyta_week_data', JSON.stringify(next));
-      } catch (_) {}
       return next;
     });
   }, [selectedDay]);
@@ -1217,9 +1230,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cur.naps = cur.naps.filter((n) => n.id !== napId);
       syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
       next[selectedDay] = cur;
-      try {
-        localStorage.setItem('vyta_week_data', JSON.stringify(next));
-      } catch (_) {}
       return next;
     });
   }, [selectedDay]);
@@ -1241,9 +1251,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       syncBodyEnergy(cur, idx === TODAY_INDEX);
       next[idx] = cur;
-      try {
-        localStorage.setItem('vyta_week_data', JSON.stringify(next));
-      } catch (_) {}
       return next;
     });
   }, []);
@@ -1273,6 +1280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       closeStory,
       selectedDay,
       setSelectedDay,
+      selectedDateKey,
       liveBpm,
       setLiveBpm,
       isLiveHrActive,
@@ -1333,6 +1341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       openStory,
       closeStory,
       selectedDay,
+      selectedDateKey,
       liveBpm,
       isLiveHrActive,
       toggleLiveHr,

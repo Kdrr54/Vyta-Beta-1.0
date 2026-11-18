@@ -487,9 +487,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             cur.maxBpm = cur.maxBpm && cur.maxBpm > 0 ? Math.max(cur.maxBpm, finalBpm) : finalBpm;
             if (!cur.restingBpm || cur.restingBpm === 0) cur.restingBpm = finalBpm;
             next[idx] = cur;
-            try {
-              localStorage.setItem('vyta_week_data', JSON.stringify(next));
-            } catch (_) {}
             return next;
           });
         } else {
@@ -516,9 +513,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             cur.spo2Min = cur.spo2Min && cur.spo2Min > 0 ? Math.min(cur.spo2Min, finalSpo2) : finalSpo2;
             cur.spo2Max = cur.spo2Max && cur.spo2Max > 0 ? Math.max(cur.spo2Max, finalSpo2) : finalSpo2;
             next[idx] = cur;
-            try {
-              localStorage.setItem('vyta_week_data', JSON.stringify(next));
-            } catch (_) {}
             return next;
           });
         } else {
@@ -541,9 +535,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             prevLog[curHalf] = finalTemp;
             cur.tempLog = prevLog;
             next[idx] = cur;
-            try {
-              localStorage.setItem('vyta_week_data', JSON.stringify(next));
-            } catch (_) {}
             return next;
           });
         } else {

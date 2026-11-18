@@ -8,15 +8,24 @@ import { CardioAge } from './CardioAge';
 import { Brain, Flame, Sparkles, ArrowUpRight, Activity, Droplets, Thermometer, Moon, RefreshCw, Wind, Heart, Camera } from 'lucide-react';
 import { fmtNum, fmtDuration } from '../lib/format';
 import { qringBle } from '../lib/qringBleService';
+import { getDailyNutritionSummary } from '../lib/calAiService';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, setSelectedDay, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm, weekOffset, goToCurrentWeek, weekDays } = useApp();
+  const { selectedDay, setSelectedDay, selectedDateKey, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm, weekOffset, goToCurrentWeek, weekDays } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
 
   const [isSyncingRing, setIsSyncingRing] = React.useState(false);
   const [syncFeedback, setSyncFeedback] = React.useState<string | null>(null);
+  const [dayNutrition, setDayNutrition] = React.useState(() => getDailyNutritionSummary(selectedDateKey));
+
+  React.useEffect(() => {
+    setDayNutrition(getDailyNutritionSummary(selectedDateKey));
+    const onMealsUpdated = () => setDayNutrition(getDailyNutritionSummary(selectedDateKey));
+    window.addEventListener('aurel-meals-updated', onMealsUpdated);
+    return () => window.removeEventListener('aurel-meals-updated', onMealsUpdated);
+  }, [selectedDateKey]);
 
   const handleSyncRing = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -384,7 +393,9 @@ export const HealthScreen: React.FC = () => {
             }}
           >
             <Camera size={12} strokeWidth={2} color="#FB923C" />
-            <span>Nutrition</span>
+            <span>
+              {dayNutrition.calories > 0 ? `${fmtNum(dayNutrition.calories)} kcal` : 'Nutrition'}
+            </span>
           </button>
 
           <div

@@ -202,7 +202,7 @@ function sanitizeRouteGpsPoints(pts?: [number, number][]): [number, number][] | 
 }
 
 export const FitScreen: React.FC = () => {
-  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive } = useApp();
+  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
@@ -1006,6 +1006,44 @@ export const FitScreen: React.FC = () => {
   const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
+  const loadedGymDateRef = useRef<string | null>(null);
+  const skipNextGymSaveRef = useRef<boolean>(false);
+
+  // Sauvegarde et chargement jour par jour des séances de musculation
+  useEffect(() => {
+    if (!selectedDateKey) return;
+    loadedGymDateRef.current = selectedDateKey;
+    skipNextGymSaveRef.current = true;
+    try {
+      const saved = localStorage.getItem(`vyta_gym_day_${selectedDateKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSessionTitle(parsed.sessionTitle || 'Séance Pectoraux & Bras');
+        setExercises(Array.isArray(parsed.exercises) ? parsed.exercises : []);
+      } else {
+        setSessionTitle('Séance Pectoraux & Bras');
+        setExercises([]);
+      }
+    } catch {
+      setExercises([]);
+    }
+  }, [selectedDateKey]);
+
+  useEffect(() => {
+    if (skipNextGymSaveRef.current) {
+      skipNextGymSaveRef.current = false;
+      return;
+    }
+    if (!selectedDateKey || loadedGymDateRef.current !== selectedDateKey) return;
+    try {
+      const key = `vyta_gym_day_${selectedDateKey}`;
+      if (exercises.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify({ sessionTitle, exercises }));
+      }
+    } catch (_) {}
+  }, [exercises, sessionTitle, selectedDateKey]);
 
   // Modals state
   const initialAddModal = params?.get('modal') === 'add_ex' || params?.get('add_ex') === '1';

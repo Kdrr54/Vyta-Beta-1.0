@@ -1,8 +1,20 @@
 import { CalAiAnalysisResult, CalAiDailyTarget, CalAiFoodItem } from '../types/calai';
 import { getStoredPrismKey } from './prismService';
+import { toLocalDateKey } from '../data/health';
 
 const CALAI_STORAGE_PREFIX = 'vyta_calai_meals_';
 const CALAI_TARGET_STORAGE = 'vyta_calai_targets';
+
+export function getLocalDateKey(d: Date = new Date()): string {
+  return toLocalDateKey(d);
+}
+
+export function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+  dt.setDate(dt.getDate() + deltaDays);
+  return toLocalDateKey(dt);
+}
 
 export const DEFAULT_DAILY_TARGET: CalAiDailyTarget = {
   calories: 2200,
@@ -62,6 +74,49 @@ export async function compressImageToDataUrl(file: File | Blob): Promise<{ base6
 }
 
 /**
+ * Génère une vignette légère (~10 Ko) pour stocker le repas dans localStorage sans saturer le quota.
+ */
+export async function compressThumbnailDataUrl(
+  dataUrl: string,
+  maxDim: number = 240,
+  quality: number = 0.62
+): Promise<string> {
+  if (!dataUrl || typeof document === 'undefined') return dataUrl;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/**
  * Analyse une photo de plat avec Gemini Vision pour extraire les calories et macros façon Cal AI.
  */
 export async function analyzeMealWithCalAi(
@@ -69,6 +124,7 @@ export async function analyzeMealWithCalAi(
   options: {
     language?: 'fr' | 'en';
     mealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    dateKey?: string;
   } = {}
 ): Promise<CalAiAnalysisResult> {
   const apiKey = getStoredPrismKey();
@@ -226,7 +282,7 @@ Sois réaliste, rigoureux sur les portions visibles, et prends en compte les hui
 
       const parsed = JSON.parse(cleanJson);
 
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = options.dateKey || getLocalDateKey();
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       const result: CalAiAnalysisResult = {
@@ -281,39 +337,83 @@ function detectDefaultMealType(): 'breakfast' | 'lunch' | 'dinner' | 'snack' {
 }
 
 /**
- * Récupère les repas enregistrés pour un jour donné (par défaut aujourd'hui)
+ * Récupère les repas enregistrés pour un jour donné (par défaut aujourd'hui en heure locale)
  */
 export function getLoggedMeals(dateKey?: string): CalAiAnalysisResult[] {
   if (typeof window === 'undefined') return [];
-  const key = dateKey || new Date().toISOString().slice(0, 10);
+  const key = dateKey || getLocalDateKey();
   try {
     const raw = localStorage.getItem(`${CALAI_STORAGE_PREFIX}${key}`);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
 /**
- * Enregistre un repas dans le journal quotidien
+ * Enregistre un repas dans le journal quotidien du jour ciblé (dateKey)
+ * Protégé contre le dépassement de quota localStorage lié aux miniatures photo.
  */
 export function saveLoggedMeal(meal: CalAiAnalysisResult): void {
   if (typeof window === 'undefined') return;
-  const current = getLoggedMeals(meal.dateKey);
-  const updated = [meal, ...current];
-  localStorage.setItem(`${CALAI_STORAGE_PREFIX}${meal.dateKey}`, JSON.stringify(updated));
+  const dateKey = meal.dateKey || getLocalDateKey();
+  const normalizedMeal: CalAiAnalysisResult = { ...meal, dateKey };
+  const current = getLoggedMeals(dateKey).filter((m) => m.id !== normalizedMeal.id);
+  const updated = [normalizedMeal, ...current];
+  try {
+    localStorage.setItem(`${CALAI_STORAGE_PREFIX}${dateKey}`, JSON.stringify(updated));
+  } catch {
+    // Fallback sans image en cas de quota localStorage plein : ne jamais perdre les calories/macros
+    try {
+      const liteUpdated = updated.map((m, idx) => (idx === 0 || m.imageUrl ? { ...m, imageUrl: undefined } : m));
+      localStorage.setItem(`${CALAI_STORAGE_PREFIX}${dateKey}`, JSON.stringify(liteUpdated));
+    } catch (_) {}
+  }
+  try {
+    window.dispatchEvent(new CustomEvent('aurel-meals-updated', { detail: { dateKey } }));
+  } catch (_) {}
 }
 
 /**
- * Supprime un repas du journal
+ * Supprime un repas du journal d'un jour donné
  */
 export function deleteLoggedMeal(mealId: string, dateKey?: string): void {
   if (typeof window === 'undefined') return;
-  const key = dateKey || new Date().toISOString().slice(0, 10);
+  const key = dateKey || getLocalDateKey();
   const current = getLoggedMeals(key);
   const updated = current.filter((m) => m.id !== mealId);
-  localStorage.setItem(`${CALAI_STORAGE_PREFIX}${key}`, JSON.stringify(updated));
+  try {
+    if (updated.length === 0) {
+      localStorage.removeItem(`${CALAI_STORAGE_PREFIX}${key}`);
+    } else {
+      localStorage.setItem(`${CALAI_STORAGE_PREFIX}${key}`, JSON.stringify(updated));
+    }
+    window.dispatchEvent(new CustomEvent('aurel-meals-updated', { detail: { dateKey: key } }));
+  } catch (_) {}
+}
+
+/**
+ * Liste toutes les journées contenant au moins un repas enregistré (du plus récent au plus ancien)
+ */
+export function getAllLoggedMealDates(): { dateKey: string; mealCount: number; calories: number }[] {
+  if (typeof window === 'undefined') return [];
+  const results: { dateKey: string; mealCount: number; calories: number }[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(CALAI_STORAGE_PREFIX)) continue;
+      const dateKey = k.slice(CALAI_STORAGE_PREFIX.length);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+      const meals = getLoggedMeals(dateKey);
+      if (meals.length > 0) {
+        const calories = meals.reduce((sum, m) => sum + (m.totalCalories || 0), 0);
+        results.push({ dateKey, mealCount: meals.length, calories });
+      }
+    }
+  } catch (_) {}
+  return results.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
 }
 
 /**

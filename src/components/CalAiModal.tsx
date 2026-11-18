@@ -3,12 +3,16 @@ import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import {
   compressImageToDataUrl,
+  compressThumbnailDataUrl,
   analyzeMealWithCalAi,
   getLoggedMeals,
   saveLoggedMeal,
   deleteLoggedMeal,
   getDailyNutritionSummary,
   getDailyTargets,
+  getLocalDateKey,
+  shiftDateKey,
+  getAllLoggedMealDates,
 } from '../lib/calAiService';
 import { CalAiAnalysisResult } from '../types/calai';
 import { AureliusOrb } from './ui/ai-thiking-orb-and-input';
@@ -22,7 +26,9 @@ import {
   Sparkles,
   Plus,
   Utensils,
+  ChevronLeft,
   ChevronRight,
+  Calendar,
   Compass,
 } from 'lucide-react';
 
@@ -31,11 +37,28 @@ interface CalAiModalProps {
   initialImage?: { base64: string; mimeType: string; dataUrl: string };
 }
 
+function formatDateKeyLabel(dateKey: string, isEn: boolean): string {
+  const today = getLocalDateKey();
+  const yesterday = shiftDateKey(today, -1);
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+  const shortDate = dt.toLocaleDateString(isEn ? 'en-US' : 'fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  if (dateKey === today) return isEn ? `Today · ${shortDate}` : `Aujourd’hui · ${shortDate}`;
+  if (dateKey === yesterday) return isEn ? `Yesterday · ${shortDate}` : `Hier · ${shortDate}`;
+  return shortDate;
+}
+
 export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage }) => {
-  const { language, weekData, selectedDay } = useApp();
+  const { language, weekData, selectedDay, selectedDateKey } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
+  const todayKey = getLocalDateKey();
 
+  const [activeDateKey, setActiveDateKey] = useState<string>(() => selectedDateKey || todayKey);
   const [activeTab, setActiveTab] = useState<'scan' | 'journal'>('scan');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanStep, setScanStep] = useState<string>('');
@@ -45,23 +68,31 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Journal du jour
-  const [loggedMeals, setLoggedMeals] = useState<CalAiAnalysisResult[]>([]);
-  const [dailySummary, setDailySummary] = useState(getDailyNutritionSummary());
+  // Journal du jour ciblé
+  const [loggedMeals, setLoggedMeals] = useState<CalAiAnalysisResult[]>(() => getLoggedMeals(selectedDateKey || todayKey));
+  const [dailySummary, setDailySummary] = useState(() => getDailyNutritionSummary(selectedDateKey || todayKey));
+  const [loggedDates, setLoggedDates] = useState<{ dateKey: string; mealCount: number; calories: number }[]>(() => getAllLoggedMealDates());
   const dailyTargets = getDailyTargets();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  const refreshJournal = () => {
-    const meals = getLoggedMeals();
+  const refreshJournal = (targetKey: string = activeDateKey) => {
+    const meals = getLoggedMeals(targetKey);
     setLoggedMeals(meals);
-    setDailySummary(getDailyNutritionSummary());
+    setDailySummary(getDailyNutritionSummary(targetKey));
+    setLoggedDates(getAllLoggedMealDates());
   };
 
   useEffect(() => {
-    refreshJournal();
-  }, []);
+    if (selectedDateKey) {
+      setActiveDateKey(selectedDateKey);
+    }
+  }, [selectedDateKey]);
+
+  useEffect(() => {
+    refreshJournal(activeDateKey);
+  }, [activeDateKey]);
 
   useEffect(() => {
     if (initialImage) {
@@ -88,6 +119,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
       const result = await analyzeMealWithCalAi(imgData, {
         language: isEn ? 'en' : 'fr',
         mealType: selectedMealType,
+        dateKey: activeDateKey,
       });
       setCurrentResult(result);
     } catch (err: any) {
@@ -116,16 +148,20 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
     }
   };
 
-  const handleSaveMeal = () => {
+  const handleSaveMeal = async () => {
     if (!currentResult) return;
+    const thumbnailUrl = currentImagePreview
+      ? await compressThumbnailDataUrl(currentImagePreview)
+      : undefined;
     const toSave: CalAiAnalysisResult = {
       ...currentResult,
+      dateKey: activeDateKey,
       mealType: selectedMealType,
-      imageUrl: currentImagePreview || undefined,
+      imageUrl: thumbnailUrl,
     };
     saveLoggedMeal(toSave);
     setSaveSuccess(true);
-    refreshJournal();
+    refreshJournal(activeDateKey);
     setTimeout(() => {
       setSaveSuccess(false);
       setActiveTab('journal');
@@ -133,8 +169,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
   };
 
   const handleDeleteMeal = (id: string) => {
-    deleteLoggedMeal(id);
-    refreshJournal();
+    deleteLoggedMeal(id, activeDateKey);
+    refreshJournal(activeDateKey);
   };
 
   const activeKcalBurned = weekData?.[selectedDay]?.activeKcal || 0;
@@ -307,6 +343,68 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           >
             <Utensils size={15} color={activeTab === 'journal' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)'} />
             {isEn ? `Daily Journal (${dailySummary.mealCount})` : `Journal Aurel (${dailySummary.mealCount})`}
+          </button>
+        </div>
+
+        {/* Sélecteur de jour (Historique & saisie jour par jour) */}
+        <div
+          style={{
+            margin: '0 18px 10px 18px',
+            padding: '7px 10px',
+            borderRadius: '14px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.09)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveDateKey((k) => shiftDateKey(k, -1))}
+            aria-label={isEn ? 'Previous day' : 'Jour précédent'}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '9px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: '#FAF7F2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Calendar size={13} color="#FB923C" />
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2', textTransform: 'capitalize' }}>
+              {formatDateKeyLabel(activeDateKey, isEn)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            disabled={activeDateKey >= todayKey}
+            onClick={() => setActiveDateKey((k) => (k < todayKey ? shiftDateKey(k, 1) : k))}
+            aria-label={isEn ? 'Next day' : 'Jour suivant'}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '9px',
+              background: activeDateKey >= todayKey ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: activeDateKey >= todayKey ? 'rgba(250, 247, 242, 0.25)' : '#FAF7F2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: activeDateKey >= todayKey ? 'default' : 'pointer',
+            }}
+          >
+            <ChevronRight size={15} />
           </button>
         </div>
 
@@ -799,9 +897,40 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           ) : (
             /* ONGLET JOURNAL STOÏCIEN */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {loggedDates.length > 0 && (
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none' }}>
+                  {loggedDates.map((dInfo) => {
+                    const isSelected = dInfo.dateKey === activeDateKey;
+                    const [, mm, dd] = dInfo.dateKey.split('-');
+                    return (
+                      <button
+                        key={dInfo.dateKey}
+                        type="button"
+                        onClick={() => setActiveDateKey(dInfo.dateKey)}
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 10px',
+                          borderRadius: '11px',
+                          background: isSelected ? 'rgba(251, 146, 60, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                          border: isSelected ? '1px solid rgba(251, 146, 60, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          color: isSelected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.65)',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {dd}/{mm} · {dInfo.mealCount} ({dInfo.calories} kcal)
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2' }}>
-                  {isEn ? "Today's Nutrition Log" : "Journal de la journée"}
+                  {activeDateKey === todayKey
+                    ? (isEn ? "Today's Nutrition Log" : "Journal de la journée")
+                    : (isEn ? 'Day Nutrition Log' : 'Journal du jour')}
                 </span>
                 <button
                   type="button"
@@ -837,7 +966,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                 >
                   <Utensils size={32} color="rgba(250, 247, 242, 0.3)" style={{ marginBottom: '8px' }} />
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#FAF7F2' }}>
-                    {isEn ? 'No meals logged today' : 'Aucun repas enregistré aujourd’hui'}
+                    {activeDateKey === todayKey
+                      ? (isEn ? 'No meals logged today' : 'Aucun repas enregistré aujourd’hui')
+                      : (isEn ? 'No meals logged for this day' : 'Aucun repas enregistré pour ce jour')}
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.5)', marginTop: '4px' }}>
                     {isEn ? 'Scan a meal to start tracking biometrics & macros' : 'Prenez une photo de votre plat pour suivre vos calories & nutriments'}
