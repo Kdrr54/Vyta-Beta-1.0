@@ -594,7 +594,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
-          if (!cur.resp || cur.resp === 0) {
+          const sleptMin = (cur.sleep?.deepMin || 0) + (cur.sleep?.remMin || 0) + (cur.sleep?.lightMin || 0);
+          if (sleptMin >= 60 && (!cur.resp || cur.resp === 0)) {
             const baseHrv = cur.hrv || 45;
             const baseBpm = cur.restingBpm || cur.bpm || 60;
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
@@ -726,7 +727,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
-          if (!cur.resp || cur.resp === 0) {
+          const sleptMin = (cur.sleep?.deepMin || 0) + (cur.sleep?.remMin || 0) + (cur.sleep?.lightMin || 0);
+          if (sleptMin >= 60 && (!cur.resp || cur.resp === 0)) {
             const baseHrv = cur.hrv || 45;
             const baseBpm = cur.restingBpm || cur.bpm || 60;
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
