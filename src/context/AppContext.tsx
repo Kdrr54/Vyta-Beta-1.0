@@ -507,6 +507,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.batteryPct !== undefined) {
         updateRing({ batteryRing: data.batteryPct, isConnected: true });
       }
+      if (data.serialNumber || data.firmwareVersion || data.macAddress) {
+        updateRing({
+          ...(data.serialNumber ? { serial: data.serialNumber } : {}),
+          ...(data.firmwareVersion ? { firmware: data.firmwareVersion } : {}),
+          ...(data.macAddress ? { macAddress: data.macAddress } : {}),
+        });
+      }
       if (data.isCharging !== undefined) {
         updateRing({ isCharging: data.isCharging });
         if (data.isCharging) {

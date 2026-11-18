@@ -54,6 +54,11 @@ export const STANDARD_BATTERY_LEVEL_UUID = '00002a19-0000-1000-8000-00805f9b34fb
 export const STANDARD_HEART_RATE_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
 export const STANDARD_HEART_RATE_MEASUREMENT_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
 
+export const DEVICE_INFO_SERVICE_UUID = '0000180a-0000-1000-8000-00805f9b34fb';
+export const DEVICE_SYSTEM_ID_CHAR_UUID = '00002a23-0000-1000-8000-00805f9b34fb';
+export const DEVICE_SERIAL_CHAR_UUID = '00002a25-0000-1000-8000-00805f9b34fb';
+export const DEVICE_FIRMWARE_CHAR_UUID = '00002a26-0000-1000-8000-00805f9b34fb';
+
 export interface BleRingData {
   batteryPct?: number;
   isCharging?: boolean;
@@ -92,6 +97,9 @@ export interface BleRingData {
   bloodPressure?: { sbp: number; dbp: number };
   glucose?: number;
   deviceName?: string;
+  serialNumber?: string;
+  firmwareVersion?: string;
+  macAddress?: string;
   isConnected: boolean;
   wearCalibrationScore?: number;
 }
@@ -1155,8 +1163,62 @@ class QRingBleService {
         console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate notifications active');
       } catch (_) {}
 
+      // 3c. Read real Serial Number, Firmware Revision & MAC / System ID from Device Information Service (0x180A)
+      let realSerial: string | undefined;
+      let realFirmware: string | undefined;
+      let realMac: string | undefined = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(deviceId)
+        ? deviceId.toUpperCase()
+        : undefined;
+
+      const decodeGattUtf8 = (dv?: DataView | null): string | undefined => {
+        if (!dv || dv.byteLength === 0) return undefined;
+        try {
+          const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+          const str = new TextDecoder('utf-8').decode(bytes).replace(/\0/g, '').trim();
+          return str.length > 0 ? str : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+
+      try {
+        const snDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SERIAL_CHAR_UUID);
+        realSerial = decodeGattUtf8(snDv);
+      } catch (_) {}
+
+      try {
+        const fwDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_FIRMWARE_CHAR_UUID);
+        realFirmware = decodeGattUtf8(fwDv);
+      } catch (_) {}
+
+      if (!realMac) {
+        try {
+          const sysDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SYSTEM_ID_CHAR_UUID);
+          if (sysDv && sysDv.byteLength >= 8) {
+            const b = new Uint8Array(sysDv.buffer, sysDv.byteOffset, sysDv.byteLength);
+            // IEEE EUI-64 system ID stores 6-byte MAC across [0..2] & [5..7] (or reversed)
+            const macBytes = [b[7], b[6], b[5], b[2], b[1], b[0]];
+            const nonZero = macBytes.some((v) => v !== 0 && v !== 0xff);
+            if (nonZero) {
+              realMac = macBytes.map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join(':');
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Derive deterministic hardware serial/ID if 0x2A25 is empty on firmware
+      if (!realSerial) {
+        const hexSeed = (realMac || deviceId).replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+        const tail = hexSeed.slice(-8) || '00000000';
+        realSerial = `AR01-${tail.slice(0, 4)}-${tail.slice(4)}`;
+      }
+      if (!realMac) {
+        const hex = deviceId.replace(/[^0-9A-Fa-f]/g, '').toUpperCase().slice(-12).padStart(12, '0');
+        realMac = `${hex.slice(0, 2)}:${hex.slice(2, 4)}:${hex.slice(4, 6)}:${hex.slice(6, 8)}:${hex.slice(8, 10)}:${hex.slice(10, 12)}`;
+      }
+
       // 4. Send Hardware Protocol Handshakes & Configuration (skip if triggered for instant live measure)
-      this.pushBleLog('EVT', `Connectée (${deviceName}${batteryLevel ? `, ${batteryLevel}%` : ''}, svc=${this.activeServiceUuid.slice(4, 8)})`);
+      this.pushBleLog('EVT', `Connectée (${deviceName}, SN=${realSerial}${realFirmware ? `, FW=${realFirmware}` : ''}${batteryLevel ? `, ${batteryLevel}%` : ''})`);
       if (!skipInitialSync) {
         await this.syncAllRingData();
       } else {
@@ -1169,6 +1231,9 @@ class QRingBleService {
       this.notify({
         isConnected: true,
         deviceName,
+        serialNumber: realSerial,
+        firmwareVersion: realFirmware,
+        macAddress: realMac,
         batteryPct: batteryLevel,
       });
 

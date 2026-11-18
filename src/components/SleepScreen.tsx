@@ -1294,8 +1294,8 @@ export const SleepScreen: React.FC = () => {
           <p style={{ fontSize: '11.5px', lineHeight: 1.45, color: 'rgba(250, 247, 242, 0.8)', margin: 0 }}>
             {!hasSlept
               ? (isEn
-                  ? 'Wear your Aurel Ring tonight to analyze your sleep architecture, resting nadir and circadian recovery.'
-                  : 'Portez votre bague Stoïk cette nuit pour mesurer votre architecture de sommeil, vos creux cardiaques et votre récupération.')
+                  ? 'Wear your Aurel Ring One tonight to analyze your sleep architecture, resting nadir and circadian recovery.'
+                  : 'Portez votre Aurel Ring One cette nuit pour mesurer votre architecture de sommeil, vos creux cardiaques et votre récupération.')
               : (isEn
                   ? `Night session measured with ${deepPct}% deep sleep and ${remPct}% REM sleep (${efficiency}% efficiency). Aim for a consistent bedtime to stabilize circadian rhythm.`
                   : `Nuit mesurée avec ${deepPct}% de sommeil profond et ${remPct}% de paradoxal (${efficiency}% d'efficacité). Gardez une heure de coucher régulière pour ancrer votre rythme biologique.`)}
