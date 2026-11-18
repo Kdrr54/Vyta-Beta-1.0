@@ -45,17 +45,11 @@ const cardW = (el?: HTMLElement | null) => {
   const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
   return Math.min(360, w - 32);
 };
-const homeDy = (el?: HTMLElement | null, elevated = false, viewportHeight?: number | null) => {
-  const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
-  if (elevated) {
-    // Sit right below the fixed greeting + suggestions (~225px) and cleanly above the iOS keyboard + accessory bar
-    let targetCenterY = Math.min(272, Math.max(242, h * 0.375));
-    if (viewportHeight && viewportHeight > 260) {
-      targetCenterY = Math.min(targetCenterY, Math.max(220, viewportHeight - 118));
-    }
-    return targetCenterY - h * 0.46;
-  }
-  return Math.max(44, h * 0.54 - Math.max(64, Math.min(92, h * 0.14)));
+const homeDy = (el?: HTMLElement | null, _elevated = false, viewportHeight?: number | null) => {
+  const h = el && el.clientHeight > 180 ? el.clientHeight : (viewportHeight && viewportHeight > 200 ? viewportHeight : window.innerHeight);
+  // Keep pill comfortably anchored near bottom of .mo-root so it glides seamlessly with keyboard resize without colliding with fixed suggestions
+  const bottomMargin = h < 520 ? 44 : 56;
+  return Math.max(20, h * 0.54 - bottomMargin);
 };
 
 /* ───────────────────────── math + easing ───────────────────────── */
@@ -1201,9 +1195,8 @@ export default function MorphOrb(props: MorphOrbProps) {
               spellCheck={false}
               onFocus={() => {
                 setIsFocused(true);
-                if (typeof window !== "undefined") {
-                  window.requestAnimationFrame(() => window.scrollTo(0, 0));
-                  window.setTimeout(() => window.scrollTo(0, 0), 60);
+                if (typeof window !== "undefined" && window.scrollY !== 0) {
+                  window.scrollTo(0, 0);
                 }
               }}
               onBlur={() => setIsFocused(false)}

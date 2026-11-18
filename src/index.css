@@ -143,11 +143,6 @@
   z-index: 10;
 }
 
-/* Smooth compositor-only lift/drop when focusing/blurring input in idle */
-.mo-root[data-phase="idle"] .mo-mover {
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 .mo-trail {
   position: absolute;
   width: 60px;

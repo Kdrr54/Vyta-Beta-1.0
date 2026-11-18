@@ -99,8 +99,11 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       style={{
         zIndex: 1200,
         position: 'fixed',
-        inset: 0,
-        height: '100dvh',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: vvLayout.height ? `${vvLayout.height}px` : '100%',
+        paddingTop: 'max(68px, calc(env(safe-area-inset-top, 44px) + 14px))',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -163,8 +166,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: '92dvh',
-          maxHeight: '840px',
+          height: '100%',
+          maxHeight: '820px',
           borderRadius: '34px 34px 0 0',
           background: isMono
             ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
@@ -207,7 +210,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             >
               <Sparkles size={15} color={isMono ? '#FAF7F2' : '#C084FC'} strokeWidth={1.8} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span
                 style={{
                   fontSize: '15px',
@@ -220,9 +223,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
               </span>
               <span
                 style={{
-                  fontSize: '10px',
+                  fontSize: '9.5px',
                   color: 'rgba(250, 247, 242, 0.5)',
                   fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {isEn
