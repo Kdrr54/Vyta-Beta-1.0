@@ -194,7 +194,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tab, setTab] = useState<TabType>(initialTab);
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
-  const [finish, setFinish] = useState<RingFinish>(() => detectRingFinish(defaultRing.macAddress, defaultRing.serial));
+  const [finish, setFinishState] = useState<RingFinish>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('vyta_ring_finish') as RingFinish | null;
+        if (saved === 'champagne' || saved === 'gunmetal' || saved === 'silver' || saved === 'rose') {
+          return saved;
+        }
+      } catch (_) {}
+    }
+    return detectRingFinish(defaultRing.macAddress, defaultRing.serial);
+  });
+  const setFinish = useCallback((nextFinish: RingFinish) => {
+    setFinishState(nextFinish);
+    try {
+      localStorage.setItem('vyta_ring_finish', nextFinish);
+    } catch (_) {}
+  }, []);
   const [modal, setModal] = useState<'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null>(initialModal as any);
   const [initialNapPreset, setInitialNapPreset] = useState<'power' | 'restful' | 'cycle'>('power');
   const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null>(initialMetric);
@@ -217,10 +233,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return defaultRing;
   });
 
-  // Auto-adapt ring finish based on ring hardware identifiers (MAC Address & Serial)
+  // Auto-adapt ring finish from hardware IDs only if user has not manually chosen a finish
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('vyta_ring_finish');
+      if (saved === 'champagne' || saved === 'gunmetal' || saved === 'silver' || saved === 'rose') {
+        return;
+      }
+    } catch (_) {}
     const autoFinish = detectRingFinish(ring.macAddress, ring.serial);
-    setFinish(autoFinish);
+    setFinishState(autoFinish);
   }, [ring.macAddress, ring.serial]);
 
 
