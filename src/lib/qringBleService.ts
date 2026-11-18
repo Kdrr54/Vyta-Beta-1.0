@@ -169,6 +169,7 @@ class QRingBleService {
   private lastBatteryPct: number = -1;
   private lowBatteryShieldTriggered = false;
   private isRealTimeHrActive = false;
+  private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
   private lastAutoMeasureSlot = -1;
   private isAutoSpotMeasuring = false;
@@ -523,7 +524,7 @@ class QRingBleService {
    * 2. Direct connect to saved CoreBluetooth UUID
    * 3. Fast 3.5s LE scan fallback
    */
-  private async attemptSilentReconnect(): Promise<boolean> {
+  private async attemptSilentReconnect(skipInitialSync: boolean = false): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) {
       return false;
     }
@@ -550,7 +551,7 @@ class QRingBleService {
             match.deviceId,
             match.name
           );
-          const res = await this.connectDirectly(match.deviceId, match.name);
+          const res = await this.connectDirectly(match.deviceId, match.name, skipInitialSync);
           if (res.success) return true;
         }
       }
@@ -561,7 +562,7 @@ class QRingBleService {
       if (savedId) {
         try {
           console.log('[QRing BLE AutoReconnect] Attempting direct connect to saved UUID:', savedId);
-          const res = await this.connectDirectly(savedId, savedName);
+          const res = await this.connectDirectly(savedId, savedName, skipInitialSync);
           if (res.success) return true;
         } catch (e) {
           console.warn('[QRing BLE AutoReconnect] Direct connect note:', e);
@@ -577,7 +578,8 @@ class QRingBleService {
             );
             const res = await this.connectDirectly(
               scannedDevice.deviceId,
-              scannedDevice.name || savedName
+              scannedDevice.name || savedName,
+              skipInitialSync
             );
             if (res.success) return true;
           }
@@ -854,7 +856,8 @@ class QRingBleService {
    */
   public async connectDirectly(
     deviceId: string,
-    deviceName: string
+    deviceName: string,
+    skipInitialSync: boolean = false
   ): Promise<{ success: boolean; deviceName: string; battery?: number; error?: string }> {
     try {
       console.log('[QRing BLE Native] Connecting to GATT server for:', deviceName, deviceId);
@@ -1022,8 +1025,12 @@ class QRingBleService {
         console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate notifications active');
       } catch (_) {}
 
-      // 4. Send Hardware Protocol Handshakes & Configuration (Pure memory sync, 0 LED)
-      await this.syncAllRingData();
+      // 4. Send Hardware Protocol Handshakes & Configuration (skip if triggered for instant live measure)
+      if (!skipInitialSync) {
+        await this.syncAllRingData();
+      } else {
+        await this.sendTimeSync();
+      }
 
       // 5. Start Keep-Alive Heartbeat (every 20s to prevent ring dormant sleep)
       this.startHeartbeat();
@@ -2095,7 +2102,7 @@ class QRingBleService {
       console.warn('[QRing BLE] Cannot sync: ring is not connected.');
       return false;
     }
-    if (this.isSyncing) {
+    if (this.isSyncing || this.activeLiveDataType !== null || this.isRealTimeHrActive) {
       return false;
     }
     this.isSyncing = true;
@@ -2186,162 +2193,154 @@ class QRingBleService {
     console.log('[QRing BLE] Sent 16-byte Battery Request (Opcode 0x03)');
   }
 
+  public isSyncingNow(): boolean {
+    return this.isSyncing;
+  }
+
   public isRealTimeHeartRateActive(): boolean {
-    return this.isRealTimeHrActive;
+    return this.isRealTimeHrActive || this.activeLiveDataType !== null;
   }
 
   /**
-   * Start real-time heart rate sensor on the ring (Illuminates Green Optical LEDs)
-   * Official QRing / Colmi R02 protocol (colmi_r02_client / QCBandSDK):
-   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action.START = 1, 0...]
-   * Continuous keep-alive: [0x69, DataType.HeartRate = 1, Action.CONTINUE = 3] every 1.2s
-   * Legacy Command 30 (0x1E): [0x1E, 0x03] for older firmware revisions
+   * Unified live biometric stream starter for HR (0x01), SpO2 (0x03), Temp (0x05), HRV (0x0A).
+   * Ensures silent reconnect without 5s flash-sync delay, spaces BLE writes cleanly for CoreBluetooth,
+   * and sustains Action.CONTINUE (0x03) every 1400ms so optical LEDs stay locked without timing out.
    */
-  public async startRealTimeHeartRate(): Promise<boolean> {
-    this.isRealTimeHrActive = true;
-    console.log('[QRing BLE] Starting continuous optical PPG measurement on physical ring...');
-
-    // If not currently connected, attempt quick silent auto-reconnect before failing
-    if (!this.isConnected()) {
-      console.warn('[QRing BLE] Ring not connected on live measure request. Running silent reconnect...');
-      const reconnected = await this.attemptSilentReconnect();
-      if (!reconnected) {
-        console.warn('[QRing BLE] Auto-reconnect failed. Ring cannot illuminate LEDs.');
-        return false;
-      }
-    }
-
+  private async startLiveStream(
+    dataType: number,
+    legacyPackets: number[][] = []
+  ): Promise<boolean> {
     if (this.realTimeHrTimer) {
       clearInterval(this.realTimeHrTimer);
       this.realTimeHrTimer = null;
     }
 
-    // 1. Initial Start Packet: Command 105 (0x69), DataType.HeartRate = 1, Action.START = 1
-    // CRITICAL: Send Action.START once at initiation to start the PPG sensor.
-    const p105_1 = this.makePacket(0x69, [0x01, 0x01]);
-    const ok = await this.writeBytes(p105_1);
+    if (this.activeLiveDataType !== null && this.activeLiveDataType !== dataType) {
+      await this.stopLiveStream(this.activeLiveDataType);
+      await new Promise((r) => setTimeout(r, 90));
+    }
 
-    // 2. Also send Command 30 (0x1E) type 0x03 once for older Colmi / Moya firmware compatibility
-    try {
-      const p30 = this.makePacket(0x1E, [0x03]);
-      await this.writeBytes(p30);
-    } catch (_) {}
+    this.activeLiveDataType = dataType;
+    if (dataType === 0x01) {
+      this.isRealTimeHrActive = true;
+    }
 
-    // 3. Continuous Keep-Alive loop: Official Colmi R02 / QRing Protocol
-    // Send Action.CONTINUE = 3 ([0x69, 0x01, 0x03]) every 2000ms.
-    // CRITICAL: Send Action.START (0x01) ONLY ONCE above at t=0.
-    // In this loop, send ONLY Action.CONTINUE (0x03). This tells the ring microcontroller
-    // to maintain the optical sensor stream alive without resetting the photodiode state machine,
-    // keeping the green LED solidly lit and broadcasting fresh live heart rate updates!
+    if (!this.isConnected()) {
+      console.warn('[QRing BLE] Ring not connected on live measure request. Running fast reconnect...');
+      const reconnected = await this.attemptSilentReconnect(true);
+      if (!reconnected || !this.isConnected()) {
+        console.warn('[QRing BLE] Auto-reconnect failed. Ring cannot illuminate LEDs.');
+        this.activeLiveDataType = null;
+        this.isRealTimeHrActive = false;
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, 90));
+    }
+
+    // 1. Send Action.START (0x01) once to open the photodiode / thermal stream
+    const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
+
+    // 2. Spaced secondary/legacy commands to prevent CoreBluetooth RX collisions
+    for (const pktBytes of legacyPackets) {
+      await new Promise((r) => setTimeout(r, 100));
+      try {
+        await this.writeBytes(pktBytes);
+      } catch (_) {}
+    }
+
+    // 3. Maintain stream with Action.CONTINUE (0x03) every 1400ms (inside firmware ~2s watchdog)
     this.realTimeHrTimer = setInterval(async () => {
-      if (!this.isRealTimeHrActive) {
+      if (this.activeLiveDataType !== dataType) {
         if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
         this.realTimeHrTimer = null;
         return;
       }
 
       if (!this.isConnected()) {
-        await this.attemptSilentReconnect();
+        await this.attemptSilentReconnect(true);
         return;
       }
 
       try {
-        await this.writeBytes(this.makePacket(0x69, [0x01, 0x03]));
+        await this.writeBytes(this.makePacket(0x69, [dataType, 0x03]));
       } catch (_) {}
-    }, 2000);
+    }, 1400);
 
     return ok;
   }
 
-  /**
-   * Stop real-time heart rate sensor on the ring to preserve battery
-   * Official QRing / Colmi R02 protocol:
-   * Command 105 (0x69): [0x69, DataType.HeartRate = 1, Action.STOP = 4]
-   * Command 106 (0x6A): [0x6A, DataType.HeartRate = 1, 0x00, 0x00]
-   */
-  public async stopRealTimeHeartRate(): Promise<boolean> {
-    this.isRealTimeHrActive = false;
+  private async stopLiveStream(
+    dataType: number,
+    legacyStopPackets: number[][] = []
+  ): Promise<boolean> {
+    if (this.activeLiveDataType === dataType) {
+      this.activeLiveDataType = null;
+    }
+    if (dataType === 0x01) {
+      this.isRealTimeHrActive = false;
+    }
     if (this.realTimeHrTimer) {
       clearInterval(this.realTimeHrTimer);
       this.realTimeHrTimer = null;
     }
-    console.log('[QRing BLE] Stopping live optical PPG measurement (Command 0x6A & 0x69 Stop)...');
 
-    // 1. Command 105 Action.STOP = 4
-    const p105_1_stop = this.makePacket(0x69, [0x01, 0x04]);
-    await this.writeBytes(p105_1_stop);
+    if (!this.isConnected()) return false;
 
-    // 2. Command 106 Stop
-    const p106_stop_1 = this.makePacket(0x6A, [0x01, 0x00, 0x00]);
-    const ok = await this.writeBytes(p106_stop_1);
+    const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x04]));
+    await new Promise((r) => setTimeout(r, 70));
+    await this.writeBytes(this.makePacket(0x6A, [dataType, 0x00, 0x00]));
 
-    // 3. Stop legacy Command 30 (0x1E)
-    try {
-      const p30_stop = this.makePacket(0x1E, [0x00]);
-      await this.writeBytes(p30_stop);
-    } catch (_) {}
+    for (const pktBytes of legacyStopPackets) {
+      await new Promise((r) => setTimeout(r, 70));
+      try {
+        await this.writeBytes(pktBytes);
+      } catch (_) {}
+    }
 
     return ok;
   }
 
-  /**
-   * Trigger real-time optical SpO2 measurement on physical ring:
-   * Turns ON the RED + Infrared optical sensors (DataType.BloodOxygen = 3)
-   */
+  public async startRealTimeHeartRate(): Promise<boolean> {
+    console.log('[QRing BLE] Starting live optical PPG Heart Rate measurement...');
+    return await this.startLiveStream(0x01, [this.makePacket(0x1E, [0x03])]);
+  }
+
+  public async stopRealTimeHeartRate(): Promise<boolean> {
+    console.log('[QRing BLE] Stopping live optical PPG Heart Rate measurement...');
+    return await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])]);
+  }
+
   public async startRealTimeBloodOxygen(): Promise<boolean> {
-    console.log('[QRing BLE] Triggering live optical SpO2 measurement (Turning ON ring RED LED)...');
-    if (!this.isConnected()) return false;
-    const p105_3 = this.makePacket(0x69, [0x03, 0x01]);
-    return await this.writeBytes(p105_3);
+    console.log('[QRing BLE] Starting live optical SpO2 measurement (RED+IR LED)...');
+    return await this.startLiveStream(0x03);
   }
 
   public async stopRealTimeBloodOxygen(): Promise<boolean> {
-    console.log('[QRing BLE] Stopping live optical SpO2 measurement (Turning OFF ring RED LED)...');
-    const p105_3_stop = this.makePacket(0x69, [0x03, 0x04]);
-    const ok = await this.writeBytes(p105_3_stop);
-    const p106_stop = this.makePacket(0x6A, [0x03, 0x00, 0x00]);
-    await this.writeBytes(p106_stop);
-    return ok;
+    console.log('[QRing BLE] Stopping live optical SpO2 measurement...');
+    return await this.stopLiveStream(0x03);
   }
 
-  /**
-   * Trigger real-time optical HRV measurement on physical ring:
-   * DataType.HRV = 10 (0x0A)
-   */
   public async startRealTimeHrv(): Promise<boolean> {
-    console.log('[QRing BLE] Triggering live optical HRV measurement (DataType.HRV = 10)...');
-    if (!this.isConnected()) return false;
-    const p105_10 = this.makePacket(0x69, [0x0A, 0x01]);
-    return await this.writeBytes(p105_10);
+    console.log('[QRing BLE] Starting live optical HRV measurement...');
+    return await this.startLiveStream(0x0A);
   }
 
   public async stopRealTimeHrv(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live optical HRV measurement...');
-    const p105_10_stop = this.makePacket(0x69, [0x0A, 0x04]);
-    const ok = await this.writeBytes(p105_10_stop);
-    const p106_stop = this.makePacket(0x6A, [0x0A, 0x00, 0x00]);
-    await this.writeBytes(p106_stop);
-    return ok;
+    return await this.stopLiveStream(0x0A);
   }
 
-  /**
-   * Trigger real-time skin temperature measurement on physical ring:
-   * DataType.Temperature = 5 (0x05)
-   */
   public async startRealTimeTemperature(): Promise<boolean> {
-    console.log('[QRing BLE] Triggering live skin temperature measurement (DataType.Temperature = 5)...');
-    if (!this.isConnected()) return false;
-    const p105_5 = this.makePacket(0x69, [0x05, 0x01]);
-    return await this.writeBytes(p105_5);
+    console.log('[QRing BLE] Starting live skin temperature measurement...');
+    return await this.startLiveStream(0x05, [
+      this.makePacket(0x3A, [0x03, 0x02, 0x01]),
+      this.makePacket(0x75, [0x00]),
+    ]);
   }
 
   public async stopRealTimeTemperature(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live skin temperature measurement...');
-    const p105_5_stop = this.makePacket(0x69, [0x05, 0x04]);
-    const ok = await this.writeBytes(p105_5_stop);
-    const p106_stop = this.makePacket(0x6A, [0x05, 0x00, 0x00]);
-    await this.writeBytes(p106_stop);
-    return ok;
+    return await this.stopLiveStream(0x05);
   }
 
   /**
@@ -2961,7 +2960,27 @@ class QRingBleService {
       }
     }
 
-    // 8. Multi-metric frame battery (header 0xFC, 0x0F, or 0x08)
+    // 8. Live Skin Temperature / 0x3A / 0x75 response fallback
+    if ((header === 0x3A || header === 0x75) && len >= 3) {
+      const u16BE = len >= 4 ? dataView.getUint16(2, false) : 0;
+      const u16LE = len >= 4 ? dataView.getUint16(2, true) : 0;
+      const raw1 = dataView.getUint8(1);
+      const raw2 = dataView.getUint8(2);
+      let tempC = 0;
+      if (u16BE >= 3000 && u16BE <= 4300) tempC = parseFloat((u16BE / 100).toFixed(2));
+      else if (u16LE >= 3000 && u16LE <= 4300) tempC = parseFloat((u16LE / 100).toFixed(2));
+      else if (u16BE >= 300 && u16BE <= 430) tempC = parseFloat((u16BE / 10).toFixed(2));
+      else if (u16LE >= 300 && u16LE <= 430) tempC = parseFloat((u16LE / 10).toFixed(2));
+      else if (raw2 >= 100 && raw2 <= 220) tempC = parseFloat((raw2 / 10 + 20).toFixed(2));
+      else if (raw1 >= 100 && raw1 <= 220 && raw1 !== 0xFF) tempC = parseFloat((raw1 / 10 + 20).toFixed(2));
+      if (tempC >= 30 && tempC <= 43) {
+        console.log('[QRing BLE] Direct Temp Packet (0x' + header.toString(16) + '):', tempC, '°C');
+        this.notify({ skinTemp: tempC, isConnected: true });
+      }
+      return;
+    }
+
+    // 9. Multi-metric frame battery (header 0xFC, 0x0F, or 0x08)
     if ((header === 0xFC || header === 0x0F || header === 0x08) && len >= 9) {
       const batIndex = header === 0xFC ? 8 : 7;
       const b = dataView.getUint8(batIndex);
@@ -3040,6 +3059,12 @@ class QRingBleService {
     this.rxChar = null;
     this.txChar = null;
     this.connectedDeviceId = null;
+    this.activeLiveDataType = null;
+    this.isRealTimeHrActive = false;
+    if (this.realTimeHrTimer) {
+      clearInterval(this.realTimeHrTimer);
+      this.realTimeHrTimer = null;
+    }
     this.lastProgrammedIntervalMinutes = null;
     this.lastProgrammedAutoSpo2 = null;
     this.lowBatteryShieldTriggered = false;

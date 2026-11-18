@@ -106,7 +106,7 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }
     setJustCompleted(false);
     setLiveBpm(0);
-    setCountdown(20);
+    setCountdown(25);
     setIsMeasuring(true);
   };
 
@@ -126,21 +126,33 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }
   }, [selectedDay, isToday, isMeasuring, handleStopMeasure]);
 
-  // Real-time PPG measurement lifecycle for today (20 secondes)
+  // Real-time PPG measurement lifecycle for today (25 secondes)
   useEffect(() => {
     if (!isMeasuring || !isToday) return;
+    let cancelled = false;
 
-    // 1. Subscribe to real BLE notifications from physical ring if connected
+    // 1. Subscribe strictly to real-time optical notifications (liveHeartRate)
     const unsubscribe = qringBle.subscribe((data) => {
-      if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
-        setLiveBpm(data.heartRate);
+      const liveVal = data.liveHeartRate ?? (!qringBle.isSyncingNow() ? data.heartRate : undefined);
+      if (liveVal && liveVal >= 40 && liveVal <= 220) {
+        setLiveBpm(liveVal);
       }
     });
 
-    // 2. Send start command to ring hardware via BLE
-    qringBle.startRealTimeHeartRate();
+    // 2. Send start command to ring hardware via BLE and fail fast if ring is unreachable
+    qringBle.startRealTimeHeartRate().then((started) => {
+      if (!started && !cancelled) {
+        setIsMeasuring(false);
+        setMeasureFeedback(
+          language === 'fr'
+            ? 'Bague non détectée (vérifiez le Bluetooth)'
+            : 'Ring not detected (check Bluetooth)'
+        );
+        setTimeout(() => setMeasureFeedback(null), 4000);
+      }
+    });
 
-    // 3. Countdown timer 20 seconds
+    // 3. Countdown timer 25 seconds
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -152,11 +164,12 @@ export const HeartRateCard: React.FC<HeartRateCardProps> = ({
     }, 1000);
 
     return () => {
+      cancelled = true;
       clearInterval(timer);
       unsubscribe();
       qringBle.stopRealTimeHeartRate();
     };
-  }, [isMeasuring, isToday, handleStopMeasure, setLiveBpm]);
+  }, [isMeasuring, isToday, handleStopMeasure, setLiveBpm, language]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -691,7 +704,7 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
           <button
             type="button"
             onClick={handleToggleMeasure}
-            title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+            title={language === 'fr' ? 'Lancer la mesure en direct (25s)' : 'Start live measurement (25s)'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -721,7 +734,7 @@ const beatsPerSec = Math.max(40, Math.min(220, displayBpm)) / 60;
                 animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
               }}
             />
-            <span>{justCompleted ? (language === 'fr' ? 'Enregistré' : 'Saved') : (language === 'fr' ? 'Mesurer (20s)' : 'Measure (20s)')}</span>
+            <span>{justCompleted ? (language === 'fr' ? 'Enregistré' : 'Saved') : (language === 'fr' ? 'Mesurer (25s)' : 'Measure (25s)')}</span>
           </button>
         )}
       </div>

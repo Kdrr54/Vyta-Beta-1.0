@@ -441,7 +441,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   // Rafraîchir automatiquement les relevés stockés dans la mémoire flash de la bague à l'ouverture (0 LED)
   useEffect(() => {
-    if (modalDay !== TODAY_INDEX) return;
+    if (modalDay !== TODAY_INDEX || !qringBle.isConnected() || qringBle.isRealTimeHeartRateActive()) return;
     if (metricId === 'bpm') {
       qringBle.requestHeartRateLog();
     } else if (metricId === 'hrv') {
@@ -457,7 +457,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const handleStopMeasure = useCallback((completed = false) => {
     setIsMeasuring(false);
-    setCountdown(20);
+    setCountdown(25);
     if (metricId === 'bpm') {
       qringBle.stopRealTimeHeartRate();
     } else if (metricId === 'spo2') {
@@ -547,7 +547,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     if (metricId === 'bpm') setLiveBpm(0);
     if (metricId === 'spo2') setLiveSpo2(null);
     if (metricId === 'temp') setLiveTemp(null);
-    setCountdown(20);
+    setMeasureFeedback(null);
+    setCountdown(25);
     setIsMeasuring(true);
   };
 
@@ -593,30 +594,43 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   useEffect(() => {
     if (!isMeasuring) return;
     if (metricId !== 'bpm' && metricId !== 'spo2' && metricId !== 'temp') return;
+    let cancelled = false;
 
     const unsubscribe = qringBle.subscribe((data) => {
       if (metricId === 'bpm') {
-        if (data.heartRate && data.heartRate >= 40 && data.heartRate <= 200) {
-          setLiveBpm(data.heartRate);
+        const liveVal = data.liveHeartRate ?? (!qringBle.isSyncingNow() ? data.heartRate : undefined);
+        if (liveVal && liveVal >= 40 && liveVal <= 220) {
+          setLiveBpm(liveVal);
         }
       } else if (metricId === 'spo2') {
-        if (data.spo2 && data.spo2 >= 70 && data.spo2 <= 100) {
+        if (data.spo2 && data.spo2 >= 70 && data.spo2 <= 100 && !qringBle.isSyncingNow()) {
           setLiveSpo2(data.spo2);
         }
       } else if (metricId === 'temp') {
-        if (data.skinTemp && data.skinTemp >= 30 && data.skinTemp <= 43) {
+        if (data.skinTemp && data.skinTemp >= 30 && data.skinTemp <= 43 && !qringBle.isSyncingNow()) {
           setLiveTemp(data.skinTemp);
         }
       }
     });
 
-    if (metricId === 'bpm') {
-      qringBle.startRealTimeHeartRate();
-    } else if (metricId === 'spo2') {
-      qringBle.startRealTimeBloodOxygen();
-    } else if (metricId === 'temp') {
-      qringBle.startRealTimeTemperature();
-    }
+    const startPromise =
+      metricId === 'bpm'
+        ? qringBle.startRealTimeHeartRate()
+        : metricId === 'spo2'
+        ? qringBle.startRealTimeBloodOxygen()
+        : qringBle.startRealTimeTemperature();
+
+    startPromise.then((started) => {
+      if (!started && !cancelled) {
+        setIsMeasuring(false);
+        setMeasureFeedback(
+          language === 'fr'
+            ? 'Bague non détectée (vérifiez le Bluetooth)'
+            : 'Ring not detected (check Bluetooth)'
+        );
+        setTimeout(() => setMeasureFeedback(null), 4000);
+      }
+    });
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -629,6 +643,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }, 1000);
 
     return () => {
+      cancelled = true;
       clearInterval(timer);
       unsubscribe();
       if (metricId === 'bpm') {
@@ -639,7 +654,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         qringBle.stopRealTimeTemperature();
       }
     };
-  }, [isMeasuring, metricId, handleStopMeasure, setLiveBpm]);
+  }, [isMeasuring, metricId, handleStopMeasure, setLiveBpm, language]);
 
   const isEn = language === 'en';
   const currentSlotToday = modalDay === TODAY_INDEX
@@ -1651,7 +1666,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 <button
                   type="button"
                   onClick={handleToggleMeasure}
-                  title={language === 'fr' ? 'Lancer la mesure en direct (20s)' : 'Start live measurement (20s)'}
+                  title={language === 'fr' ? 'Lancer la mesure en direct (25s)' : 'Start live measurement (25s)'}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1702,7 +1717,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       }}
                     />
                   )}
-                  <span>{language === 'fr' ? 'Mesurer en direct (20s)' : 'Live Measure (20s)'}</span>
+                  <span>{language === 'fr' ? 'Mesurer en direct (25s)' : 'Live Measure (25s)'}</span>
                 </button>
               )}
 
