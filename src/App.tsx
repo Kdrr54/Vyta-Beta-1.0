@@ -1,28 +1,29 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { IPhoneFrame } from './components/IPhoneFrame';
 import { AppHeader } from './components/AppHeader';
 import { TabBar } from './components/TabBar';
 import { HealthScreen } from './components/HealthScreen';
-import { SleepScreen } from './components/SleepScreen';
-import { CycleScreen } from './components/CycleScreen';
-import { FitScreen } from './components/FitScreen';
-import { SettingsModal } from './components/SettingsModal';
-import { SubscribeModal } from './components/SubscribeModal';
-import { StoryModal } from './components/StoryModal';
-import { MetricDetailModal } from './components/MetricDetailModal';
-import { TestDateModal } from './components/TestDateModal';
-import { HealthKitSyncModal } from './components/HealthKitSyncModal';
-import { NotificationCenterModal } from './components/NotificationCenterModal';
-import { PairingModal } from './components/PairingModal';
-import { OnboardingFlow } from './components/OnboardingFlow';
-import { GeneralStateModal } from './components/GeneralStateModal';
-import { FindMyRingModal } from './components/FindMyRingModal';
-import { PrismModal } from './components/PrismModal';
-import { CalAiModal } from './components/CalAiModal';
-import { NapModal } from './components/NapModal';
 import { AppleNotificationBanner } from './components/AppleNotificationBanner';
 import { TODAY_INDEX } from './data/health';
+
+const SleepScreen = lazy(() => import('./components/SleepScreen').then((m) => ({ default: m.SleepScreen })));
+const CycleScreen = lazy(() => import('./components/CycleScreen').then((m) => ({ default: m.CycleScreen })));
+const FitScreen = lazy(() => import('./components/FitScreen').then((m) => ({ default: m.FitScreen })));
+const SettingsModal = lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
+const SubscribeModal = lazy(() => import('./components/SubscribeModal').then((m) => ({ default: m.SubscribeModal })));
+const StoryModal = lazy(() => import('./components/StoryModal').then((m) => ({ default: m.StoryModal })));
+const MetricDetailModal = lazy(() => import('./components/MetricDetailModal').then((m) => ({ default: m.MetricDetailModal })));
+const TestDateModal = lazy(() => import('./components/TestDateModal').then((m) => ({ default: m.TestDateModal })));
+const HealthKitSyncModal = lazy(() => import('./components/HealthKitSyncModal').then((m) => ({ default: m.HealthKitSyncModal })));
+const NotificationCenterModal = lazy(() => import('./components/NotificationCenterModal').then((m) => ({ default: m.NotificationCenterModal })));
+const PairingModal = lazy(() => import('./components/PairingModal').then((m) => ({ default: m.PairingModal })));
+const OnboardingFlow = lazy(() => import('./components/OnboardingFlow').then((m) => ({ default: m.OnboardingFlow })));
+const GeneralStateModal = lazy(() => import('./components/GeneralStateModal').then((m) => ({ default: m.GeneralStateModal })));
+const FindMyRingModal = lazy(() => import('./components/FindMyRingModal').then((m) => ({ default: m.FindMyRingModal })));
+const PrismModal = lazy(() => import('./components/PrismModal').then((m) => ({ default: m.PrismModal })));
+const CalAiModal = lazy(() => import('./components/CalAiModal').then((m) => ({ default: m.CalAiModal })));
+const NapModal = lazy(() => import('./components/NapModal').then((m) => ({ default: m.NapModal })));
 
 const AppInner: React.FC = () => {
   const {
@@ -43,6 +44,26 @@ const AppInner: React.FC = () => {
     setSelectedDay,
   } = useApp();
 
+  // Préchargement silencieux en tâche de fond des onglets et modales fréquentes après le premier rendu
+  React.useEffect(() => {
+    if (!isPaired) return;
+    const prefetch = () => {
+      import('./components/SleepScreen');
+      import('./components/FitScreen');
+      import('./components/CycleScreen');
+      import('./components/PrismModal');
+      import('./components/SettingsModal');
+      import('./components/MetricDetailModal');
+    };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(prefetch, { timeout: 1200 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(prefetch, 350);
+    return () => window.clearTimeout(timer);
+  }, [isPaired]);
+
   React.useEffect(() => {
     closeModal();
     if (tab === 'covyta') {
@@ -51,27 +72,14 @@ const AppInner: React.FC = () => {
     if (tab === 'health') {
       setSelectedDay(TODAY_INDEX);
     }
-  }, [tab, setTab, setSelectedDay]);
+  }, [tab, setTab, setSelectedDay, closeModal]);
 
   // Réinitialiser immédiatement le défilement tout en haut lors d'un changement d'onglet
   React.useLayoutEffect(() => {
     const el = document.querySelector('.app-scroll-container') as HTMLElement | null;
     if (el) {
-      el.style.scrollBehavior = 'auto';
       el.scrollTop = 0;
     }
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    requestAnimationFrame(() => {
-      if (el) {
-        el.scrollTop = 0;
-        el.style.scrollBehavior = '';
-      }
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    });
   }, [tab]);
 
   // Si la bague n'est pas encore appairée (premier lancement) :
@@ -90,7 +98,9 @@ const AppInner: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          <OnboardingFlow onComplete={() => setIsPaired(true)} />
+          <Suspense fallback={null}>
+            <OnboardingFlow onComplete={() => setIsPaired(true)} />
+          </Suspense>
         </div>
       </div>
     );
@@ -105,33 +115,37 @@ const AppInner: React.FC = () => {
           <>
             {!isLiveRunningViewOpen && !metricDetail && !storyData && !isDateModalOpen && modal !== 'nap' && modal !== 'prism' && modal !== 'calai' && <TabBar />}
             <AppleNotificationBanner />
-            {modal === 'settings' && <SettingsModal onClose={closeModal} />}
-            {modal === 'prism' && <PrismModal onClose={closeModal} />}
-            {modal === 'calai' && <CalAiModal onClose={closeModal} />}
-            {modal === 'find_my' && (
-              <FindMyRingModal
-                onClose={closeModal}
-                onBack={() => openModal('settings')}
-              />
-            )}
-            {modal === 'subscribe' && <SubscribeModal onClose={closeModal} />}
-            {modal === 'healthkit' && <HealthKitSyncModal onClose={closeModal} />}
-            {modal === 'notifications' && <NotificationCenterModal onClose={closeModal} />}
-            {modal === 'pairing' && <PairingModal onClose={closeModal} />}
-            {modal === 'general_state' && <GeneralStateModal onClose={closeModal} />}
-            {modal === 'nap' && <NapModal onClose={closeModal} />}
-            {storyData && <StoryModal data={storyData} onClose={closeStory} />}
-            {metricDetail && <MetricDetailModal metricId={metricDetail} onClose={closeMetricDetail} />}
-            {isDateModalOpen && <TestDateModal onClose={() => setIsDateModalOpen(false)} />}
+            <Suspense fallback={null}>
+              {modal === 'settings' && <SettingsModal onClose={closeModal} />}
+              {modal === 'prism' && <PrismModal onClose={closeModal} />}
+              {modal === 'calai' && <CalAiModal onClose={closeModal} />}
+              {modal === 'find_my' && (
+                <FindMyRingModal
+                  onClose={closeModal}
+                  onBack={() => openModal('settings')}
+                />
+              )}
+              {modal === 'subscribe' && <SubscribeModal onClose={closeModal} />}
+              {modal === 'healthkit' && <HealthKitSyncModal onClose={closeModal} />}
+              {modal === 'notifications' && <NotificationCenterModal onClose={closeModal} />}
+              {modal === 'pairing' && <PairingModal onClose={closeModal} />}
+              {modal === 'general_state' && <GeneralStateModal onClose={closeModal} />}
+              {modal === 'nap' && <NapModal onClose={closeModal} />}
+              {storyData && <StoryModal data={storyData} onClose={closeStory} />}
+              {metricDetail && <MetricDetailModal metricId={metricDetail} onClose={closeMetricDetail} />}
+              {isDateModalOpen && <TestDateModal onClose={() => setIsDateModalOpen(false)} />}
+            </Suspense>
           </>
         }
       >
-        <div key={tab} className="apple-tab-view">
-          {tab === 'health' && <HealthScreen />}
-          {tab === 'sleep' && <SleepScreen />}
-          {tab === 'cycle' && <CycleScreen />}
-          {tab === 'fit' && <FitScreen />}
-        </div>
+        <Suspense fallback={null}>
+          <div key={tab} className="apple-tab-view">
+            {tab === 'health' && <HealthScreen />}
+            {tab === 'sleep' && <SleepScreen />}
+            {tab === 'cycle' && <CycleScreen />}
+            {tab === 'fit' && <FitScreen />}
+          </div>
+        </Suspense>
       </IPhoneFrame>
     </div>
   );

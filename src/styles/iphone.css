@@ -53,6 +53,15 @@
   z-index: 80;
 }
 
+button,
+[role="button"],
+a,
+input,
+select {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Conteneur défilable des onglets Santé, Sommeil, Cycle, Forme */
 .app-scroll-container {
   flex: 1;
@@ -60,6 +69,7 @@
   overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
   scrollbar-width: none;
   padding-top: 0;
   padding-bottom: calc(max(24px, env(safe-area-inset-bottom)) + 88px);

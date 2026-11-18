@@ -1999,9 +1999,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.74);
   z-index: 120;
   display: flex;
   flex-direction: column;
@@ -2190,18 +2188,19 @@
   transform: scale(0.96);
 }
 
-/* Ambient glow matching metric */
+/* Ambient glow matching metric (zero GPU blur cost during scroll) */
 .apple-watch-hud-card::before {
   content: '';
   position: absolute;
-  top: -20px;
-  left: -20px;
-  width: 90px;
-  height: 90px;
+  top: -28px;
+  left: -28px;
+  width: 116px;
+  height: 116px;
   border-radius: 50%;
   pointer-events: none;
-  filter: blur(24px);
-  opacity: 0.18;
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+  opacity: 0.22;
   transition: opacity 250ms ease;
 }
 
@@ -3494,19 +3493,21 @@
 /* Organic drifting fluid blobs inside the sphere */
 .cycle-sphere-cloud {
   position: absolute;
-  width: 140px;
-  height: 140px;
+  width: 165px;
+  height: 165px;
   border-radius: 50%;
-  filter: blur(22px);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 72%);
   pointer-events: none;
-  opacity: 0.65;
+  opacity: 0.55;
+  will-change: transform;
   animation: cloudDrift 14s ease-in-out infinite alternate;
 }
 
 @keyframes orbPulse {
-  0% { transform: scale(1); filter: brightness(1); }
-  50% { transform: scale(1.02); filter: brightness(1.05); }
-  100% { transform: scale(1); filter: brightness(1); }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
 }
 
 @keyframes cloudDrift {
