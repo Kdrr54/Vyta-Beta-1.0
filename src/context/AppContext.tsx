@@ -583,7 +583,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.hrvLog = data.hrvLog;
           } else {
             const now = new Date();
-            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const rawSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
+            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
             const log = Array.isArray(cur.hrvLog) && cur.hrvLog.length === 48 ? [...cur.hrvLog] : new Array(48).fill(0);
             log[currentSlot] = data.hrv!;
             cur.hrvLog = log;
@@ -658,17 +660,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               clamped[i] = 0;
             }
             cur.tempLog = clamped;
-          } else if (!cur.tempLog || cur.tempLog.length !== 48) {
+          } else {
             const now = new Date();
-            const currentSlot = daysAgo === 0
+            const rawSlot = daysAgo === 0
               ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
-              : 47;
-            const slots = new Array(48).fill(0);
-            for (let i = 0; i <= currentSlot; i++) {
-              const hour = i / 2;
-              const circadianShift = -0.14 * Math.cos(((hour - 4) / 24) * 2 * Math.PI);
-              slots[i] = parseFloat((data.skinTemp! + circadianShift).toFixed(1));
-            }
+              : 46;
+            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
+            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
+            const slots = Array.isArray(cur.tempLog) && cur.tempLog.length === 48 ? [...cur.tempLog] : new Array(48).fill(0);
+            slots[currentSlot] = parseFloat(data.skinTemp!.toFixed(1));
             cur.tempLog = slots;
           }
           cur.anomaly = computeImmunityAnomaly(cur);
@@ -862,7 +862,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.spo2Log = data.spo2Log;
           } else {
             const now = new Date();
-            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const rawSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
+            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
             const log = Array.isArray(cur.spo2Log) && cur.spo2Log.length === 48 ? [...cur.spo2Log] : new Array(48).fill(0);
             log[currentSlot] = data.spo2!;
             cur.spo2Log = log;

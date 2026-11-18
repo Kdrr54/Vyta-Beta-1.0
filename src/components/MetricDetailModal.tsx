@@ -920,16 +920,16 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         return slots;
       }
 
-      // Si la bague a fourni une température journalière ou un écart thermique (ex: +0.30°C) sans journal 48 créneaux
-      // L'écart thermique nocturne n'est capté que pendant la période de sommeil
-      if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
-        const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-        const endSlot = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0 ? Math.min(47, Math.floor(dayData.sleep.endMin / 30)) : 16;
-        for (let i = 0; i <= Math.min(endSlot, currentSlotToday); i += isHourlyMode ? 2 : 1) {
-          const hour = i / 2;
-          const circadianShift = -0.14 * Math.cos(((hour - 4) / 8) * Math.PI);
-          slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
-          slots[i].isMeasured = true;
+      // Si la bague a fourni une température scalaire sans journal 48 créneaux, placer uniquement sur le créneau réel (jamais fabriquer une courbe)
+      if (dayData?.skinTemp && dayData.skinTemp > 0) {
+        const delta = parseFloat((dayData.skinTemp - 36.5).toFixed(2));
+        const rawEnd = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0
+          ? Math.min(47, Math.floor(dayData.sleep.endMin / 30))
+          : currentSlotToday;
+        const singleSlot = isHourlyMode ? Math.floor(rawEnd / 2) * 2 : rawEnd;
+        if (slots[singleSlot]) {
+          slots[singleSlot].value = delta;
+          slots[singleSlot].isMeasured = true;
         }
         return slots;
       }

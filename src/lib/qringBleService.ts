@@ -2155,6 +2155,10 @@ class QRingBleService {
     return this.isSyncing;
   }
 
+  public getConfiguredIntervalMinutes(): number {
+    return this.configuredIntervalMinutes;
+  }
+
   public isRealTimeHeartRateActive(): boolean {
     return this.isRealTimeHrActive || this.activeLiveDataType !== null;
   }
