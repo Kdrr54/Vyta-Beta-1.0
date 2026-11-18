@@ -1267,13 +1267,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontSize: '10px',
                     color: '#F0ABFC',
                     marginBottom: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
                     fontWeight: 600,
                   }}
                 >
-                  {dayMetricValue > 0 ? <><span style={{ fontSize: '7.5px' }}>▲</span> {dayMetricValue}%</> : '--'}
+                  {isEn ? 'O2 Saturation' : 'Saturation O2'}
                 </span>
 
                 <svg width="86" height="46" viewBox="0 0 86 46" style={{ overflow: 'visible' }}>
@@ -1333,13 +1330,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontSize: '10px',
                     color: '#D9F970',
                     marginBottom: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
                     fontWeight: 600,
                   }}
                 >
-                  {dayMetricValue > 0 ? <><span style={{ fontSize: '7.5px' }}>▲</span> {dayMetricValue} ms</> : '--'}
+                  {isEn ? 'Vagal Tone' : 'Tonus vagal'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
@@ -1369,13 +1363,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontSize: '10px',
                     color: '#FB923C',
                     marginBottom: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
                     fontWeight: 600,
                   }}
                 >
-                  {!isZeroState ? `${dayMetricValue > 0 ? '+' : ''}${dayMetricValue.toFixed(2)} °C` : '--'}
+                  {isEn ? 'Circadian Rhythm' : 'Rythme thermique'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" style={{ overflow: 'visible' }}>
@@ -1503,13 +1494,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     fontSize: '10px',
                     color: '#A5B4FC',
                     marginBottom: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px',
                     fontWeight: 600,
                   }}
                 >
-                  {dayMetricValue > 0 ? `${dayMetricValue.toFixed(1)} mmol/L` : '--'}
+                  {isEn ? 'Glycemic Curve' : 'Courbe glycémique'}
                 </span>
 
                 <svg width="86" height="42" viewBox="0 0 86 42" fill="none" style={{ overflow: 'visible' }}>
@@ -1807,11 +1795,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              <span>{isEn ? 'Avg: ' : 'Moy: '}</span>
               <strong style={{ color: theme.primary }}>
-                {metricId === 'temp'
-                  ? (!isZeroState ? `${formatVal(avgVal)} ${detail.unit}` : '--')
-                  : (avgVal > 0 ? `${formatVal(avgVal)} ${detail.unit}` : '--')}
+                {validPoints.length > 0
+                  ? `${validPoints.length} ${isEn ? 'pts' : 'mes.'} · ${isHourlyMode ? '1h' : '30m'}`
+                  : '--'}
               </strong>
             </div>
           </div>
