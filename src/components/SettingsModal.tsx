@@ -779,7 +779,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    {ring.wearCalibrationScore || 99}% {isEn ? 'OPTIMAL' : 'OPTIMAL'}
+                    {ring.wearCalibrationScore && ring.wearCalibrationScore > 0
+                      ? `${ring.wearCalibrationScore}% OPTIMAL`
+                      : (isEn ? 'Not calibrated' : 'Non calibré')}
                   </span>
                 </div>
 

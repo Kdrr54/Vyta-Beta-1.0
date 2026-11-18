@@ -801,7 +801,7 @@ export const FitScreen: React.FC = () => {
       location: finalDist >= 0.05 ? 'Course extérieure' : 'Session statique',
       distanceKm: finalDist,
       durationSec: finalDur,
-      elevationM: finalDist >= 0.05 ? Math.round(finalDist * 8) : 0,
+      elevationM: 0,
       avgHr: finalHr,
       dateStr: `Aujourd'hui · ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       pointsSvgPath: pathInfo ? pathInfo.pathD : '',
@@ -814,25 +814,10 @@ export const FitScreen: React.FC = () => {
   };
 
   const getRouteTelemetry = (r: StoredRoute): TelemetryPoint[] => {
-    if (r.telemetryHistory && r.telemetryHistory.length > 1) {
+    if (r.telemetryHistory && r.telemetryHistory.length > 0) {
       return r.telemetryHistory;
     }
-    const dur = Math.max(60, r.durationSec || 600);
-    const dist = Math.max(0.1, r.distanceKm || 1);
-    const avgSpeed = dist / (dur / 3600);
-    const avgHr = r.avgHr > 40 ? r.avgHr : 142;
-    const stepSec = Math.max(4, Math.floor(dur / 45));
-    const points: TelemetryPoint[] = [];
-
-    for (let t = 0; t <= dur; t += stepSec) {
-      const p = t / dur;
-      const speedVar = Math.sin(p * Math.PI * 3) * (avgSpeed * 0.14);
-      const speed = Math.max(3, Math.round((avgSpeed + speedVar) * 10) / 10);
-      const d = Math.round(dist * p * 100) / 100;
-      const hr = Math.round(avgHr - 12 + p * 22 + Math.sin(p * 8) * 3);
-      points.push({ timeSec: t, distanceKm: d, speedKmh: speed, hrBpm: hr });
-    }
-    return points;
+    return [];
   };
 
   const handleCreateRoute = () => {
@@ -3367,7 +3352,7 @@ export const FitScreen: React.FC = () => {
                         ? viewingRouteForMap.distanceKm / (viewingRouteForMap.durationSec / 3600)
                         : 0
                     }
-                    liveHr={viewingRouteForMap.avgHr || 142}
+                    liveHr={viewingRouteForMap.avgHr || 0}
                     telemetryHistory={getRouteTelemetry(viewingRouteForMap)}
                   />
                 </div>
@@ -3408,7 +3393,7 @@ export const FitScreen: React.FC = () => {
                       Cardio Moyen
                     </div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#FF453A', marginTop: '3px', fontFamily: 'var(--font-mono)' }}>
-                      {viewingRouteForMap.avgHr > 0 ? `${viewingRouteForMap.avgHr} bpm` : '142 bpm'}
+                      {viewingRouteForMap.avgHr > 0 ? `${viewingRouteForMap.avgHr} bpm` : '--'}
                     </div>
                   </div>
                 </div>
@@ -3450,7 +3435,7 @@ export const FitScreen: React.FC = () => {
                   <div>
                     <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                      +{viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)}m
+                      +{viewingRouteForMap.elevationM || 0}m
                     </div>
                   </div>
                 </div>
@@ -3653,7 +3638,7 @@ export const FitScreen: React.FC = () => {
                   <div>
                     <div style={{ fontSize: '9.5px', textTransform: 'uppercase', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 600 }}>Dénivelé</div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                      +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8)) * simProgress : (viewingRouteForMap.elevationM || Math.round(viewingRouteForMap.distanceKm * 8))))}m
+                      +{Math.round(((isSimulatingRoute || (simProgress > 0 && simProgress < 1)) ? (viewingRouteForMap.elevationM || 0) * simProgress : (viewingRouteForMap.elevationM || 0)))}m
                     </div>
                   </div>
                 </div>

@@ -789,42 +789,25 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           if (Array.isArray(dayData?.tempLog) && dayData.tempLog[slot30Idx] && dayData.tempLog[slot30Idx] >= 30) {
             val = parseFloat((dayData.tempLog[slot30Idx] - 36.5).toFixed(2));
             isMeasured = true;
-          } else if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
-            const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
-            const nocturnalDip = -0.15 * Math.sin(progress * Math.PI);
-            val = parseFloat((delta + nocturnalDip).toFixed(2));
-            isMeasured = true;
           }
         } else if (metricId === 'resp') {
-          const baseR = dayData?.resp && dayData.resp > 0 ? dayData.resp : 14.5;
-          const cycleWave = 0.7 * Math.sin(progress * 3 * Math.PI);
-          val = parseFloat((baseR + cycleWave).toFixed(1));
-          isMeasured = true;
+          if (dayData?.resp && dayData.resp > 0) {
+            val = parseFloat(dayData.resp.toFixed(1));
+            isMeasured = true;
+          }
         } else if (metricId === 'bpm') {
           if (Array.isArray(dayData?.hrLog) && dayData.hrLog[slot30Idx] && dayData.hrLog[slot30Idx] >= 40) {
             val = dayData.hrLog[slot30Idx];
-            isMeasured = true;
-          } else {
-            const rBpm = dayData?.restingBpm || dayData?.bpm || 60;
-            val = Math.round(rBpm + 2.5 * Math.cos(progress * 2 * Math.PI));
             isMeasured = true;
           }
         } else if (metricId === 'hrv') {
           if (Array.isArray(dayData?.hrvLog) && dayData.hrvLog[slot30Idx] && dayData.hrvLog[slot30Idx] >= 5) {
             val = dayData.hrvLog[slot30Idx];
             isMeasured = true;
-          } else {
-            const baseHrv = dayData?.hrv || 48;
-            val = Math.round(baseHrv + 5 * Math.sin(progress * 2 * Math.PI));
-            isMeasured = true;
           }
         } else if (metricId === 'spo2') {
           if (Array.isArray(dayData?.spo2Log) && dayData.spo2Log[slot30Idx] && dayData.spo2Log[slot30Idx] >= 70) {
             val = dayData.spo2Log[slot30Idx];
-            isMeasured = true;
-          } else {
-            const baseSpo2 = dayData?.spo2 || 98;
-            val = Math.min(100, Math.max(94, Math.round(baseSpo2 - (p % 6 === 3 ? 1 : 0))));
             isMeasured = true;
           }
         } else {
