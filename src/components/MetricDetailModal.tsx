@@ -404,7 +404,7 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
-  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab, weekDays, weekOffset, sensorIntervals } = useApp();
+  const { selectedDay, liveBpm, setLiveBpm, isLiveHrActive, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab, weekDays, weekOffset, sensorIntervals } = useApp();
   const isHourlyMode = sensorIntervals?.heartRate === '1h' || (sensorIntervals?.heartRate as string) === '2h';
   // Jour inspecte local a la modale : isole completement l'ecran d'accueil Sante
   const [modalDay, setModalDay] = useState<number>(() => (selectedDay !== undefined ? selectedDay : TODAY_INDEX));
@@ -425,8 +425,23 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   }, [metricId, isSleepPage]);
 
   const [isMeasuring, setIsMeasuring] = useState(false);
-  const [countdown, setCountdown] = useState(20);
+  const [countdown, setCountdown] = useState(25);
   const [measureFeedback, setMeasureFeedback] = useState<string | null>(null);
+  const bpmUserPausedRef = useRef(false);
+  const wasExternalLiveHrRef = useRef(isLiveHrActive);
+
+  // Démarrer automatiquement le BPM en direct continu (sans limite de 25s) à l'ouverture de la fiche aujourd'hui
+  useEffect(() => {
+    bpmUserPausedRef.current = false;
+  }, [metricId, modalDay]);
+
+  useEffect(() => {
+    if (metricId !== 'bpm' || modalDay !== TODAY_INDEX) return;
+    if (bpmUserPausedRef.current) return;
+    if (qringBle.isConnected() || ring.isConnected) {
+      setIsMeasuring(true);
+    }
+  }, [metricId, modalDay, ring.isConnected]);
 
   const [liveSpo2, setLiveSpo2] = useState<number | null>(null);
   const liveSpo2Ref = useRef(liveSpo2);
@@ -465,7 +480,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     setIsMeasuring(false);
     setCountdown(25);
     if (metricId === 'bpm') {
-      qringBle.stopRealTimeHeartRate();
+      bpmUserPausedRef.current = true;
+      if (!wasExternalLiveHrRef.current) {
+        qringBle.stopRealTimeHeartRate();
+      }
     } else if (metricId === 'spo2') {
       qringBle.stopRealTimeBloodOxygen();
     } else if (metricId === 'temp') {
@@ -475,7 +493,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     const finalBpm = liveBpmRef.current;
     const finalSpo2 = liveSpo2Ref.current;
     const finalTemp = liveTempRef.current;
-    if (metricId === 'bpm') {
+    if (metricId === 'bpm' && !wasExternalLiveHrRef.current) {
       setLiveBpm(0);
     }
     if (completed) {
@@ -553,7 +571,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   }, [language, modalDay, metricId, setWeekData]);
 
   const handleStartMeasure = () => {
-    if (metricId === 'bpm') setLiveBpm(0);
+    if (metricId === 'bpm') {
+      bpmUserPausedRef.current = false;
+      setLiveBpm(0);
+    }
     if (metricId === 'spo2') setLiveSpo2(null);
     if (metricId === 'temp') setLiveTemp(null);
     setMeasureFeedback(null);
@@ -641,22 +662,29 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       }
     });
 
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          handleStopMeasure(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Le BPM reste en flux continu illimité tant que la fiche est ouverte (pas de coupure à 25s).
+    const timer =
+      metricId !== 'bpm'
+        ? setInterval(() => {
+            setCountdown((prev) => {
+              if (prev <= 1) {
+                handleStopMeasure(true);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000)
+        : null;
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
       unsubscribe();
       if (metricId === 'bpm') {
-        qringBle.stopRealTimeHeartRate();
+        if (!wasExternalLiveHrRef.current) {
+          qringBle.stopRealTimeHeartRate();
+          setLiveBpm(0);
+        }
       } else if (metricId === 'spo2') {
         qringBle.stopRealTimeBloodOxygen();
       } else if (metricId === 'temp') {
@@ -1662,10 +1690,15 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     }}
                   />
                   <span style={{ color: metricId === 'bpm' ? '#FF5A52' : metricId === 'spo2' ? '#F0ABFC' : '#FCD34D', fontFamily: 'var(--font-mono)' }}>
-                    {metricId === 'bpm' && liveBpm ? `${liveBpm} BPM • ` : ''}
-                    {metricId === 'spo2' && liveSpo2 ? `${liveSpo2}% • ` : ''}
-                    {metricId === 'temp' && liveTemp ? `${liveTemp.toFixed(1)} °C • ` : ''}
-                    {countdown}s
+                    {metricId === 'bpm'
+                      ? (liveBpm ? `${liveBpm} BPM • LIVE` : (language === 'fr' ? 'EN DIRECT...' : 'LIVE...'))
+                      : (
+                        <>
+                          {metricId === 'spo2' && liveSpo2 ? `${liveSpo2}% • ` : ''}
+                          {metricId === 'temp' && liveTemp ? `${liveTemp.toFixed(1)} °C • ` : ''}
+                          {countdown}s
+                        </>
+                      )}
                   </span>
                   <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.8)' }}>
                     {language === 'fr' ? 'Arrêter' : 'Stop'}
@@ -1675,7 +1708,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                 <button
                   type="button"
                   onClick={handleToggleMeasure}
-                  title={language === 'fr' ? 'Lancer la mesure en direct (25s)' : 'Start live measurement (25s)'}
+                  title={
+                    metricId === 'bpm'
+                      ? (language === 'fr' ? 'Activer le BPM en direct continu' : 'Enable continuous live BPM')
+                      : (language === 'fr' ? 'Lancer la mesure en direct (25s)' : 'Start live measurement (25s)')
+                  }
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1726,7 +1763,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       }}
                     />
                   )}
-                  <span>{language === 'fr' ? 'Mesurer en direct (25s)' : 'Live Measure (25s)'}</span>
+                  <span>
+                    {metricId === 'bpm'
+                      ? (language === 'fr' ? 'Activer le BPM en direct' : 'Enable Live BPM')
+                      : (language === 'fr' ? 'Mesurer en direct (25s)' : 'Live Measure (25s)')}
+                  </span>
                 </button>
               )}
 

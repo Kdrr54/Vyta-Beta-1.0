@@ -11,7 +11,7 @@ import { qringBle } from '../lib/qringBleService';
 import { getDailyNutritionSummary } from '../lib/calAiService';
 
 export const HealthScreen: React.FC = () => {
-  const { selectedDay, setSelectedDay, selectedDateKey, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm, weekOffset, goToCurrentWeek, weekDays } = useApp();
+  const { selectedDay, setSelectedDay, selectedDateKey, setTab, openModal, openMetricDetail, ring, finish, language, weekData, isFirstLaunch, isSimulating, toggleSimulation, cardThemeMode, setCardThemeMode, liveBpm, isLiveHrActive, toggleLiveHr, weekOffset, goToCurrentWeek, weekDays } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const handleSetThemeMode = (mode: 'monochrome' | 'colored') => setCardThemeMode(mode);
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
@@ -1106,9 +1106,49 @@ export const HealthScreen: React.FC = () => {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
-              {language === 'fr' ? <>Fréquence<br />cardiaque</> : <>Heart<br />Rate</>}
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'rgba(250, 247, 242, 0.9)', lineHeight: 1.25 }}>
+                {language === 'fr' ? <>Fréquence<br />cardiaque</> : <>Heart<br />Rate</>}
+              </span>
+              {isToday && ring.isConnected && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleLiveHr();
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 7px',
+                    borderRadius: '999px',
+                    background: isLiveHrActive
+                      ? 'rgba(255, 69, 58, 0.25)'
+                      : 'rgba(255, 255, 255, 0.08)',
+                    border: isLiveHrActive
+                      ? '1px solid rgba(255, 69, 58, 0.7)'
+                      : '1px solid rgba(255, 255, 255, 0.16)',
+                    color: isLiveHrActive ? '#FF5A52' : 'rgba(250, 247, 242, 0.75)',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    cursor: 'pointer',
+                  }}
+                  title={language === 'fr' ? 'Activer / Couper le BPM en direct continu' : 'Toggle continuous Live BPM'}
+                >
+                  <span
+                    style={{
+                      width: '5px',
+                      height: '5px',
+                      borderRadius: '50%',
+                      background: isLiveHrActive ? '#FF453A' : 'rgba(250, 247, 242, 0.45)',
+                    }}
+                  />
+                  <span>{isLiveHrActive ? 'LIVE ON' : 'LIVE'}</span>
+                </button>
+              )}
+            </div>
             <div
               style={{
                 width: '34px',
@@ -1123,7 +1163,7 @@ export const HealthScreen: React.FC = () => {
                 flexShrink: 0,
               }}
             >
-              <Heart size={16} color={isMono ? "#FAF7F2" : "#FF453A"} fill={isMono ? "transparent" : "rgba(255, 69, 58, 0.25)"} strokeWidth={1.8} />
+              <Heart size={16} color={isMono ? "#FAF7F2" : "#FF453A"} fill={isLiveHrActive ? "#FF453A" : (isMono ? "transparent" : "rgba(255, 69, 58, 0.25)")} strokeWidth={1.8} />
             </div>
           </div>
 
