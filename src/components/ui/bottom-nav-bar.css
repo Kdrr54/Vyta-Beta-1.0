@@ -1,0 +1,89 @@
+.aurel-bottom-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 54px;
+  padding: 6px 8px;
+  min-width: 268px;
+  max-width: 94vw;
+  border-radius: 9999px;
+  background: rgba(12, 13, 18, 0.88);
+  backdrop-filter: blur(26px) saturate(160%);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  border: 1px solid rgba(255, 248, 240, 0.14);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.aurel-bottom-nav--sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 90;
+  width: fit-content;
+}
+
+.aurel-bottom-nav__btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 44px;
+  max-height: 44px;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(250, 247, 242, 0.52);
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease;
+}
+
+.aurel-bottom-nav__btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(250, 247, 242, 0.85);
+}
+
+.aurel-bottom-nav__btn.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #FAF7F2;
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.aurel-bottom-nav__icon {
+  flex-shrink: 0;
+  transition: color 200ms ease;
+}
+
+.aurel-bottom-nav__label-wrap {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 72px;
+}
+
+.aurel-bottom-nav__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #FAF7F2;
+}

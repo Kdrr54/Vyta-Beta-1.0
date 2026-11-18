@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeartPulse, Moon, Dumbbell, Flower2, Settings } from 'lucide-react';
 import { TODAY_INDEX } from '../data/health';
-import { LiquidNavbar, LiquidNavItem } from './ui/liquid-glass-navbar';
+import { BottomNavBar, BottomNavItem } from './ui/bottom-nav-bar';
 
 export const TabBar: React.FC = () => {
   const { tab, setTab, t, profile, modal, openModal, closeModal, setSelectedDay } = useApp();
@@ -15,7 +15,7 @@ export const TabBar: React.FC = () => {
     }
   }, [isFemale, tab, setTab]);
 
-  interface AppNavItem extends LiquidNavItem {
+  interface AppNavItem extends BottomNavItem {
     id: 'health' | 'sleep' | 'fit' | 'cycle' | 'settings';
   }
 
@@ -24,20 +24,17 @@ export const TabBar: React.FC = () => {
       {
         id: 'health',
         label: t('tab.health') || 'Santé',
-        icon: <HeartPulse size={18} strokeWidth={2.1} />,
-        fx: 'glow',
+        icon: HeartPulse,
       },
       {
         id: 'sleep',
         label: t('tab.sleep') || 'Sommeil',
-        icon: <Moon size={18} strokeWidth={2.1} />,
-        fx: 'drop',
+        icon: Moon,
       },
       {
         id: 'fit',
         label: t('tab.fit') || 'Activité',
-        icon: <Dumbbell size={18} strokeWidth={2.1} />,
-        fx: 'plane',
+        icon: Dumbbell,
       },
     ];
 
@@ -45,15 +42,13 @@ export const TabBar: React.FC = () => {
       base.push({
         id: 'cycle',
         label: t('tab.cycle') || 'Cycle',
-        icon: <Flower2 size={18} strokeWidth={2.1} />,
-        fx: 'wave',
+        icon: Flower2,
       });
     } else {
       base.push({
         id: 'settings',
         label: t('settings.title') || 'Réglages',
-        icon: <Settings size={18} strokeWidth={2.1} />,
-        fx: 'spin',
+        icon: Settings,
       });
     }
 
@@ -122,16 +117,10 @@ export const TabBar: React.FC = () => {
       }}
     >
       <div style={{ pointerEvents: 'auto', maxWidth: 'calc(100% - 16px)' }}>
-        <LiquidNavbar
-          tone="dark"
-          active={activeIndex}
-          onChange={handleTabChange}
+        <BottomNavBar
           items={navItems}
-          compact={false}
-          sound={false}
-          style={{
-            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.7), 0 2px 10px rgba(0, 0, 0, 0.35)',
-          }}
+          activeIndex={activeIndex}
+          onChange={handleTabChange}
         />
       </div>
     </div>

@@ -17,6 +17,7 @@
     "@capacitor/ios": "^8.5.3",
     "@capacitor/motion": "^8.0.1",
     "@types/leaflet": "^1.9.22",
+    "framer-motion": "^14.14.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
