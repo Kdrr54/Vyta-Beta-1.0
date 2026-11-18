@@ -12,7 +12,7 @@ export const translations = {
     // Header
     'header.covyta_on': 'Aurelius ACTIF',
     'header.covyta_off': 'Aurelius OFF',
-    'header.ring_title': 'Bague Aurel Ring One (AR01) • Réglages & Diagnostics',
+    'header.ring_title': 'Bague Aurel Ring One • Réglages & Diagnostics',
     'header.battery_tooltip': 'Batterie bague : ',
 
     // Week & Dates
@@ -170,7 +170,7 @@ export const translations = {
     'sub.banner_title': '100 % Zéro Abonnement',
     'sub.price': 'Inclus',
     'sub.period': '',
-    'sub.cancel_anytime': 'Accès complet à vie avec votre Aurel Ring One (AR01)',
+    'sub.cancel_anytime': 'Accès complet à vie avec votre Aurel Ring One',
     'sub.features_unlocked': 'Fonctionnalités incluses sans abonnement :',
     'sub.apple_pay': 'Activer',
     'sub.card_pay': 'Continuer',
@@ -189,7 +189,7 @@ export const translations = {
     // Header
     'header.covyta_on': 'Aurelius ACTIVE',
     'header.covyta_off': 'Aurelius OFF',
-    'header.ring_title': 'Aurel Ring One (AR01) • Settings & Diagnostics',
+    'header.ring_title': 'Aurel Ring One • Settings & Diagnostics',
     'header.battery_tooltip': 'Ring battery: ',
 
     // Week & Dates
@@ -347,7 +347,7 @@ export const translations = {
     'sub.banner_title': '100% Zero Subscription',
     'sub.price': 'Included',
     'sub.period': '',
-    'sub.cancel_anytime': 'Full lifetime access with your Aurel Ring One (AR01)',
+    'sub.cancel_anytime': 'Full lifetime access with your Aurel Ring One',
     'sub.features_unlocked': 'All features included without subscription:',
     'sub.apple_pay': 'Enable',
     'sub.card_pay': 'Continue',

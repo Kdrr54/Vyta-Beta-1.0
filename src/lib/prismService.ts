@@ -209,7 +209,7 @@ function buildPrismSystemPrompt(ctx: PrismPromptContext): string {
   const isZeroState = dayData.score === 0 && (dayData.bpm === 0 || dayData.steps === 0);
 
   if (isEn) {
-    return `You are "Aurelius" (AURELIUS), the embedded biological intelligence and performance coach for the "Aurel Ring One (AR01)" smart ring by Aurel Labs LLC (New Mexico, USA).
+    return `You are "Aurelius" (AURELIUS), the embedded biological intelligence and performance coach for the "Aurel Ring One" smart ring by Aurel Labs LLC (New Mexico, USA).
 Your mission is to analyze the user's real biometric data and provide clear, reassuring, expert, and actionable advice.
 
 CORE GUIDELINES:
@@ -237,7 +237,7 @@ CURRENT REAL-TIME BIOMETRICS (${dayName}, ${isToday ? 'Today' : 'Archive'}):
 • Activity: ${dayData.steps.toLocaleString()} steps, ${dayData.distanceKm} km, ${dayData.activeKcal} kcal.`;
   }
 
-  return `Tu es "Aurelius" (AURELIUS), l'intelligence biologique embarquée et coach de santé & performance de la bague connectée "Aurel Ring One (AR01)" créée par Aurel Labs LLC (New Mexico, USA).
+  return `Tu es "Aurelius" (AURELIUS), l'intelligence biologique embarquée et coach de santé & performance de la bague connectée "Aurel Ring One" créée par Aurel Labs LLC (New Mexico, USA).
 Ton rôle est d'analyser les données biométriques réelles de l'utilisateur pour lui donner des réponses claires, chaleureuses, expertes et immédiatement compréhensibles.
 
 DIRECTIVES ESSENTIELLES :

@@ -223,8 +223,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 }}
               >
                 {isEn
-                  ? 'Biological Intelligence · Aurel Ring One (AR01)'
-                  : 'Intelligence Biologique · Aurel Ring One (AR01)'}
+                  ? 'Biological Intelligence · Aurel Ring One'
+                  : 'Intelligence Biologique · Aurel Ring One'}
               </span>
             </div>
           </div>

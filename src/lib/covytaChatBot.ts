@@ -264,7 +264,7 @@ Mode actif : **${persona === 'analyst' ? '🔬 ANALYSTE' : persona === 'commande
     if (isEn) {
       return `### I am Aurelius · Biological AI by Aurel Labs LLC ⚡
 
-A native biological intelligence tailored for the **Aurel Ring One (AR01)** titanium smart ring.
+A native biological intelligence tailored for the **Aurel Ring One** titanium smart ring.
 
 Unlike generic language models, I connect the dots across:
 • **Nocturnal Autonomic Tone** (HRV in milliseconds & Nadir HR)
@@ -277,7 +277,7 @@ Switch between **Analyst**, **Commander**, and **Guardian** personas above to ad
 
     return `### Je suis Aurelius · L'IA Biologique d'Aurel Labs LLC ⚡
 
-Un moteur d'intelligence biologique natif conçu pour la bague connectée en titane **Aurel Ring One (AR01)**.
+Un moteur d'intelligence biologique natif conçu pour la bague connectée en titane **Aurel Ring One**.
 
 Contrairement aux IA génériques, je relie la cause à l'effet sur ton corps :
 • **Tonus Autonome Nocturne** (VFC en millisecondes et Nadir cardiaque)
@@ -363,7 +363,7 @@ Nocturnal telemetry recorded by Aurel Ring One:
 
     return `### Architecture du Sommeil & Chronobiologie 🌙
 
-Relevés nocturnes de ta bague Aurel Ring One (AR01) :
+Relevés nocturnes de ta bague Aurel Ring One :
 • **Score de Sommeil** : **${dayData.sleep.score}/100**
 • **Sommeil Profond** : **${deepHours}h ${deepMins}m** (sécrétion d'hormone de croissance et réparation tissulaire)
 • **Sommeil Paradoxal (REM)** : **${Math.floor(dayData.sleep.remMin / 60)}h ${dayData.sleep.remMin % 60}m** (synthèse mémorielle et gestion émotionnelle)

@@ -322,7 +322,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   {t('settings.title')}
                 </h2>
                 <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 500 }}>
-                  {isEn ? 'Aurel Ring One (AR01) · Settings & Health' : 'Aurel Ring One (AR01) · Réglages & Santé'}
+                  {isEn ? 'Aurel Ring One · Settings & Health' : 'Aurel Ring One · Réglages & Santé'}
                 </span>
               </div>
             </div>
@@ -927,7 +927,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'Model' : 'Modèle'}</span>
-                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Ring One (AR01)</span>
+                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Ring One</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'Serial Number' : 'Numéro de Série'}</span>
