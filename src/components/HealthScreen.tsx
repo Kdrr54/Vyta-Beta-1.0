@@ -289,22 +289,22 @@ export const HealthScreen: React.FC = () => {
         title="Ouvrir Aurelius · Intelligence Biologique"
         style={{
           position: 'relative',
-          padding: '13px 15px',
-          borderRadius: '22px',
+          padding: '14px 16px',
+          borderRadius: '26px',
           overflow: 'hidden',
           cursor: 'pointer',
           background: isMono
-            ? 'radial-gradient(ellipse at 50% 120%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(10, 10, 12, 0.95) 80%), #0A0A0C'
-            : 'linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(192, 132, 252, 0.14) 50%, rgba(48, 209, 88, 0.1) 100%), rgba(10, 10, 14, 0.88)',
+            ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 48%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+            : 'radial-gradient(ellipse at 50% 120%, rgba(192, 132, 252, 0.24) 0%, rgba(168, 85, 247, 0.07) 42%, rgba(10, 10, 12, 0.96) 78%), #0A0A0C',
           backdropFilter: 'blur(26px)',
           WebkitBackdropFilter: 'blur(26px)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.22)',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.14)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.14)',
+          borderTop: '1px solid rgba(255, 248, 240, 0.16)',
+          borderLeft: '1px solid rgba(255, 248, 240, 0.12)',
+          borderRight: '1px solid rgba(255, 248, 240, 0.12)',
           borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.45)' : '1.5px solid rgba(192, 132, 252, 0.65)',
           boxShadow: isMono
-            ? '0 12px 28px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(255, 255, 255, 0.05)'
-            : '0 12px 28px rgba(0, 0, 0, 0.55), 0 4px 20px rgba(192, 132, 252, 0.18)',
+            ? '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 18px rgba(255, 255, 255, 0.06)'
+            : '0 14px 32px rgba(0, 0, 0, 0.55), 0 4px 20px rgba(192, 132, 252, 0.14)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -313,23 +313,23 @@ export const HealthScreen: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '11px', flex: 1, minWidth: 0 }}>
-          {/* Animated Prism Crystal Icon */}
+          {/* Circular Obsidian + Amethyst Icon Chip matching all activity cards */}
           <div
             style={{
               position: 'relative',
-              width: '36px',
-              height: '36px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(192, 132, 252, 0.3) 50%, rgba(48, 209, 88, 0.3) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.28)',
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
+              border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              boxShadow: '0 0 14px rgba(192, 132, 252, 0.35)',
+              boxShadow: isMono ? 'none' : '0 0 10px rgba(192, 132, 252, 0.25)',
             }}
           >
-            <Sparkles size={18} color="#FAF7F2" style={{ filter: 'drop-shadow(0 0 4px #C084FC)' }} />
+            <Sparkles size={16} color={isMono ? '#FAF7F2' : '#C084FC'} strokeWidth={1.8} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
@@ -341,11 +341,11 @@ export const HealthScreen: React.FC = () => {
                 style={{
                   fontSize: '9px',
                   fontWeight: 600,
-                  padding: '1px 5px',
+                  padding: '1px 6px',
                   borderRadius: '999px',
-                  background: 'rgba(56, 189, 248, 0.18)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#38BDF8',
+                  background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.14)',
+                  border: isMono ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid rgba(192, 132, 252, 0.35)',
+                  color: isMono ? '#FAF7F2' : '#D8B4FE',
                   letterSpacing: '0.2px',
                 }}
               >
@@ -356,7 +356,7 @@ export const HealthScreen: React.FC = () => {
               style={{
                 margin: '2px 0 0 0',
                 fontSize: '11px',
-                color: 'rgba(250, 247, 242, 0.72)',
+                color: 'rgba(250, 247, 242, 0.58)',
                 lineHeight: 1.35,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -380,8 +380,8 @@ export const HealthScreen: React.FC = () => {
             style={{
               padding: '5px 10px',
               borderRadius: '999px',
-              background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.18) 0%, rgba(192, 132, 252, 0.18) 100%)',
-              border: '1px solid rgba(255, 255, 255, 0.22)',
+              background: isMono ? 'rgba(255, 255, 255, 0.07)' : 'rgba(192, 132, 252, 0.12)',
+              border: isMono ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid rgba(192, 132, 252, 0.3)',
               display: 'flex',
               alignItems: 'center',
               gap: '5px',
@@ -389,10 +389,9 @@ export const HealthScreen: React.FC = () => {
               cursor: 'pointer',
               fontSize: '11px',
               fontWeight: 600,
-              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.4)',
             }}
           >
-            <Camera size={12} strokeWidth={2} color="#FB923C" />
+            <Camera size={12} strokeWidth={2} color={isMono ? '#FAF7F2' : '#D8B4FE'} />
             <span>
               {dayNutrition.calories > 0 ? `${fmtNum(dayNutrition.calories)} kcal` : 'Nutrition'}
             </span>
@@ -402,8 +401,8 @@ export const HealthScreen: React.FC = () => {
             style={{
               padding: '5px 10px',
               borderRadius: '999px',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.16)',
+              background: 'rgba(255, 255, 255, 0.07)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
