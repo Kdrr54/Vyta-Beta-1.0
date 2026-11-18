@@ -204,6 +204,8 @@ class QRingBleService {
   private isRealTimeHrActive = false;
   private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
+  private lastLiveDataAt = 0;
+  private lastLiveRearmAt = 0;
   private lastAutoMeasureSlot = -1;
   private isAutoSpotMeasuring = false;
   private bleLogs: BleLogEntry[] = (() => {
@@ -427,14 +429,14 @@ class QRingBleService {
   }
 
   /**
-   * Low-power periodic maintenance timer (replaces aggressive 20s wake-up polling):
+   * Low-power periodic maintenance timer (foreground visible only):
    * Lets the ring firmware enter BLE dormant sleep naturally overnight & in background.
-   * Only queries battery & stored flash logs every 30 minutes when the app is actively visible,
-   * and NEVER illuminates optical LEDs automatically over BLE (the ring MCU runs its own autonomous schedule).
+   * Refreshes flash HR logs (0x15, 0 LEDs) & steps every 2 minutes when foregrounded,
+   * and full sync every 10 minutes without turning on optical LEDs over BLE.
    */
   private startHeartbeat() {
     this.stopHeartbeat();
-    console.log('[QRing BLE] Starting low-power periodic sync check (every 15m foreground only, allowing BLE dormant sleep)...');
+    console.log('[QRing BLE] Starting low-power periodic sync check (2m foreground flash check, 10m full sync)...');
     this.heartbeatInterval = setInterval(async () => {
       if (!this.isConnected()) {
         this.stopHeartbeat();
@@ -446,17 +448,26 @@ class QRingBleService {
         return;
       }
 
+      // Do not interrupt an active live sensor stream or an ongoing sync
+      if (this.isSyncing || this.activeLiveDataType !== null || this.isRealTimeHrActive) {
+        return;
+      }
+
       try {
         const now = Date.now();
-        if (now - this.lastPeriodicSyncTime > 30 * 60 * 1000) {
+        if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
           await this.syncAllRingData();
         } else {
+          await this.requestHeartRateLog();
+          await new Promise((r) => setTimeout(r, 450));
+          await this.requestStepsData(0);
+          await new Promise((r) => setTimeout(r, 200));
           await this.sendBatteryRequest();
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
       }
-    }, 15 * 60 * 1000);
+    }, 2 * 60 * 1000);
   }
 
   private stopHeartbeat() {
@@ -1730,48 +1741,52 @@ class QRingBleService {
     });
 
     // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
-    // When user selected >= 60m (hourly), store ONLY hourly slots (even index = :00) and ignore :30 slots.
+    // Keep the most recent valid hardware reading within each displayed bucket instead of dropping
+    // newer 5m/15m readings recorded after :25, which previously caused BPM to stay frozen for up to an hour.
     const isHourlyCadence = this.configuredIntervalMinutes >= 60;
     const halfHourLog: number[] = new Array(48).fill(0);
     clampedLog.forEach((bpm, slotIdx) => {
       if (bpm < 40 || bpm > 200) return;
       const minute = slotIdx * slotMin;
       if (isHourlyCadence) {
-        const minInHour = minute % 60;
-        if (minInHour >= 25) return; // Ignore half-hour / off-hour slots in 1h mode
         const hourSlot = Math.floor(minute / 60) * 2;
-        if (hourSlot >= 0 && hourSlot < 48 && (halfHourLog[hourSlot] === 0 || minInHour === 0)) {
+        if (hourSlot >= 0 && hourSlot < 48) {
           halfHourLog[hourSlot] = bpm;
         }
       } else {
         const half = Math.floor(minute / 30);
         if (half >= 0 && half < 48) {
-          if (halfHourLog[half] === 0 || minute % 30 === 0) {
-            halfHourLog[half] = bpm;
-          }
+          halfHourLog[half] = bpm;
         }
       }
     });
 
     const validHalfHourPulses = halfHourLog.filter((b) => b >= 40 && b <= 200);
-    const validPulses = validHalfHourPulses.length > 0
-      ? validHalfHourPulses
-      : clampedLog.slice(0, currentSlot + 1).filter((b) => b >= 40 && b <= 200);
+    const validPulses = clampedLog.slice(0, currentSlot + 1).filter((b) => b >= 40 && b <= 200);
+    const effectivePulses = validPulses.length > 0 ? validPulses : validHalfHourPulses;
 
-    // Find the latest valid pulse reading from halfHourLog so main card and 24h detail curve match 100%
+    // Always surface the newest valid reading from flash memory (up to currentSlot)
     let latestBpm = 0;
-    for (let h = 47; h >= 0; h--) {
-      if (halfHourLog[h] >= 40 && halfHourLog[h] <= 200) {
-        latestBpm = halfHourLog[h];
+    for (let s = currentSlot; s >= 0; s--) {
+      if (clampedLog[s] >= 40 && clampedLog[s] <= 200) {
+        latestBpm = clampedLog[s];
         break;
       }
     }
+    if (!latestBpm) {
+      for (let h = 47; h >= 0; h--) {
+        if (halfHourLog[h] >= 40 && halfHourLog[h] <= 200) {
+          latestBpm = halfHourLog[h];
+          break;
+        }
+      }
+    }
 
-    if (validPulses.length > 0) {
-      if (!latestBpm) latestBpm = validPulses[validPulses.length - 1];
-      const minBpm = Math.min(...validPulses);
-      const maxBpm = Math.max(...validPulses);
-      const restingBpm = Math.round(validPulses.reduce((a, b) => a + b, 0) / validPulses.length);
+    if (effectivePulses.length > 0) {
+      if (!latestBpm) latestBpm = effectivePulses[effectivePulses.length - 1];
+      const minBpm = Math.min(...effectivePulses);
+      const maxBpm = Math.max(...effectivePulses);
+      const restingBpm = Math.round(effectivePulses.reduce((a, b) => a + b, 0) / effectivePulses.length);
       console.log(
         `[QRing BLE] Finalized Heart Rate Log (rawLen=${rawLen}, slotMin=${slotMin}, currentSlot=${currentSlot} at ${now.getHours()}h${now.getMinutes()}): latest=${latestBpm} bpm, resting=${restingBpm} bpm, min=${minBpm}, max=${maxBpm}`
       );
@@ -2406,6 +2421,9 @@ class QRingBleService {
       await new Promise((r) => setTimeout(r, 90));
     }
 
+    this.lastLiveDataAt = 0;
+    this.lastLiveRearmAt = Date.now();
+
     // 1. Send Action.START (0x01) once to open the photodiode / thermal stream
     const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
 
@@ -2418,6 +2436,7 @@ class QRingBleService {
     }
 
     // 3. Maintain stream with Action.CONTINUE (0x03) every 1400ms (inside firmware ~2s watchdog)
+    // and auto-rearm START (0x01) + legacy poll if firmware timed out or BLE reconnected.
     this.realTimeHrTimer = setInterval(async () => {
       if (this.activeLiveDataType !== dataType) {
         if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
@@ -2426,7 +2445,36 @@ class QRingBleService {
       }
 
       if (!this.isConnected()) {
-        await this.attemptSilentReconnect(true);
+        const reconnected = await this.attemptSilentReconnect(true);
+        if (reconnected && this.isConnected() && this.activeLiveDataType === dataType) {
+          this.lastLiveRearmAt = Date.now();
+          try {
+            await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
+            for (const pktBytes of legacyPackets) {
+              await new Promise((r) => setTimeout(r, 90));
+              await this.writeBytes(pktBytes);
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+
+      const now = Date.now();
+      const staleDuration = this.lastLiveDataAt > 0
+        ? now - this.lastLiveDataAt
+        : now - this.lastLiveRearmAt;
+
+      // Some Colmi/R21 firmwares auto-close optical streaming after ~30-45s or after a missed ACK;
+      // re-arming Action.START + legacy packet recovers continuous live BPM instead of freezing.
+      if (staleDuration >= 6000 && now - this.lastLiveRearmAt >= 6000) {
+        this.lastLiveRearmAt = now;
+        try {
+          await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
+          for (const pktBytes of legacyPackets) {
+            await new Promise((r) => setTimeout(r, 90));
+            await this.writeBytes(pktBytes);
+          }
+        } catch (_) {}
         return;
       }
 
@@ -2991,6 +3039,7 @@ class QRingBleService {
         }
 
         if (bpm >= 40 && bpm <= 220) {
+          this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (status:', statusOrErr, ')');
           this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
           return;
@@ -3007,6 +3056,7 @@ class QRingBleService {
           }
         }
         if (spo2Val > 0) {
+          this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Command 105 Real SpO2 Received:', spo2Val, '%');
           this.notify({ spo2: spo2Val, isConnected: true });
           return;
@@ -3067,6 +3117,7 @@ class QRingBleService {
       }
 
       if (bpm >= 40 && bpm <= 220) {
+        this.lastLiveDataAt = Date.now();
         console.log('[QRing BLE] Command 30 Real PPG Heart Rate Received:', bpm, 'bpm (b1:', b1, 'b2:', b2, ')');
         this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
         return;
@@ -3084,6 +3135,7 @@ class QRingBleService {
         const subType = dataView.getUint8(1);
         const val = dataView.getUint8(2);
         if (subType === 0x01 && val >= 40 && val <= 220) {
+          this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Notification 0x73 (type=1) Heart Rate:', val, 'bpm');
           this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
         } else if (subType === 0x03 && val >= 70 && val <= 100) {

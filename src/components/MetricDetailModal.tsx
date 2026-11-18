@@ -444,6 +444,12 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     if (modalDay !== TODAY_INDEX || !qringBle.isConnected() || qringBle.isRealTimeHeartRateActive()) return;
     if (metricId === 'bpm') {
       qringBle.requestHeartRateLog();
+      const periodicRefresh = setInterval(() => {
+        if (qringBle.isConnected() && !qringBle.isSyncingNow() && !qringBle.isRealTimeHeartRateActive()) {
+          qringBle.requestHeartRateLog();
+        }
+      }, 30000);
+      return () => clearInterval(periodicRefresh);
     } else if (metricId === 'hrv') {
       qringBle.requestHrvLog();
     } else if (metricId === 'spo2') {
@@ -469,6 +475,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     const finalBpm = liveBpmRef.current;
     const finalSpo2 = liveSpo2Ref.current;
     const finalTemp = liveTempRef.current;
+    if (metricId === 'bpm') {
+      setLiveBpm(0);
+    }
     if (completed) {
       if (metricId === 'bpm') {
         if (finalBpm > 35) {
@@ -563,7 +572,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   // Value for the selected day in WeekSelector
   const dayMetricValue = React.useMemo(() => {
     if (metricId === 'bpm') {
-      if (modalDay === TODAY_INDEX && isMeasuring && liveBpm) return liveBpm;
+      if (modalDay === TODAY_INDEX && liveBpm > 0) return liveBpm;
       return dayData?.bpm || 0;
     }
     if (metricId === 'hrv') {
@@ -1113,7 +1122,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       ? (isValidPoint(activePoint)
           ? (metricId === 'bp' ? `${activePoint.value}/${Math.round(activePoint.value * 0.64)}` : formatVal(activePoint.value))
           : '--')
-      : metricId === 'bpm' && modalDay === TODAY_INDEX && isMeasuring && liveBpm
+      : metricId === 'bpm' && modalDay === TODAY_INDEX && liveBpm > 0
       ? liveBpm
       : metricId === 'spo2' && modalDay === TODAY_INDEX && isMeasuring && liveSpo2
       ? liveSpo2

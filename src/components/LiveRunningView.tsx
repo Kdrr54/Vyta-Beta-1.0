@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame } from 'lucide-react';
+import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame, Activity, Plus, Minus } from 'lucide-react';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { fmtClockSec, fmtMMSS } from '../lib/format';
@@ -10,6 +10,11 @@ import { useApp } from '../context/AppContext';
 
 interface LiveRunningViewProps {
   runState: 'idle' | 'running' | 'paused' | 'finished';
+  runMode?: 'outdoor' | 'treadmill';
+  treadmillSpeedKmh?: number;
+  onSetTreadmillSpeed?: (speed: number) => void;
+  treadmillSteps?: number;
+  onAdjustDistanceKm?: (deltaKm: number) => void;
   runDurationSec: number;
   runDistanceKm: number;
   liveSpeedKmh?: number;
@@ -35,6 +40,11 @@ const TILES_SATELLITE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Wo
 
 export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   runState,
+  runMode = 'outdoor',
+  treadmillSpeedKmh = 0,
+  onSetTreadmillSpeed,
+  treadmillSteps = 0,
+  onAdjustDistanceKm,
   runDurationSec,
   runDistanceKm,
   liveSpeedKmh,
@@ -51,7 +61,9 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   realGpsPoints: propRealGpsPoints,
   userPosition: propUserPosition,
 }) => {
-  const { isLiveHrActive, toggleLiveHr, ring } = useApp();
+  const { isLiveHrActive, toggleLiveHr, ring, language } = useApp();
+  const isTreadmill = runMode === 'treadmill';
+  const isEn = language === 'en';
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(false);
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
@@ -140,9 +152,9 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     return realGpsPoints;
   };
 
-  // Real GPS Geolocation Watcher outdoors & Immediate User Location Fix
+  // Real GPS Geolocation Watcher outdoors (skipped in treadmill indoor mode)
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (isTreadmill || !('geolocation' in navigator)) return;
 
     // Immediate fix to center on user
     navigator.geolocation.getCurrentPosition(
@@ -185,11 +197,11 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [runState]);
+  }, [runState, isTreadmill]);
 
-  // Mount Map (Apple MapKit JS or Leaflet)
+  // Mount Map (Apple MapKit JS or Leaflet) - outdoor GPS mode only
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (isTreadmill || !containerRef.current) return;
     let cancelled = false;
     const stopCleaner = cleanMapAttributions(containerRef.current);
 
@@ -483,17 +495,237 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         userSelect: 'none',
       }}
     >
-      {/* Map Container */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-        }}
-      >
-        <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#121214' }} />
-      </div>
+      {/* Map Container (Outdoor GPS) OR Indoor Treadmill Studio Stage */}
+      {isTreadmill ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            background: 'radial-gradient(ellipse at 50% 24%, rgba(252, 82, 0, 0.14) 0%, rgba(16, 16, 22, 0.96) 52%, #070709 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '84px 20px 230px 20px',
+            gap: '18px',
+          }}
+        >
+          {/* Indoor Treadmill Badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '6px 14px',
+              borderRadius: '999px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              color: '#FAF7F2',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <Activity size={13} color="#FC5200" />
+            <span>{isEn ? 'Indoor Treadmill · No GPS' : 'Course sur tapis · Sans GPS'}</span>
+          </div>
+
+          {/* Primary Clock + Live Heart Rate Pill */}
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                fontSize: '58px',
+                fontWeight: 300,
+                color: '#FAF7F2',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '-1.5px',
+                lineHeight: 1,
+              }}
+            >
+              {formatTime(runDurationSec)}
+            </div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '12px',
+                padding: '7px 14px',
+                borderRadius: '999px',
+                background: liveHr > 0 ? 'rgba(255, 69, 58, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                border: liveHr > 0 ? '1px solid rgba(255, 69, 58, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+              }}
+            >
+              <Heart
+                size={14}
+                color="#FF453A"
+                fill={liveHr > 0 ? '#FF453A' : 'none'}
+              />
+              <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', fontVariantNumeric: 'tabular-nums' }}>
+                {liveHr > 0 ? `${liveHr} BPM` : (isEn ? 'Acquiring BPM...' : 'Acquisition BPM...')}
+              </span>
+              <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>•</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#FDBA74', fontVariantNumeric: 'tabular-nums' }}>
+                {liveCalories} kcal
+              </span>
+              {treadmillSteps > 0 && (
+                <>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>•</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.78)', fontVariantNumeric: 'tabular-nums' }}>
+                    {treadmillSteps} {isEn ? 'steps' : 'pas'}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Treadmill Belt Speed Stepper */}
+          {onSetTreadmillSpeed && (
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '340px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.11)',
+                borderRadius: '18px',
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.65)' }}>
+                  {isEn ? 'Treadmill belt speed' : 'Vitesse du tapis'}
+                </span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: treadmillSpeedKmh > 0 ? '#FC5200' : 'rgba(250, 247, 242, 0.72)', fontVariantNumeric: 'tabular-nums' }}>
+                  {treadmillSpeedKmh > 0 ? `${treadmillSpeedKmh.toFixed(1).replace('.', ',')} km/h` : (isEn ? 'Auto (Ring steps)' : 'Auto (Pas bague)')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => onSetTreadmillSpeed(Math.max(0, Math.round((treadmillSpeedKmh - 0.5) * 10) / 10))}
+                  style={{
+                    flex: 1,
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Minus size={14} /> 0,5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetTreadmillSpeed(0)}
+                  style={{
+                    padding: '0 10px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: treadmillSpeedKmh === 0 ? 'rgba(252, 82, 0, 0.22)' : 'rgba(255, 255, 255, 0.06)',
+                    border: treadmillSpeedKmh === 0 ? '1px solid #FC5200' : '1px solid rgba(255, 255, 255, 0.12)',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Auto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetTreadmillSpeed(Math.min(24, Math.round((treadmillSpeedKmh + 0.5) * 10) / 10))}
+                  style={{
+                    flex: 1,
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={14} /> 0,5
+                </button>
+              </div>
+
+              {onAdjustDistanceKm && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                  {[6, 8, 10, 12].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => onSetTreadmillSpeed(preset)}
+                      style={{
+                        flex: 1,
+                        height: '28px',
+                        borderRadius: '8px',
+                        background: treadmillSpeedKmh === preset ? 'rgba(252, 82, 0, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        border: treadmillSpeedKmh === preset ? '1px solid #FC5200' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#FAF7F2',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {preset} km/h
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => onAdjustDistanceKm(0.1)}
+                    style={{
+                      padding: '0 9px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.16)',
+                      color: '#30D158',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    title={isEn ? 'Add 0.10 km to match treadmill console' : 'Ajouter 0,10 km selon l’écran du tapis'}
+                  >
+                    +0,1 km
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          <div ref={containerRef} style={{ width: '100%', height: '100%', background: '#121214' }} />
+        </div>
+      )}
 
       {/* TOP FLOATING CONTROLS */}
       <div
@@ -592,37 +824,40 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             <Settings size={19} />
           </button>
 
-          {/* Compass / Orientation */}
-          <button
-            type="button"
-            onClick={handleCenterOnRunner}
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '50%',
-              background: 'rgba(24, 24, 27, 0.78)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#FFFFFF',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-              position: 'relative',
-            }}
-            title="Boussole / Orientation Nord"
-          >
-            <div style={{ width: '4px', height: '4px', background: '#FF453A', borderRadius: '50%', marginBottom: '1px' }} />
-            <Compass size={17} color="#FFF" />
-            <span style={{ fontSize: '9px', fontWeight: 800, color: '#FFF', position: 'absolute', bottom: '3px' }}>N</span>
-          </button>
+          {/* Compass / Orientation (Outdoor GPS only) */}
+          {!isTreadmill && (
+            <button
+              type="button"
+              onClick={handleCenterOnRunner}
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                background: 'rgba(24, 24, 27, 0.78)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                color: '#FFFFFF',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                position: 'relative',
+              }}
+              title="Boussole / Orientation Nord"
+            >
+              <div style={{ width: '4px', height: '4px', background: '#FF453A', borderRadius: '50%', marginBottom: '1px' }} />
+              <Compass size={17} color="#FFF" />
+              <span style={{ fontSize: '9px', fontWeight: 800, color: '#FFF', position: 'absolute', bottom: '3px' }}>N</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* RIGHT SIDE FLOATING BUTTONS (Layers, 3D, Center) */}
+      {/* RIGHT SIDE FLOATING BUTTONS (Layers, Center) - Outdoor GPS only */}
+      {!isTreadmill && (
       <div
         style={{
           position: 'absolute',
@@ -703,6 +938,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           <Navigation size={19} />
         </button>
       </div>
+      )}
 
       {/* FLOATING TELEMETRY CARD (Course à pied • Temps • Vitesse • Distance) - Visible when collapsed */}
       {!isSheetExpanded && (
@@ -736,7 +972,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             }}
           >
             <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
-              Course à pied
+              {isTreadmill ? (isEn ? 'Treadmill Run' : 'Course sur tapis') : (isEn ? 'Outdoor Run' : 'Course à pied')}
             </span>
             <button
               type="button"

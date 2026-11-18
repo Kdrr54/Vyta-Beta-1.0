@@ -440,11 +440,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // BPM en direct transmis par la bague (strictement 0 tant qu'aucune mesure n'est reçue)
   const [liveBpm, setLiveBpm] = useState<number>(() => 0);
+  const lastLiveBpmAtRef = useRef<number>(0);
   const [isLiveHrActive, setIsLiveHrActive] = useState<boolean>(false);
   const isLiveHrActiveRef = useRef<boolean>(false);
   useEffect(() => {
     isLiveHrActiveRef.current = isLiveHrActive;
   }, [isLiveHrActive]);
+
+  // Expirer un liveBpm figé si aucun nouveau paquet BLE n'arrive (évite un BPM bloqué pendant plusieurs minutes)
+  useEffect(() => {
+    if (liveBpm <= 0) return;
+    const watchdog = setInterval(() => {
+      const staleMs = Date.now() - lastLiveBpmAtRef.current;
+      const streamActive = isLiveHrActiveRef.current || qringBle.isRealTimeHeartRateActive();
+      if (!qringBle.isConnected() || (!streamActive && staleMs > 12000) || (streamActive && staleMs > 22000)) {
+        setLiveBpm(0);
+      }
+    }, 3000);
+    return () => clearInterval(watchdog);
+  }, [liveBpm]);
 
   const toggleLiveHr = useCallback(async (): Promise<boolean> => {
     if (isLiveHrActive) {
@@ -534,6 +548,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ? data.heartRate
           : null;
       if (incomingLive !== null) {
+        lastLiveBpmAtRef.current = Date.now();
         setLiveBpm(incomingLive);
       }
       if (data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 200) {
@@ -1183,10 +1198,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const openStory = useCallback((data: any) => setStoryData(data), []);
   const closeStory = useCallback(() => setStoryData(null), []);
 
-  // Surveillance active du passage de minuit et de la semaine civile
+  // Surveillance active du passage de minuit, retour au premier plan et semaine civile
+  const lastForegroundSyncRef = useRef<number>(0);
   useEffect(() => {
     let lastKnownDay = TODAY_INDEX;
     let lastKnownWeekId = computeRealCurrentWeek().weekId;
+
+    const refreshRingOnForeground = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      if (!qringBle.isConnected() || qringBle.isSyncingNow() || qringBle.isRealTimeHeartRateActive()) return;
+      const now = Date.now();
+      if (now - lastForegroundSyncRef.current < 45000) return;
+      lastForegroundSyncRef.current = now;
+      qringBle.requestHeartRateLog().catch(() => {});
+      setTimeout(() => {
+        if (qringBle.isConnected() && !qringBle.isSyncingNow() && !qringBle.isRealTimeHeartRateActive()) {
+          qringBle.requestStepsData(0).catch(() => {});
+        }
+      }, 450);
+    };
 
     const checkMidnightAndRollover = () => {
       const cal = refreshCalendar();
@@ -1211,6 +1241,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCalendarEpoch((c) => c + 1);
         setSelectedDay((prev) => (prev === oldDay ? cal.todayIndex : prev));
       }
+      refreshRingOnForeground();
     };
 
     document.addEventListener('visibilitychange', checkMidnightAndRollover);

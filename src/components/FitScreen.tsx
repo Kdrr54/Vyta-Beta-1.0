@@ -76,6 +76,7 @@ export interface StoredRoute {
   realGpsPoints?: [number, number][];
   progress?: number;
   telemetryHistory?: TelemetryPoint[];
+  isIndoor?: boolean;
 }
 
 const initialStoredRoutes: StoredRoute[] = [];
@@ -202,7 +203,7 @@ function sanitizeRouteGpsPoints(pts?: [number, number][]): [number, number][] | 
 }
 
 export const FitScreen: React.FC = () => {
-  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey } = useApp();
+  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
@@ -215,8 +216,15 @@ export const FitScreen: React.FC = () => {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            // Nettoyage immédiat des faux tracés sur les sessions stationnaires (0.00 km)
+            // Nettoyage immédiat des faux tracés sur les sessions stationnaires (hors tapis)
             return parsed.map((r: StoredRoute) => {
+              if (r.isIndoor) {
+                return {
+                  ...r,
+                  pointsSvgPath: '',
+                  realGpsPoints: undefined,
+                };
+              }
               const isStationary = !r.distanceKm || r.distanceKm < 0.05 || (!r.realGpsPoints || r.realGpsPoints.length < 2);
               if (isStationary) {
                 return {
@@ -292,6 +300,20 @@ export const FitScreen: React.FC = () => {
   const initialRunDist = params?.get('run_dist') ? parseFloat(params.get('run_dist')!) : 0;
 
   const [runState, setRunState] = useState<'idle' | 'running' | 'paused' | 'finished'>(initialRunState);
+  const [runMode, setRunMode] = useState<'outdoor' | 'treadmill'>('outdoor');
+  const [treadmillSpeedKmh, setTreadmillSpeedKmh] = useState<number>(0);
+  const treadmillSpeedRef = useRef<number>(0);
+  const treadmillStartStepsRef = useRef<number | null>(null);
+  const treadmillLastStepsRef = useRef<number>(0);
+  const [treadmillSteps, setTreadmillSteps] = useState<number>(0);
+  const runModeRef = useRef<'outdoor' | 'treadmill'>('outdoor');
+  useEffect(() => {
+    treadmillSpeedRef.current = treadmillSpeedKmh;
+  }, [treadmillSpeedKmh]);
+  useEffect(() => {
+    runModeRef.current = runMode;
+  }, [runMode]);
+
   const [runDurationSec, setRunDurationSec] = useState<number>(initialRunDur);
   const [runDistanceKm, setRunDistanceKm] = useState<number>(initialRunDist);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
@@ -342,12 +364,55 @@ export const FitScreen: React.FC = () => {
 
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>([]);
   const lastLiveBpmUpdateRef = useRef<number>(Date.now());
+  const liveBpmRef = useRef<number>(liveBpm);
+  liveBpmRef.current = liveBpm;
 
   useEffect(() => {
     if (liveBpm > 0) {
       lastLiveBpmUpdateRef.current = Date.now();
     }
   }, [liveBpm]);
+
+  // Suivre CHAQUE paquet BPM réel entrant (même si 2 battements consécutifs ont la même valeur)
+  useEffect(() => {
+    const unsub = qringBle.subscribe((data) => {
+      if (
+        (data.liveHeartRate !== undefined && data.liveHeartRate >= 40 && data.liveHeartRate <= 220) ||
+        (qringBle.isRealTimeHeartRateActive() && data.heartRate !== undefined && data.heartRate >= 40 && data.heartRate <= 220)
+      ) {
+        lastLiveBpmUpdateRef.current = Date.now();
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Suivi des pas matériels de la bague en mode Course sur tapis
+  const todayRingSteps = weekData?.[weekData.length - 1]?.steps || 0;
+  useEffect(() => {
+    if (runMode !== 'treadmill' || runState !== 'running') return;
+    if (treadmillStartStepsRef.current === null) {
+      treadmillStartStepsRef.current = todayRingSteps;
+      treadmillLastStepsRef.current = todayRingSteps;
+      return;
+    }
+    const totalDelta = Math.max(0, todayRingSteps - treadmillStartStepsRef.current);
+    setTreadmillSteps(totalDelta);
+
+    // Si la vitesse manuelle du tapis n'est pas fixée, avancer la distance à partir des pas réels de la bague
+    if (treadmillSpeedRef.current <= 0 && todayRingSteps > treadmillLastStepsRef.current) {
+      const incSteps = todayRingSteps - treadmillLastStepsRef.current;
+      treadmillLastStepsRef.current = todayRingSteps;
+      const strideKm = ((profile?.heightCm || 175) * 0.45) / 100000;
+      const incKm = incSteps * strideKm;
+      setRunDistanceKm((prev) => {
+        const updated = Math.round((prev + incKm) * 1000) / 1000;
+        runDistanceKmRef.current = updated;
+        return updated;
+      });
+    } else {
+      treadmillLastStepsRef.current = todayRingSteps;
+    }
+  }, [todayRingSteps, runMode, runState, profile?.heightCm]);
 
   // Empêcher l'extinction de l'écran pendant la course active (Screen WakeLock API)
   useEffect(() => {
@@ -373,21 +438,45 @@ export const FitScreen: React.FC = () => {
         const elapsed = Math.floor((Date.now() - runStartTimeRef.current) / 1000);
         setRunDurationSec(elapsed);
 
-        // Décroissance douce si perte prolongée du signal GPS (> 6s sans fix)
-        const timeSinceGps = lastValidGpsTimestampRef.current > 0 
-          ? (Date.now() - lastValidGpsTimestampRef.current) / 1000 
-          : 0;
         let curSpeed = currentSmoothedSpeedRef.current;
-        if (timeSinceGps > 6.0 && curSpeed > 0) {
-          curSpeed = Math.max(0, Math.round((curSpeed * 0.7) * 10) / 10);
-          currentSmoothedSpeedRef.current = curSpeed;
-          setInstantSpeedKmh(curSpeed);
+        if (runModeRef.current === 'treadmill') {
+          if (treadmillSpeedRef.current > 0) {
+            curSpeed = treadmillSpeedRef.current;
+            currentSmoothedSpeedRef.current = curSpeed;
+            setInstantSpeedKmh(curSpeed);
+            const incKm = curSpeed / 3600;
+            setRunDistanceKm((prev) => {
+              const updated = prev + incKm;
+              runDistanceKmRef.current = updated;
+              return updated;
+            });
+          } else {
+            // Mode auto-bague sur tapis : lire les pas réels (0 LED) toutes les 10s sans couper le stream HR
+            if (elapsed > 0 && elapsed % 10 === 0 && qringBle.isConnected() && !qringBle.isSyncingNow()) {
+              qringBle.requestStepsData(0).catch(() => {});
+            }
+            const distNow = runDistanceKmRef.current;
+            curSpeed = elapsed >= 5 && distNow > 0.005 ? Math.min(25, distNow / (elapsed / 3600)) : 0;
+            currentSmoothedSpeedRef.current = curSpeed;
+            setInstantSpeedKmh(Math.round(curSpeed * 10) / 10);
+          }
+        } else {
+          // Décroissance douce si perte prolongée du signal GPS (> 6s sans fix)
+          const timeSinceGps = lastValidGpsTimestampRef.current > 0
+            ? (Date.now() - lastValidGpsTimestampRef.current) / 1000
+            : 0;
+          if (timeSinceGps > 6.0 && curSpeed > 0) {
+            curSpeed = Math.max(0, Math.round((curSpeed * 0.7) * 10) / 10);
+            currentSmoothedSpeedRef.current = curSpeed;
+            setInstantSpeedKmh(curSpeed);
+          }
         }
 
-        // BPM en direct avec contrôle de fraîcheur (< 18s pour éviter les lignes plates si perte de contact optique)
-        const isBpmFresh = (Date.now() - lastLiveBpmUpdateRef.current) < 18000;
-        const curHr = (liveBpm > 0 && isBpmFresh) ? liveBpm : 0;
-        const currentDist = runDistanceKmRef.current;
+        // BPM en direct avec contrôle de fraîcheur (< 20s pour éviter les lignes plates si perte de contact optique)
+        const isBpmFresh = (Date.now() - lastLiveBpmUpdateRef.current) < 20000;
+        const activeLiveBpm = liveBpmRef.current;
+        const curHr = (activeLiveBpm > 0 && isBpmFresh) ? activeLiveBpm : 0;
+        const currentDist = Math.round(runDistanceKmRef.current * 1000) / 1000;
 
         setTelemetryHistory((prevHistory) => {
           if (prevHistory.length > 0 && prevHistory[prevHistory.length - 1].timeSec === elapsed) {
@@ -434,7 +523,7 @@ export const FitScreen: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
     };
-  }, [runState, liveBpm]);
+  }, [runState, runMode]);
 
   // Traitement universel des coordonnées GPS (Foreground + Native Background iOS CoreLocation)
   const processGpsFix = (latitude: number, longitude: number, speed: number | null, accuracy: number, timestamp?: number) => {
@@ -594,9 +683,9 @@ export const FitScreen: React.FC = () => {
     }
   };
 
-  // Surveillance GPS temps réel haute précision (Hybride Web + Native iOS Background)
+  // Surveillance GPS temps réel haute précision (Extérieur uniquement - désactivée sur tapis)
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (runMode === 'treadmill' || !('geolocation' in navigator)) return;
 
     // Localisation initiale pour centrer immédiatement
     navigator.geolocation.getCurrentPosition(
@@ -655,7 +744,7 @@ export const FitScreen: React.FC = () => {
       window.removeEventListener('nativeGpsUpdate', handleNativeGps);
       window.removeEventListener('nativeGpsBatchSync', handleNativeBatch);
     };
-  }, [runState]);
+  }, [runState, runMode]);
 
   // Support du scroll direct vers la section cardio/télémétrie
   useEffect(() => {
@@ -682,15 +771,18 @@ export const FitScreen: React.FC = () => {
       setRunDurationSec(0);
       setRunDistanceKm(0);
       runDistanceKmRef.current = 0;
-      setInstantSpeedKmh(0);
-      currentSmoothedSpeedRef.current = 0;
+      setInstantSpeedKmh(runMode === 'treadmill' ? treadmillSpeedKmh : 0);
+      currentSmoothedSpeedRef.current = runMode === 'treadmill' ? treadmillSpeedKmh : 0;
       recentGpsSamplesRef.current = [];
-      const initPoints: [number, number][] = userPosition ? [userPosition] : [];
+      treadmillStartStepsRef.current = todayRingSteps;
+      treadmillLastStepsRef.current = todayRingSteps;
+      setTreadmillSteps(0);
+      const initPoints: [number, number][] = runMode === 'outdoor' && userPosition ? [userPosition] : [];
       setRealGpsPoints(initPoints);
-      lastGpsFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
-      lastDistanceFixRef.current = userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
+      lastGpsFixRef.current = runMode === 'outdoor' && userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
+      lastDistanceFixRef.current = runMode === 'outdoor' && userPosition ? { lat: userPosition[0], lng: userPosition[1], time: Date.now() } : null;
       lastValidGpsTimestampRef.current = Date.now();
-      setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: 0, hrBpm: 0 }]);
+      setTelemetryHistory([{ timeSec: 0, distanceKm: 0, speedKmh: runMode === 'treadmill' ? treadmillSpeedKmh : 0, hrBpm: 0 }]);
       accumulatedDurRef.current = 0;
       runStartTimeRef.current = Date.now();
     } else {
@@ -700,7 +792,7 @@ export const FitScreen: React.FC = () => {
     setIsLiveHrActive(true);
     qringBle.startRealTimeHeartRate().catch(() => {});
     notifyNativeWorkout('start', {
-      workoutTitle: 'Course à pied',
+      workoutTitle: runMode === 'treadmill' ? 'Course sur tapis' : 'Course à pied',
       elapsedTime: 0,
       distanceKm: 0,
       paceText: '--:--',
@@ -789,25 +881,31 @@ export const FitScreen: React.FC = () => {
     const finalDist = Math.round(runDistanceKm * 100) / 100;
     const finalDur = runDurationSec;
     const finalHr = liveHr > 40 ? liveHr : 0;
-    const cleanedGps = sanitizeRouteGpsPoints(realGpsPoints);
-    const effectivePoints = cleanedGps && cleanedGps.length >= 2 ? cleanedGps : realGpsPoints;
-    const hasGps = effectivePoints && effectivePoints.length >= 2 && finalDist >= 0.05;
+    const isTreadmill = runMode === 'treadmill';
+    const cleanedGps = !isTreadmill ? sanitizeRouteGpsPoints(realGpsPoints) : [];
+    const effectivePoints = !isTreadmill && cleanedGps && cleanedGps.length >= 2 ? cleanedGps : realGpsPoints;
+    const hasGps = !isTreadmill && effectivePoints && effectivePoints.length >= 2 && finalDist >= 0.05;
     const pathInfo = hasGps ? convertGpsPointsToSvgPath(effectivePoints) : null;
     const now = new Date();
 
     const newRoute: StoredRoute = {
       id: `route-${Date.now()}`,
-      title: `Course Aurel · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
-      location: finalDist >= 0.05 ? 'Course extérieure' : 'Session statique',
+      title: isTreadmill
+        ? `${isEn ? 'Treadmill Run' : 'Course sur tapis'} · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
+        : `Course Aurel · ${now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`,
+      location: isTreadmill
+        ? (isEn ? 'Indoor Treadmill' : 'Tapis de course')
+        : (finalDist >= 0.05 ? 'Course extérieure' : 'Session statique'),
       distanceKm: finalDist,
       durationSec: finalDur,
       elevationM: 0,
       avgHr: finalHr,
       dateStr: `Aujourd'hui · ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
       pointsSvgPath: pathInfo ? pathInfo.pathD : '',
-      realGpsPoints: hasGps ? effectivePoints : (effectivePoints.length === 1 ? [effectivePoints[0]] : (userPosition ? [userPosition] : undefined)),
+      realGpsPoints: isTreadmill ? undefined : (hasGps ? effectivePoints : (effectivePoints.length === 1 ? [effectivePoints[0]] : (userPosition ? [userPosition] : undefined))),
       progress: 1,
       telemetryHistory: telemetryHistory.length > 0 ? [...telemetryHistory] : undefined,
+      isIndoor: isTreadmill,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);
     setSubTab('trajets');
@@ -1270,16 +1368,18 @@ export const FitScreen: React.FC = () => {
 
     openStory({
       mode: 'run',
-      title: 'Course GPS Aurel',
+      title: runMode === 'treadmill' ? (isEn ? 'Treadmill Run' : 'Course sur tapis') : 'Course GPS Aurel',
       dateStr: new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }),
-      accentText: 'Séance GPS Enregistrée',
+      accentText: runMode === 'treadmill'
+        ? (isEn ? 'Indoor Treadmill Session' : 'Séance Tapis Enregistrée')
+        : 'Séance GPS Enregistrée',
       stats: [
         { label: 'Distance', value: finalDist > 0 ? `${finalDist.toFixed(2)}` : '0.00', unit: 'km' },
         { label: 'Vitesse Moyenne', value: finalAvgSpeed, unit: 'km/h' },
         { label: 'Temps', value: fmtClockSec(finalDur) },
         { label: 'FC Moyenne', value: finalHr > 0 ? `${finalHr}` : '--', unit: 'bpm' },
       ],
-      realGpsPoints: realGpsPoints && realGpsPoints.length >= 2 ? realGpsPoints : undefined,
+      realGpsPoints: runMode === 'outdoor' && realGpsPoints && realGpsPoints.length >= 2 ? realGpsPoints : undefined,
     });
   };
 
@@ -1381,8 +1481,69 @@ export const FitScreen: React.FC = () => {
               </span>
             </div>
           )}
-          {/* Bandeau de Contrôle de la Course GPS Aurel */}
+          {/* Bandeau de Contrôle Course (Extérieure GPS ou Tapis de course) */}
           <div className="run-control-card">
+            {/* Sélecteur Course Normale (Extérieur GPS) vs Course sur Tapis */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '6px',
+                padding: '4px',
+                borderRadius: '14px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.09)',
+                marginBottom: '10px',
+                opacity: runState === 'running' || runState === 'paused' ? 0.6 : 1,
+                pointerEvents: runState === 'running' || runState === 'paused' ? 'none' : 'auto',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setRunMode('outdoor')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '7px',
+                  padding: '9px 10px',
+                  borderRadius: '10px',
+                  background: runMode === 'outdoor' ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+                  border: runMode === 'outdoor' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent',
+                  color: runMode === 'outdoor' ? '#FFFFFF' : 'rgba(250, 247, 242, 0.58)',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.16s ease',
+                }}
+              >
+                <Navigation size={14} color={runMode === 'outdoor' ? '#30D158' : 'currentColor'} />
+                <span>{isEn ? 'Outdoor Run' : 'Course normale'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode('treadmill')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '7px',
+                  padding: '9px 10px',
+                  borderRadius: '10px',
+                  background: runMode === 'treadmill' ? 'rgba(252, 82, 0, 0.2)' : 'transparent',
+                  border: runMode === 'treadmill' ? '1px solid rgba(252, 82, 0, 0.55)' : '1px solid transparent',
+                  color: runMode === 'treadmill' ? '#FFFFFF' : 'rgba(250, 247, 242, 0.58)',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.16s ease',
+                }}
+              >
+                <Activity size={14} color={runMode === 'treadmill' ? '#FC5200' : 'currentColor'} />
+                <span>{isEn ? 'Treadmill' : 'Course sur tapis'}</span>
+              </button>
+            </div>
+
             <div className="run-control-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span
@@ -1396,11 +1557,17 @@ export const FitScreen: React.FC = () => {
                 >
                   <span className="gps-pulse-dot" />
                   <span>
-                    {runState === 'running'
-                      ? (isEn ? 'Aurel GPS Active (Live)' : 'GPS Aurel Actif (Live)')
-                      : runState === 'paused'
-                      ? (isEn ? 'GPS Paused' : 'GPS en pause')
-                      : (isEn ? 'Aurel GPS Ready' : 'GPS Aurel Prêt')}
+                    {runMode === 'treadmill'
+                      ? runState === 'running'
+                        ? (isEn ? 'Treadmill Active (Live)' : 'Tapis Actif (Live)')
+                        : runState === 'paused'
+                        ? (isEn ? 'Treadmill Paused' : 'Tapis en pause')
+                        : (isEn ? 'Treadmill Ready (Indoor)' : 'Tapis Prêt (Intérieur)')
+                      : runState === 'running'
+                        ? (isEn ? 'Aurel GPS Active (Live)' : 'GPS Aurel Actif (Live)')
+                        : runState === 'paused'
+                        ? (isEn ? 'GPS Paused' : 'GPS en pause')
+                        : (isEn ? 'Aurel GPS Ready' : 'GPS Aurel Prêt')}
                   </span>
                 </span>
               </div>
@@ -1410,7 +1577,11 @@ export const FitScreen: React.FC = () => {
             {(runState === 'idle' || runState === 'finished') && (
               <button type="button" className="start-run-btn-main" onClick={startRun}>
                 <Play size={16} fill="#000000" />
-                <span>{isEn ? 'Start Run' : 'Démarrer la course'}</span>
+                <span>
+                  {runMode === 'treadmill'
+                    ? (isEn ? 'Start Treadmill Run' : 'Démarrer sur tapis')
+                    : (isEn ? 'Start Outdoor Run' : 'Démarrer la course')}
+                </span>
               </button>
             )}
 
@@ -1441,15 +1612,93 @@ export const FitScreen: React.FC = () => {
             )}
           </div>
 
-          {/* Authentic Apple Maps Dark Mode Workout Map */}
-          <AppleWorkoutMap
-            onOpenStory={openRunStory}
-            progress={liveProgress}
-            runState={runState}
-            distanceKm={runDistanceKm}
-            realGpsPoints={realGpsPoints}
-            userPosition={userPosition}
-          />
+          {runMode === 'outdoor' ? (
+            <AppleWorkoutMap
+              onOpenStory={openRunStory}
+              progress={liveProgress}
+              runState={runState}
+              distanceKm={runDistanceKm}
+              realGpsPoints={realGpsPoints}
+              userPosition={userPosition}
+            />
+          ) : (
+            <div
+              style={{
+                borderRadius: '24px',
+                padding: '20px 18px',
+                background: 'radial-gradient(ellipse at 50% 0%, rgba(252, 82, 0, 0.16) 0%, rgba(16, 16, 20, 0.96) 65%), #0A0A0C',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                boxShadow: '0 14px 32px rgba(0, 0, 0, 0.45)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#FC5200', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {isEn ? 'Indoor Studio · Ring Telemetry' : 'Mode Tapis · Sans GPS'}
+                </span>
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.65)', fontFamily: 'var(--font-mono)' }}>
+                  {treadmillSpeedKmh > 0 ? `${treadmillSpeedKmh.toFixed(1).replace('.', ',')} km/h` : (isEn ? 'Auto Ring Steps' : 'Auto pas bague')}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center' }}>
+                <div style={{ padding: '12px 8px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600 }}>{isEn ? 'Duration' : 'Durée'}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FAF7F2', fontVariantNumeric: 'tabular-nums', marginTop: '4px' }}>
+                    {fmtClockSec(runDurationSec)}
+                  </div>
+                </div>
+                <div style={{ padding: '12px 8px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 600 }}>Distance</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FAF7F2', fontVariantNumeric: 'tabular-nums', marginTop: '4px' }}>
+                    {runDistanceKm.toFixed(2)} <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>km</span>
+                  </div>
+                </div>
+                <div style={{ padding: '12px 8px', borderRadius: '14px', background: 'rgba(255, 69, 58, 0.08)', border: '1px solid rgba(255, 69, 58, 0.25)' }}>
+                  <div style={{ fontSize: '10.5px', color: '#FFA29A', fontWeight: 600 }}>Cardio</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FF5A52', fontVariantNumeric: 'tabular-nums', marginTop: '4px' }}>
+                    {liveHr > 0 ? liveHr : '--'} <span style={{ fontSize: '11px' }}>bpm</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Réglage optionnel vitesse du tapis (0 = auto via les pas de la bague) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.72)', fontWeight: 600 }}>
+                    {isEn ? 'Belt Speed (optional)' : 'Vitesse tapis (optionnel)'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                    {treadmillSpeedKmh === 0 ? (isEn ? 'Measured via ring steps' : 'Calculée via pas bague') : `${treadmillSpeedKmh.toFixed(1).replace('.', ',')} km/h`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {[0, 6, 8, 10, 12].map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setTreadmillSpeedKmh(spd)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 4px',
+                        borderRadius: '10px',
+                        background: treadmillSpeedKmh === spd ? 'rgba(252, 82, 0, 0.22)' : 'rgba(255, 255, 255, 0.05)',
+                        border: treadmillSpeedKmh === spd ? '1px solid #FC5200' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#FAF7F2',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {spd === 0 ? 'Auto' : `${spd} km/h`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1542,17 +1791,18 @@ export const FitScreen: React.FC = () => {
                           if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
                             try { navigator.vibrate(25); } catch (_) {}
                           }
+                          setRouteModalTab(route.isIndoor ? 'charts' : 'map');
                           setViewingRouteForMap(route);
                         }}
                         role="button"
                         tabIndex={0}
-                        title="Toucher pour voir le trajet sur Apple Maps"
+                        title={route.isIndoor ? 'Voir les données du tapis de course' : 'Toucher pour voir le trajet sur Apple Maps'}
                         style={{
                           width: '68px',
                           height: '68px',
                           borderRadius: '16px',
                           background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.06) 0%, rgba(12, 12, 16, 0.98) 100%)',
-                          border: '1px solid rgba(255, 255, 255, 0.16)',
+                          border: route.isIndoor ? '1px solid rgba(252, 82, 0, 0.35)' : '1px solid rgba(255, 255, 255, 0.16)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -1569,7 +1819,16 @@ export const FitScreen: React.FC = () => {
                           <line x1="12" y1="50" x2="88" y2="50" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
                           <line x1="50" y1="12" x2="50" y2="88" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
 
-                          {visual.isSinglePoint ? (
+                          {route.isIndoor ? (
+                            <>
+                              <circle cx="50" cy="46" r="21" fill="none" stroke="rgba(252, 82, 0, 0.22)" strokeWidth="1.2" strokeDasharray="4 3" />
+                              <path d="M 28 54 L 72 54" stroke="#FC5200" strokeWidth="3.2" strokeLinecap="round" />
+                              <path d="M 34 44 L 44 36 L 52 44 L 62 34" fill="none" stroke="#FAF7F2" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                              <text x="50" y="79" textAnchor="middle" fill="#FC5200" fontSize="8.5" fontWeight="800" fontFamily="var(--font-mono)" letterSpacing="0.06em">
+                                TAPIS
+                              </text>
+                            </>
+                          ) : visual.isSinglePoint ? (
                             <>
                               <circle cx="50" cy="50" r="22" fill="none" stroke="rgba(48, 209, 88, 0.16)" strokeWidth="1" strokeDasharray="3 3" />
                               <circle cx="50" cy="50" r="13" fill="rgba(48, 209, 88, 0.12)" stroke="rgba(48, 209, 88, 0.4)" strokeWidth="1" />
@@ -1639,7 +1898,7 @@ export const FitScreen: React.FC = () => {
                             boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
                           }}
                         >
-                          <MapPin size={10} color="#30D158" />
+                          {route.isIndoor ? <Activity size={10} color="#FC5200" /> : <MapPin size={10} color="#30D158" />}
                         </div>
                       </div>
                     );
@@ -3721,6 +3980,24 @@ export const FitScreen: React.FC = () => {
       {isLiveRunningViewOpen && (runState === 'running' || runState === 'paused' || runState === 'finished') && (
         <LiveRunningView
           runState={runState}
+          runMode={runMode}
+          treadmillSpeedKmh={treadmillSpeedKmh}
+          onSetTreadmillSpeed={(spd) => {
+            setTreadmillSpeedKmh(spd);
+            treadmillSpeedRef.current = spd;
+            if (spd > 0) {
+              currentSmoothedSpeedRef.current = spd;
+              setInstantSpeedKmh(spd);
+            }
+          }}
+          treadmillSteps={treadmillSteps}
+          onAdjustDistanceKm={(delta) => {
+            setRunDistanceKm((prev) => {
+              const updated = Math.max(0, Math.round((prev + delta) * 100) / 100);
+              runDistanceKmRef.current = updated;
+              return updated;
+            });
+          }}
           runDurationSec={runDurationSec}
           runDistanceKm={runDistanceKm}
           liveSpeedKmh={parseFloat(liveSpeedKmh)}
