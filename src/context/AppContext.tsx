@@ -1030,28 +1030,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return createEmptyWeekMetrics();
   });
 
+  const loadedWeekIdRef = useRef<string>(currentWeekCalendar.weekId);
+  const skipNextSaveRef = useRef<boolean>(false);
+
   // Met à jour le calendrier global dans health.ts et charge la semaine correspondante lors d'un changement de semaine
   useEffect(() => {
     refreshCalendar(currentBaseDate, weekOffset < 0);
-    const weekKey = `vyta_week_${currentWeekCalendar.weekId}`;
+    const targetWeekId = currentWeekCalendar.weekId;
+    if (loadedWeekIdRef.current === targetWeekId) return;
+
+    const weekKey = `vyta_week_${targetWeekId}`;
+    let nextData: DayMetrics[] | null = null;
     try {
       const saved = localStorage.getItem(weekKey);
       if (saved) {
-        setWeekData(JSON.parse(saved));
-        return;
-      }
-      if (weekOffset === 0) {
+        nextData = JSON.parse(saved);
+      } else if (weekOffset === 0) {
         const legacy = localStorage.getItem('vyta_week_data');
         if (legacy) {
-          setWeekData(JSON.parse(legacy));
-          return;
+          nextData = JSON.parse(legacy);
         }
       }
     } catch (_) {}
-    setWeekData(createEmptyWeekMetrics());
+
+    loadedWeekIdRef.current = targetWeekId;
+    skipNextSaveRef.current = true;
+    setWeekData(nextData || createEmptyWeekMetrics());
   }, [weekOffset, currentWeekCalendar.weekId, currentBaseDate]);
 
   useEffect(() => {
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    if (loadedWeekIdRef.current !== currentWeekCalendar.weekId) return;
     if (typeof window !== 'undefined') {
       try {
         const weekKey = `vyta_week_${currentWeekCalendar.weekId}`;
