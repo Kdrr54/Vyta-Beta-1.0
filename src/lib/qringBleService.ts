@@ -103,8 +103,19 @@ export interface DiscoveredBleDevice {
   isRing?: boolean;
 }
 
+export interface BleLogEntry {
+  id: number;
+  time: string;
+  dir: 'TX' | 'RX' | 'EVT';
+  summary: string;
+  hex?: string;
+}
+
 type RingListener = (data: BleRingData) => void;
 type DeviceDiscoveryListener = (device: DiscoveredBleDevice) => void;
+type BleLogListener = (logs: BleLogEntry[]) => void;
+
+const BLE_LOG_STORAGE_KEY = 'aurel_ble_debug_logs';
 
 class QRingBleService {
   // Web Bluetooth handles
@@ -170,6 +181,19 @@ class QRingBleService {
   private realTimeHrTimer: any = null;
   private lastAutoMeasureSlot = -1;
   private isAutoSpotMeasuring = false;
+  private bleLogs: BleLogEntry[] = (() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(BLE_LOG_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.slice(0, 80);
+      }
+    } catch (_) {}
+    return [];
+  })();
+  private logListeners = new Set<BleLogListener>();
+  private logSeq = Date.now();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -266,6 +290,95 @@ class QRingBleService {
   public onDeviceDiscovered(listener: DeviceDiscoveryListener): () => void {
     this.discoveryListeners.add(listener);
     return () => this.discoveryListeners.delete(listener);
+  }
+
+  public subscribeLogs(listener: BleLogListener): () => void {
+    this.logListeners.add(listener);
+    listener([...this.bleLogs]);
+    return () => this.logListeners.delete(listener);
+  }
+
+  public getBleLogs(): BleLogEntry[] {
+    return [...this.bleLogs];
+  }
+
+  public clearBleLogs(): void {
+    this.bleLogs = [];
+    try {
+      localStorage.removeItem(BLE_LOG_STORAGE_KEY);
+    } catch (_) {}
+    this.logListeners.forEach((cb) => {
+      try { cb([]); } catch (_) {}
+    });
+  }
+
+  private describeBlePacket(dir: 'TX' | 'RX', bytes: number[]): string {
+    if (!bytes || bytes.length === 0) return dir;
+    const cmd = bytes[0] & 0xFF;
+    const b1 = bytes.length > 1 ? bytes[1] & 0xFF : 0;
+    const b2 = bytes.length > 2 ? bytes[2] & 0xFF : 0;
+    const b3 = bytes.length > 3 ? bytes[3] & 0xFF : 0;
+
+    if (cmd === 0x01) return 'TimeSync BCD';
+    if (cmd === 0x03) return dir === 'TX' ? 'Requête Batterie (0x03)' : `Batterie: ${b1 === 0 || b1 === 1 || b1 === 2 ? b2 : b1}% (statut=${b1})`;
+    if (cmd === 0x15) return dir === 'TX' ? 'Lecture Flash FC (0x15)' : `Log FC 0x15 frame=${b1}`;
+    if (cmd === 0x16) return `${dir === 'TX' && b1 === 1 ? 'Lecture' : 'Config'} Intervalle FC 0x16 (sub=${b1}, on=${b2 === 1}, ${b3}m)`;
+    if (cmd === 0x2C) return `${dir === 'TX' && b1 === 1 ? 'Lecture' : 'Config'} SpO2 0x2C (sub=${b1}, on=${b2 === 1}, ${b3}m)`;
+    if (cmd === 0x38) return `${dir === 'TX' && b1 === 1 ? 'Lecture' : 'Config'} VRC 0x38 (sub=${b1}, on=${b2 === 1}, ${b3}m)`;
+    if (cmd === 0x36) return `${dir === 'TX' && b1 === 1 ? 'Lecture' : 'Config'} Stress 0x36 (sub=${b1}, on=${b2 === 1}, ${b3}m)`;
+    if (cmd === 0x3A) return `Temp 0x3A (b1=${b1}, b2=${b2}, b3=${b3})`;
+    if (cmd === 0x37) return dir === 'TX' ? 'Lecture Flash Stress (0x37)' : `Log Stress 0x37 pkt=${b1}`;
+    if (cmd === 0x39) return dir === 'TX' ? 'Lecture Flash VRC (0x39)' : `Log VRC 0x39 pkt=${b1}`;
+    if (cmd === 0x43 || cmd === 0x07 || cmd === 0x48) return `Activité/Pas (0x${cmd.toString(16)})`;
+    if (cmd === 0x69) {
+      const tName = b1 === 1 ? 'FC' : b1 === 3 ? 'SpO2' : b1 === 5 ? 'Temp' : b1 === 10 ? 'VRC' : `type=${b1}`;
+      const act = dir === 'TX' ? (b2 === 1 ? 'START' : b2 === 3 ? 'CONTINUE' : b2 === 4 ? 'STOP' : `act=${b2}`) : `val=[${b2},${b3}]`;
+      return `Live 0x69 ${tName} (${act})`;
+    }
+    if (cmd === 0x6A) return `Live STOP 0x6A (type=${b1})`;
+    if (cmd === 0x1E) return dir === 'TX' ? `Live Legacy 0x1E (${b1})` : `Live 0x1E bpm=${b1 || b2}`;
+    if (cmd === 0x73) return `Push 0x73 (type=${b1}, val=${b2})`;
+    if (cmd === 0xBC) return `BigData 0xBC id=0x${b1.toString(16)}`;
+    return `Cmd 0x${cmd.toString(16).padStart(2, '0')} [${b1},${b2},${b3}]`;
+  }
+
+  private pushBleLog(dir: 'TX' | 'RX' | 'EVT', summary: string, bytes?: number[]) {
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const hex = bytes
+      ? bytes.slice(0, 16).map((b) => (b & 0xFF).toString(16).padStart(2, '0')).join(' ')
+      : undefined;
+    const entry: BleLogEntry = {
+      id: ++this.logSeq,
+      time,
+      dir,
+      summary,
+      hex,
+    };
+    this.bleLogs = [entry, ...this.bleLogs].slice(0, 160);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(BLE_LOG_STORAGE_KEY, JSON.stringify(this.bleLogs.slice(0, 60)));
+      } catch (_) {}
+    }
+    this.logListeners.forEach((cb) => {
+      try { cb([...this.bleLogs]); } catch (_) {}
+    });
+  }
+
+  /**
+   * Interroge la bague sur les intervalles actuellement enregistrés dans sa mémoire interne (0 LED)
+   */
+  public async querySensorConfigs(): Promise<void> {
+    if (!this.isConnected()) {
+      this.pushBleLog('EVT', 'Lecture config impossible : bague non connectée');
+      return;
+    }
+    this.pushBleLog('EVT', 'Lecture des réglages stockés dans la bague...');
+    for (const cmd of [0x16, 0x2C, 0x38, 0x36, 0x3A]) {
+      await this.writeBytes(this.makePacket(cmd, [0x01]));
+      await new Promise((r) => setTimeout(r, 120));
+    }
   }
 
   private notify(data: BleRingData) {
@@ -864,6 +977,7 @@ class QRingBleService {
         deviceId,
         (disconnectedId) => {
           console.warn('[QRing BLE Native] Peripheral disconnected:', disconnectedId || deviceId);
+          this.pushBleLog('EVT', `Déconnectée (${deviceName})`);
           this.connectedDeviceId = null;
           this.lastProgrammedIntervalMinutes = null;
           this.stopHeartbeat();
@@ -1021,6 +1135,7 @@ class QRingBleService {
       } catch (_) {}
 
       // 4. Send Hardware Protocol Handshakes & Configuration (skip if triggered for instant live measure)
+      this.pushBleLog('EVT', `Connectée (${deviceName}${batteryLevel ? `, ${batteryLevel}%` : ''}, svc=${this.activeServiceUuid.slice(4, 8)})`);
       if (!skipInitialSync) {
         await this.syncAllRingData();
       } else {
@@ -1475,6 +1590,7 @@ class QRingBleService {
    */
   private async writeBigDataBytes(bytes: number[]): Promise<boolean> {
     if (!this.connectedDeviceId || !this.activeBigDataRxUuid) return false;
+    this.pushBleLog('TX', this.describeBlePacket('TX', bytes), bytes);
     try {
       const dataView = numbersToDataView(bytes);
       await BleClient.writeWithoutResponse(
@@ -1646,6 +1762,9 @@ class QRingBleService {
     const chunk = Array.from(new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength));
     const hex = chunk.map((b) => b.toString(16).padStart(2, '0')).join('');
     console.log('[QRing BLE BIGDATA RECV]', hex);
+    if (chunk[0] === 0xBC) {
+      this.pushBleLog('RX', this.describeBlePacket('RX', chunk), chunk);
+    }
 
     if (
       chunk[0] === 0xBC &&
@@ -2324,6 +2443,7 @@ class QRingBleService {
    * Tries active service first, then QRING_SERVICE_UUID (6e40fff0) and NORDIC_UART_SERVICE_UUID (6e400001)
    */
   private async writeBytes(bytes: number[]): Promise<boolean> {
+    this.pushBleLog('TX', this.describeBlePacket('TX', bytes), bytes);
     try {
       if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
         const dataView = numbersToDataView(bytes);
@@ -2395,10 +2515,12 @@ class QRingBleService {
     const len = dataView.byteLength;
     const header = dataView.getUint8(0);
 
-    const hex = Array.from(new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength))
+    const rawBytes = Array.from(new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength));
+    const hex = rawBytes
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
     console.log('[QRing BLE RECV]', hex);
+    this.pushBleLog('RX', this.describeBlePacket('RX', rawBytes), rawBytes);
 
     // 1. Battery Response packet (header 0x03)
     if (header === 0x03 && len >= 2) {
