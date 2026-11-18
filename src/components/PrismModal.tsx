@@ -11,9 +11,10 @@ interface PrismModalProps {
 }
 
 export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
-  const { profile, selectedDay, language, weekData, isFirstLaunch, openModal } = useApp();
+  const { profile, selectedDay, language, weekData, isFirstLaunch, openModal, cardThemeMode } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
+  const isMono = cardThemeMode === 'monochrome';
   const [vvLayout, setVvLayout] = useState<{ top: number; height: number | null; isKeyboard: boolean }>({
     top: 0,
     height: null,
@@ -164,16 +165,19 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: vvLayout.isKeyboard ? '100%' : '92dvh',
-          maxHeight: vvLayout.isKeyboard ? '100%' : '840px',
-          transition: 'height 0.18s ease-out',
+          height: vvLayout.height ? '100%' : '92dvh',
+          maxHeight: vvLayout.height ? '100%' : '840px',
           borderRadius: vvLayout.isKeyboard ? '22px 22px 0 0' : '34px 34px 0 0',
-          background: 'linear-gradient(180deg, #09090D 0%, #060608 100%)',
+          background: isMono
+            ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
+            : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.16)',
+          borderTop: isMono
+            ? '1px solid rgba(255, 248, 240, 0.16)'
+            : '1px solid rgba(192, 132, 252, 0.28)',
         }}
       >
         {/* Unified Header */}
@@ -192,17 +196,18 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '30px',
-                height: '30px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(192, 132, 252, 0.22)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Sparkles size={15} color="#FAF7F2" />
+              <Sparkles size={15} color={isMono ? '#FAF7F2' : '#C084FC'} strokeWidth={1.8} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span
@@ -240,8 +245,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 height: '32px',
                 padding: '0 12px',
                 borderRadius: '999px',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.12)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid rgba(192, 132, 252, 0.32)',
                 color: '#FAF7F2',
                 fontSize: '11.5px',
                 fontWeight: 600,
@@ -252,7 +257,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
               }}
               title={isEn ? 'Open Nutrition Scanner' : 'Scanner un repas'}
             >
-              <Camera size={13} color="#30D158" />
+              <Camera size={13} color={isMono ? '#FAF7F2' : '#C084FC'} />
               <span>Nutrition</span>
             </button>
 
@@ -264,8 +269,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(255, 248, 240, 0.07)',
+                border: '1px solid rgba(255, 248, 240, 0.14)',
                 color: '#FAF7F2',
                 display: 'flex',
                 alignItems: 'center',
@@ -282,7 +287,9 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
           <MorphOrb
             onSubmit={handleAskAurelius}
-            minThinkMs={1400}
+            minThinkMs={450}
+            speed={1.45}
+            accentMode={isMono ? 'mono' : 'amethyst'}
             greetingTitle={greetingTitle}
             greetingSubtitle={greetingSubtitle}
             suggestions={quickSuggestions}

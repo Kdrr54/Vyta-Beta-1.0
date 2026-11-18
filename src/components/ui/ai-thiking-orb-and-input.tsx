@@ -28,6 +28,7 @@ export interface MorphOrbProps {
   suggestions?: string[];
   onSuggestionAction?: (suggestion: string) => boolean;
   isKeyboardOpen?: boolean;
+  accentMode?: "amethyst" | "mono";
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
@@ -43,8 +44,13 @@ const cardW = (el?: HTMLElement | null) => {
   const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
   return Math.min(360, w - 32);
 };
-const homeDy = (el?: HTMLElement | null) => {
+const homeDy = (el?: HTMLElement | null, elevated = false) => {
   const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
+  if (elevated) {
+    // Dock input pill cleanly in the upper area (~15% height) well clear of iOS keyboard + accessory bar
+    const targetCenterY = Math.max(54, Math.min(104, h * 0.15));
+    return targetCenterY - h * 0.46;
+  }
   return Math.max(44, h * 0.54 - Math.max(64, Math.min(92, h * 0.14)));
 };
 
@@ -269,15 +275,17 @@ const DU = Float32Array.from(DOT_LIST, (d) => d.u);
 const DS = Float32Array.from(DOT_LIST, (d) => d.seed);
 
 const G_STEPS = 24, A_STEPS = 48;
-const COLORS: string[] = (() => {
+const buildColorLUT = (toR: number, toG: number, toB: number): string[] => {
   const out: string[] = [];
   for (let gi = 0; gi <= G_STEPS; gi++) {
     const g = gi / G_STEPS;
-    const r = Math.round(lerp(235, 52, g)), gg = Math.round(lerp(235, 211, g)), b = Math.round(lerp(235, 153, g));
+    const r = Math.round(lerp(246, toR, g)), gg = Math.round(lerp(242, toG, g)), b = Math.round(lerp(250, toB, g));
     for (let ai = 0; ai <= A_STEPS; ai++) out.push(`rgba(${r},${gg},${b},${(ai / A_STEPS).toFixed(3)})`);
   }
   return out;
-})();
+};
+const COLORS_AMETHYST = buildColorLUT(192, 132, 252);
+const COLORS_MONO = buildColorLUT(255, 255, 255);
 
 interface OrbParams {
   k: number; alpha: number; spin: number; rot: number; sweep: number; pop: number;
@@ -285,7 +293,12 @@ interface OrbParams {
 }
 const ORB_KEYS = ["k", "alpha", "spin", "sweep", "pop", "vortex", "gain", "floor", "rad"] as const;
 
-function createOrb(canvas: HTMLCanvasElement, getSpeed: () => number, isReduced: () => boolean) {
+function createOrb(
+  canvas: HTMLCanvasElement,
+  getSpeed: () => number,
+  isReduced: () => boolean,
+  getAccentMode: () => "amethyst" | "mono" = () => "amethyst"
+) {
   const P: OrbParams = { k: 0, alpha: 0, spin: 0, rot: 0, sweep: 0, pop: 1, vortex: 0, gain: 1, floor: 0, rad: 0, prog: 0 };
   const ctx = canvas.getContext("2d");
   const lit = new Float32Array(N);
@@ -390,12 +403,13 @@ function createOrb(canvas: HTMLCanvasElement, getSpeed: () => number, isReduced:
     }
 
     /* two passes: back half first, then front half */
+    const lut = getAccentMode() === "mono" ? COLORS_MONO : COLORS_AMETHYST;
     for (let pass = 0; pass < 2; pass++) {
       for (let n = 0; n < N; n++) {
         const c = SC[n];
         if (c < 0) continue;
         if ((SD[n] >= 0.5) !== (pass === 1)) continue;
-        ctx.fillStyle = COLORS[c];
+        ctx.fillStyle = lut[c];
         ctx.beginPath();
         ctx.arc(SX[n], SY[n], SR[n], 0, TAU);
         ctx.fill();
@@ -445,6 +459,8 @@ interface Env {
   canvas: HTMLCanvasElement; pulse: HTMLElement; status: HTMLElement;
   getBody: () => HTMLElement | null;
   ui: UI; getSpeed: () => number; isReduced: () => boolean;
+  isElevated: () => boolean;
+  getAccentMode: () => "amethyst" | "mono";
 }
 interface RunCfg { onSubmit: (text: string) => Promise<string> | string; minThink: number }
 interface Runtime {
@@ -478,8 +494,8 @@ function sampleAt(h: Sample[], t: number, out: Sample) {
 function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q: string) => void): Runtime {
   const { actor, mover, root, status, pulse, ghosts, form } = env;
   const life = new AbortController();
-  const geo: Geo = { pw: pillW(root), cw: cardW(root), H: homeDy(root), dir: -1 };
-  const orb = createOrb(env.canvas, env.getSpeed, env.isReduced);
+  const geo: Geo = { pw: pillW(root), cw: cardW(root), H: homeDy(root, env.isElevated()), dir: -1 };
+  const orb = createOrb(env.canvas, env.getSpeed, env.isReduced, env.getAccentMode);
   const vals: Record<string, number> = {};
   const dirty = new Set<string>();
   const CH: Record<string, (v: number) => void> = {};
@@ -534,12 +550,10 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     const nodes = body.querySelectorAll<HTMLElement>(".mo-w");
     const total = (nodes.length - 1) * wStagger + wDur;
     const time = v * total;
-    const reduced = env.isReduced();
-    nodes.forEach((el, i) => {
+    for (let i = 0; i < nodes.length; i++) {
       const p = E.out(clamp01((time - i * wStagger) / wDur));
-      el.style.opacity = fmt(p);
-      el.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 4)}px)`;
-    });
+      nodes[i].style.opacity = fmt(p);
+    }
   };
 
   /* ── channels ── */
@@ -628,6 +642,12 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
       if (sig.aborted) throw ABORT;
     };
     try {
+      // Kick off the query immediately in parallel with the orb launch & assemble motion
+      const t0 = performance.now();
+      const pending = Promise.resolve()
+        .then(() => cfg.onSubmit(text))
+        .then((b) => (typeof b === "string" && b.trim() ? b : copy.answerBody), () => copy.answerBody);
+
       env.ui.setPhase("launch");
       hist.length = 0;
       if (!reduced) {
@@ -648,10 +668,6 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
       env.ui.live(copy.labels[0]);
       const ctl = { stop: false };
       void labelLoop(sig, ctl);
-      const t0 = performance.now();
-      const pending = Promise.resolve()
-        .then(() => cfg.onSubmit(text))
-        .then((b) => (typeof b === "string" && b.trim() ? b : copy.answerBody), () => copy.answerBody);
       const got = await abortable(pending, sig);
       if (sig.aborted) throw ABORT;
       const body = got ?? copy.answerBody;
@@ -731,7 +747,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     env.ui.clearInput();
     orb.reset();
     hist.length = 0;
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
     resetChannels();
     const pillCh = ["oPill", "oInput", "oGlow", "oAur", "oRing"];
     pillCh.forEach((ch) => setNow(ch, 0));
@@ -756,7 +772,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hist.length = 0;
     env.ui.setAnswer("");
     env.ui.resetLabel();
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
     resetChannels();
     setNow("pulse", -1);
     busy = false; idling = false;
@@ -771,7 +787,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     start(text, cfg) {
       if (busy) return false;
       busy = true;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root); // snapshot once, never read layout in frames
+      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated()); // snapshot once, never read layout in frames
       geo.dir = -geo.dir;
       orb.reset();
       setNow("u", 0);
@@ -793,7 +809,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hard,
     home() {
       if (busy) return;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root);
+      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
       setNow("w", geo.pw);
       setNow("u", 0);
     },
@@ -822,14 +838,22 @@ export default function MorphOrb(props: MorphOrbProps) {
     suggestions,
     onSuggestionAction,
     isKeyboardOpen = false,
+    accentMode = "amethyst",
   } = props;
   const copy = React.useMemo(() => ({ ...COPY, ...userCopy }), [userCopy]);
   const [phase, setPhaseState] = useState<Phase>("idle");
   const [value, setValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const [lbl, setLbl] = useState<{ cur: string; prev: string | null; n: number }>({ cur: copy.labels[0], prev: null, n: 0 });
   const [answer, setAnswer] = useState("");
   const [dbgSpeed, setDbgSpeed] = useState(1);
   const [debug] = useState(() => typeof window !== "undefined" && /[?&]debug(?:[=&]|$)/.test(window.location.search));
+
+  const isElevated = phase === "idle" && (isFocused || isKeyboardOpen);
+  const elevatedRef = useRef(isElevated);
+  elevatedRef.current = isElevated;
+  const accentModeRef = useRef(accentMode);
+  accentModeRef.current = accentMode;
 
   const rootRef = useRef<HTMLDivElement>(null);
   const moverRef = useRef<HTMLDivElement>(null);
@@ -870,6 +894,8 @@ export default function MorphOrb(props: MorphOrbProps) {
       getBody: () => bodyRef.current,
       getSpeed: () => speedRef.current,
       isReduced: () => reducedRef.current,
+      isElevated: () => elevatedRef.current,
+      getAccentMode: () => accentModeRef.current,
       ui: {
         setPhase: (p) => { phaseRef.current = p; setPhaseState(p); },
         swapLabel: (name) => setLbl((l) => (l.cur === name ? l : { cur: name, prev: l.cur, n: l.n + 1 })),
@@ -878,7 +904,11 @@ export default function MorphOrb(props: MorphOrbProps) {
         clearInput: () => setValue(""),
         live: (s) => { if (liveRef.current) liveRef.current.textContent = s; },
         lock: (on) => { form.toggleAttribute("inert", on); },
-        idleReady: () => { inputRef.current?.focus({ preventScroll: true }); },
+        idleReady: () => {
+          if (typeof window !== "undefined" && window.matchMedia?.("(pointer: fine)").matches) {
+            inputRef.current?.focus({ preventScroll: true });
+          }
+        },
         focusAnswer: () => { answerRef.current?.focus({ preventScroll: true }); },
       },
     }, copy, onSuccess);
@@ -913,6 +943,12 @@ export default function MorphOrb(props: MorphOrbProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (phaseRef.current === "idle" && rtRef.current && !rtRef.current.busy()) {
+      rtRef.current.home();
+    }
+  }, [isElevated]);
+
   const defaultSubmit = () =>
     new Promise<string>((res) => {
       window.setTimeout(() => res(COPY.answerBody), 4600 / speedRef.current);
@@ -928,20 +964,12 @@ export default function MorphOrb(props: MorphOrbProps) {
     a.removeAttribute("data-shake");
     void a.offsetWidth;
     a.setAttribute("data-shake", "");
-    a.setAttribute("data-flash", "");
     window.clearTimeout(timers.current.shake);
-    window.clearTimeout(timers.current.flash);
     timers.current.shake = window.setTimeout(() => a.removeAttribute("data-shake"), 260);
-    timers.current.flash = window.setTimeout(() => a.removeAttribute("data-flash"), 200);
   };
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setValue(e.target.value);
-    const a = actorRef.current;
-    if (!a) return;
-    a.setAttribute("data-typing", "");
-    window.clearTimeout(timers.current.typing);
-    timers.current.typing = window.setTimeout(() => a.removeAttribute("data-typing"), 300);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -954,9 +982,11 @@ export default function MorphOrb(props: MorphOrbProps) {
     if (!rt || rt.busy() || phaseRef.current !== "idle") return;
     const text = value.trim();
     if (!text) { shake(); return; }
-    inputRef.current?.blur();
     lastTextRef.current = text;
+    // Start launch BEFORE blurring so initial geometry snapshots elevated pill position smoothly
     rt.start(text, makeCfg());
+    setIsFocused(false);
+    inputRef.current?.blur();
   };
 
   const onReset = () => {
@@ -1012,7 +1042,20 @@ export default function MorphOrb(props: MorphOrbProps) {
     );
 
   return (
-    <div className={`mo-root ${className}`.trim()} style={style} data-phase={phase} ref={rootRef}>
+    <div
+      className={`mo-root ${className}`.trim()}
+      style={style}
+      data-phase={phase}
+      data-theme={accentMode}
+      data-elevated={isElevated ? "true" : "false"}
+      ref={rootRef}
+      onPointerDown={(e) => {
+        if (isElevated && formRef.current && !formRef.current.contains(e.target as Node)) {
+          inputRef.current?.blur();
+          setIsFocused(false);
+        }
+      }}
+    >
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
 
@@ -1031,15 +1074,15 @@ export default function MorphOrb(props: MorphOrbProps) {
             textAlign: "center",
             gap: "12px",
             zIndex: 8,
-            opacity: phase === "idle" && !isKeyboardOpen ? 1 : 0,
-            transform: phase === "idle" && !isKeyboardOpen ? "translateY(0)" : "translateY(-10px)",
-            pointerEvents: phase === "idle" && !isKeyboardOpen ? "auto" : "none",
-            transition: "opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+            opacity: phase === "idle" && !isElevated ? 1 : 0,
+            transform: phase === "idle" && !isElevated ? "translate3d(0, 0, 0)" : "translate3d(0, -14px, 0)",
+            pointerEvents: phase === "idle" && !isElevated ? "auto" : "none",
+            transition: "opacity 200ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          {phase === "idle" && !isKeyboardOpen && (
+          {phase === "idle" && !isElevated && (
             <div style={{ pointerEvents: "none", marginBottom: "-4px" }}>
-              <AureliusOrb status="idle" size={118} />
+              <AureliusOrb status="idle" size={118} accentMode={accentMode} />
             </div>
           )}
 
@@ -1090,9 +1133,15 @@ export default function MorphOrb(props: MorphOrbProps) {
                   style={{
                     padding: "9px 14px",
                     borderRadius: "999px",
-                    background: "rgba(255, 255, 255, 0.055)",
-                    border: "1px solid rgba(255, 255, 255, 0.12)",
-                    color: "rgba(250, 247, 242, 0.9)",
+                    background:
+                      accentMode === "mono"
+                        ? "rgba(255, 255, 255, 0.06)"
+                        : "rgba(192, 132, 252, 0.09)",
+                    border:
+                      accentMode === "mono"
+                        ? "1px solid rgba(255, 248, 240, 0.14)"
+                        : "1px solid rgba(192, 132, 252, 0.24)",
+                    color: "rgba(250, 247, 242, 0.92)",
                     fontSize: "12.5px",
                     fontWeight: 500,
                     cursor: "pointer",
@@ -1134,11 +1183,14 @@ export default function MorphOrb(props: MorphOrbProps) {
               ref={inputRef}
               className="mo-field"
               type="text"
+              enterKeyHint="send"
               value={value}
               maxLength={200}
               placeholder={copy.placeholder}
               aria-label="Ask anything"
               spellCheck={false}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               onChange={onChange}
               onKeyDown={onKeyDown}
             />
@@ -1213,66 +1265,40 @@ export interface AureliusOrbProps {
   label?: string;
   prog?: number;
   size?: number;
+  accentMode?: "amethyst" | "mono";
 }
 
-export function AureliusOrb({ status, label, prog = 0, size = 180 }: AureliusOrbProps) {
+export function AureliusOrb({ status, label, prog = 0, size = 180, accentMode = "amethyst" }: AureliusOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const orbRef = useRef<ReturnType<typeof createOrb> | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
+  const accentModeRef = useRef(accentMode);
+  accentModeRef.current = accentMode;
   const [orbReady, setOrbReady] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    let raf = 0;
     let cancelled = false;
 
-    // Wait one animation frame + slight delay so modal slide-up starts at locked 60/120fps
     const startTimer = window.setTimeout(() => {
       if (cancelled) return;
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const orb = createOrb(canvas, () => 1, () => mq.matches);
+      const orb = createOrb(canvas, () => 1, () => mq.matches, () => accentModeRef.current);
       orb.P.k = 1;
       orb.P.alpha = 0.85;
-      orb.P.spin = 0.28;
+      orb.P.spin = 0.25;
+      orb.P.gain = 0.7;
       orb.P.pop = 1;
       orb.ensure();
       orbRef.current = orb;
       setOrbReady(true);
-
-      let last = performance.now();
-      const tick = (now: number) => {
-        if (cancelled) return;
-        const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-        last = now;
-        const st = statusRef.current;
-        const P = orb.P;
-        const tSpin = st === "thinking" ? 0.95 : st === "done" ? 0.35 : 0.25;
-        const tAlpha = st === "idle" ? 0.85 : 1;
-        const tSweep = st === "done" ? 1 : 0;
-        const tFloor = st === "done" ? 0.95 : 0;
-        const tGain = st === "thinking" ? 1.15 : st === "done" ? 0 : 0.7;
-        const tRad = st === "done" ? 0.16 : st === "thinking" ? 0.04 : 0;
-
-        const k = 1 - Math.exp(-dt * 5.5);
-        P.spin = lerp(P.spin, tSpin, k);
-        P.alpha = lerp(P.alpha, tAlpha, k);
-        P.sweep = lerp(P.sweep, tSweep, k);
-        P.floor = lerp(P.floor, tFloor, k);
-        P.gain = lerp(P.gain, tGain, k);
-        P.rad = lerp(P.rad, tRad, k);
-        P.k = 1;
-        orb.ensure();
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    }, 120);
+    }, 80);
 
     return () => {
       cancelled = true;
       window.clearTimeout(startTimer);
-      cancelAnimationFrame(raf);
       if (orbRef.current) {
         orbRef.current.destroy();
         orbRef.current = null;
@@ -1281,10 +1307,29 @@ export function AureliusOrb({ status, label, prog = 0, size = 180 }: AureliusOrb
   }, []);
 
   useEffect(() => {
-    if (orbRef.current) {
-      orbRef.current.P.prog = prog % 4;
-    }
-  }, [prog]);
+    const orb = orbRef.current;
+    if (!orb) return;
+    const P = orb.P;
+    P.spin = status === "thinking" ? 0.95 : status === "done" ? 0.35 : 0.25;
+    P.alpha = status === "idle" ? 0.85 : 1;
+    P.sweep = status === "done" ? 1 : 0;
+    P.floor = status === "done" ? 0.95 : 0;
+    P.gain = status === "thinking" ? 1.15 : status === "done" ? 0 : 0.7;
+    P.rad = status === "done" ? 0.16 : status === "thinking" ? 0.04 : 0;
+    P.prog = prog % 4;
+    orb.ensure();
+  }, [status, prog, orbReady]);
+
+  const haloBackground =
+    accentMode === "mono"
+      ? status === "done"
+        ? "radial-gradient(circle, rgba(250, 247, 242, 0.24) 0%, rgba(255, 255, 255, 0.07) 44%, transparent 72%)"
+        : "radial-gradient(circle, rgba(250, 247, 242, 0.14) 0%, rgba(255, 255, 255, 0.05) 42%, transparent 72%)"
+      : status === "done"
+      ? "radial-gradient(circle, rgba(192, 132, 252, 0.28) 0%, rgba(168, 85, 247, 0.1) 44%, transparent 72%)"
+      : status === "thinking"
+      ? "radial-gradient(circle, rgba(192, 132, 252, 0.24) 0%, rgba(216, 180, 254, 0.12) 40%, transparent 72%)"
+      : "radial-gradient(circle, rgba(192, 132, 252, 0.16) 0%, rgba(250, 247, 242, 0.06) 42%, transparent 72%)";
 
   return (
     <div
@@ -1313,12 +1358,7 @@ export function AureliusOrb({ status, label, prog = 0, size = 180 }: AureliusOrb
             position: "absolute",
             inset: "-24px",
             borderRadius: "50%",
-            background:
-              status === "done"
-                ? "radial-gradient(circle, rgba(52, 211, 153, 0.24) 0%, rgba(16, 185, 129, 0.08) 42%, transparent 72%)"
-                : status === "thinking"
-                ? "radial-gradient(circle, rgba(192, 132, 252, 0.22) 0%, rgba(56, 189, 248, 0.12) 40%, transparent 72%)"
-                : "radial-gradient(circle, rgba(147, 197, 253, 0.15) 0%, rgba(192, 132, 252, 0.08) 40%, transparent 72%)",
+            background: haloBackground,
             transition: "background 0.4s ease",
             pointerEvents: "none",
           }}
@@ -1346,7 +1386,12 @@ export function AureliusOrb({ status, label, prog = 0, size = 180 }: AureliusOrb
             gap: "8px",
             fontSize: "13px",
             fontWeight: 500,
-            color: status === "done" ? "#4ade80" : "rgba(250, 247, 242, 0.88)",
+            color:
+              status === "done"
+                ? accentMode === "mono"
+                  ? "#FAF7F2"
+                  : "#D8B4FE"
+                : "rgba(250, 247, 242, 0.88)",
             letterSpacing: "-0.2px",
             minHeight: "20px",
           }}
