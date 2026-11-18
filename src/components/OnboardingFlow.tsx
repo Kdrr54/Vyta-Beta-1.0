@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { qringBle, DiscoveredBleDevice } from '../lib/qringBleService';
+import { qringBle, DiscoveredBleDevice, formatRingDisplayName } from '../lib/qringBleService';
 import { checkWarrantyForEmail, setAccountEmail } from '../lib/warrantyService';
 import {
   Sparkles,
@@ -114,7 +114,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
     try {
       const res = await qringBle.requestAndConnect();
       if (res.success) {
-        setConnectedDeviceName(res.deviceName || 'Aurel Ring One');
+        setConnectedDeviceName(formatRingDisplayName(res.deviceName, true));
         updateRing({
           isConnected: true,
           ...(res.battery && res.battery > 0 ? { batteryRing: res.battery } : {}),
@@ -143,7 +143,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       await qringBle.stopScan();
       const res = await qringBle.connectDirectly(dev.deviceId, dev.name);
       if (res.success) {
-        setConnectedDeviceName(res.deviceName || dev.name);
+        setConnectedDeviceName(formatRingDisplayName(res.deviceName || dev.name, true));
         setConnectingDeviceId(null);
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try {
@@ -1170,7 +1170,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2' }}>
-                            {dev.name}
+                            {formatRingDisplayName(dev.name, dev.isRing)}
                           </span>
                           <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', fontFamily: 'var(--font-mono)' }}>
                             {dev.rssi ? `Signal: ${dev.rssi} dBm` : 'Bluetooth LE'}

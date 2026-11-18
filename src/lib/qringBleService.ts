@@ -103,6 +103,23 @@ export interface DiscoveredBleDevice {
   isRing?: boolean;
 }
 
+/**
+ * Masque les noms Bluetooth bruts d'usine (R21_..., R02_..., QRing..., etc.)
+ * pour toujours afficher "Aurel Ring One" côté utilisateur dans l'application.
+ */
+export function formatRingDisplayName(rawName?: string, isRing = true): string {
+  const clean = (rawName || '').trim();
+  if (!clean || isRing) return 'Aurel Ring One';
+  const upper = clean.toUpperCase();
+  if (
+    ['RING', 'QRING', 'AUREL', 'VYTA', 'QC', 'STOIK', 'STOÏK', 'COLMI', 'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']
+      .some((k) => upper.includes(k))
+  ) {
+    return 'Aurel Ring One';
+  }
+  return clean;
+}
+
 export interface BleLogEntry {
   id: number;
   time: string;
@@ -615,7 +632,7 @@ class QRingBleService {
         if (isKnownSaved || isRingName || rawConnected.length === 1) {
           results.push({
             deviceId: devId,
-            name: name || savedName || 'Bague Stoïk',
+            name: name || savedName || 'Aurel Ring One',
             isRing: true,
             rssi: -45,
           });

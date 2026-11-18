@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { finishes } from '../data/health';
-import { qringBle, DiscoveredBleDevice } from '../lib/qringBleService';
+import { qringBle, DiscoveredBleDevice, formatRingDisplayName } from '../lib/qringBleService';
 import { useEffect } from 'react';
 import {
   Bluetooth,
@@ -64,14 +64,15 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
   }, []);
 
   const handleConnectSpecific = async (dev: DiscoveredBleDevice) => {
+    const label = formatRingDisplayName(dev.name, dev.isRing);
     setStatus('searching');
-    setStatusMessage(`Connexion à ${dev.name}...`);
+    setStatusMessage(`Connexion à ${label}...`);
     try {
       await qringBle.stopScan();
       const res = await qringBle.connectDirectly(dev.deviceId, dev.name);
       if (res.success) {
         setStatus('found');
-        setStatusMessage(`Bague ${res.deviceName || dev.name} connectée`);
+        setStatusMessage(`Bague ${formatRingDisplayName(res.deviceName || dev.name, true)} connectée`);
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try { navigator.vibrate(35); } catch (_) {}
         }
@@ -114,7 +115,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
       const res = await qringBle.requestAndConnect();
       if (res.success) {
         setStatus('found');
-        setStatusMessage(`Bague ${res.deviceName || 'Aurel Ring One'} connectée`);
+        setStatusMessage(`Bague ${formatRingDisplayName(res.deviceName, true)} connectée`);
 
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try {
@@ -582,7 +583,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '16px' }}>💍</span>
                   <span style={{ fontSize: '14px', fontWeight: 700, color: dev.isRing ? '#D9F970' : '#FFFFFF' }}>
-                    {dev.name}
+                    {formatRingDisplayName(dev.name, dev.isRing)}
                   </span>
                 </div>
                 <span
