@@ -590,6 +590,7 @@ class QRingBleService {
         const isRingName = [
           'RING',
           'QRING',
+          'AUREL',
           'VYTA',
           'QC',
           'R0',
@@ -739,10 +740,12 @@ class QRingBleService {
             rawName &&
             savedName &&
             (rawName.toLowerCase() === savedName.toLowerCase() ||
+              rawName.toLowerCase().includes('aurel') ||
               rawName.toLowerCase().includes('vyta') ||
               rawName.toLowerCase().includes('ring') ||
               rawName.toLowerCase().includes('qring') ||
-              rawName.toLowerCase().includes('r0'));
+              rawName.toLowerCase().includes('r0') ||
+              rawName.toLowerCase().includes('r2'));
 
           if (isMatchId || isMatchName) {
             finish({
@@ -898,6 +901,7 @@ class QRingBleService {
           const isRing = [
             'RING',
             'QRING',
+            'AUREL',
             'VYTA',
             'QC',
             'R0',
@@ -1277,10 +1281,12 @@ class QRingBleService {
         { services: [QRING_SERVICE_UUID] },
         { services: [NORDIC_UART_SERVICE_UUID] },
         { namePrefix: 'QRing' },
+        { namePrefix: 'Aurel' },
         { namePrefix: 'Vyta' },
         { namePrefix: 'QC' },
         { namePrefix: 'Ring' },
         { namePrefix: 'R0' },
+        { namePrefix: 'R2' },
       ],
       optionalServices: [
         QRING_SERVICE_UUID,
