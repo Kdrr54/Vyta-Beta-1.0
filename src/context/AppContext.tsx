@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek, toLocalDateKey } from '../data/health';
 import { checkWarrantyForEmail } from '../lib/warrantyService';
+import { dispatchApplePush, requestBrowserNotificationPermission } from '../lib/apnsService';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
 import { buildSleepSummary } from '../lib/sleepAlgorithm';
@@ -1215,6 +1216,109 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearInterval(interval);
     };
   }, []);
+
+  // Demander l'autorisation de notifications natives dès l'appairage actif
+  useEffect(() => {
+    if (!isPaired) return;
+    void requestBrowserNotificationPermission();
+  }, [isPaired]);
+
+  // Moteur d'alertes batterie (<= 20% faible, 100% charge complète)
+  const prevBatteryRef = useRef<number>(ring.batteryRing || 0);
+  useEffect(() => {
+    if (!isPaired || !ring.isConnected) {
+      if (ring.batteryRing > 0) prevBatteryRef.current = ring.batteryRing;
+      return;
+    }
+    const pct = ring.batteryRing;
+    const prevPct = prevBatteryRef.current;
+    prevBatteryRef.current = pct;
+    if (pct <= 0) return;
+
+    const isEn = language === 'en';
+    try {
+      // Hysteresis reset
+      if (pct >= 25) localStorage.removeItem('vyta_notif_low_batt_sent');
+      if (pct <= 95) localStorage.removeItem('vyta_notif_full_batt_sent');
+
+      // Alerte batterie faible (<= 20%, hors charge)
+      if (pct <= 20 && !ring.isCharging && localStorage.getItem('vyta_notif_low_batt_sent') !== '1') {
+        localStorage.setItem('vyta_notif_low_batt_sent', '1');
+        dispatchApplePush(
+          isEn ? `Low Battery · ${pct}%` : `Batterie faible · ${pct}%`,
+          isEn
+            ? `Your Aurel Ring One is down to ${pct}%. Place it on its dock soon.`
+            : `Votre Aurel Ring One est à ${pct}%. Pensez à la recharger prochainement.`,
+          'battery'
+        );
+      }
+
+      // Alerte batterie chargée à 100%
+      if (
+        pct === 100 &&
+        (ring.isCharging || (prevPct > 0 && prevPct < 100)) &&
+        localStorage.getItem('vyta_notif_full_batt_sent') !== '1'
+      ) {
+        localStorage.setItem('vyta_notif_full_batt_sent', '1');
+        dispatchApplePush(
+          isEn ? 'Battery Charged · 100%' : 'Batterie chargée à 100%',
+          isEn
+            ? 'Your Aurel Ring One is fully charged and ready to wear.'
+            : 'Votre Aurel Ring One est rechargée à 100% et prête à être portée.',
+          'battery'
+        );
+      }
+    } catch (_) {}
+  }, [isPaired, ring.isConnected, ring.batteryRing, ring.isCharging, language]);
+
+  // Moteur d'alertes d'anomalie biométrique (température/VRC, SpO2 bas, FC inhabituelle)
+  useEffect(() => {
+    if (!isPaired || weekOffset !== 0) return;
+    const cur = weekData?.[TODAY_INDEX];
+    if (!cur) return;
+
+    const isEn = language === 'en';
+    let anomalyKind: string | null = null;
+    let bodyText = '';
+
+    if (cur.anomaly) {
+      anomalyKind = `immunity_${cur.anomaly.tempDelta.toFixed(1)}_${cur.anomaly.hrvDelta}`;
+      bodyText = isEn
+        ? `Biometric shift detected (Temp ${cur.anomaly.tempDelta >= 0 ? '+' : ''}${cur.anomaly.tempDelta.toFixed(1)}°C, HRV ${cur.anomaly.hrvDelta} ms). Take it easy and prioritize recovery.`
+        : `Variation physiologique détectée (Température ${cur.anomaly.tempDelta >= 0 ? '+' : ''}${cur.anomaly.tempDelta.toFixed(1)}°C, VRC ${cur.anomaly.hrvDelta} ms). Privilégiez le repos.`;
+    } else if (cur.spo2 > 0 && cur.spo2 < 90) {
+      anomalyKind = `spo2_${cur.spo2}`;
+      bodyText = isEn
+        ? `Low blood oxygen reading detected (${cur.spo2}%). Check ring fit or rest for a new reading.`
+        : `Saturation en oxygène basse détectée (${cur.spo2}%). Vérifiez l'ajustement de la bague ou refaites une mesure au calme.`;
+    } else if (cur.restingBpm >= 115 || (cur.bpm > 0 && cur.bpm < 42)) {
+      anomalyKind = `hr_${cur.restingBpm || cur.bpm}`;
+      const val = cur.bpm > 0 && cur.bpm < 42 ? cur.bpm : cur.restingBpm;
+      bodyText = isEn
+        ? `Unusual heart rate detected (${val} bpm). Rest and verify sensor placement.`
+        : `Fréquence cardiaque inhabituelle détectée (${val} bpm). Restez au calme et vérifiez le port de la bague.`;
+    }
+
+    if (!anomalyKind) return;
+
+    try {
+      const todayKey = toLocalDateKey(new Date());
+      const raw = localStorage.getItem('vyta_notif_last_anomaly');
+      if (raw) {
+        const prev = JSON.parse(raw) as { dayKey?: string; kind?: string; ts?: number };
+        const fourHours = 4 * 60 * 60 * 1000;
+        if (prev.dayKey === todayKey && prev.kind === anomalyKind && prev.ts && Date.now() - prev.ts < fourHours) {
+          return;
+        }
+      }
+      localStorage.setItem('vyta_notif_last_anomaly', JSON.stringify({ dayKey: todayKey, kind: anomalyKind, ts: Date.now() }));
+      dispatchApplePush(
+        isEn ? 'Biometric Anomaly Detected' : 'Anomalie détectée',
+        bodyText,
+        'anomaly'
+      );
+    } catch (_) {}
+  }, [isPaired, weekOffset, weekData, language]);
 
   const addManualNap = useCallback((napInput: {
     startMin: number;

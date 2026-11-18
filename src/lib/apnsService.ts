@@ -4,7 +4,7 @@ export interface PushNotificationPayload {
   id: string;
   title: string;
   body: string;
-  category: 'battery' | 'sleep' | 'vrc' | 'workout';
+  category: 'battery' | 'sleep' | 'vrc' | 'workout' | 'anomaly';
   timestamp: number;
   read: boolean;
 }
@@ -24,20 +24,40 @@ export const getStoredNotifications = (): PushNotificationPayload[] => {
 };
 
 export const saveNotifications = (notifs: PushNotificationPayload[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifs));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifs.slice(0, 50)));
+  } catch (_) {}
 };
 
+function postNativeNotificationMessage(payload: Record<string, unknown>): boolean {
+  try {
+    const webkit = (window as unknown as {
+      webkit?: { messageHandlers?: { vytaNotification?: { postMessage: (msg: unknown) => void } } };
+    }).webkit;
+    if (webkit?.messageHandlers?.vytaNotification) {
+      webkit.messageHandlers.vytaNotification.postMessage(payload);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 export const requestBrowserNotificationPermission = async (): Promise<boolean> => {
-  if (!('Notification' in window)) return false;
+  const sentNative = postNativeNotificationMessage({ action: 'requestPermission' });
+  if (!('Notification' in window)) return sentNative;
   try {
     const res = await Notification.requestPermission();
-    return res === 'granted';
+    return res === 'granted' || sentNative;
   } catch {
-    return false;
+    return sentNative;
   }
 };
 
-export const dispatchApplePush = (title: string, body: string, category: PushNotificationPayload['category'] = 'battery') => {
+export const dispatchApplePush = (
+  title: string,
+  body: string,
+  category: PushNotificationPayload['category'] = 'battery'
+) => {
   const notifs = getStoredNotifications();
   const newNotif: PushNotificationPayload = {
     id: `notif-${Date.now()}`,
@@ -49,8 +69,16 @@ export const dispatchApplePush = (title: string, body: string, category: PushNot
   };
   saveNotifications([newNotif, ...notifs]);
 
-  // If browser permission is granted, display real system notification
-  if ('Notification' in window && Notification.permission === 'granted') {
+  // Native iOS UNUserNotificationCenter local alert
+  postNativeNotificationMessage({
+    action: 'schedule',
+    title,
+    body,
+    category,
+  });
+
+  // Web Notification API fallback when running outside native iOS shell
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       new Notification(title, {
         body,

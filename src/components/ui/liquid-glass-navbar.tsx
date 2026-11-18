@@ -372,9 +372,9 @@ export function LiquidNavbar({
       s.last = now
       step(dt, now)
       draw()
-      const busy = s.moving || s.rips.length || s.sats.length || s.mouse.s > 0.01
-      // ambient water keeps moving while visible; reduced-motion only animates on change
-      if (s.visible && (!s.reduce || busy)) s.raf = requestAnimationFrame(tick)
+      const busy = s.moving || s.rips.length > 0 || s.sats.length > 0 || s.mouse.s > 0.01
+      // Run WebGL frame loop only while transitioning/rippling so idle scrolling & tab switches hit 120fps
+      if (s.visible && busy) s.raf = requestAnimationFrame(tick)
       else s.raf = 0
     }
     s.raf = requestAnimationFrame(tick)
@@ -419,7 +419,7 @@ export function LiquidNavbar({
   }, [current, loop])
 
   React.useEffect(() => {
-    setRefract(supportsRefraction())
+    setRefract(false)
     const s = st.current
     s.reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
     const cv = canvasRef.current

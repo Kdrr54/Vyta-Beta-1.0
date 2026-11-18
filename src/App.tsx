@@ -43,6 +43,17 @@ const AppInner: React.FC = () => {
     setSelectedDay,
   } = useApp();
 
+  const [visitedTabs, setVisitedTabs] = React.useState<Set<string>>(() => new Set(['health']));
+
+  React.useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  }, [tab]);
+
   // Préchargement silencieux en tâche de fond des onglets et modales fréquentes après le premier rendu
   React.useEffect(() => {
     if (!isPaired) return;
@@ -137,12 +148,26 @@ const AppInner: React.FC = () => {
         }
       >
         <Suspense fallback={null}>
-          <div key={tab} className="apple-tab-view">
-            {tab === 'health' && <HealthScreen />}
-            {tab === 'sleep' && <SleepScreen />}
-            {tab === 'cycle' && <CycleScreen />}
-            {tab === 'fit' && <FitScreen />}
-          </div>
+          {visitedTabs.has('health') && (
+            <div className={tab === 'health' ? 'apple-tab-view' : undefined} style={{ display: tab === 'health' ? 'block' : 'none' }}>
+              <HealthScreen />
+            </div>
+          )}
+          {visitedTabs.has('sleep') && (
+            <div className={tab === 'sleep' ? 'apple-tab-view' : undefined} style={{ display: tab === 'sleep' ? 'block' : 'none' }}>
+              <SleepScreen />
+            </div>
+          )}
+          {visitedTabs.has('cycle') && (
+            <div className={tab === 'cycle' ? 'apple-tab-view' : undefined} style={{ display: tab === 'cycle' ? 'block' : 'none' }}>
+              <CycleScreen />
+            </div>
+          )}
+          {visitedTabs.has('fit') && (
+            <div className={tab === 'fit' ? 'apple-tab-view' : undefined} style={{ display: tab === 'fit' ? 'block' : 'none' }}>
+              <FitScreen />
+            </div>
+          )}
         </Suspense>
       </IPhoneFrame>
     </div>

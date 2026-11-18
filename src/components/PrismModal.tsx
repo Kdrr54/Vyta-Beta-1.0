@@ -99,10 +99,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       style={{
         zIndex: 1200,
         position: 'fixed',
-        top: vvLayout.isKeyboard ? `${vvLayout.top}px` : 0,
-        left: 0,
-        right: 0,
-        height: vvLayout.height ? `${vvLayout.height}px` : '100dvh',
+        inset: 0,
+        height: '100dvh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -165,9 +163,9 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: vvLayout.height ? '100%' : '92dvh',
-          maxHeight: vvLayout.height ? '100%' : '840px',
-          borderRadius: vvLayout.isKeyboard ? '22px 22px 0 0' : '34px 34px 0 0',
+          height: '92dvh',
+          maxHeight: '840px',
+          borderRadius: '34px 34px 0 0',
           background: isMono
             ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
             : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
@@ -294,6 +292,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             greetingSubtitle={greetingSubtitle}
             suggestions={quickSuggestions}
             isKeyboardOpen={vvLayout.isKeyboard}
+            viewportHeight={vvLayout.height}
             onSuggestionAction={(s) => {
               if (s.includes('Scanner') || s.includes('Scan meal') || s.includes('Cal AI')) {
                 handleClose();

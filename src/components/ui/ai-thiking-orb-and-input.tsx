@@ -28,6 +28,7 @@ export interface MorphOrbProps {
   suggestions?: string[];
   onSuggestionAction?: (suggestion: string) => boolean;
   isKeyboardOpen?: boolean;
+  viewportHeight?: number | null;
   accentMode?: "amethyst" | "mono";
 }
 
@@ -44,11 +45,14 @@ const cardW = (el?: HTMLElement | null) => {
   const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
   return Math.min(360, w - 32);
 };
-const homeDy = (el?: HTMLElement | null, elevated = false) => {
+const homeDy = (el?: HTMLElement | null, elevated = false, viewportHeight?: number | null) => {
   const h = el && el.clientHeight > 200 ? el.clientHeight : window.innerHeight;
   if (elevated) {
-    // Dock input pill cleanly in the upper area (~15% height) well clear of iOS keyboard + accessory bar
-    const targetCenterY = Math.max(54, Math.min(104, h * 0.15));
+    // Sit right below the fixed greeting + suggestions (~225px) and cleanly above the iOS keyboard + accessory bar
+    let targetCenterY = Math.min(272, Math.max(242, h * 0.375));
+    if (viewportHeight && viewportHeight > 260) {
+      targetCenterY = Math.min(targetCenterY, Math.max(220, viewportHeight - 118));
+    }
     return targetCenterY - h * 0.46;
   }
   return Math.max(44, h * 0.54 - Math.max(64, Math.min(92, h * 0.14)));
@@ -460,6 +464,7 @@ interface Env {
   getBody: () => HTMLElement | null;
   ui: UI; getSpeed: () => number; isReduced: () => boolean;
   isElevated: () => boolean;
+  getViewportHeight: () => number | null;
   getAccentMode: () => "amethyst" | "mono";
 }
 interface RunCfg { onSubmit: (text: string) => Promise<string> | string; minThink: number }
@@ -494,7 +499,7 @@ function sampleAt(h: Sample[], t: number, out: Sample) {
 function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q: string) => void): Runtime {
   const { actor, mover, root, status, pulse, ghosts, form } = env;
   const life = new AbortController();
-  const geo: Geo = { pw: pillW(root), cw: cardW(root), H: homeDy(root, env.isElevated()), dir: -1 };
+  const geo: Geo = { pw: pillW(root), cw: cardW(root), H: homeDy(root, env.isElevated(), env.getViewportHeight()), dir: -1 };
   const orb = createOrb(env.canvas, env.getSpeed, env.isReduced, env.getAccentMode);
   const vals: Record<string, number> = {};
   const dirty = new Set<string>();
@@ -747,7 +752,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     env.ui.clearInput();
     orb.reset();
     hist.length = 0;
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
+    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated(), env.getViewportHeight());
     resetChannels();
     const pillCh = ["oPill", "oInput", "oGlow", "oAur", "oRing"];
     pillCh.forEach((ch) => setNow(ch, 0));
@@ -772,7 +777,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hist.length = 0;
     env.ui.setAnswer("");
     env.ui.resetLabel();
-    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
+    geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated(), env.getViewportHeight());
     resetChannels();
     setNow("pulse", -1);
     busy = false; idling = false;
@@ -787,7 +792,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     start(text, cfg) {
       if (busy) return false;
       busy = true;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated()); // snapshot once, never read layout in frames
+      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated(), env.getViewportHeight()); // snapshot once, never read layout in frames
       geo.dir = -geo.dir;
       orb.reset();
       setNow("u", 0);
@@ -809,7 +814,7 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
     hard,
     home() {
       if (busy) return;
-      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated());
+      geo.pw = pillW(root); geo.cw = cardW(root); geo.H = homeDy(root, env.isElevated(), env.getViewportHeight());
       setNow("w", geo.pw);
       setNow("u", 0);
     },
@@ -838,6 +843,7 @@ export default function MorphOrb(props: MorphOrbProps) {
     suggestions,
     onSuggestionAction,
     isKeyboardOpen = false,
+    viewportHeight = null,
     accentMode = "amethyst",
   } = props;
   const copy = React.useMemo(() => ({ ...COPY, ...userCopy }), [userCopy]);
@@ -852,6 +858,8 @@ export default function MorphOrb(props: MorphOrbProps) {
   const isElevated = phase === "idle" && (isFocused || isKeyboardOpen);
   const elevatedRef = useRef(isElevated);
   elevatedRef.current = isElevated;
+  const viewportHeightRef = useRef(viewportHeight);
+  viewportHeightRef.current = viewportHeight;
   const accentModeRef = useRef(accentMode);
   accentModeRef.current = accentMode;
 
@@ -895,6 +903,7 @@ export default function MorphOrb(props: MorphOrbProps) {
       getSpeed: () => speedRef.current,
       isReduced: () => reducedRef.current,
       isElevated: () => elevatedRef.current,
+      getViewportHeight: () => viewportHeightRef.current,
       getAccentMode: () => accentModeRef.current,
       ui: {
         setPhase: (p) => { phaseRef.current = p; setPhaseState(p); },
@@ -947,7 +956,7 @@ export default function MorphOrb(props: MorphOrbProps) {
     if (phaseRef.current === "idle" && rtRef.current && !rtRef.current.busy()) {
       rtRef.current.home();
     }
-  }, [isElevated]);
+  }, [isElevated, viewportHeight]);
 
   const defaultSubmit = () =>
     new Promise<string>((res) => {
@@ -1007,10 +1016,11 @@ export default function MorphOrb(props: MorphOrbProps) {
     if (onSuggestionAction?.(s)) return;
     const rt = rtRef.current;
     if (!rt || rt.busy() || phaseRef.current !== "idle") return;
-    inputRef.current?.blur();
     lastTextRef.current = s;
     setValue(s);
     rt.start(s, makeCfg());
+    setIsFocused(false);
+    inputRef.current?.blur();
   };
 
   const ready = value.trim().length > 0;
@@ -1059,38 +1069,38 @@ export default function MorphOrb(props: MorphOrbProps) {
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
 
-      {/* Mobile Idle Hero & Quick Suggestion Pills */}
+      {/* Mobile Idle Hero & Quick Suggestion Pills (always stationary in idle) */}
       {(greetingTitle || (suggestions && suggestions.length > 0)) && (
         <div
           style={{
             position: "absolute",
-            top: "6%",
+            top: "10px",
             left: 0,
             right: 0,
-            padding: "0 20px",
+            padding: "0 18px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             textAlign: "center",
-            gap: "12px",
+            gap: "8px",
             zIndex: 8,
-            opacity: phase === "idle" && !isElevated ? 1 : 0,
-            transform: phase === "idle" && !isElevated ? "translate3d(0, 0, 0)" : "translate3d(0, -14px, 0)",
-            pointerEvents: phase === "idle" && !isElevated ? "auto" : "none",
-            transition: "opacity 200ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+            opacity: phase === "idle" ? 1 : 0,
+            transform: phase === "idle" ? "translate3d(0, 0, 0)" : "translate3d(0, -10px, 0)",
+            pointerEvents: phase === "idle" ? "auto" : "none",
+            transition: "opacity 200ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          {phase === "idle" && !isElevated && (
-            <div style={{ pointerEvents: "none", marginBottom: "-4px" }}>
-              <AureliusOrb status="idle" size={118} accentMode={accentMode} />
+          {phase === "idle" && (
+            <div style={{ pointerEvents: "none", marginBottom: "-6px" }}>
+              <AureliusOrb status="idle" size={88} accentMode={accentMode} />
             </div>
           )}
 
           {greetingTitle && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "320px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px", maxWidth: "320px" }}>
               <h3
                 style={{
-                  fontSize: "21px",
+                  fontSize: "19px",
                   fontWeight: 700,
                   color: "#FAF7F2",
                   letterSpacing: "-0.4px",
@@ -1102,9 +1112,9 @@ export default function MorphOrb(props: MorphOrbProps) {
               {greetingSubtitle && (
                 <p
                   style={{
-                    fontSize: "13px",
+                    fontSize: "12.5px",
                     color: "rgba(250, 247, 242, 0.55)",
-                    lineHeight: 1.4,
+                    lineHeight: 1.35,
                     margin: 0,
                   }}
                 >
@@ -1120,8 +1130,8 @@ export default function MorphOrb(props: MorphOrbProps) {
                 display: "flex",
                 flexWrap: "wrap",
                 justifyContent: "center",
-                gap: "8px",
-                marginTop: "6px",
+                gap: "7px",
+                marginTop: "4px",
                 maxWidth: "360px",
               }}
             >
@@ -1131,7 +1141,7 @@ export default function MorphOrb(props: MorphOrbProps) {
                   type="button"
                   onClick={() => handleSuggestionClick(s)}
                   style={{
-                    padding: "9px 14px",
+                    padding: "7px 12px",
                     borderRadius: "999px",
                     background:
                       accentMode === "mono"
@@ -1189,7 +1199,13 @@ export default function MorphOrb(props: MorphOrbProps) {
               placeholder={copy.placeholder}
               aria-label="Ask anything"
               spellCheck={false}
-              onFocus={() => setIsFocused(true)}
+              onFocus={() => {
+                setIsFocused(true);
+                if (typeof window !== "undefined") {
+                  window.requestAnimationFrame(() => window.scrollTo(0, 0));
+                  window.setTimeout(() => window.scrollTo(0, 0), 60);
+                }
+              }}
               onBlur={() => setIsFocused(false)}
               onChange={onChange}
               onKeyDown={onKeyDown}

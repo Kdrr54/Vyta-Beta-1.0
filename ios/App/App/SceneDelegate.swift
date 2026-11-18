@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import WebKit
 import CoreLocation
+import UserNotifications
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
@@ -93,7 +94,7 @@ class WorkoutLiveActivityManager {
 }
 #endif
 
-class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler {
+class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
     private weak var defaultUIDelegate: WKUIDelegate?
     private let locationManager = CLLocationManager()
     private var isWorkoutActive = false
@@ -135,13 +136,68 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             locationManager.showsBackgroundLocationIndicator = true
         }
 
-        // Add script message handler for workout tracking
+        // Add script message handlers for workout tracking & native alerts
         self.webView?.configuration.userContentController.removeScriptMessageHandler(forName: "vytaWorkoutTracker")
         self.webView?.configuration.userContentController.add(self, name: "vytaWorkoutTracker")
+        self.webView?.configuration.userContentController.removeScriptMessageHandler(forName: "vytaNotification")
+        self.webView?.configuration.userContentController.add(self, name: "vytaNotification")
+        UNUserNotificationCenter.current().delegate = self
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .list, .sound, .badge])
+        } else {
+            completionHandler([.alert, .sound, .badge])
+        }
     }
 
     // MARK: - WKScriptMessageHandler
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "vytaNotification" {
+            guard let dict = message.body as? [String: Any], let action = dict["action"] as? String else { return }
+            let center = UNUserNotificationCenter.current()
+            if action == "requestPermission" {
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                    if let error = error {
+                        print("[Vyta Notifications] Auth error: \(error.localizedDescription)")
+                    } else {
+                        print("[Vyta Notifications] Permission granted: \(granted)")
+                    }
+                }
+                return
+            }
+            if action == "schedule" {
+                let title = (dict["title"] as? String) ?? "Aurel Ring"
+                let body = (dict["body"] as? String) ?? ""
+                let category = (dict["category"] as? String) ?? "general"
+                center.getNotificationSettings { settings in
+                    let triggerDispatch = {
+                        let content = UNMutableNotificationContent()
+                        content.title = title
+                        content.body = body
+                        content.sound = .default
+                        content.threadIdentifier = "aurel-\(category)"
+                        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.25, repeats: false)
+                        let req = UNNotificationRequest(identifier: "aurel-\(category)-\(UUID().uuidString)", content: content, trigger: trigger)
+                        center.add(req, withCompletionHandler: nil)
+                    }
+                    if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
+                        triggerDispatch()
+                    } else if settings.authorizationStatus == .notDetermined {
+                        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                            if granted { triggerDispatch() }
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         guard message.name == "vytaWorkoutTracker" else { return }
         guard let dict = message.body as? [String: Any], let action = dict["action"] as? String else { return }
 

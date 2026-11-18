@@ -189,7 +189,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
 
   return (
     <div
-      className={`modal-backdrop ${isClosing ? 'is-closing' : ''}`}
+      className={`calai-backdrop ${isClosing ? 'is-closing' : ''}`}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
@@ -202,13 +202,58 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         flexDirection: 'column',
         justifyContent: 'flex-end',
         alignItems: 'center',
-        background: 'rgba(0, 0, 0, 0.82)',
-        backdropFilter: 'blur(26px)',
-        WebkitBackdropFilter: 'blur(26px)',
+        background: 'rgba(0, 0, 0, 0.74)',
       }}
     >
+      <style>{`
+        @keyframes calaiBackdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes calaiBackdropOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        .calai-backdrop {
+          animation: calaiBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: opacity;
+        }
+        .calai-backdrop.is-closing {
+          animation: calaiBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+          pointer-events: none;
+        }
+        @keyframes calaiSheetSlideUp {
+          0% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0.75;
+          }
+          100% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+        }
+        @keyframes calaiSheetSlideDown {
+          0% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+          100% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0;
+          }
+        }
+        .calai-sheet {
+          animation: calaiSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .calai-sheet.is-closing {
+          animation: calaiSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+        }
+      `}</style>
       <div
-        className={`modal-content ${isClosing ? 'is-closing' : ''}`}
+        className={`calai-sheet ${isClosing ? 'is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

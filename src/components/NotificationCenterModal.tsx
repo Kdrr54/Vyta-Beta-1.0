@@ -7,7 +7,7 @@ import {
   dispatchApplePush,
   PushNotificationPayload,
 } from '../lib/apnsService';
-import { Bell, X, Check, Battery, Moon, Zap, Shield } from 'lucide-react';
+import { Bell, X, Battery, AlertTriangle, Shield } from 'lucide-react';
 
 interface NotificationCenterModalProps {
   onClose: () => void;
@@ -149,15 +149,29 @@ export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = (
                   style={{
                     padding: '10px 12px',
                     borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    background: n.category === 'anomaly' ? 'rgba(255, 90, 82, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                    border: n.category === 'anomaly' ? '1px solid rgba(255, 90, 82, 0.25)' : '1px solid rgba(255, 255, 255, 0.06)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
                   }}
                 >
-                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#FFF', marginBottom: '2px' }}>
-                    {n.title}
+                  <div style={{ marginTop: '2px', flexShrink: 0 }}>
+                    {n.category === 'anomaly' ? (
+                      <AlertTriangle size={14} color="#FF5A52" />
+                    ) : n.category === 'battery' ? (
+                      <Battery size={14} color="#FAF7F2" />
+                    ) : (
+                      <Bell size={14} color="var(--text-secondary)" />
+                    )}
                   </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
-                    {n.body}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#FFF', marginBottom: '2px' }}>
+                      {n.title}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                      {n.body}
+                    </div>
                   </div>
                 </div>
               ))

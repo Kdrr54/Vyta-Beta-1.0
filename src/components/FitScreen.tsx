@@ -1003,7 +1003,7 @@ export const FitScreen: React.FC = () => {
 
   // ------------------ MUSCULATION (SÉANCE PERSONNALISÉE) ------------------
   const [isWorkoutActive, setIsWorkoutActive] = useState<boolean>(false);
-  const [sessionTitle, setSessionTitle] = useState<string>('Séance Pectoraux & Bras');
+  const [sessionTitle, setSessionTitle] = useState<string>(isEn ? 'Custom Workout' : 'Séance libre');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
   const loadedGymDateRef = useRef<string | null>(null);
@@ -1018,16 +1018,16 @@ export const FitScreen: React.FC = () => {
       const saved = localStorage.getItem(`vyta_gym_day_${selectedDateKey}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setSessionTitle(parsed.sessionTitle || 'Séance Pectoraux & Bras');
+        setSessionTitle(parsed.sessionTitle || (isEn ? 'Custom Workout' : 'Séance libre'));
         setExercises(Array.isArray(parsed.exercises) ? parsed.exercises : []);
       } else {
-        setSessionTitle('Séance Pectoraux & Bras');
+        setSessionTitle(isEn ? 'Custom Workout' : 'Séance libre');
         setExercises([]);
       }
     } catch {
       setExercises([]);
     }
-  }, [selectedDateKey]);
+  }, [selectedDateKey, isEn]);
 
   useEffect(() => {
     if (skipNextGymSaveRef.current) {
@@ -1217,108 +1217,13 @@ export const FitScreen: React.FC = () => {
   };
 
   const handleCreateNewSession = (title: string) => {
-    const cleanTitle = title.trim() || 'Nouvelle Séance';
+    const cleanTitle = title.trim() || (isEn ? 'New Workout' : 'Nouvelle Séance');
     setSessionTitle(cleanTitle);
-
-    let presetEx: GymExercise[] = [];
-    const lower = cleanTitle.toLowerCase();
-    if (lower.includes('dos') || lower.includes('pull') || lower.includes('biceps')) {
-      presetEx = [
-        {
-          id: `ex-${Date.now()}-1`,
-          name: 'Tractions lestées',
-          sets: [
-            { id: 's1', weightKg: 10, reps: 8, done: false },
-            { id: 's2', weightKg: 10, reps: 8, done: false },
-            { id: 's3', weightKg: 10, reps: 6, done: false },
-          ],
-        },
-        {
-          id: `ex-${Date.now()}-2`,
-          name: 'Rowing barre buste penché',
-          sets: [
-            { id: 's1', weightKg: 70, reps: 10, done: false },
-            { id: 's2', weightKg: 70, reps: 10, done: false },
-            { id: 's3', weightKg: 70, reps: 9, done: false },
-          ],
-        },
-        {
-          id: `ex-${Date.now()}-3`,
-          name: 'Curl biceps barre EZ',
-          sets: [
-            { id: 's1', weightKg: 35, reps: 10, done: false },
-            { id: 's2', weightKg: 35, reps: 10, done: false },
-            { id: 's3', weightKg: 30, reps: 12, done: false },
-          ],
-        },
-      ];
-    } else if (lower.includes('jambe') || lower.includes('legs') || lower.includes('squat')) {
-      presetEx = [
-        {
-          id: `ex-${Date.now()}-1`,
-          name: 'Squat arrière barre olympique',
-          sets: [
-            { id: 's1', weightKg: 100, reps: 8, done: false },
-            { id: 's2', weightKg: 100, reps: 8, done: false },
-            { id: 's3', weightKg: 105, reps: 6, done: false },
-          ],
-        },
-        {
-          id: `ex-${Date.now()}-2`,
-          name: 'Presse à cuisses 45°',
-          sets: [
-            { id: 's1', weightKg: 180, reps: 12, done: false },
-            { id: 's2', weightKg: 180, reps: 12, done: false },
-            { id: 's3', weightKg: 190, reps: 10, done: false },
-          ],
-        },
-        {
-          id: `ex-${Date.now()}-3`,
-          name: 'Soulevé de terre roumain',
-          sets: [
-            { id: 's1', weightKg: 90, reps: 10, done: false },
-            { id: 's2', weightKg: 90, reps: 10, done: false },
-            { id: 's3', weightKg: 90, reps: 9, done: false },
-          ],
-        },
-      ];
-    } else {
-      presetEx = [
-        {
-          id: `ex-${Date.now()}-1`,
-          name: 'Développé couché (barre)',
-          sets: [
-            { id: 's1', weightKg: 75, reps: 10, done: false },
-            { id: 's2', weightKg: 75, reps: 10, done: false },
-            { id: 's3', weightKg: 80, reps: 8, done: false },
-          ],
-        },
-      ];
-    }
-
-    setExercises(presetEx);
+    setExercises([]);
     setRestSeconds(targetRestSeconds);
     setTimerRunning(false);
     setShowNewSessionModal(false);
     setNewSessionTitleInput('');
-    setIsWorkoutActive(true);
-  };
-
-  const handleSelectWorkout = (preset: { title: string; exercises: GymExercise[] }) => {
-    const cloned: GymExercise[] = preset.exercises.map((ex, i) => ({
-      id: `ex-${Date.now()}-${i + 1}`,
-      name: ex.name,
-      sets: ex.sets.map((s, si) => ({
-        id: `s-${Date.now()}-${i + 1}-${si + 1}`,
-        weightKg: s.weightKg,
-        reps: s.reps,
-        done: false,
-      })),
-    }));
-    setSessionTitle(preset.title);
-    setExercises(cloned);
-    setRestSeconds(targetRestSeconds);
-    setTimerRunning(false);
     setIsWorkoutActive(true);
   };
 
@@ -1398,279 +1303,6 @@ export const FitScreen: React.FC = () => {
       ],
     });
   };
-
-  const workoutPresetsList = [
-    {
-      id: 'push',
-      title: isEn ? 'Push • Chest, Shoulders & Triceps' : 'Push • Pectoraux, Épaules & Triceps',
-      category: isEn ? 'Upper Body' : 'Haut du corps',
-      durationMin: 45,
-      icon: <Flame size={17} color="#FC5200" />,
-      exercises: [
-        {
-          id: 'push-1',
-          name: 'Développé couché (barre)',
-          sets: [
-            { id: 's1', weightKg: 75, reps: 10, done: false },
-            { id: 's2', weightKg: 75, reps: 10, done: false },
-            { id: 's3', weightKg: 80, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'push-2',
-          name: 'Développé incliné haltères',
-          sets: [
-            { id: 's1', weightKg: 26, reps: 10, done: false },
-            { id: 's2', weightKg: 26, reps: 10, done: false },
-            { id: 's3', weightKg: 28, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'push-3',
-          name: 'Élévations latérales haltères',
-          sets: [
-            { id: 's1', weightKg: 12, reps: 12, done: false },
-            { id: 's2', weightKg: 12, reps: 12, done: false },
-            { id: 's3', weightKg: 12, reps: 12, done: false },
-          ],
-        },
-        {
-          id: 'push-4',
-          name: 'Extensions triceps poulie',
-          sets: [
-            { id: 's1', weightKg: 25, reps: 12, done: false },
-            { id: 's2', weightKg: 25, reps: 12, done: false },
-            { id: 's3', weightKg: 30, reps: 10, done: false },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'pull',
-      title: isEn ? 'Pull • Back, Biceps & Rear Delts' : "Pull • Dos, Biceps & Arrière d'épaules",
-      category: isEn ? 'Upper Body' : 'Haut du corps',
-      durationMin: 45,
-      icon: <Zap size={17} color="#38BDF8" />,
-      exercises: [
-        {
-          id: 'pull-1',
-          name: 'Tractions lestées',
-          sets: [
-            { id: 's1', weightKg: 10, reps: 8, done: false },
-            { id: 's2', weightKg: 10, reps: 8, done: false },
-            { id: 's3', weightKg: 10, reps: 6, done: false },
-          ],
-        },
-        {
-          id: 'pull-2',
-          name: 'Rowing barre buste penché',
-          sets: [
-            { id: 's1', weightKg: 70, reps: 10, done: false },
-            { id: 's2', weightKg: 70, reps: 10, done: false },
-            { id: 's3', weightKg: 75, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'pull-3',
-          name: 'Tirage vertical poitrine',
-          sets: [
-            { id: 's1', weightKg: 65, reps: 10, done: false },
-            { id: 's2', weightKg: 65, reps: 10, done: false },
-            { id: 's3', weightKg: 70, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'pull-4',
-          name: 'Curl biceps barre EZ',
-          sets: [
-            { id: 's1', weightKg: 35, reps: 10, done: false },
-            { id: 's2', weightKg: 35, reps: 10, done: false },
-            { id: 's3', weightKg: 30, reps: 12, done: false },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'legs',
-      title: isEn ? 'Legs • Quads, Hamstrings & Glutes' : 'Legs • Jambes, Ischios & Fessiers',
-      category: isEn ? 'Lower Body' : 'Bas du corps',
-      durationMin: 50,
-      icon: <Dumbbell size={17} color="#30D158" />,
-      exercises: [
-        {
-          id: 'legs-1',
-          name: 'Squat arrière barre olympique',
-          sets: [
-            { id: 's1', weightKg: 100, reps: 8, done: false },
-            { id: 's2', weightKg: 100, reps: 8, done: false },
-            { id: 's3', weightKg: 105, reps: 6, done: false },
-          ],
-        },
-        {
-          id: 'legs-2',
-          name: 'Presse à cuisses 45°',
-          sets: [
-            { id: 's1', weightKg: 180, reps: 12, done: false },
-            { id: 's2', weightKg: 180, reps: 12, done: false },
-            { id: 's3', weightKg: 190, reps: 10, done: false },
-          ],
-        },
-        {
-          id: 'legs-3',
-          name: 'Soulevé de terre roumain',
-          sets: [
-            { id: 's1', weightKg: 90, reps: 10, done: false },
-            { id: 's2', weightKg: 90, reps: 10, done: false },
-            { id: 's3', weightKg: 90, reps: 9, done: false },
-          ],
-        },
-        {
-          id: 'legs-4',
-          name: 'Mollets debout à la machine',
-          sets: [
-            { id: 's1', weightKg: 60, reps: 15, done: false },
-            { id: 's2', weightKg: 60, reps: 15, done: false },
-            { id: 's3', weightKg: 60, reps: 15, done: false },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'upper',
-      title: isEn ? 'Upper Body • Complete Performance' : 'Upper Body • Haut du Corps Complet',
-      category: isEn ? 'Compound' : 'Polyarticulaire',
-      durationMin: 45,
-      icon: <Trophy size={17} color="#FFD60A" />,
-      exercises: [
-        {
-          id: 'upper-1',
-          name: 'Développé couché (barre)',
-          sets: [
-            { id: 's1', weightKg: 75, reps: 10, done: false },
-            { id: 's2', weightKg: 75, reps: 10, done: false },
-            { id: 's3', weightKg: 80, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'upper-2',
-          name: 'Rowing barre buste penché',
-          sets: [
-            { id: 's1', weightKg: 70, reps: 10, done: false },
-            { id: 's2', weightKg: 70, reps: 10, done: false },
-            { id: 's3', weightKg: 75, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'upper-3',
-          name: 'Développé militaire haltères',
-          sets: [
-            { id: 's1', weightKg: 22, reps: 10, done: false },
-            { id: 's2', weightKg: 22, reps: 10, done: false },
-            { id: 's3', weightKg: 24, reps: 8, done: false },
-          ],
-        },
-        {
-          id: 'upper-4',
-          name: 'Tractions prise neutre',
-          sets: [
-            { id: 's1', weightKg: 0, reps: 8, done: false },
-            { id: 's2', weightKg: 0, reps: 8, done: false },
-            { id: 's3', weightKg: 0, reps: 8, done: false },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'lower',
-      title: isEn ? 'Lower Body & Core' : 'Lower Body & Abdos',
-      category: isEn ? 'Lower Body' : 'Bas du corps',
-      durationMin: 40,
-      icon: <Award size={17} color="#BF5AF2" />,
-      exercises: [
-        {
-          id: 'lower-1',
-          name: 'Front Squat barre olympique',
-          sets: [
-            { id: 's1', weightKg: 75, reps: 8, done: false },
-            { id: 's2', weightKg: 75, reps: 8, done: false },
-            { id: 's3', weightKg: 80, reps: 6, done: false },
-          ],
-        },
-        {
-          id: 'lower-2',
-          name: 'Fentes marchées haltères',
-          sets: [
-            { id: 's1', weightKg: 20, reps: 12, done: false },
-            { id: 's2', weightKg: 20, reps: 12, done: false },
-            { id: 's3', weightKg: 20, reps: 12, done: false },
-          ],
-        },
-        {
-          id: 'lower-3',
-          name: 'Leg curl couché (ischios)',
-          sets: [
-            { id: 's1', weightKg: 45, reps: 12, done: false },
-            { id: 's2', weightKg: 45, reps: 12, done: false },
-            { id: 's3', weightKg: 50, reps: 10, done: false },
-          ],
-        },
-        {
-          id: 'lower-4',
-          name: 'Gainage planche abdominale',
-          sets: [
-            { id: 's1', weightKg: 10, reps: 10, done: false },
-            { id: 's2', weightKg: 10, reps: 10, done: false },
-            { id: 's3', weightKg: 10, reps: 10, done: false },
-          ],
-        },
-      ],
-    },
-    {
-      id: 'fullbody',
-      title: isEn ? 'Full Body Performance' : 'Full Body Performance',
-      category: isEn ? 'Full Body' : 'Corps complet',
-      durationMin: 50,
-      icon: <Sparkles size={17} color="#FF9F0A" />,
-      exercises: [
-        {
-          id: 'fb-1',
-          name: 'Soulevé de terre conventionnel',
-          sets: [
-            { id: 's1', weightKg: 110, reps: 6, done: false },
-            { id: 's2', weightKg: 110, reps: 6, done: false },
-            { id: 's3', weightKg: 120, reps: 5, done: false },
-          ],
-        },
-        {
-          id: 'fb-2',
-          name: 'Développé militaire barre',
-          sets: [
-            { id: 's1', weightKg: 50, reps: 8, done: false },
-            { id: 's2', weightKg: 50, reps: 8, done: false },
-            { id: 's3', weightKg: 55, reps: 6, done: false },
-          ],
-        },
-        {
-          id: 'fb-3',
-          name: 'Tractions pronation',
-          sets: [
-            { id: 's1', weightKg: 0, reps: 8, done: false },
-            { id: 's2', weightKg: 0, reps: 8, done: false },
-            { id: 's3', weightKg: 0, reps: 7, done: false },
-          ],
-        },
-        {
-          id: 'fb-4',
-          name: 'Goblet squat haltère',
-          sets: [
-            { id: 's1', weightKg: 30, reps: 12, done: false },
-            { id: 's2', weightKg: 30, reps: 12, done: false },
-            { id: 's3', weightKg: 32, reps: 10, done: false },
-          ],
-        },
-      ],
-    },
-  ];
 
   return (
     <>
@@ -2290,7 +1922,7 @@ export const FitScreen: React.FC = () => {
       {/* ==================== 3. MODE MUSCULATION (GYM LOGGER) ==================== */}
       {subTab === 'gym' && (
         !isWorkoutActive ? (
-          /* ==================== VUE 1 : SÉLECTION DE LA SÉANCE ==================== */
+          /* ==================== VUE 1 : SÉANCE PERSONNALISÉE ==================== */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Header Sélection */}
             <div
@@ -2302,15 +1934,14 @@ export const FitScreen: React.FC = () => {
                 borderRadius: '22px',
                 background: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                backdropFilter: 'blur(20px)',
               }}
             >
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
-                  {isEn ? 'Select a Workout' : 'Choisir une séance'}
+                  {isEn ? 'Strength Training' : 'Musculation'}
                 </h2>
                 <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px', display: 'block' }}>
-                  {isEn ? 'Choose a program to load exercises' : 'Sélectionnez un programme pour charger vos exercices'}
+                  {isEn ? 'Create your own custom workout' : 'Créez votre séance et ajoutez vos exercices'}
                 </span>
               </div>
               <button
@@ -2320,12 +1951,12 @@ export const FitScreen: React.FC = () => {
                 onClick={() => setShowNewSessionModal(true)}
               >
                 <Plus size={13} />
-                <span>{isEn ? 'Custom' : 'Séance libre'}</span>
+                <span>{isEn ? 'New Workout' : 'Nouvelle séance'}</span>
               </button>
             </div>
 
-            {/* Si une séance a déjà été chargée/démarrée avec des séries faites */}
-            {exercises.length > 0 && doneSetsCount > 0 && (
+            {/* Si une séance existe pour ce jour */}
+            {exercises.length > 0 && (
               <div
                 style={{
                   display: 'flex',
@@ -2345,7 +1976,7 @@ export const FitScreen: React.FC = () => {
                       {sessionTitle}
                     </div>
                     <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                      {doneSetsCount} {isEn ? 'sets completed' : 'séries faites'} • {totalTonnageKg} kg
+                      {exercises.length} {isEn ? 'exercises' : 'exercices'} • {doneSetsCount} {isEn ? 'sets completed' : 'séries faites'} • {totalTonnageKg} kg
                     </div>
                   </div>
                 </div>
@@ -2355,104 +1986,41 @@ export const FitScreen: React.FC = () => {
                   style={{ padding: '7px 14px', fontSize: '11.5px' }}
                   onClick={() => setIsWorkoutActive(true)}
                 >
-                  <span>{isEn ? 'Resume' : 'Reprendre'}</span>
+                  <span>{isEn ? 'Open' : 'Ouvrir'}</span>
                   <ChevronRight size={13} />
                 </button>
               </div>
             )}
 
-            {/* Grille / Liste des programmes */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {workoutPresetsList.map((preset) => (
-                <div
-                  key={preset.id}
-                  onClick={() => handleSelectWorkout(preset)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                    padding: '16px 18px',
-                    borderRadius: '20px',
-                    background: 'rgba(18, 18, 22, 0.85)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    cursor: 'pointer',
-                    transition: 'all 180ms ease',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '12px',
-                          background: 'rgba(255, 255, 255, 0.06)',
-                          border: '1px solid rgba(255, 255, 255, 0.12)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {preset.icon}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
-                          {preset.title}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px' }}>
-                          {preset.category} • ~{preset.durationMin} min
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="gear-btn"
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                        color: '#FFFFFF',
-                        flexShrink: 0,
-                      }}
-                      title={isEn ? 'Start workout' : 'Démarrer cette séance'}
-                    >
-                      <Play size={13} fill="#FFFFFF" />
-                    </button>
-                  </div>
-
-                  {/* Aperçu des exercices inclus */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '6px',
-                      paddingTop: '6px',
-                      borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                    }}
-                  >
-                    {preset.exercises.map((ex) => (
-                      <span
-                        key={ex.name}
-                        style={{
-                          fontSize: '10.5px',
-                          color: 'rgba(250, 247, 242, 0.75)',
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(255, 255, 255, 0.06)',
-                        }}
-                      >
-                        {ex.name}
-                      </span>
-                    ))}
-                  </div>
+            {exercises.length === 0 && (
+              <div
+                style={{
+                  padding: '28px 18px',
+                  borderRadius: '20px',
+                  background: 'rgba(18, 18, 22, 0.85)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                <Dumbbell size={26} color="rgba(250, 247, 242, 0.45)" />
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#FAF7F2' }}>
+                  {isEn ? 'No workout started today' : 'Aucune séance démarrée aujourd’hui'}
                 </div>
-              ))}
-            </div>
+                <button
+                  type="button"
+                  className="add-exercise-btn-main"
+                  style={{ padding: '10px 16px', fontSize: '12.5px', marginTop: '4px' }}
+                  onClick={() => setShowNewSessionModal(true)}
+                >
+                  <Plus size={14} />
+                  <span>{isEn ? 'Create custom workout' : 'Créer une séance libre'}</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           /* ==================== VUE 2 : EXERCICES & SÉANCES ACTIVES ==================== */
@@ -2685,6 +2253,33 @@ export const FitScreen: React.FC = () => {
             </div>
 
             {/* Exercise Log Sets */}
+            {exercises.length === 0 && (
+              <div
+                style={{
+                  padding: '24px 16px',
+                  borderRadius: '18px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px dashed rgba(255, 255, 255, 0.14)',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                <span style={{ fontSize: '13px', color: 'rgba(250, 247, 242, 0.7)' }}>
+                  {isEn ? 'No exercises added yet' : 'Aucun exercice dans cette séance'}
+                </span>
+                <button
+                  type="button"
+                  className="add-exercise-btn-main"
+                  onClick={() => setShowAddModal(true)}
+                >
+                  <Plus size={14} />
+                  <span>{isEn ? 'Add exercise' : 'Ajouter un exercice'}</span>
+                </button>
+              </div>
+            )}
             {exercises.map((ex) => (
               <div key={ex.id} className="gym-exercise-card">
                 <div className="gym-exercise-header">
@@ -2915,33 +2510,10 @@ export const FitScreen: React.FC = () => {
               <input
                 type="text"
                 className="settings-input"
-                placeholder="Ex: Tractions pronation, Dips..."
+                placeholder={isEn ? 'Exercise name...' : 'Nom de l’exercice...'}
                 value={newExName}
                 onChange={(e) => setNewExName(e.target.value)}
               />
-              {/* Suggestions rapides */}
-              <div className="exercise-quick-chips">
-                {[
-                  'Développé couché',
-                  'Squat barre',
-                  'Soulevé de terre',
-                  'Développé militaire',
-                  'Tractions',
-                  'Rowing barre',
-                  'Curl haltères',
-                  'Élévations latérales',
-                  'Dips',
-                ].map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    className={`ex-chip ${newExName === chip ? 'active' : ''}`}
-                    onClick={() => setNewExName(chip)}
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Configurations des séries, poids et répétitions */}
@@ -3127,39 +2699,10 @@ export const FitScreen: React.FC = () => {
               <input
                 type="text"
                 className="settings-input"
-                placeholder={isEn ? 'e.g.: Chest & Arms, Back & Biceps...' : 'Ex: Séance Pectoraux & Bras, Dos & Biceps...'}
+                placeholder={isEn ? 'Workout title...' : 'Titre de la séance...'}
                 value={newSessionTitleInput}
                 onChange={(e) => setNewSessionTitleInput(e.target.value)}
               />
-              <div className="exercise-quick-chips">
-                {(isEn
-                  ? [
-                      'Chest & Arms',
-                      'Back & Biceps',
-                      'Legs & Glutes',
-                      'Shoulders & Abs',
-                      'Full Body Performance',
-                      'Max Strength (5x5)',
-                    ]
-                  : [
-                      'Séance Pectoraux & Bras',
-                      'Séance Dos & Biceps',
-                      'Séance Jambes & Fessiers',
-                      'Séance Épaules & Abdos',
-                      'Full Body Performance',
-                      'Force Maximale (5x5)',
-                    ]
-                ).map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    className={`ex-chip ${newSessionTitleInput === preset ? 'active' : ''}`}
-                    onClick={() => setNewSessionTitleInput(preset)}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <button
