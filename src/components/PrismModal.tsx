@@ -14,19 +14,24 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   const { profile, selectedDay, language, weekData, isFirstLaunch, openModal } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
-  const [kbSheetHeight, setKbSheetHeight] = useState<number | null>(null);
+  const [vvLayout, setVvLayout] = useState<{ top: number; height: number | null; isKeyboard: boolean }>({
+    top: 0,
+    height: null,
+    isKeyboard: false,
+  });
 
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const onVvChange = () => {
       const diff = window.innerHeight - vv.height;
-      if (diff > 100) {
-        setKbSheetHeight(Math.max(320, Math.round(vv.height - 8)));
-        if (window.scrollY !== 0) window.scrollTo(0, 0);
-      } else {
-        setKbSheetHeight(null);
-      }
+      const isKb = diff > 100;
+      setVvLayout({
+        top: isKb ? Math.max(0, Math.round(vv.offsetTop)) : 0,
+        height: isKb ? Math.max(300, Math.round(vv.height)) : null,
+        isKeyboard: isKb,
+      });
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
     };
     vv.addEventListener('resize', onVvChange);
     vv.addEventListener('scroll', onVvChange);
@@ -73,6 +78,17 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     }
   };
 
+  const quickSuggestions = isEn
+    ? ['📸 Scan meal', 'How is my recovery?', 'Analyze my sleep', 'Can I train hard?']
+    : ['📸 Scanner mon plat', 'Ma récupération ?', 'Analyse ma nuit', 'Puis-je m’entraîner ?'];
+
+  const greetingTitle = isEn
+    ? `Hello ${profile.firstName || 'Aurel'}`
+    : `Bonjour ${profile.firstName || 'Aurel'}`;
+  const greetingSubtitle = isEn
+    ? 'Ask anything about your recovery, sleep, or daily telemetry.'
+    : 'Interrogez Zénon sur votre récupération, votre sommeil ou votre forme.';
+
   return (
     <div
       className={`zenon-backdrop ${isClosing ? 'is-closing' : ''}`}
@@ -82,7 +98,10 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       style={{
         zIndex: 1200,
         position: 'fixed',
-        inset: 0,
+        top: vvLayout.isKeyboard ? `${vvLayout.top}px` : 0,
+        left: 0,
+        right: 0,
+        height: vvLayout.height ? `${vvLayout.height}px` : '100dvh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -145,10 +164,10 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '430px',
-          height: kbSheetHeight ? `${kbSheetHeight}px` : '92dvh',
-          maxHeight: '840px',
+          height: vvLayout.isKeyboard ? '100%' : '92dvh',
+          maxHeight: vvLayout.isKeyboard ? '100%' : '840px',
           transition: 'height 0.18s ease-out',
-          borderRadius: '34px 34px 0 0',
+          borderRadius: vvLayout.isKeyboard ? '22px 22px 0 0' : '34px 34px 0 0',
           background: 'linear-gradient(180deg, #09090D 0%, #060608 100%)',
           overflow: 'hidden',
           display: 'flex',
@@ -264,6 +283,18 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           <MorphOrb
             onSubmit={handleAskZenon}
             minThinkMs={1400}
+            greetingTitle={greetingTitle}
+            greetingSubtitle={greetingSubtitle}
+            suggestions={quickSuggestions}
+            isKeyboardOpen={vvLayout.isKeyboard}
+            onSuggestionAction={(s) => {
+              if (s.includes('Scanner') || s.includes('Scan meal') || s.includes('Cal AI')) {
+                handleClose();
+                setTimeout(() => openModal('calai'), 180);
+                return true;
+              }
+              return false;
+            }}
             copy={
               isEn
                 ? {

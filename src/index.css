@@ -140,8 +140,7 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(192, 132, 252, 0.5) 35%, rgba(56, 189, 248, 0.3) 60%, transparent 75%);
-  filter: blur(8px);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.72) 0%, rgba(192, 132, 252, 0.36) 35%, rgba(56, 189, 248, 0.16) 58%, transparent 74%);
   pointer-events: none;
   opacity: 0;
   will-change: transform, opacity;
@@ -439,14 +438,14 @@
 
 .mo-a-body {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.52;
   color: #FAF7F2;
   margin: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior: contain;
-  max-height: 145px;
+  max-height: 200px;
   user-select: text;
   scrollbar-width: none;
 }
@@ -457,7 +456,7 @@
 
 .mo-w {
   display: inline-block;
-  will-change: opacity, transform, filter;
+  will-change: opacity, transform;
 }
 
 /* Thinking Phase Status Indicator */

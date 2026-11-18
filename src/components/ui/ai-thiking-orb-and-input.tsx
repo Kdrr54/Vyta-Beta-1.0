@@ -23,10 +23,15 @@ export interface MorphOrbProps {
   className?: string;
   style?: React.CSSProperties;
   onSuccess?: (answer: string, question: string) => void;
+  greetingTitle?: string;
+  greetingSubtitle?: string;
+  suggestions?: string[];
+  onSuggestionAction?: (suggestion: string) => boolean;
+  isKeyboardOpen?: boolean;
 }
 
 /* ─────────────────────────── geometry ─────────────────────────── */
-const CARD_H_DEFAULT = 210;
+const CARD_H_DEFAULT = 264;
 const PILL_H = 60, BALL_SMALL = 60, ORB_D = 132, ORB_R = 66, CANVAS = 220;
 const CARD_H = CARD_H_DEFAULT;
 const FLY_D = 138;
@@ -534,7 +539,6 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
       const p = E.out(clamp01((time - i * wStagger) / wDur));
       el.style.opacity = fmt(p);
       el.style.transform = p >= 0.999 || reduced ? "none" : `translateY(${fmt((1 - p) * 4)}px)`;
-      el.style.filter = p >= 0.999 || reduced ? "none" : `blur(${fmt((1 - p) * 4)}px)`;
     });
   };
 
@@ -550,7 +554,6 @@ function createRuntime(env: Env, copy: typeof COPY, onSuccess?: (ans: string, q:
   });
   CH.inScale = (v) => {
     actor.style.setProperty("--inScale", fmt(v));
-    form.style.filter = v >= 0.999 ? "none" : `blur(${fmt((1 - v) * 15)}px)`;
   };
   CH.sOp = (v) => status.style.setProperty("--sOp", fmt(v));
   CH.sTy = (v) => status.style.setProperty("--sTy", fmt(v));
@@ -814,6 +817,11 @@ export default function MorphOrb(props: MorphOrbProps) {
     className = "",
     style,
     onSuccess,
+    greetingTitle,
+    greetingSubtitle,
+    suggestions,
+    onSuggestionAction,
+    isKeyboardOpen = false,
   } = props;
   const copy = React.useMemo(() => ({ ...COPY, ...userCopy }), [userCopy]);
   const [phase, setPhaseState] = useState<Phase>("idle");
@@ -965,8 +973,33 @@ export default function MorphOrb(props: MorphOrbProps) {
     window.requestAnimationFrame(() => { rt.start(text, makeCfg()); });
   };
 
+  const handleSuggestionClick = (s: string) => {
+    if (onSuggestionAction?.(s)) return;
+    const rt = rtRef.current;
+    if (!rt || rt.busy() || phaseRef.current !== "idle") return;
+    inputRef.current?.blur();
+    lastTextRef.current = s;
+    setValue(s);
+    rt.start(s, makeCfg());
+  };
+
   const ready = value.trim().length > 0;
-  const words = answer.split(/\s+/).filter(Boolean);
+  const parsedWords = React.useMemo(() => {
+    if (!answer) return [];
+    const cleaned = answer.replace(/^#{1,4}\s+/gm, "").replace(/^\s*[-*]\s+/gm, "• ");
+    const tokens: { word: string; bold: boolean }[] = [];
+    const parts = cleaned.split(/(\*\*[^*]+\*\*)/g);
+    for (const part of parts) {
+      if (!part) continue;
+      const isBold = part.startsWith("**") && part.endsWith("**") && part.length > 4;
+      const text = isBold ? part.slice(2, -2) : part;
+      const ws = text.split(/\s+/).filter(Boolean);
+      for (const w of ws) {
+        tokens.push({ word: w, bold: isBold });
+      }
+    }
+    return tokens;
+  }, [answer]);
 
   const labelInner = (name: string) =>
     name === copy.done ? (
@@ -982,6 +1015,99 @@ export default function MorphOrb(props: MorphOrbProps) {
     <div className={`mo-root ${className}`.trim()} style={style} data-phase={phase} ref={rootRef}>
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
+
+      {/* Mobile Idle Hero & Quick Suggestion Pills */}
+      {(greetingTitle || (suggestions && suggestions.length > 0)) && (
+        <div
+          style={{
+            position: "absolute",
+            top: "6%",
+            left: 0,
+            right: 0,
+            padding: "0 20px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            gap: "12px",
+            zIndex: 8,
+            opacity: phase === "idle" && !isKeyboardOpen ? 1 : 0,
+            transform: phase === "idle" && !isKeyboardOpen ? "translateY(0)" : "translateY(-10px)",
+            pointerEvents: phase === "idle" && !isKeyboardOpen ? "auto" : "none",
+            transition: "opacity 220ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        >
+          {phase === "idle" && !isKeyboardOpen && (
+            <div style={{ pointerEvents: "none", marginBottom: "-4px" }}>
+              <ZenonOrb status="idle" size={118} />
+            </div>
+          )}
+
+          {greetingTitle && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxWidth: "320px" }}>
+              <h3
+                style={{
+                  fontSize: "21px",
+                  fontWeight: 700,
+                  color: "#FAF7F2",
+                  letterSpacing: "-0.4px",
+                  margin: 0,
+                }}
+              >
+                {greetingTitle}
+              </h3>
+              {greetingSubtitle && (
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "rgba(250, 247, 242, 0.55)",
+                    lineHeight: 1.4,
+                    margin: 0,
+                  }}
+                >
+                  {greetingSubtitle}
+                </p>
+              )}
+            </div>
+          )}
+
+          {suggestions && suggestions.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: "8px",
+                marginTop: "6px",
+                maxWidth: "360px",
+              }}
+            >
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => handleSuggestionClick(s)}
+                  style={{
+                    padding: "9px 14px",
+                    borderRadius: "999px",
+                    background: "rgba(255, 255, 255, 0.055)",
+                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    color: "rgba(250, 247, 242, 0.9)",
+                    fontSize: "12.5px",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    touchAction: "manipulation",
+                    WebkitTapHighlightColor: "transparent",
+                    transition: "transform 0.12s ease, background 0.15s ease",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mo-mover" ref={moverRef}>
         {Array.from({ length: 6 }).map((_, i) => (
@@ -1033,9 +1159,14 @@ export default function MorphOrb(props: MorphOrbProps) {
               <span>{copy.answerTitle}</span>
             </div>
             <p className="mo-a-body" ref={bodyRef}>
-              {words.map((w, i) => (
+              {parsedWords.map((item, i) => (
                 <React.Fragment key={i}>
-                  <span className="mo-w">{w}</span>{" "}
+                  <span
+                    className="mo-w"
+                    style={item.bold ? { fontWeight: 700, color: "#FFFFFF" } : undefined}
+                  >
+                    {item.word}
+                  </span>{" "}
                 </React.Fragment>
               ))}
             </p>
