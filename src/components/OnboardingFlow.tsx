@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { qringBle, DiscoveredBleDevice } from '../lib/qringBleService';
+import { checkWarrantyForEmail, setAccountEmail } from '../lib/warrantyService';
 import {
   Sparkles,
   ArrowRight,
@@ -189,15 +190,20 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         firstName: inferredName.charAt(0).toUpperCase() + inferredName.slice(1),
       });
     }
-    try {
-      localStorage.setItem('aurel_account_email', email.trim());
-    } catch (_) {}
+    setAccountEmail(email);
+    checkWarrantyForEmail(email).then((w) => {
+      updateRing({
+        aurelCareActive: w.active,
+        aurelCareExpires: w.expiresAt || '',
+      });
+    });
 
     setStep('dock');
   };
 
   const handleSkipAccount = () => {
     triggerHaptic();
+    updateRing({ aurelCareActive: false, aurelCareExpires: '' });
     setStep('dock');
   };
 

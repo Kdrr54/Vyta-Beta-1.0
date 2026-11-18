@@ -4,6 +4,7 @@ import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
 import { RingFinish } from '../types';
 import { qringBle } from '../lib/qringBleService';
+import { checkWarrantyForEmail, getAccountEmail, setAccountEmail } from '../lib/warrantyService';
 import {
   X,
   Battery,
@@ -68,9 +69,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [autoSpo2Enabled, setAutoSpo2Enabled] = useState<boolean>(() => qringBle.isAutoSpo2Enabled());
+  const [accountEmail, setAccountEmailState] = useState<string | null>(() => getAccountEmail());
+  const [warrantyEmailInput, setWarrantyEmailInput] = useState<string>(() => getAccountEmail() || '');
+  const [showWarrantyCheck, setShowWarrantyCheck] = useState(false);
+  const [isCheckingWarranty, setIsCheckingWarranty] = useState(false);
 
   const isConnected = Boolean(ring.isConnected);
-  const isAurelCareActive = ring.aurelCareActive !== false;
+  const isAurelCareActive = ring.aurelCareActive === true;
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
   const estimatedDays = calculateEstimatedBatteryDays(sensorIntervals);
   const remainingBatteryTime = formatRemainingBatteryTime(
@@ -852,64 +857,145 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </button>
               </div>
 
-              {/* 4. Garantie AUREL CARE */}
+              {/* 4. Garantie AUREL CARE (vérifiée selon l'e-mail du compte) */}
               <div
-                onClick={() => {
-                  triggerHaptic();
-                  updateRing({ aurelCareActive: !isAurelCareActive });
-                }}
-                role="button"
-                tabIndex={0}
                 style={{
                   padding: '12px 14px',
                   borderRadius: '18px',
                   background: isAurelCareActive ? 'rgba(48, 209, 88, 0.06)' : 'rgba(255, 255, 255, 0.03)',
                   border: isAurelCareActive ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
+                  flexDirection: 'column',
+                  gap: '10px',
                   transition: 'all 0.18s ease',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '30px',
-                      height: '30px',
-                      borderRadius: '9px',
-                      background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <ShieldCheck size={16} color={isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)'} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'AUREL CARE Warranty & VIP' : 'Garantie & Service VIP AUREL CARE'}
-                    </span>
-                    <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                      {isAurelCareActive
-                        ? (isEn ? `Active · Valid until ${ring.aurelCareExpires || 'Oct 2028'}` : `Couverture active · Jusqu'en ${ring.aurelCareExpires || 'Oct 2028'}`)
-                        : (isEn ? 'Inactive · No active coverage' : 'Non active · Aucune couverture')}
-                    </span>
-                  </div>
-                </div>
-
-                <span
+                <div
+                  onClick={() => {
+                    triggerHaptic();
+                    setShowWarrantyCheck((prev) => !prev);
+                  }}
+                  role="button"
+                  tabIndex={0}
                   style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    color: isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)',
-                    background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
                   }}
                 >
-                  {isAurelCareActive ? 'ACTIVE' : 'INACTIVE'}
-                </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '9px',
+                        background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ShieldCheck size={16} color={isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)'} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
+                        {isEn ? 'AUREL CARE Warranty' : 'Garantie AUREL CARE'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          color: 'rgba(250, 247, 242, 0.52)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {isAurelCareActive
+                          ? (isEn
+                              ? `Active · ${accountEmail}${ring.aurelCareExpires ? ` (until ${ring.aurelCareExpires})` : ''}`
+                              : `Active · ${accountEmail}${ring.aurelCareExpires ? ` (jusqu'en ${ring.aurelCareExpires})` : ''}`)
+                          : accountEmail
+                          ? (isEn ? `No coverage linked to ${accountEmail}` : `Aucune couverture pour ${accountEmail}`)
+                          : (isEn ? 'No email linked · Tap to check' : 'Aucun e-mail lié · Toucher pour vérifier')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)',
+                      background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isAurelCareActive ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
+                </div>
+
+                {showWarrantyCheck && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
+                  >
+                    <input
+                      type="email"
+                      value={warrantyEmailInput}
+                      onChange={(e) => setWarrantyEmailInput(e.target.value)}
+                      placeholder={isEn ? 'Purchase email...' : 'E-mail d’achat...'}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        color: '#FAF7F2',
+                        fontSize: '12px',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={isCheckingWarranty}
+                      onClick={async () => {
+                        triggerHaptic();
+                        const trimmed = warrantyEmailInput.trim().toLowerCase();
+                        setIsCheckingWarranty(true);
+                        setAccountEmail(trimmed || null);
+                        setAccountEmailState(trimmed || null);
+                        const w = await checkWarrantyForEmail(trimmed || null);
+                        updateRing({
+                          aurelCareActive: w.active,
+                          aurelCareExpires: w.expiresAt || '',
+                        });
+                        setIsCheckingWarranty(false);
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: 'rgba(255, 255, 255, 0.14)',
+                        color: '#FAF7F2',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isCheckingWarranty ? '...' : (isEn ? 'Check' : 'Vérifier')}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* 5. Hardware Specifications */}

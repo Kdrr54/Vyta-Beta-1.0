@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
 import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek, toLocalDateKey } from '../data/health';
+import { checkWarrantyForEmail } from '../lib/warrantyService';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
 import { qringBle, BleRingData } from '../lib/qringBleService';
 import { buildSleepSummary } from '../lib/sleepAlgorithm';
@@ -226,12 +227,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...parsed,
             // Toujours initialiser déconnectée à chaque ouverture tant que le BLE n'est pas actif
             isConnected: false,
+            aurelCareActive: false,
+            aurelCareExpires: '',
           };
         }
       } catch (e) {}
     }
     return defaultRing;
   });
+
+  // Vérification réelle de la garantie Aurel Care selon l'e-mail du compte
+  useEffect(() => {
+    let active = true;
+    checkWarrantyForEmail().then((w) => {
+      if (!active) return;
+      updateRing({
+        aurelCareActive: w.active,
+        aurelCareExpires: w.expiresAt || '',
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Auto-adapt ring finish from hardware IDs only if user has not manually chosen a finish
   useEffect(() => {
