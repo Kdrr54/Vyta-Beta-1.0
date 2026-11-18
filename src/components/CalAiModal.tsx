@@ -53,9 +53,17 @@ function formatDateKeyLabel(dateKey: string, isEn: boolean): string {
 }
 
 export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage }) => {
-  const { language, weekData, selectedDay, selectedDateKey } = useApp();
+  const { language, weekData, selectedDay, selectedDateKey, cardThemeMode } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
+  const isMono = cardThemeMode === 'monochrome';
+  const accent = isMono ? '#FAF7F2' : '#C084FC';
+  const accentLight = isMono ? '#FAF7F2' : '#D8B4FE';
+  const accentSoft = isMono ? 'rgba(255, 255, 255, 0.09)' : 'rgba(192, 132, 252, 0.14)';
+  const accentBorder = isMono ? 'rgba(255, 248, 240, 0.28)' : 'rgba(192, 132, 252, 0.38)';
+  const proteinTint = isMono ? '#FAF7F2' : '#D8B4FE';
+  const carbsTint = isMono ? 'rgba(250, 247, 242, 0.78)' : '#C084FC';
+  const fatTint = isMono ? 'rgba(250, 247, 242, 0.56)' : '#A855F7';
   const todayKey = getLocalDateKey();
 
   const [activeDateKey, setActiveDateKey] = useState<string>(() => selectedDateKey || todayKey);
@@ -207,11 +215,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           maxWidth: '430px',
           height: '92vh',
           maxHeight: '880px',
-          background: 'linear-gradient(180deg, #090B10 0%, #040507 100%)',
+          background: isMono
+            ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
+            : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
           borderRadius: '30px 30px 0 0',
-          border: '1px solid rgba(255, 255, 255, 0.14)',
+          border: isMono
+            ? '1px solid rgba(255, 248, 240, 0.16)'
+            : '1px solid rgba(192, 132, 252, 0.28)',
           borderBottom: 'none',
-          boxShadow: '0 -16px 48px rgba(0, 0, 0, 0.9), 0 0 40px rgba(192, 132, 252, 0.12)',
+          boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -220,7 +232,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
       >
         {/* Barre de préhension iOS */}
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '10px 0 4px 0' }}>
-          <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255, 255, 255, 0.22)' }} />
+          <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255, 248, 240, 0.2)' }} />
         </div>
 
         {/* En-tête Aurel Labs · Aurelius Nutrition */}
@@ -230,24 +242,24 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid rgba(255, 248, 240, 0.08)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.22) 0%, rgba(192, 132, 252, 0.22) 50%, rgba(251, 146, 60, 0.22) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 0 16px rgba(192, 132, 252, 0.3)',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(192, 132, 252, 0.22)',
               }}
             >
-              <Sparkles size={18} color="#FAF7F2" style={{ filter: 'drop-shadow(0 0 4px #C084FC)' }} />
+              <Sparkles size={16} color={accent} strokeWidth={1.8} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -299,9 +311,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               padding: '9px 12px',
               borderRadius: '14px',
               background: activeTab === 'scan'
-                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%)'
+                ? accentSoft
                 : 'rgba(255, 255, 255, 0.03)',
-              border: activeTab === 'scan' ? '1px solid rgba(255, 255, 255, 0.24)' : '1px solid rgba(255, 255, 255, 0.05)',
+              border: activeTab === 'scan' ? `1px solid ${accentBorder}` : '1px solid rgba(255, 248, 240, 0.08)',
               color: activeTab === 'scan' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
               fontSize: '13px',
               fontWeight: 600,
@@ -314,7 +326,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               transition: 'all 0.18s ease',
             }}
           >
-            <Camera size={15} color={activeTab === 'scan' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)'} />
+            <Camera size={15} color={activeTab === 'scan' ? accentLight : 'rgba(250, 247, 242, 0.5)'} />
             {isEn ? 'Scan Plate' : 'Scanner un plat'}
           </button>
 
@@ -326,9 +338,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               padding: '9px 12px',
               borderRadius: '14px',
               background: activeTab === 'journal'
-                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%)'
+                ? accentSoft
                 : 'rgba(255, 255, 255, 0.03)',
-              border: activeTab === 'journal' ? '1px solid rgba(255, 255, 255, 0.24)' : '1px solid rgba(255, 255, 255, 0.05)',
+              border: activeTab === 'journal' ? `1px solid ${accentBorder}` : '1px solid rgba(255, 248, 240, 0.08)',
               color: activeTab === 'journal' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
               fontSize: '13px',
               fontWeight: 600,
@@ -341,7 +353,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               transition: 'all 0.18s ease',
             }}
           >
-            <Utensils size={15} color={activeTab === 'journal' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)'} />
+            <Utensils size={15} color={activeTab === 'journal' ? accentLight : 'rgba(250, 247, 242, 0.5)'} />
             {isEn ? `Daily Journal (${dailySummary.mealCount})` : `Journal Aurel (${dailySummary.mealCount})`}
           </button>
         </div>
@@ -352,8 +364,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             margin: '0 18px 10px 18px',
             padding: '7px 10px',
             borderRadius: '14px',
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.09)',
+            background: 'rgba(255, 255, 255, 0.035)',
+            border: '1px solid rgba(255, 248, 240, 0.09)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -368,7 +380,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               height: '28px',
               borderRadius: '9px',
               background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 248, 240, 0.1)',
               color: '#FAF7F2',
               display: 'flex',
               alignItems: 'center',
@@ -380,7 +392,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={13} color="#FB923C" />
+            <Calendar size={13} color={accent} />
             <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2', textTransform: 'capitalize' }}>
               {formatDateKeyLabel(activeDateKey, isEn)}
             </span>
@@ -414,9 +426,16 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             margin: '0 18px 12px 18px',
             padding: '14px 16px',
             borderRadius: '22px',
-            background: 'radial-gradient(ellipse at 50% 120%, rgba(251, 146, 60, 0.12) 0%, rgba(192, 132, 252, 0.04) 50%, rgba(10, 12, 16, 0.85) 90%)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: '0 10px 24px rgba(0, 0, 0, 0.55)',
+            background: isMono
+              ? 'radial-gradient(ellipse at 50% 115%, rgba(255, 255, 255, 0.1) 0%, rgba(10, 10, 12, 0.96) 80%), #0A0A0C'
+              : 'radial-gradient(ellipse at 50% 120%, rgba(192, 132, 252, 0.2) 0%, rgba(168, 85, 247, 0.06) 44%, rgba(10, 10, 12, 0.96) 78%), #0A0A0C',
+            borderTop: '1px solid rgba(255, 248, 240, 0.14)',
+            borderLeft: '1px solid rgba(255, 248, 240, 0.1)',
+            borderRight: '1px solid rgba(255, 248, 240, 0.1)',
+            borderBottom: isMono ? '1.5px solid rgba(255, 255, 255, 0.35)' : '1.5px solid rgba(192, 132, 252, 0.5)',
+            boxShadow: isMono
+              ? '0 10px 24px rgba(0, 0, 0, 0.55)'
+              : '0 10px 26px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(192, 132, 252, 0.1)',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
@@ -428,7 +447,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                 / {dailyTargets.calories.toLocaleString()} kcal
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: '#FB923C', fontWeight: 600 }}>
+            <div style={{ fontSize: '11px', color: accentLight, fontWeight: 600 }}>
               {Math.max(0, dailyTargets.calories - dailySummary.calories)} kcal {isEn ? 'remaining' : 'restantes'}
             </div>
           </div>
@@ -437,7 +456,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           <div
             style={{
               height: '5px',
-              background: 'rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.09)',
               borderRadius: '999px',
               overflow: 'hidden',
               marginBottom: '10px',
@@ -447,7 +466,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
               style={{
                 width: `${calPercent}%`,
                 height: '100%',
-                background: 'linear-gradient(90deg, #FB923C 0%, #F59E0B 50%, #38BDF8 100%)',
+                background: isMono
+                  ? 'linear-gradient(90deg, rgba(250,247,242,0.7) 0%, #FAF7F2 100%)'
+                  : 'linear-gradient(90deg, #A855F7 0%, #C084FC 55%, #D8B4FE 100%)',
                 borderRadius: '999px',
                 transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
@@ -460,10 +481,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
                 <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Protéines</span>
-                <span style={{ color: '#FB923C', fontWeight: 700 }}>{dailySummary.protein}g</span>
+                <span style={{ color: proteinTint, fontWeight: 700 }}>{dailySummary.protein}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${proteinPercent}%`, height: '100%', background: '#FB923C', borderRadius: '2px' }} />
+                <div style={{ width: `${proteinPercent}%`, height: '100%', background: proteinTint, borderRadius: '2px' }} />
               </div>
             </div>
 
@@ -471,10 +492,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
                 <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Glucides</span>
-                <span style={{ color: '#38BDF8', fontWeight: 700 }}>{dailySummary.carbs}g</span>
+                <span style={{ color: carbsTint, fontWeight: 700 }}>{dailySummary.carbs}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${carbsPercent}%`, height: '100%', background: '#38BDF8', borderRadius: '2px' }} />
+                <div style={{ width: `${carbsPercent}%`, height: '100%', background: carbsTint, borderRadius: '2px' }} />
               </div>
             </div>
 
@@ -482,10 +503,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
                 <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Lipides</span>
-                <span style={{ color: '#C084FC', fontWeight: 700 }}>{dailySummary.fat}g</span>
+                <span style={{ color: fatTint, fontWeight: 700 }}>{dailySummary.fat}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${fatPercent}%`, height: '100%', background: '#C084FC', borderRadius: '2px' }} />
+                <div style={{ width: `${fatPercent}%`, height: '100%', background: fatTint, borderRadius: '2px' }} />
               </div>
             </div>
           </div>
@@ -520,8 +541,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                   aspectRatio: currentImagePreview ? '4/3' : '16/9',
                   borderRadius: '24px',
                   overflow: 'hidden',
-                  background: 'rgba(14, 16, 22, 0.8)',
-                  border: '1px solid rgba(255, 255, 255, 0.16)',
+                  background: '#0A0A0C',
+                  border: '1px solid rgba(255, 248, 240, 0.14)',
                   boxShadow: 'inset 0 0 30px rgba(0, 0, 0, 0.6)',
                   display: 'flex',
                   alignItems: 'center',
@@ -541,7 +562,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                         style={{
                           position: 'absolute',
                           inset: 0,
-                          background: 'rgba(4, 5, 8, 0.82)',
+                          background: 'rgba(10, 10, 12, 0.84)',
                           backdropFilter: 'blur(8px)',
                           WebkitBackdropFilter: 'blur(8px)',
                           display: 'flex',
@@ -552,7 +573,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                           zIndex: 5,
                         }}
                       >
-                        <AureliusOrb status="thinking" size={130} />
+                        <AureliusOrb status="thinking" size={130} accentMode={isMono ? 'mono' : 'amethyst'} />
                         <span
                           style={{
                             color: '#FAF7F2',
@@ -562,8 +583,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                             textShadow: '0 2px 10px rgba(0, 0, 0, 0.8)',
                             padding: '4px 12px',
                             borderRadius: '999px',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            background: accentSoft,
+                            border: `1px solid ${accentBorder}`,
                           }}
                         >
                           {scanStep}
@@ -586,17 +607,17 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       style={{
                         width: '58px',
                         height: '58px',
-                        borderRadius: '18px',
-                        background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(192, 132, 252, 0.15) 100%)',
-                        border: '1px solid rgba(255, 255, 255, 0.22)',
+                        borderRadius: '50%',
+                        background: accentSoft,
+                        border: `1px solid ${accentBorder}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#FAF7F2',
-                        boxShadow: '0 0 24px rgba(192, 132, 252, 0.25)',
+                        color: accent,
+                        boxShadow: isMono ? 'none' : '0 0 22px rgba(192, 132, 252, 0.24)',
                       }}
                     >
-                      <Camera size={26} strokeWidth={1.8} />
+                      <Camera size={24} strokeWidth={1.8} />
                     </div>
                     <div>
                       <div style={{ fontSize: '16px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
@@ -620,8 +641,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     flex: 1.2,
                     padding: '13px',
                     borderRadius: '16px',
-                    background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.35) 0%, rgba(192, 132, 252, 0.35) 100%), rgba(20, 22, 28, 0.95)',
-                    border: '1px solid rgba(255, 255, 255, 0.28)',
+                    background: isMono
+                      ? 'rgba(255, 255, 255, 0.14)'
+                      : 'linear-gradient(135deg, rgba(192, 132, 252, 0.28) 0%, rgba(168, 85, 247, 0.2) 100%), #0A0A0C',
+                    border: `1px solid ${accentBorder}`,
                     color: '#FAF7F2',
                     fontWeight: 700,
                     fontSize: '14px',
@@ -630,11 +653,13 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     justifyContent: 'center',
                     gap: '8px',
                     cursor: 'pointer',
-                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(251, 146, 60, 0.2)',
+                    boxShadow: isMono
+                      ? '0 6px 20px rgba(0, 0, 0, 0.5)'
+                      : '0 6px 20px rgba(0, 0, 0, 0.5), 0 0 18px rgba(192, 132, 252, 0.18)',
                     transition: 'all 0.18s ease',
                   }}
                 >
-                  <Camera size={17} strokeWidth={2} />
+                  <Camera size={17} strokeWidth={2} color={accentLight} />
                   {isEn ? 'Take Photo' : 'Prendre une photo'}
                 </button>
 
@@ -690,8 +715,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     gap: '14px',
                     padding: '18px',
                     borderRadius: '24px',
-                    background: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.08) 0%, rgba(12, 14, 18, 0.95) 75%)',
-                    border: '1px solid rgba(255, 255, 255, 0.16)',
+                    background: isMono
+                      ? 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 76%), #0A0A0C'
+                      : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.14) 0%, rgba(10, 10, 12, 0.98) 76%), #0A0A0C',
+                    border: '1px solid rgba(255, 248, 240, 0.14)',
                     boxShadow: '0 12px 36px rgba(0, 0, 0, 0.7)',
                   }}
                 >
@@ -701,7 +728,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       <div style={{ fontSize: '18px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
                         {currentResult.mealName}
                       </div>
-                      <div style={{ fontSize: '11.5px', color: '#38BDF8', fontWeight: 600, marginTop: '3px' }}>
+                      <div style={{ fontSize: '11.5px', color: accentLight, fontWeight: 600, marginTop: '3px' }}>
                         Indice Vitalité : {currentResult.healthScore || 85}/100
                       </div>
                     </div>
@@ -711,15 +738,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                         textAlign: 'right',
                         padding: '6px 14px',
                         borderRadius: '16px',
-                        background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.22) 0%, rgba(245, 158, 11, 0.15) 100%)',
-                        border: '1px solid rgba(251, 146, 60, 0.4)',
-                        boxShadow: '0 0 18px rgba(251, 146, 60, 0.18)',
+                        background: accentSoft,
+                        border: `1px solid ${accentBorder}`,
+                        boxShadow: isMono ? 'none' : '0 0 18px rgba(192, 132, 252, 0.18)',
                       }}
                     >
                       <div style={{ fontSize: '24px', fontWeight: 300, color: '#FAF7F2', lineHeight: 1 }}>
                         {currentResult.totalCalories}
                       </div>
-                      <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#FB923C', letterSpacing: '0.06em' }}>
+                      <div style={{ fontSize: '9.5px', fontWeight: 700, color: accentLight, letterSpacing: '0.06em' }}>
                         KCAL
                       </div>
                     </div>
@@ -731,13 +758,13 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       style={{
                         padding: '10px 8px',
                         borderRadius: '16px',
-                        background: 'rgba(251, 146, 60, 0.08)',
-                        border: '1px solid rgba(251, 146, 60, 0.22)',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 248, 240, 0.12)',
                         textAlign: 'center',
                       }}
                     >
                       <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Protéines</div>
-                      <div style={{ fontSize: '17px', fontWeight: 700, color: '#FB923C', marginTop: '2px' }}>
+                      <div style={{ fontSize: '17px', fontWeight: 700, color: proteinTint, marginTop: '2px' }}>
                         {currentResult.macros.protein}g
                       </div>
                     </div>
@@ -746,13 +773,13 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       style={{
                         padding: '10px 8px',
                         borderRadius: '16px',
-                        background: 'rgba(56, 189, 248, 0.08)',
-                        border: '1px solid rgba(56, 189, 248, 0.22)',
+                        background: accentSoft,
+                        border: `1px solid ${accentBorder}`,
                         textAlign: 'center',
                       }}
                     >
                       <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Glucides</div>
-                      <div style={{ fontSize: '17px', fontWeight: 700, color: '#38BDF8', marginTop: '2px' }}>
+                      <div style={{ fontSize: '17px', fontWeight: 700, color: carbsTint, marginTop: '2px' }}>
                         {currentResult.macros.carbs}g
                       </div>
                     </div>
@@ -761,13 +788,13 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       style={{
                         padding: '10px 8px',
                         borderRadius: '16px',
-                        background: 'rgba(192, 132, 252, 0.08)',
-                        border: '1px solid rgba(192, 132, 252, 0.22)',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 248, 240, 0.12)',
                         textAlign: 'center',
                       }}
                     >
                       <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Lipides</div>
-                      <div style={{ fontSize: '17px', fontWeight: 700, color: '#C084FC', marginTop: '2px' }}>
+                      <div style={{ fontSize: '17px', fontWeight: 700, color: fatTint, marginTop: '2px' }}>
                         {currentResult.macros.fat}g
                       </div>
                     </div>
@@ -788,15 +815,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                             alignItems: 'center',
                             padding: '8px 12px',
                             borderRadius: '12px',
-                            background: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                            background: 'rgba(255, 255, 255, 0.035)',
+                            border: '1px solid rgba(255, 248, 240, 0.08)',
                             fontSize: '12.5px',
                           }}
                         >
                           <div style={{ color: '#FAF7F2' }}>
                             {it.name} <span style={{ color: 'rgba(250, 247, 242, 0.45)', fontSize: '11px' }}>({it.portion})</span>
                           </div>
-                          <div style={{ fontWeight: 700, color: '#FB923C' }}>
+                          <div style={{ fontWeight: 700, color: accentLight }}>
                             {it.calories} kcal
                           </div>
                         </div>
@@ -810,14 +837,14 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       style={{
                         padding: '12px 14px',
                         borderRadius: '16px',
-                        background: 'linear-gradient(135deg, rgba(192, 132, 252, 0.12) 0%, rgba(56, 189, 248, 0.06) 100%)',
-                        border: '1px solid rgba(192, 132, 252, 0.28)',
+                        background: accentSoft,
+                        border: `1px solid ${accentBorder}`,
                         fontSize: '12px',
                         color: 'rgba(250, 247, 242, 0.92)',
                         lineHeight: 1.45,
                       }}
                     >
-                      💡 <strong style={{ color: '#C084FC' }}>Synthèse Aurelius :</strong> {currentResult.advice}
+                      <strong style={{ color: accentLight }}>Synthèse Aurelius :</strong> {currentResult.advice}
                     </div>
                   )}
 
@@ -840,9 +867,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                             flex: 1,
                             padding: '7px 4px',
                             borderRadius: '12px',
-                            background: active ? 'rgba(251, 146, 60, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                            border: active ? '1px solid #FB923C' : '1px solid rgba(255, 255, 255, 0.08)',
-                            color: active ? '#FB923C' : 'rgba(250, 247, 242, 0.6)',
+                            background: active ? accentSoft : 'rgba(255, 255, 255, 0.04)',
+                            border: active ? `1px solid ${accentBorder}` : '1px solid rgba(255, 248, 240, 0.08)',
+                            color: active ? accentLight : 'rgba(250, 247, 242, 0.6)',
                             fontSize: '11px',
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -863,11 +890,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       marginTop: '6px',
                       padding: '14px',
                       borderRadius: '16px',
-                      background: saveSuccess
-                        ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
-                        : 'linear-gradient(135deg, rgba(251, 146, 60, 0.85) 0%, rgba(192, 132, 252, 0.85) 100%)',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      color: '#FAF7F2',
+                      background: isMono
+                        ? saveSuccess
+                          ? '#FAF7F2'
+                          : 'rgba(255, 255, 255, 0.16)'
+                        : saveSuccess
+                        ? 'linear-gradient(135deg, #D8B4FE 0%, #A855F7 100%)'
+                        : 'linear-gradient(135deg, #C084FC 0%, #9333EA 100%)',
+                      border: `1px solid ${accentBorder}`,
+                      color: isMono && saveSuccess ? '#0A0A0C' : '#FAF7F2',
                       fontWeight: 700,
                       fontSize: '14px',
                       display: 'flex',
@@ -875,7 +906,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       justifyContent: 'center',
                       gap: '8px',
                       cursor: 'pointer',
-                      boxShadow: '0 6px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(192, 132, 252, 0.3)',
+                      boxShadow: isMono
+                        ? '0 6px 20px rgba(0, 0, 0, 0.5)'
+                        : '0 6px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(192, 132, 252, 0.3)',
                       transition: 'all 0.2s ease',
                     }}
                   >
@@ -911,8 +944,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                           flexShrink: 0,
                           padding: '6px 10px',
                           borderRadius: '11px',
-                          background: isSelected ? 'rgba(251, 146, 60, 0.18)' : 'rgba(255, 255, 255, 0.04)',
-                          border: isSelected ? '1px solid rgba(251, 146, 60, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: isSelected ? accentSoft : 'rgba(255, 255, 255, 0.04)',
+                          border: isSelected ? `1px solid ${accentBorder}` : '1px solid rgba(255, 248, 240, 0.08)',
                           color: isSelected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.65)',
                           fontSize: '11px',
                           fontWeight: 600,
@@ -938,9 +971,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                   style={{
                     padding: '6px 12px',
                     borderRadius: '10px',
-                    background: 'rgba(251, 146, 60, 0.15)',
-                    border: '1px solid rgba(251, 146, 60, 0.3)',
-                    color: '#FB923C',
+                    background: accentSoft,
+                    border: `1px solid ${accentBorder}`,
+                    color: accentLight,
                     fontSize: '11.5px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1036,7 +1069,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                           <span style={{ fontSize: '16px', fontWeight: 300, color: '#FAF7F2' }}>
                             {m.totalCalories}
                           </span>
-                          <span style={{ fontSize: '10px', color: '#FB923C', marginLeft: '3px', fontWeight: 700 }}>
+                          <span style={{ fontSize: '10px', color: accentLight, marginLeft: '3px', fontWeight: 700 }}>
                             kcal
                           </span>
                         </div>
