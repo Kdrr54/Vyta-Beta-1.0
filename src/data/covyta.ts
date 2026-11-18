@@ -114,7 +114,7 @@ Votre séance de fractionnés a été très productive :
 • **FC moyenne** : **152 bpm**
 • **Récupération post-effort** : **−38 bpm** en 2 min
 
-### Conseil CoVyta
+### Conseil Aurelius
 Votre cœur récupère vite. Prévoyez **500 ml d'eau avec électrolytes** pour reconstituer vos réserves minérales.`,
     },
     {
@@ -157,7 +157,7 @@ Votre VFC est descendue à **61 ms** (−5 ms sous votre baseline) :
 • **Sommeil profond écourté** : **1h22**
 • **FC de repos** : Légère hausse à **54 bpm**
 
-### Conseil CoVyta
+### Conseil Aurelius
 Avancez votre coucher à **22h45** ce soir pour compenser la dette de sommeil.`,
     },
     {
@@ -325,7 +325,7 @@ Bonjour Alexandre. Vos signaux physiologiques de la nuit et de la journée ont �
 • **Température cutanée** : **+0,4 °C** (élévation prodromique)
 • **VFC diurne** : **−14 ms** (système nerveux sous charge)
 
-### Recommandation CoVyta
+### Recommandation Aurelius
 Nous vous conseillons d'anticiper votre coucher à **22h45** ce soir pour stopper la charge immunitaire.`,
     },
   ],

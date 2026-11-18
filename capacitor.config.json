@@ -1,13 +1,13 @@
 {
   "appId": "lt.manodrabuziai.fr.ZCU3WN2ZW4",
-  "appName": "Stoic Labs",
+  "appName": "Aurel",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
-    "hostname": "stoic"
+    "hostname": "aurel"
   },
   "ios": {
-    "scheme": "Stoic",
+    "scheme": "Aurel",
     "teamId": "ZCU3WN2ZW4",
     "contentInset": "never",
     "allowsLinkPreview": false,

@@ -1039,7 +1039,7 @@ export default function MorphOrb(props: MorphOrbProps) {
         >
           {phase === "idle" && !isKeyboardOpen && (
             <div style={{ pointerEvents: "none", marginBottom: "-4px" }}>
-              <ZenonOrb status="idle" size={118} />
+              <AureliusOrb status="idle" size={118} />
             </div>
           )}
 
@@ -1207,15 +1207,15 @@ export default function MorphOrb(props: MorphOrbProps) {
   );
 }
 
-/* ─────────────────────── Zenon Unified 3D Orb ─────────────────────── */
-export interface ZenonOrbProps {
+/* ─────────────────────── Aurelius Unified 3D Orb ─────────────────────── */
+export interface AureliusOrbProps {
   status: "idle" | "thinking" | "done";
   label?: string;
   prog?: number;
   size?: number;
 }
 
-export function ZenonOrb({ status, label, prog = 0, size = 180 }: ZenonOrbProps) {
+export function AureliusOrb({ status, label, prog = 0, size = 180 }: AureliusOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const orbRef = useRef<ReturnType<typeof createOrb> | null>(null);
   const statusRef = useRef(status);

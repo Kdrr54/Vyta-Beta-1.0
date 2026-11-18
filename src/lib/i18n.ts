@@ -7,12 +7,12 @@ export const translations = {
     'tab.sleep': 'Sommeil',
     'tab.cycle': 'Cycle',
     'tab.fit': 'Activité',
-    'tab.covyta': 'Zénon',
+    'tab.covyta': 'Aurelius',
 
     // Header
-    'header.covyta_on': 'Zénon ACTIF',
-    'header.covyta_off': 'Zénon OFF',
-    'header.ring_title': 'Bague Aurel Ring One • Réglages & Diagnostics',
+    'header.covyta_on': 'Aurelius ACTIF',
+    'header.covyta_off': 'Aurelius OFF',
+    'header.ring_title': 'Bague Aurel Ring One (AR01) • Réglages & Diagnostics',
     'header.battery_tooltip': 'Batterie bague : ',
 
     // Week & Dates
@@ -148,9 +148,9 @@ export const translations = {
     'covyta.suggest_recovery': 'Comment optimiser ma récupération aujourd\'hui ?',
     'covyta.suggest_sleep': 'Pourquoi mon sommeil profond a chuté ?',
     'covyta.suggest_run': 'Quelle allure de course me conseilles-tu ?',
-    'covyta.locked_title': 'Mode Découverte Limitée',
-    'covyta.locked_desc': 'Activez Zénon Premium pour débloquer les analyses biologiques en temps réel et le coaching prédictif.',
-    'covyta.subscribe_btn': 'Activer Zénon • 5,99 €',
+    'covyta.locked_title': 'Aurelius Inclus',
+    'covyta.locked_desc': 'Toutes les analyses biologiques Aurelius sont incluses sans aucun abonnement.',
+    'covyta.subscribe_btn': 'Aurelius Inclus · Zéro Abonnement',
 
     // Metric Detail Modal (BPM, HRV, Temp, SpO2)
     'metric.back': 'Santé',
@@ -165,17 +165,17 @@ export const translations = {
     'metric.immediate_insight': 'Analyse Immédiate',
     'metric.recorded_measure': 'Mesure enregistrée',
 
-    // Subscribe Modal
-    'sub.title': 'Zénon Premium',
-    'sub.banner_title': 'Abonnement Sans Engagement',
-    'sub.price': '5,99 €',
-    'sub.period': '/ 4 semaines',
-    'sub.cancel_anytime': 'Résiliable en 1 clic',
-    'sub.features_unlocked': 'Fonctionnalités exclusives débloquées :',
-    'sub.apple_pay': 'Payer avec Apple Pay',
-    'sub.card_pay': 'Carte Bancaire (CB, Visa, Mastercard)',
-    'sub.welcome_title': 'Bienvenue dans Zénon !',
-    'sub.welcome_desc': 'Tous les diagnostics et protocoles biométriques sont désormais actifs.',
+    // Aurelius Info
+    'sub.title': 'AUREL CARE',
+    'sub.banner_title': '100 % Zéro Abonnement',
+    'sub.price': 'Inclus',
+    'sub.period': '',
+    'sub.cancel_anytime': 'Accès complet à vie avec votre Aurel Ring One (AR01)',
+    'sub.features_unlocked': 'Fonctionnalités incluses sans abonnement :',
+    'sub.apple_pay': 'Activer',
+    'sub.card_pay': 'Continuer',
+    'sub.welcome_title': 'Bienvenue dans Aurelius !',
+    'sub.welcome_desc': 'Tous les diagnostics et protocoles biométriques sont actifs.',
   },
 
   en: {
@@ -184,12 +184,12 @@ export const translations = {
     'tab.sleep': 'Sleep',
     'tab.cycle': 'Cycle',
     'tab.fit': 'Activity',
-    'tab.covyta': 'Zénon',
+    'tab.covyta': 'Aurelius',
 
     // Header
-    'header.covyta_on': 'Zénon ACTIF',
-    'header.covyta_off': 'Zénon OFF',
-    'header.ring_title': 'Aurel Ring One • Settings & Diagnostics',
+    'header.covyta_on': 'Aurelius ACTIVE',
+    'header.covyta_off': 'Aurelius OFF',
+    'header.ring_title': 'Aurel Ring One (AR01) • Settings & Diagnostics',
     'header.battery_tooltip': 'Ring battery: ',
 
     // Week & Dates
@@ -325,9 +325,9 @@ export const translations = {
     'covyta.suggest_recovery': 'How can I optimize my recovery today?',
     'covyta.suggest_sleep': 'Why did my deep sleep drop last night?',
     'covyta.suggest_run': 'What running pace do you recommend?',
-    'covyta.locked_title': 'Limited Discovery Mode',
-    'covyta.locked_desc': 'Activate Zénon Premium to unlock real-time biological analysis and predictive coaching.',
-    'covyta.subscribe_btn': 'Activate Zénon • €5.99',
+    'covyta.locked_title': 'Aurelius Included',
+    'covyta.locked_desc': 'All Aurelius biological analyses are included with zero subscription.',
+    'covyta.subscribe_btn': 'Aurelius Included · Zero Subscription',
 
     // Metric Detail Modal (BPM, HRV, Temp, SpO2)
     'metric.back': 'Health',
@@ -342,17 +342,17 @@ export const translations = {
     'metric.immediate_insight': 'Immediate Insight',
     'metric.recorded_measure': 'Recorded measurement',
 
-    // Subscribe Modal
-    'sub.title': 'Zénon Premium',
-    'sub.banner_title': 'No Commitment Subscription',
-    'sub.price': '€5.99',
-    'sub.period': '/ 4 weeks',
-    'sub.cancel_anytime': 'Cancel in 1 click',
-    'sub.features_unlocked': 'Exclusive unlocked features:',
-    'sub.apple_pay': 'Pay with Apple Pay',
-    'sub.card_pay': 'Credit Card (Visa, Mastercard)',
-    'sub.welcome_title': 'Welcome to Zénon!',
-    'sub.welcome_desc': 'All biometric diagnostics and custom protocols are now active.',
+    // Aurelius Info
+    'sub.title': 'AUREL CARE',
+    'sub.banner_title': '100% Zero Subscription',
+    'sub.price': 'Included',
+    'sub.period': '',
+    'sub.cancel_anytime': 'Full lifetime access with your Aurel Ring One (AR01)',
+    'sub.features_unlocked': 'All features included without subscription:',
+    'sub.apple_pay': 'Enable',
+    'sub.card_pay': 'Continue',
+    'sub.welcome_title': 'Welcome to Aurelius!',
+    'sub.welcome_desc': 'All biometric diagnostics and custom protocols are active.',
   },
 } as const;
 

@@ -46,7 +46,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     (isFirstLaunch ? emptyDayMetrics : weekMetrics[selectedDay] || weekMetrics[TODAY_INDEX]);
   const dayName = isEn ? 'Today' : "Aujourd'hui";
 
-  const handleAskZenon = async (question: string): Promise<string> => {
+  const handleAskAurelius = async (question: string): Promise<string> => {
     const text = question.trim();
     if (!text) return '';
 
@@ -57,7 +57,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     ) {
       handleClose();
       setTimeout(() => openModal('calai'), 180);
-      return isEn ? 'Opening Cal AI scanner...' : 'Ouverture du scanner Cal AI...';
+      return isEn ? 'Opening Aurelius Nutrition scanner...' : 'Ouverture du scanner nutritionnel...';
     }
 
     try {
@@ -86,12 +86,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     ? `Hello ${profile.firstName || 'Aurel'}`
     : `Bonjour ${profile.firstName || 'Aurel'}`;
   const greetingSubtitle = isEn
-    ? 'Ask anything about your recovery, sleep, or daily telemetry.'
-    : 'Interrogez Zénon sur votre récupération, votre sommeil ou votre forme.';
+    ? 'Ask Aurelius anything about your recovery, sleep, or daily telemetry.'
+    : 'Interrogez Aurelius sur votre récupération, votre sommeil ou votre forme.';
 
   return (
     <div
-      className={`zenon-backdrop ${isClosing ? 'is-closing' : ''}`}
+      className={`aurelius-backdrop ${isClosing ? 'is-closing' : ''}`}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
@@ -111,22 +111,22 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       }}
     >
       <style>{`
-        @keyframes zenonBackdropIn {
+        @keyframes aureliusBackdropIn {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        @keyframes zenonBackdropOut {
+        @keyframes aureliusBackdropOut {
           from { opacity: 1; }
           to { opacity: 0; }
         }
-        .zenon-backdrop {
-          animation: zenonBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        .aurelius-backdrop {
+          animation: aureliusBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
           will-change: opacity;
         }
-        .zenon-backdrop.is-closing {
-          animation: zenonBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+        .aurelius-backdrop.is-closing {
+          animation: aureliusBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
         }
-        @keyframes zenonSheetSlideUp {
+        @keyframes aureliusSheetSlideUp {
           0% {
             transform: translate3d(0, 100%, 0);
             opacity: 0.75;
@@ -136,7 +136,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             opacity: 1;
           }
         }
-        @keyframes zenonSheetSlideDown {
+        @keyframes aureliusSheetSlideDown {
           0% {
             transform: translate3d(0, 0, 0);
             opacity: 1;
@@ -146,19 +146,19 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             opacity: 0;
           }
         }
-        .zenon-sheet {
-          animation: zenonSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        .aurelius-sheet {
+          animation: aureliusSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
           will-change: transform, opacity;
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
         }
-        .zenon-sheet.is-closing {
-          animation: zenonSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+        .aurelius-sheet.is-closing {
+          animation: aureliusSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
         }
       `}</style>
 
       <div
-        className={`zenon-sheet ${isClosing ? 'is-closing' : ''}`}
+        className={`aurelius-sheet ${isClosing ? 'is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
@@ -213,7 +213,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                   letterSpacing: '-0.3px',
                 }}
               >
-                Zénon
+                AURELIUS
               </span>
               <span
                 style={{
@@ -223,8 +223,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 }}
               >
                 {isEn
-                  ? 'Biological Intelligence · Aurel Ring One'
-                  : 'Intelligence Biologique · Aurel Ring One'}
+                  ? 'Biological Intelligence · Aurel Ring One (AR01)'
+                  : 'Intelligence Biologique · Aurel Ring One (AR01)'}
               </span>
             </div>
           </div>
@@ -250,10 +250,10 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 gap: '5px',
                 cursor: 'pointer',
               }}
-              title={isEn ? 'Open Cal AI Food Scanner' : 'Ouvrir Cal AI Nutrition'}
+              title={isEn ? 'Open Nutrition Scanner' : 'Scanner un repas'}
             >
               <Camera size={13} color="#30D158" />
-              <span>Cal AI</span>
+              <span>Nutrition</span>
             </button>
 
             <button
@@ -281,7 +281,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         {/* Exact 21st.dev MorphOrb Thinking & Input Component */}
         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
           <MorphOrb
-            onSubmit={handleAskZenon}
+            onSubmit={handleAskAurelius}
             minThinkMs={1400}
             greetingTitle={greetingTitle}
             greetingSubtitle={greetingSubtitle}
@@ -298,18 +298,18 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             copy={
               isEn
                 ? {
-                    placeholder: 'Ask Zénon anything…',
+                    placeholder: 'Ask Aurelius anything…',
                     labels: ['Thinking', 'Searching', 'Analyzing', 'Composing'],
                     done: 'Done',
-                    answerTitle: 'Zénon',
+                    answerTitle: 'AURELIUS',
                     reset: 'New question',
                     send: 'Send',
                   }
                 : {
-                    placeholder: 'Demandez à Zénon…',
+                    placeholder: 'Demandez à Aurelius…',
                     labels: ['Analyse biométrique', 'Recoupement', 'Synthèse clinique', 'Rédaction'],
                     done: 'Terminé',
-                    answerTitle: 'Zénon',
+                    answerTitle: 'AURELIUS',
                     reset: 'Nouvelle question',
                     send: 'Envoyer',
                   }

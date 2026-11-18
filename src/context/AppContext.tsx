@@ -107,8 +107,8 @@ interface AppContextType {
   updateProfile: (partial: Partial<UserProfile>) => void;
   finish: RingFinish;
   setFinish: (finish: RingFinish) => void;
-  modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null;
-  openModal: (modal: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai', extraPreset?: 'power' | 'restful' | 'cycle') => void;
+  modal: 'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null;
+  openModal: (modal: 'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai', extraPreset?: 'power' | 'restful' | 'cycle') => void;
   closeModal: () => void;
   initialNapPreset: 'power' | 'restful' | 'cycle';
   metricDetail: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null;
@@ -182,9 +182,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Read initial query params if present for quick testing (?tab=fit, ?covyta=1, ?sex=femme, ?modal=settings)
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const initialTab = (params?.get('tab') as TabType) || 'health';
-  const initialCovyta = params?.get('covyta') === '1';
+  const initialCovyta = params?.get('covyta') === '0' ? false : true;
   const initialSex = (params?.get('sex') as BiologicalSex) || (typeof window !== 'undefined' && localStorage.getItem('vyta_sex') === 'homme' ? 'homme' : 'femme');
-  const initialModal = (params?.get('modal') as 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null) || null;
+  const initialModal = (params?.get('modal') as 'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | null) || null;
   const initialMetric = (params?.get('metric') as 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | null) || null;
   const initialStory = null;
 
@@ -194,7 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
   const [finish, setFinish] = useState<RingFinish>(() => detectRingFinish(defaultRing.macAddress, defaultRing.serial));
-  const [modal, setModal] = useState<'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null>(initialModal as any);
+  const [modal, setModal] = useState<'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null>(initialModal as any);
   const [initialNapPreset, setInitialNapPreset] = useState<'power' | 'restful' | 'cycle'>('power');
   const [metricDetail, setMetricDetail] = useState<'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose' | null>(initialMetric);
   const [storyData, setStoryData] = useState<any | null>(initialStory);
@@ -1100,18 +1100,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
   };
 
-  const openModal = (
-    m: 'settings' | 'subscribe' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai',
+  const openModal = useCallback((
+    m: 'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai',
     extraPreset?: 'power' | 'restful' | 'cycle'
   ) => {
     if (extraPreset) setInitialNapPreset(extraPreset);
     setModal(m);
-  };
-  const closeModal = () => setModal(null);
-  const openMetricDetail = (m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => setMetricDetail(m);
-  const closeMetricDetail = () => setMetricDetail(null);
-  const openStory = (data: any) => setStoryData(data);
-  const closeStory = () => setStoryData(null);
+  }, []);
+  const closeModal = useCallback(() => setModal(null), []);
+  const openMetricDetail = useCallback((m: 'bpm' | 'hrv' | 'temp' | 'spo2' | 'resp' | 'stress' | 'bp' | 'glucose') => setMetricDetail(m), []);
+  const closeMetricDetail = useCallback(() => setMetricDetail(null), []);
+  const openStory = useCallback((data: any) => setStoryData(data), []);
+  const closeStory = useCallback(() => setStoryData(null), []);
 
   // Surveillance active du passage de minuit et de la semaine civile
   useEffect(() => {

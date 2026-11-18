@@ -11,7 +11,7 @@ import {
   getDailyTargets,
 } from '../lib/calAiService';
 import { CalAiAnalysisResult } from '../types/calai';
-import { ZenonOrb } from './ui/ai-thiking-orb-and-input';
+import { AureliusOrb } from './ui/ai-thiking-orb-and-input';
 import {
   X,
   Camera,
@@ -82,7 +82,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
     setScanStep(isEn ? 'Decomposing portions & ingredients...' : 'Décomposition des portions & ingrédients...');
     await new Promise((r) => setTimeout(r, 550));
 
-    setScanStep(isEn ? 'Stoic synthesis & calorie calculation...' : 'Calcul des calories & synthèse stoïcienne...');
+    setScanStep(isEn ? 'Aurelius synthesis & calorie calculation...' : 'Calcul des calories & synthèse Aurelius...');
 
     try {
       const result = await analyzeMealWithCalAi(imgData, {
@@ -91,7 +91,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
       });
       setCurrentResult(result);
     } catch (err: any) {
-      console.error('[Zénon Nutrition] Erreur analyse:', err);
+      console.error('[Aurelius Nutrition] Erreur analyse:', err);
       setErrorMessage(
         err?.message || (isEn ? 'Could not analyze meal. Please retry.' : 'Échec de l’analyse. Veuillez réessayer.')
       );
@@ -110,7 +110,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
       const compressed = await compressImageToDataUrl(file);
       await processImage(compressed);
     } catch (err: any) {
-      console.error('[Zénon Nutrition] Erreur compression:', err);
+      console.error('[Aurelius Nutrition] Erreur compression:', err);
       setIsScanning(false);
       setErrorMessage(isEn ? 'Error loading image' : 'Erreur lors du chargement de la photo');
     }
@@ -187,7 +187,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255, 255, 255, 0.22)' }} />
         </div>
 
-        {/* En-tête Stoïcien Aurel Labs · Zénon Nutrition */}
+        {/* En-tête Aurel Labs · Aurelius Nutrition */}
         <div
           style={{
             padding: '12px 20px',
@@ -216,7 +216,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '17px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Zénon
+                  Aurelius
                 </span>
                 <span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.45)' }}>
                   ·
@@ -226,7 +226,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                 </span>
               </div>
               <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                {isEn ? 'Vision Biologique & Équilibre Stoïcien' : 'Vision Biologique & Équilibre Stoïcien'}
+                {isEn ? 'Biological Vision & Aurel Balance' : 'Vision Biologique & Équilibre Aurel'}
               </span>
             </div>
           </div>
@@ -253,7 +253,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
           </button>
         </div>
 
-        {/* Onglets Stoïciens */}
+        {/* Onglets Aurel Nutrition */}
         <div style={{ display: 'flex', padding: '10px 18px', gap: '8px' }}>
           <button
             type="button"
@@ -306,7 +306,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             }}
           >
             <Utensils size={15} color={activeTab === 'journal' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)'} />
-            {isEn ? `Daily Journal (${dailySummary.mealCount})` : `Journal Stoïcien (${dailySummary.mealCount})`}
+            {isEn ? `Daily Journal (${dailySummary.mealCount})` : `Journal Aurel (${dailySummary.mealCount})`}
           </button>
         </div>
 
@@ -414,7 +414,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px 18px' }}>
           {activeTab === 'scan' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Cadre de Capture Stoïcien */}
+              {/* Cadre de Capture Aurel */}
               <div
                 style={{
                   position: 'relative',
@@ -437,7 +437,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                       alt="Capture repas"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
-                    {/* Overlay d'Analyse Zénon avec ZenonOrb */}
+                    {/* Overlay d'Analyse Aurelius avec AureliusOrb */}
                     {isScanning && (
                       <div
                         style={{
@@ -454,7 +454,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                           zIndex: 5,
                         }}
                       >
-                        <ZenonOrb status="thinking" size={130} />
+                        <AureliusOrb status="thinking" size={130} />
                         <span
                           style={{
                             color: '#FAF7F2',
@@ -505,7 +505,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                         {isEn ? 'Capture your dish' : 'Capturez votre assiette'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '3px', maxWidth: '280px' }}>
-                        {isEn ? 'Zénon identifies foods, weights, calories, and macros' : 'Zénon identifie les aliments, portions, calories et macronutriments'}
+                        {isEn ? 'Aurelius identifies foods, weights, calories, and macros' : 'Aurelius identifie les aliments, portions, calories et macronutriments'}
                       </div>
                     </div>
                   </div>
@@ -627,7 +627,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     </div>
                   </div>
 
-                  {/* 3 Cartes Macros Stoïciennes */}
+                  {/* 3 Cartes Macros Aurel */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                     <div
                       style={{
@@ -706,7 +706,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     </div>
                   )}
 
-                  {/* Synthèse Stoïcienne de Zénon */}
+                  {/* Synthèse Aurelius */}
                   {currentResult.advice && (
                     <div
                       style={{
@@ -719,7 +719,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                         lineHeight: 1.45,
                       }}
                     >
-                      💡 <strong style={{ color: '#C084FC' }}>Synthèse Stoïcienne :</strong> {currentResult.advice}
+                      💡 <strong style={{ color: '#C084FC' }}>Synthèse Aurelius :</strong> {currentResult.advice}
                     </div>
                   )}
 
@@ -784,7 +784,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
                     {saveSuccess ? (
                       <>
                         <Check size={18} />
-                        {isEn ? 'Logged to Journal!' : 'Enregistré dans le Journal Stoïcien !'}
+                        {isEn ? 'Logged to Journal!' : 'Enregistré dans le Journal Aurel !'}
                       </>
                     ) : (
                       <>

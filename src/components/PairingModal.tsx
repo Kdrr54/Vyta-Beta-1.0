@@ -508,7 +508,7 @@ export const PairingModal: React.FC<PairingModalProps> = ({ onClose, onBack }) =
           {/* Rendu photoréaliste du pilier romain s'étirant de tout en bas jusqu'au milieu */}
           <img
             src="/assets/roman-pedestal-hero.png"
-            alt="Pilier Romain Vyta"
+            alt="Pilier Romain Aurel"
             style={{
               width: '100%',
               height: '100%',

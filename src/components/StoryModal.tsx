@@ -72,7 +72,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
     const variant = SLIDE_VARIANTS[activeSlide] || 'transparent';
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `stoik-${data.mode}-${variant}-${Date.now()}.png`;
+    a.download = `aurel-${data.mode}-${variant}-${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

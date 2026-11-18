@@ -69,7 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   const isConnected = Boolean(ring.isConnected);
-  const isVytaCareActive = ring.vytaCareActive !== false;
+  const isAurelCareActive = ring.aurelCareActive !== false;
   const currentFinish = finishes.find((f) => f.id === finish) || finishes[1];
   const estimatedDays = calculateEstimatedBatteryDays(sensorIntervals);
   const remainingBatteryTime = formatRemainingBatteryTime(
@@ -321,7 +321,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   {t('settings.title')}
                 </h2>
                 <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)', fontWeight: 500 }}>
-                  {isEn ? 'Aurel Ring One · Settings & Health' : 'Aurel Ring One · Réglages & Santé'}
+                  {isEn ? 'Aurel Ring One (AR01) · Settings & Health' : 'Aurel Ring One (AR01) · Réglages & Santé'}
                 </span>
               </div>
             </div>
@@ -849,19 +849,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </button>
               </div>
 
-              {/* 4. Garantie Aurel Care */}
+              {/* 4. Garantie AUREL CARE */}
               <div
                 onClick={() => {
                   triggerHaptic();
-                  updateRing({ vytaCareActive: !isVytaCareActive });
+                  updateRing({ aurelCareActive: !isAurelCareActive });
                 }}
                 role="button"
                 tabIndex={0}
                 style={{
                   padding: '12px 14px',
                   borderRadius: '18px',
-                  background: isVytaCareActive ? 'rgba(48, 209, 88, 0.06)' : 'rgba(255, 255, 255, 0.03)',
-                  border: isVytaCareActive ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  background: isAurelCareActive ? 'rgba(48, 209, 88, 0.06)' : 'rgba(255, 255, 255, 0.03)',
+                  border: isAurelCareActive ? '1px solid rgba(48, 209, 88, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -875,21 +875,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       width: '30px',
                       height: '30px',
                       borderRadius: '9px',
-                      background: isVytaCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                      background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <ShieldCheck size={16} color={isVytaCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)'} />
+                    <ShieldCheck size={16} color={isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)'} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Aurel Care Warranty' : 'Garantie Aurel Care'}
+                      {isEn ? 'AUREL CARE Warranty & VIP' : 'Garantie & Service VIP AUREL CARE'}
                     </span>
                     <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                      {isVytaCareActive
-                        ? (isEn ? `Valid until ${ring.vytaCareExpires || 'Oct 2028'}` : `Couverture active · Jusqu'en ${ring.vytaCareExpires || 'Oct 2028'}`)
+                      {isAurelCareActive
+                        ? (isEn ? `Active · Valid until ${ring.aurelCareExpires || 'Oct 2028'}` : `Couverture active · Jusqu'en ${ring.aurelCareExpires || 'Oct 2028'}`)
                         : (isEn ? 'Inactive · No active coverage' : 'Non active · Aucune couverture')}
                     </span>
                   </div>
@@ -899,13 +899,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
-                    color: isVytaCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)',
-                    background: isVytaCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                    color: isAurelCareActive ? '#30D158' : 'rgba(250, 247, 242, 0.5)',
+                    background: isAurelCareActive ? 'rgba(48, 209, 88, 0.16)' : 'rgba(255, 255, 255, 0.06)',
                     padding: '3px 8px',
                     borderRadius: '6px',
                   }}
                 >
-                  {isVytaCareActive ? 'ACTIVE' : 'INACTIVE'}
+                  {isAurelCareActive ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </div>
 
@@ -924,15 +924,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'Model' : 'Modèle'}</span>
-                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Ring One (Grade 5 Titanium)</span>
+                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Ring One (AR01)</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'Serial Number' : 'Numéro de Série'}</span>
-                  <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.serial || 'AY-9942-X'}</span>
+                  <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.serial || 'AR01-GM-99841'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'BLE MAC Address' : 'Adresse MAC BLE'}</span>
                   <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.macAddress || 'C8:2B:96:4A:99:84'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
+                  <span>{isEn ? 'Publisher' : 'Société éditrice'}</span>
+                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Labs LLC (New Mexico, USA)</span>
                 </div>
               </div>
             </>
@@ -1888,8 +1892,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <Lock size={12} color="rgba(250, 247, 242, 0.5)" />
                 <span>
                   {isEn
-                    ? 'Encrypted On-Device Vault · Zero telemetry shared'
-                    : 'Chiffrement biométrique local On-Device Vault'}
+                    ? 'Aurel Labs LLC (New Mexico, USA) · Zero Subscription'
+                    : 'Aurel Labs LLC (New Mexico, USA) · Modèle Zéro Abonnement'}
                 </span>
               </div>
             </>

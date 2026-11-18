@@ -307,10 +307,10 @@ export const CoVytaScreen: React.FC = () => {
 
   return (
     <div className="covyta-screen-wrap">
-      {/* 1. Header supérieur simple : CoVyta + Statut IA + Bouton Réinitialiser */}
+      {/* 1. Header supérieur simple : Aurelius + Statut IA + Bouton Réinitialiser */}
       <div className="covyta-header-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <h1 className="header-title" style={{ margin: 0 }}>Zénon</h1>
+          <h1 className="header-title" style={{ margin: 0 }}>AURELIUS</h1>
           <button
             type="button"
             onClick={() => setShowKeyModal(true)}
@@ -383,7 +383,7 @@ export const CoVytaScreen: React.FC = () => {
             </div>
 
             <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', marginTop: '2px' }}>
-              {isEn ? 'Zénon Biometric Intelligence' : 'Intelligence Biologique Zénon'}
+              {isEn ? 'Aurelius Biometric Intelligence' : 'Intelligence Biologique Aurelius'}
             </span>
 
             <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)', maxWidth: '300px', lineHeight: 1.45, textAlign: 'center' }}>
@@ -591,7 +591,7 @@ export const CoVytaScreen: React.FC = () => {
           <input
             type="text"
             className="chat-input"
-            placeholder={isEn ? 'Ask Zénon a question...' : 'Posez une question à Zénon...'}
+            placeholder={isEn ? 'Ask Aurelius a question...' : 'Posez une question à Aurelius...'}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             onFocus={() => {

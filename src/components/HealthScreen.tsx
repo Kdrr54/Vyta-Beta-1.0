@@ -277,7 +277,7 @@ export const HealthScreen: React.FC = () => {
         onClick={() => openModal('prism')}
         role="button"
         tabIndex={0}
-        title="Ouvrir Zénon · Intelligence Biologique"
+        title="Ouvrir Aurelius · Intelligence Biologique"
         style={{
           position: 'relative',
           padding: '13px 15px',
@@ -326,7 +326,7 @@ export const HealthScreen: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '13.5px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                Zénon
+                Aurelius
               </span>
               <span
                 style={{
@@ -367,7 +367,7 @@ export const HealthScreen: React.FC = () => {
               e.stopPropagation();
               openModal('calai');
             }}
-            title={language === 'fr' ? 'Zénon Nutrition · Scanner un repas' : 'Zénon Nutrition · Scan meal'}
+            title={language === 'fr' ? 'Aurelius Nutrition · Scanner un repas' : 'Aurelius Nutrition · Scan meal'}
             style={{
               padding: '5px 10px',
               borderRadius: '999px',

@@ -520,7 +520,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
               </span>
             </div>
             <p style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.55)', lineHeight: 1.45, margin: 0 }}>
-              Vos entraînements GPS, votre scanner nutritionnel Cal AI et Zénon restent accessibles même avant l’appairage de votre bague.
+              Vos entraînements GPS, votre scanner nutritionnel et Aurelius restent accessibles même avant l’appairage de votre bague Aurel Ring One (AR01).
             </p>
           </div>
 

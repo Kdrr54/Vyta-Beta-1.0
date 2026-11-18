@@ -260,11 +260,11 @@ Mode actif : **${persona === 'analyst' ? '🔬 ANALYSTE' : persona === 'commande
   }
 
   // 6. QUI ES-TU / WHO ARE YOU
-  if (/(qui es-tu|qui es tu|c'est quoi covyta|c'est quoi zénon|c'est quoi zenon|présente-toi|who are you|what is covyta|what is zenon|aurel labs|aurel ring)/i.test(cleanPrompt)) {
+  if (/(qui es-tu|qui es tu|c'est quoi aurelius|c'est quoi aurel|présente-toi|who are you|what is aurelius|aurel labs|aurel ring)/i.test(cleanPrompt)) {
     if (isEn) {
-      return `### I am Zénon · Biological AI by Aurel Labs ⚡
+      return `### I am Aurelius · Biological AI by Aurel Labs LLC ⚡
 
-A native biological intelligence tailored for the **Aurel Ring One** titanium smart ring.
+A native biological intelligence tailored for the **Aurel Ring One (AR01)** titanium smart ring.
 
 Unlike generic language models, I connect the dots across:
 • **Nocturnal Autonomic Tone** (HRV in milliseconds & Nadir HR)
@@ -275,9 +275,9 @@ Unlike generic language models, I connect the dots across:
 Switch between **Analyst**, **Commander**, and **Guardian** personas above to adapt my tone to your goals.`;
     }
 
-    return `### Je suis Zénon · L'IA Biologique d'Aurel Labs ⚡
+    return `### Je suis Aurelius · L'IA Biologique d'Aurel Labs LLC ⚡
 
-Un moteur d'intelligence biologique natif conçu pour la bague connectée en titane **Aurel Ring One**.
+Un moteur d'intelligence biologique natif conçu pour la bague connectée en titane **Aurel Ring One (AR01)**.
 
 Contrairement aux IA génériques, je relie la cause à l'effet sur ton corps :
 • **Tonus Autonome Nocturne** (VFC en millisecondes et Nadir cardiaque)
@@ -355,7 +355,7 @@ Nocturnal telemetry recorded by Aurel Ring One:
 • **Deep Sleep**: **${deepHours}h ${deepMins}m** (physical cellular repair)
 • **REM Sleep**: **${Math.floor(dayData.sleep.remMin / 60)}h ${dayData.sleep.remMin % 60}m** (cognitive & memory consolidation)
 
-### Zénon Recommendations
+### Aurelius Recommendations
 • **Sleep Need Tonight**: **8h 15m** (including 25m debt compensation)
 • **Bedtime Target**: **22:45**
 • **Room Ambient**: **18 °C** with complete darkness`;
@@ -363,12 +363,12 @@ Nocturnal telemetry recorded by Aurel Ring One:
 
     return `### Architecture du Sommeil & Chronobiologie 🌙
 
-Relevés nocturnes de ta bague Aurel Ring One :
+Relevés nocturnes de ta bague Aurel Ring One (AR01) :
 • **Score de Sommeil** : **${dayData.sleep.score}/100**
 • **Sommeil Profond** : **${deepHours}h ${deepMins}m** (sécrétion d'hormone de croissance et réparation tissulaire)
 • **Sommeil Paradoxal (REM)** : **${Math.floor(dayData.sleep.remMin / 60)}h ${dayData.sleep.remMin % 60}m** (synthèse mémorielle et gestion émotionnelle)
 
-### Recommandations Zénon
+### Recommandations Aurelius
 • **Besoin de Sommeil ce soir** : **8h15** (dont +25 min de compensation de dette)
 • **Heure de Coucher Recommandée** : **22h45**
 • **Environnement** : Température de chambre à **18 °C** et obscurité complète`;

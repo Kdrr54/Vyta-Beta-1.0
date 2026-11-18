@@ -569,7 +569,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
           {/* Profil Bague & Statut Dernière Position */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {/* Miniature Bague Vyta */}
+              {/* Miniature Bague Aurel */}
               <div
                 style={{
                   width: '46px',

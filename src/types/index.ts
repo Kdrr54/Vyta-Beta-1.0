@@ -118,8 +118,8 @@ export interface RingDevice {
   ringSize: number;
   isConnected?: boolean;
   isCharging?: boolean;
-  vytaCareActive?: boolean;
-  vytaCareExpires?: string;
+  aurelCareActive?: boolean;
+  aurelCareExpires?: string;
   sensorIntervals?: SensorIntervals;
   wearCalibrationScore?: number;
   wearCalibrationDate?: string;

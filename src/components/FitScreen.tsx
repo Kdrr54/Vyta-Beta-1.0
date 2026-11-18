@@ -1726,7 +1726,7 @@ export const FitScreen: React.FC = () => {
               </span>
             </div>
           )}
-          {/* Bandeau de Contrôle de la Course GPS Vyta */}
+          {/* Bandeau de Contrôle de la Course GPS Aurel */}
           <div className="run-control-card">
             <div className="run-control-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -11,7 +11,6 @@ const SleepScreen = lazy(() => import('./components/SleepScreen').then((m) => ({
 const CycleScreen = lazy(() => import('./components/CycleScreen').then((m) => ({ default: m.CycleScreen })));
 const FitScreen = lazy(() => import('./components/FitScreen').then((m) => ({ default: m.FitScreen })));
 const SettingsModal = lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
-const SubscribeModal = lazy(() => import('./components/SubscribeModal').then((m) => ({ default: m.SubscribeModal })));
 const StoryModal = lazy(() => import('./components/StoryModal').then((m) => ({ default: m.StoryModal })));
 const MetricDetailModal = lazy(() => import('./components/MetricDetailModal').then((m) => ({ default: m.MetricDetailModal })));
 const TestDateModal = lazy(() => import('./components/TestDateModal').then((m) => ({ default: m.TestDateModal })));
@@ -125,7 +124,6 @@ const AppInner: React.FC = () => {
                   onBack={() => openModal('settings')}
                 />
               )}
-              {modal === 'subscribe' && <SubscribeModal onClose={closeModal} />}
               {modal === 'healthkit' && <HealthKitSyncModal onClose={closeModal} />}
               {modal === 'notifications' && <NotificationCenterModal onClose={closeModal} />}
               {modal === 'pairing' && <PairingModal onClose={closeModal} />}

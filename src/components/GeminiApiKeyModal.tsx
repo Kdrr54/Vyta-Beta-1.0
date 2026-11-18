@@ -37,7 +37,7 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
       setStoredGeminiKey(clean);
       setStatusMessage({
         type: 'success',
-        text: `✓ Succès ! Modèle ${result.model || 'Gemini 2.0 Flash'} connecté. La vraie IA est désormais active dans Zénon.`,
+        text: `✓ Succès ! Modèle ${result.model || 'Gemini 2.0 Flash'} connecté. La vraie IA est désormais active dans Aurelius.`,
       });
       if (onKeySaved) {
         onKeySaved(clean);

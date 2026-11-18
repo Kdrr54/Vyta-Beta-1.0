@@ -267,8 +267,8 @@ Sois réaliste, rigoureux sur les portions visibles, et prends en compte les hui
 
   throw new Error(
     isEn
-      ? 'Zénon Nutrition could not analyze the meal. Please take a closer photo and retry.'
-      : 'Zénon Nutrition n’a pas pu analyser le plat. Veuillez reprendre une photo bien éclairée et réessayer.'
+      ? 'Aurelius Nutrition could not analyze the meal. Please take a closer photo and retry.'
+      : 'Aurelius Nutrition n’a pas pu analyser le plat. Veuillez reprendre une photo bien éclairée et réessayer.'
   );
 }
 
