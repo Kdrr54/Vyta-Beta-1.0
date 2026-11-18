@@ -404,7 +404,8 @@ function getSmoothArea(points: { x: number; y: number }[], bottomY: number): str
 
 export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
-  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab, weekDays, weekOffset } = useApp();
+  const { selectedDay, liveBpm, setLiveBpm, t, language, isFirstLaunch, weekData, setWeekData, ring, openModal, tab, weekDays, weekOffset, sensorIntervals } = useApp();
+  const isHourlyMode = sensorIntervals?.heartRate === '1h' || (sensorIntervals?.heartRate as string) === '2h';
   // Jour inspecte local a la modale : isole completement l'ecran d'accueil Sante
   const [modalDay, setModalDay] = useState<number>(() => (selectedDay !== undefined ? selectedDay : TODAY_INDEX));
   const dayData = (weekData && weekData[modalDay]) || emptyDayMetrics;
@@ -506,9 +507,6 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             const now = new Date();
             const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
             prevLog[curHalf] = finalSpo2;
-            if (curHalf % 2 === 0 && curHalf + 1 < 48) {
-              prevLog[curHalf + 1] = finalSpo2;
-            }
             cur.spo2Log = prevLog;
             cur.spo2Min = cur.spo2Min && cur.spo2Min > 0 ? Math.min(cur.spo2Min, finalSpo2) : finalSpo2;
             cur.spo2Max = cur.spo2Max && cur.spo2Max > 0 ? Math.max(cur.spo2Max, finalSpo2) : finalSpo2;
@@ -771,33 +769,34 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         const h = Math.floor(normClock / 60);
         const m = normClock % 60;
         const label = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        const slot30Idx = Math.min(47, Math.max(0, Math.floor(normClock / 30)));
+        const rawSlot30 = Math.min(47, Math.max(0, Math.floor(normClock / 30)));
+        const slot30Idx = isHourlyMode && rawSlot30 % 2 === 1 ? -1 : rawSlot30;
 
         let val = 0;
         let isMeasured = false;
 
         if (metricId === 'temp') {
-          if (Array.isArray(dayData?.tempLog) && dayData.tempLog[slot30Idx] && dayData.tempLog[slot30Idx] >= 30) {
+          if (slot30Idx >= 0 && Array.isArray(dayData?.tempLog) && dayData.tempLog[slot30Idx] && dayData.tempLog[slot30Idx] >= 30) {
             val = parseFloat((dayData.tempLog[slot30Idx] - 36.5).toFixed(2));
             isMeasured = true;
           }
         } else if (metricId === 'resp') {
-          if (dayData?.resp && dayData.resp > 0) {
+          if (slot30Idx >= 0 && dayData?.resp && dayData.resp > 0) {
             val = parseFloat(dayData.resp.toFixed(1));
             isMeasured = true;
           }
         } else if (metricId === 'bpm') {
-          if (Array.isArray(dayData?.hrLog) && dayData.hrLog[slot30Idx] && dayData.hrLog[slot30Idx] >= 40) {
+          if (slot30Idx >= 0 && Array.isArray(dayData?.hrLog) && dayData.hrLog[slot30Idx] && dayData.hrLog[slot30Idx] >= 40) {
             val = dayData.hrLog[slot30Idx];
             isMeasured = true;
           }
         } else if (metricId === 'hrv') {
-          if (Array.isArray(dayData?.hrvLog) && dayData.hrvLog[slot30Idx] && dayData.hrvLog[slot30Idx] >= 5) {
+          if (slot30Idx >= 0 && Array.isArray(dayData?.hrvLog) && dayData.hrvLog[slot30Idx] && dayData.hrvLog[slot30Idx] >= 5) {
             val = dayData.hrvLog[slot30Idx];
             isMeasured = true;
           }
         } else if (metricId === 'spo2') {
-          if (Array.isArray(dayData?.spo2Log) && dayData.spo2Log[slot30Idx] && dayData.spo2Log[slot30Idx] >= 70) {
+          if (slot30Idx >= 0 && Array.isArray(dayData?.spo2Log) && dayData.spo2Log[slot30Idx] && dayData.spo2Log[slot30Idx] >= 70) {
             val = dayData.spo2Log[slot30Idx];
             isMeasured = true;
           }
@@ -829,10 +828,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       }
     }
 
-    // Fréquence cardiaque : 48 relevés réels (0x15)
+    // Fréquence cardiaque : relevés réels (0x15), strictement horaires (:00) si cadence 1h active
     if (metricId === 'bpm' && Array.isArray(dayData?.hrLog) && dayData!.hrLog!.length === 48) {
       dayData!.hrLog!.forEach((v, i) => {
-        if (i <= currentSlotToday && v >= 40 && v <= 200) {
+        const allowSlot = !isHourlyMode || i % 2 === 0;
+        if (allowSlot && i <= currentSlotToday && v >= 40 && v <= 200) {
           slots[i].value = v;
           slots[i].isMeasured = true;
         } else {
@@ -840,21 +840,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
-      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
-      for (let i = 0; i < 46; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
-          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
-          slots[i + 1].isMeasured = true;
-        }
-      }
       return slots;
     }
 
-    // VRC / HRV : 48 relevés réels de 30 min (0x39)
+    // VRC / HRV : relevés réels (0x39), sans interpolation artificielle sur :30
     if (metricId === 'hrv' && Array.isArray(dayData?.hrvLog) && dayData!.hrvLog!.length === 48) {
       dayData!.hrvLog!.forEach((v, i) => {
-        if (i <= currentSlotToday && v >= 5 && v < 250) {
+        const allowSlot = !isHourlyMode || i % 2 === 0;
+        if (allowSlot && i <= currentSlotToday && v >= 5 && v < 250) {
           slots[i].value = v;
           slots[i].isMeasured = true;
         } else {
@@ -862,22 +855,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
-      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
-      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
-      for (let i = 0; i < 46; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
-          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
-          slots[i + 1].isMeasured = true;
-        }
-      }
       return slots;
     }
 
-    // SpO2 : relevés réels de la bague (0xBC 0x2A et 0x5F)
+    // SpO2 : relevés réels de la bague (0xBC 0x2A et 0x5F), sans interpolation sur :30
     if (metricId === 'spo2' && Array.isArray(dayData?.spo2Log) && dayData!.spo2Log!.length === 48) {
       dayData!.spo2Log!.forEach((v, i) => {
-        if (i <= currentSlotToday && v >= 70 && v <= 100) {
+        const allowSlot = !isHourlyMode || i % 2 === 0;
+        if (allowSlot && i <= currentSlotToday && v >= 70 && v <= 100) {
           slots[i].value = v;
           slots[i].isMeasured = true;
         } else {
@@ -885,22 +870,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      // Cadence 30 minutes : combler les créneaux :30 au sein d'une période de port active pour former une courbe continue et fluide
-      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
-      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
-      for (let i = 0; i < 46; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
-          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
-          slots[i + 1].isMeasured = true;
-        }
-      }
       return slots;
     }
 
-    // Stress : 48 relevés réels de 30 min (0x37)
+    // Stress : relevés réels (0x37), sans interpolation sur :30
     if (metricId === 'stress' && Array.isArray(dayData?.stressLog) && dayData!.stressLog!.length === 48) {
       dayData!.stressLog!.forEach((v, i) => {
-        if (i <= currentSlotToday && v > 0 && v <= 100) {
+        const allowSlot = !isHourlyMode || i % 2 === 0;
+        if (allowSlot && i <= currentSlotToday && v > 0 && v <= 100) {
           slots[i].value = v;
           slots[i].isMeasured = true;
         } else {
@@ -908,23 +885,16 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           slots[i].isMeasured = false;
         }
       });
-      // Ne combler les créneaux :30 que si les DEUX heures encadrantes sont mesurées (port continu).
-      // Si la bague a été retirée à l'heure suivante (ex: salle de sport), le créneau reste non mesuré (trou).
-      for (let i = 0; i < 46; i += 2) {
-        if (slots[i].isMeasured && !slots[i + 1].isMeasured && i + 2 <= currentSlotToday && slots[i + 2]?.isMeasured) {
-          slots[i + 1].value = Math.round((slots[i].value + slots[i + 2].value) / 2);
-          slots[i + 1].isMeasured = true;
-        }
-      }
       return slots;
     }
 
-    // Température cutanée : 48 relevés réels de 30 min
+    // Température cutanée : relevés réels
     if (metricId === 'temp') {
       const hasTempLog = Array.isArray(dayData?.tempLog) && dayData!.tempLog!.length === 48 && dayData!.tempLog!.some((v, idx) => idx <= currentSlotToday && v > 0);
       if (hasTempLog) {
         dayData!.tempLog!.forEach((v, i) => {
-          if (i <= currentSlotToday && v >= 30 && v <= 42) {
+          const allowSlot = !isHourlyMode || i % 2 === 0;
+          if (allowSlot && i <= currentSlotToday && v >= 30 && v <= 42) {
             slots[i].value = parseFloat((v - 36.5).toFixed(2));
             slots[i].isMeasured = true;
           } else {
@@ -940,7 +910,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       if (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0)) {
         const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
         const endSlot = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0 ? Math.min(47, Math.floor(dayData.sleep.endMin / 30)) : 16;
-        for (let i = 0; i <= Math.min(endSlot, currentSlotToday); i++) {
+        for (let i = 0; i <= Math.min(endSlot, currentSlotToday); i += isHourlyMode ? 2 : 1) {
           const hour = i / 2;
           const circadianShift = -0.14 * Math.cos(((hour - 4) / 8) * Math.PI);
           slots[i].value = parseFloat((delta + circadianShift).toFixed(2));
@@ -962,7 +932,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         const inNap = dayData?.naps?.some(
           (nap) => hour >= nap.startMin / 60 && hour <= nap.endMin / 60
         );
-        if (i <= currentSlotToday && ((hour >= 0 && hour <= sleepEndHour) || inNap)) {
+        const allowSlot = !isHourlyMode || i % 2 === 0;
+        if (allowSlot && i <= currentSlotToday && ((hour >= 0 && hour <= sleepEndHour) || inNap)) {
           const circ = -0.8 * Math.cos(((hour - (sleepEndHour / 2)) / sleepEndHour) * Math.PI);
           slots[i].value = parseFloat((baseR + circ).toFixed(1));
           slots[i].isMeasured = true;
@@ -987,7 +958,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
 
     return slots;
-  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode, isSleepPage, isEn]);
+  }, [dayMetricValue, isZeroState, modalDay, metricId, dayData, curveMode, isSleepPage, isEn, isHourlyMode]);
 
   const isValidPoint = (ptOrVal: MetricDataPoint | number) => {
     if (typeof ptOrVal === 'object' && ptOrVal !== null) {
@@ -1049,7 +1020,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   // le graphique ne doit tracer AUCUN trait (interruption nette / vide complet) au lieu de relier artificiellement les points.
   // - BPM : mesure toutes les 30 min -> maxGapSlots = 1 (coupure dès > 1 créneau / 30 min sans relevé)
   // - VRC / SpO2 / Stress / Temp : cadence 1h (2 créneaux de 30 min) -> maxGapSlots = 2 (coupure dès > 2 créneaux sans relevé)
-  const maxGapSlots = metricId === 'bpm' ? 1 : 2;
+  const maxGapSlots = isHourlyMode || metricId !== 'bpm' ? 2 : 1;
 
   const segments: Array<Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }>> = [];
   let currentSegment: Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }> = [];
@@ -1108,9 +1079,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dataset.length - 1,
       Math.max(0, Math.round(relX * (dataset.length - 1)))
     );
+    if (isHourlyMode && (!isSleepPage || curveMode === '24h')) {
+      idx = Math.min(dataset.length - 2, Math.round(idx / 2) * 2);
+    }
     if ((!isSleepPage || curveMode === '24h') && modalDay === TODAY_INDEX) {
       const now = new Date();
-      const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+      const rawCurrentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+      const currentSlot = isHourlyMode ? Math.floor(rawCurrentSlot / 2) * 2 : rawCurrentSlot;
       if (idx > currentSlot) {
         idx = currentSlot;
       }

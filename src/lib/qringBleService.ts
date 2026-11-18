@@ -1561,16 +1561,25 @@ class QRingBleService {
     });
 
     // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
-    // If a 30-min window has both a scheduled reading (minute % 30 === 0) and an intermediate reading,
-    // keep the exact scheduled reading (or the valid reading in that window).
+    // When user selected >= 60m (hourly), store ONLY hourly slots (even index = :00) and ignore :30 slots.
+    const isHourlyCadence = this.configuredIntervalMinutes >= 60;
     const halfHourLog: number[] = new Array(48).fill(0);
     clampedLog.forEach((bpm, slotIdx) => {
       if (bpm < 40 || bpm > 200) return;
       const minute = slotIdx * slotMin;
-      const half = Math.floor(minute / 30);
-      if (half >= 0 && half < 48) {
-        if (halfHourLog[half] === 0 || minute % 30 === 0) {
-          halfHourLog[half] = bpm;
+      if (isHourlyCadence) {
+        const minInHour = minute % 60;
+        if (minInHour >= 25) return; // Ignore half-hour / off-hour slots in 1h mode
+        const hourSlot = Math.floor(minute / 60) * 2;
+        if (hourSlot >= 0 && hourSlot < 48 && (halfHourLog[hourSlot] === 0 || minInHour === 0)) {
+          halfHourLog[hourSlot] = bpm;
+        }
+      } else {
+        const half = Math.floor(minute / 30);
+        if (half >= 0 && half < 48) {
+          if (halfHourLog[half] === 0 || minute % 30 === 0) {
+            halfHourLog[half] = bpm;
+          }
         }
       }
     });
@@ -1993,14 +2002,12 @@ class QRingBleService {
               if (v0 > maxSpo2) maxSpo2 = v0;
               spo2Log[slot0] = v0;
             }
-            // Cadence 30 minutes : si la seconde mesure v1 existe, l'enregistrer à :30.
-            // Si la bague opère en cadence 30 min avec réplication de fenêtre, porter v0 sur le créneau :30.
-            const secondVal = v1 > 0 ? v1 : (v0 > 0 ? v0 : 0);
-            if (secondVal > 0 && slot1 <= currentHalfSlot) {
-              latestSpo2 = secondVal;
-              if (secondVal < minSpo2) minSpo2 = secondVal;
-              if (secondVal > maxSpo2) maxSpo2 = secondVal;
-              spo2Log[slot1] = secondVal;
+            // Jamais répliquer v0 sur :30 ; enregistrer v1 sur :30 uniquement si v1 est réel et cadence < 60 min
+            if (this.configuredIntervalMinutes < 60 && v1 > 0 && slot1 <= currentHalfSlot) {
+              latestSpo2 = v1;
+              if (v1 < minSpo2) minSpo2 = v1;
+              if (v1 > maxSpo2) maxSpo2 = v1;
+              spo2Log[slot1] = v1;
             }
           }
         }
@@ -2049,8 +2056,10 @@ class QRingBleService {
                 t = raw;
               }
               if (t >= 30 && t <= 42) {
-                dayLatestTemp = t;
-                tempLog[slotIdx] = t;
+                if (this.configuredIntervalMinutes < 60 || half === 0) {
+                  dayLatestTemp = t;
+                  tempLog[slotIdx] = t;
+                }
               }
             }
           }
@@ -2602,7 +2611,6 @@ class QRingBleService {
               const hour = baseHour + (i - startByte);
               if (val > 0 && val <= 100 && hour >= 0 && hour < 24) {
                 this.stressLogSlots[hour * 2] = val;
-                this.stressLogSlots[hour * 2 + 1] = val; // Réplication 30 min pour couverture complète
               }
             }
           } else {
@@ -2611,7 +2619,9 @@ class QRingBleService {
               const val = dataView.getUint8(i);
               const slotIdx = baseSlot + (i - startByte);
               if (val > 0 && val <= 100 && slotIdx >= 0 && slotIdx < 48) {
-                this.stressLogSlots[slotIdx] = val;
+                if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
+                  this.stressLogSlots[slotIdx] = val;
+                }
               }
             }
           }
@@ -2650,7 +2660,6 @@ class QRingBleService {
               const hour = baseHour + (i - startByte);
               if (val >= 5 && val < 250 && hour >= 0 && hour < 24) {
                 this.hrvLogSlots[hour * 2] = val;
-                this.hrvLogSlots[hour * 2 + 1] = val; // Réplication 30 min pour couverture continue
               }
             }
           } else {
@@ -2659,7 +2668,9 @@ class QRingBleService {
               const val = dataView.getUint8(i);
               const slotIdx = baseSlot + (i - startByte);
               if (val >= 5 && val < 250 && slotIdx >= 0 && slotIdx < 48) {
-                this.hrvLogSlots[slotIdx] = val;
+                if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
+                  this.hrvLogSlots[slotIdx] = val;
+                }
               }
             }
           }
