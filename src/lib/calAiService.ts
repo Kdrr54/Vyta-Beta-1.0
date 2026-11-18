@@ -29,47 +29,47 @@ export const DEFAULT_DAILY_TARGET: CalAiDailyTarget = {
  */
 export async function compressImageToDataUrl(file: File | Blob): Promise<{ base64: string; mimeType: string; dataUrl: string }> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const maxDim = 1024;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Impossible de créer le contexte canvas'));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        const base64 = dataUrl.split(',')[1];
-        resolve({
-          base64,
-          mimeType: 'image/jpeg',
-          dataUrl,
-        });
-      };
-      img.src = reader.result as string;
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = (err) => {
+      URL.revokeObjectURL(objectUrl);
+      reject(err);
     };
-    reader.readAsDataURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDim = 1024;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Impossible de créer le contexte canvas'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      const base64 = dataUrl.split(',')[1];
+      resolve({
+        base64,
+        mimeType: 'image/jpeg',
+        dataUrl,
+      });
+    };
+    img.src = objectUrl;
   });
 }
 

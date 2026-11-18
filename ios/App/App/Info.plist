@@ -49,6 +49,12 @@
 	<string>Aurel a besoin du Bluetooth pour se synchroniser avec votre bague connectée Aurel Ring One (AR01).</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Aurel utilise le Bluetooth pour communiquer avec la bague connectée Aurel Ring One (AR01).</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Aurel utilise l'appareil photo pour scanner vos repas avec Aurelius Nutrition.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aurel accède à vos photos pour analyser vos repas dans Aurelius Nutrition.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Aurel enregistre vos photos dans votre photothèque lorsque vous le demandez.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
