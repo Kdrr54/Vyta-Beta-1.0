@@ -165,6 +165,9 @@ class QRingBleService {
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
+  private lastProgrammedAutoSpo2: boolean | null = null;
+  private lastBatteryPct: number = -1;
+  private lowBatteryShieldTriggered = false;
   private isRealTimeHrActive = false;
   private realTimeHrTimer: any = null;
   private lastAutoMeasureSlot = -1;
@@ -863,6 +866,8 @@ class QRingBleService {
           console.warn('[QRing BLE Native] Peripheral disconnected:', disconnectedId || deviceId);
           this.connectedDeviceId = null;
           this.lastProgrammedIntervalMinutes = null;
+          this.lastProgrammedAutoSpo2 = null;
+          this.lowBatteryShieldTriggered = false;
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
@@ -1263,6 +1268,24 @@ class QRingBleService {
    * - Command 0x38 (CMD_HRV): [0x02, enabledByte, intervalMin]
    * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
+  public isAutoSpo2Enabled(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('vyta_auto_spo2_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  public async setAutoSpo2Enabled(enabled: boolean): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('vyta_auto_spo2_enabled', enabled ? 'true' : 'false');
+      } catch (_) {}
+    }
+    return await this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
+  }
+
   public async setAllSensorIntervals(minutes?: number, force: boolean = false): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
     this.configuredIntervalMinutes = mins;
@@ -1276,51 +1299,60 @@ class QRingBleService {
       return false;
     }
 
-    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
-    if (!force && this.lastProgrammedIntervalMinutes === mins) {
+    const autoSpo2Desired = this.isAutoSpo2Enabled();
+    const isLowBattery = this.lastBatteryPct > 0 && this.lastBatteryPct <= 25;
+    const isCriticalBattery = this.lastBatteryPct > 0 && this.lastBatteryPct <= 15;
+    const effectiveAutoSpo2 = mins > 0 && autoSpo2Desired && !isLowBattery;
+
+    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence & SpO2 policy
+    if (
+      !force &&
+      this.lastProgrammedIntervalMinutes === mins &&
+      this.lastProgrammedAutoSpo2 === effectiveAutoSpo2
+    ) {
       return true;
     }
 
     this.lastProgrammedIntervalMinutes = mins;
-    console.log('[QRing BLE] Programming ring autonomous sensor intervals once to every', mins, 'minutes (0x16, 0x2C, 0x38, 0x36)...');
+    this.lastProgrammedAutoSpo2 = effectiveAutoSpo2;
 
-    const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
+    const hrMins = mins === 0 ? 0 : (isCriticalBattery ? Math.max(60, mins) : mins);
+    const hrEnabledByte = hrMins > 0 ? 0x01 : 0x02;
+    // HRV & Stress run at >= 60min (or OFF in Standby / critical battery <=15%) to halve optical LED burn
+    const auxMins = mins === 0 || isCriticalBattery ? 0 : Math.max(60, mins);
+    const auxEnabledByte = auxMins > 0 ? 0x01 : 0x02;
+    // SpO2 uses high-current RED+IR LEDs (~10x power): OFF (0x02) unless explicitly opted-in and battery > 25%
+    const spo2EnabledByte = effectiveAutoSpo2 ? 0x01 : 0x02;
+    const spo2Mins = effectiveAutoSpo2 ? Math.max(60, mins) : 0;
 
-    // 1. Master Heart rate interval (Command 0x16: [0x02, enabledByte, intervalMin])
-    // Drives optical PPG wake-up interval across the entire ring
-    await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 200));
+    console.log(
+      `[QRing BLE] Programming power-smart intervals: HR=${hrMins}m (${hrEnabledByte === 1 ? 'ON' : 'OFF'}), HRV/Stress=${auxMins}m, Auto-SpO2=${effectiveAutoSpo2 ? `${spo2Mins}m` : 'OFF (ECO)'}`
+    );
 
-    // 2. SpO2 periodic monitoring (Command 0x2C: [0x02, enabledByte, intervalMin])
-    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 200));
+    // 1. Master Heart rate interval (Command 0x16)
+    await this.writeBytes(this.makePacket(0x16, [0x02, hrEnabledByte, hrMins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 180));
 
-    // 3. HRV periodic monitoring (Command 0x38: [0x02, enabledByte, intervalMin])
-    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 200));
+    // 2. SpO2 RED+IR periodic monitoring (Command 0x2C: explicitly 0x02 OFF in ECO mode!)
+    await this.writeBytes(this.makePacket(0x2C, [0x02, spo2EnabledByte, spo2Mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 180));
 
-    // 4. Stress periodic monitoring (Command 0x36: [0x02, enabledByte, intervalMin])
-    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 200));
+    // 3. HRV periodic monitoring (Command 0x38: capped >= 60 min)
+    await this.writeBytes(this.makePacket(0x38, [0x02, auxEnabledByte, auxMins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 180));
 
-    // 5. Temperature periodic monitoring (Commands 0x3A, 0x74, 0x25 on R21 / QCBand firmware)
-    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 150));
-    await this.writeBytes(this.makePacket(0x74, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 150));
-    await this.writeBytes(this.makePacket(0x25, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 150));
+    // 4. Stress periodic monitoring (Command 0x36: capped >= 60 min)
+    await this.writeBytes(this.makePacket(0x36, [0x02, auxEnabledByte, auxMins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 180));
 
-    // 6. Query ring settings to verify hardware acknowledged intervals
+    // 5. Temperature passive monitoring (Command 0x3A)
+    await this.writeBytes(this.makePacket(0x3A, [0x02, auxEnabledByte, auxMins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 140));
+
+    // 6. Query 0x16 & 0x2C to confirm hardware state
     await this.writeBytes(this.makePacket(0x16, [0x01]));
     await new Promise((r) => setTimeout(r, 100));
     await this.writeBytes(this.makePacket(0x2C, [0x01]));
-    await new Promise((r) => setTimeout(r, 100));
-    await this.writeBytes(this.makePacket(0x38, [0x01]));
-    await new Promise((r) => setTimeout(r, 100));
-    await this.writeBytes(this.makePacket(0x3A, [0x01]));
-    await new Promise((r) => setTimeout(r, 100));
-    await this.writeBytes(this.makePacket(0x74, [0x01]));
 
     return true;
   }
@@ -2419,7 +2451,16 @@ class QRingBleService {
 
       if (realBat !== null) {
         console.log('[QRing BLE] Real Battery Level Received from Ring:', realBat, '% charging:', isCharging, '(b1:', b1, 'b2:', b2, ')');
+        this.lastBatteryPct = realBat;
         this.notify({ batteryPct: realBat, isCharging, isConnected: true });
+
+        // Engage automatic low-battery optical shield once if battery drops <= 25% while uncharged
+        if (!isCharging && realBat <= 25 && !this.lowBatteryShieldTriggered && this.configuredIntervalMinutes > 0) {
+          this.lowBatteryShieldTriggered = true;
+          this.setAllSensorIntervals(this.configuredIntervalMinutes, true).catch(() => {});
+        } else if (realBat > 30) {
+          this.lowBatteryShieldTriggered = false;
+        }
         return;
       }
     }
@@ -2989,6 +3030,8 @@ class QRingBleService {
     this.txChar = null;
     this.connectedDeviceId = null;
     this.lastProgrammedIntervalMinutes = null;
+    this.lastProgrammedAutoSpo2 = null;
+    this.lowBatteryShieldTriggered = false;
     this.notify({ isConnected: false });
   }
 }

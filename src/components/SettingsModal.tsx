@@ -67,6 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [calibrationStep, setCalibrationStep] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [autoSpo2Enabled, setAutoSpo2Enabled] = useState<boolean>(() => qringBle.isAutoSpo2Enabled());
 
   const isConnected = Boolean(ring.isConnected);
   const isAurelCareActive = ring.aurelCareActive !== false;
@@ -1453,6 +1454,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       </span>
                     </button>
                   ))}
+                </div>
+
+                {/* Toggle SpO2 Nocturne / Auto (LED rouge + infrarouge) */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Auto SpO2 (Red + IR LED)' : 'SpO2 automatique (LED rouge + IR)'}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.5)', lineHeight: 1.3 }}>
+                      {autoSpo2Enabled
+                        ? (isEn ? 'Active above 25% battery (−40% battery life).' : 'Actif au-dessus de 25 % (−40 % d’autonomie).')
+                        : (isEn ? 'ECO: off overnight (manual SpO2 tap stays active).' : 'ÉCO : désactivé la nuit (mesure manuelle toujours active).')}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoSpo2Enabled}
+                    onClick={() => {
+                      triggerHaptic();
+                      const next = !autoSpo2Enabled;
+                      setAutoSpo2Enabled(next);
+                      qringBle.setAutoSpo2Enabled(next);
+                    }}
+                    style={{
+                      width: '44px',
+                      height: '26px',
+                      borderRadius: '999px',
+                      border: 'none',
+                      padding: '2px',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      background: autoSpo2Enabled ? '#FF375F' : 'rgba(255, 255, 255, 0.14)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: autoSpo2Enabled ? 'flex-end' : 'flex-start',
+                      transition: 'background 0.2s ease',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        background: '#FFFFFF',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)',
+                      }}
+                    />
+                  </button>
                 </div>
               </div>
 
