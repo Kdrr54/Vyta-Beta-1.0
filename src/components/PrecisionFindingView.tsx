@@ -1,23 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  X,
-  Volume2,
   Sparkles,
   ArrowUp,
+  ArrowDown,
+  Move,
   Check,
   Radio,
   ChevronLeft,
-  Navigation,
-  Compass,
   Bluetooth,
-  AlertCircle,
   RefreshCw,
+  Volume2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { qringBle } from '../lib/qringBleService';
+import { qringBle, BleRssiSample } from '../lib/qringBleService';
 
 interface PrecisionFindingViewProps {
   onClose: () => void;
+}
+
+type ProximityZone = 'searching' | 'cold' | 'warm' | 'hot' | 'here';
+type MovementTrend = 'calibrating' | 'closer' | 'further' | 'steady';
+
+interface RssiPoint {
+  rssi: number;
+  ts: number;
+}
+
+function estimateMetersFromRssi(rssi: number): number {
+  // BLE smart ring reference RSSI @ 1m ≈ -58 dBm, indoor path-loss exponent n ≈ 2.2
+  const raw = Math.pow(10, (-58 - rssi) / (10 * 2.2));
+  const clamped = Math.max(0.2, Math.min(15.0, raw));
+  return Math.round(clamped * 10) / 10;
+}
+
+function getZoneFromRssi(rssi: number | null): ProximityZone {
+  if (rssi === null) return 'searching';
+  if (rssi >= -53) return 'here';
+  if (rssi >= -64) return 'hot';
+  if (rssi >= -76) return 'warm';
+  return 'cold';
 }
 
 export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
@@ -26,169 +47,267 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
   const { ring, language, openModal } = useApp();
   const isEn = language === 'en';
 
-  const isConnected = ring.isConnected || qringBle.isConnected();
-
-  // Angle d'orientation en degrés (déterminé par le gyroscope réel)
-  const [angle, setAngle] = useState<number>(0);
-  const [hasGyroscope, setHasGyroscope] = useState<boolean>(false);
+  const [isConnected, setIsConnected] = useState<boolean>(
+    ring.isConnected || qringBle.isConnected()
+  );
+  const [liveRssi, setLiveRssi] = useState<number | null>(null);
+  const [liveDistance, setLiveDistance] = useState<number | null>(null);
+  const [signalSource, setSignalSource] = useState<'connected' | 'scan' | null>(null);
+  const [lastSampleTs, setLastSampleTs] = useState<number>(0);
+  const [trend, setTrend] = useState<MovementTrend>('calibrating');
+  const [isStale, setIsStale] = useState<boolean>(false);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
-  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
 
-  // Live Bluetooth link RSSI (dBm) & Distance estimée
-  // En l'absence de bague connectée, aucune valeur inventée
-  const [liveRssi, setLiveRssi] = useState<number | null>(() => (isConnected ? -48 : null));
-  const [liveDistance, setLiveDistance] = useState<number | null>(() => (isConnected ? 1.4 : null));
+  const emaRef = useRef<number | null>(null);
+  const historyRef = useRef<RssiPoint[]>([]);
+  const lastFlashNoteTimerRef = useRef<any>(null);
 
-  // Écoute de l'orientation réelle de l'appareil (Gyroscope iOS / Android)
+  // Suivre l'état de connexion BLE en direct
   useEffect(() => {
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (e.gamma !== null && e.gamma !== undefined) {
-        setHasGyroscope(true);
-        // Gamma correspond à l'inclinaison gauche/droite (-90 à +90 degrés)
-        const rawAngle = Math.round(e.gamma);
-        const clamped = Math.max(-75, Math.min(75, rawAngle));
-        setAngle(clamped);
-      }
-    };
-
-    if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
-      window.addEventListener('deviceorientation', handleOrientation);
-    }
+    const unsub = qringBle.subscribe((data) => {
+      setIsConnected(data.isConnected);
+    });
     return () => {
-      if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
-        window.removeEventListener('deviceorientation', handleOrientation);
-      }
+      unsub();
     };
   }, []);
 
-  // Haptic feedback périodique réel si connecté et à proximité
+  // Radar RSSI CoreBluetooth / BLE réel en temps réel
   useEffect(() => {
-    if (!isConnected || liveDistance === null) return;
+    let cleanupFn: (() => void) | null = null;
+    let mounted = true;
 
-    let interval: any;
-    if (liveDistance <= 0.5) {
+    const handleReading = (sample: BleRssiSample) => {
+      if (!mounted) return;
+      const now = sample.ts || Date.now();
+
+      // Lissage exponentiel (EMA) pour absorber le bruit multi-trajets BLE
+      const prev = emaRef.current;
+      const nextEma = prev === null ? sample.rssi : prev * 0.65 + sample.rssi * 0.35;
+      emaRef.current = nextEma;
+
+      const roundedRssi = Math.round(nextEma);
+      setLiveRssi(roundedRssi);
+      setLiveDistance(estimateMetersFromRssi(nextEma));
+      setSignalSource(sample.source);
+      setLastSampleTs(now);
+      setIsStale(false);
+
+      // Fenêtre glissante 10s pour calculer si on se rapproche ou s'éloigne
+      const buf = historyRef.current.filter((p) => now - p.ts <= 10000);
+      buf.push({ rssi: sample.rssi, ts: now });
+      historyRef.current = buf;
+
+      const recent = buf.filter((p) => now - p.ts <= 2600);
+      const older = buf.filter((p) => now - p.ts > 2600 && now - p.ts <= 8500);
+
+      if (recent.length >= 2 && older.length >= 2) {
+        const recentAvg = recent.reduce((s, p) => s + p.rssi, 0) / recent.length;
+        const olderAvg = older.reduce((s, p) => s + p.rssi, 0) / older.length;
+        const delta = recentAvg - olderAvg;
+        if (delta >= 2.2) {
+          setTrend('closer');
+        } else if (delta <= -2.2) {
+          setTrend('further');
+        } else {
+          setTrend('steady');
+        }
+      } else if (buf.length >= 3) {
+        setTrend('steady');
+      }
+    };
+
+    qringBle.startRssiRadar(handleReading).then((stop) => {
+      if (!mounted) {
+        stop();
+      } else {
+        cleanupFn = stop;
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (cleanupFn) cleanupFn();
+      qringBle.stopRssiRadar();
+    };
+  }, [isConnected]);
+
+  // Vérification fraîcheur du signal
+  useEffect(() => {
+    if (lastSampleTs === 0) return;
+    const t = setInterval(() => {
+      setIsStale(Date.now() - lastSampleTs > 4500);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [lastSampleTs]);
+
+  const zone = getZoneFromRssi(liveRssi);
+  const isHere = zone === 'here';
+
+  // Retour haptique proportionnel au RSSI réel (Style Apple AirPods Chaud / Froid)
+  useEffect(() => {
+    if (liveRssi === null || isStale) return;
+
+    let intervalMs = 1400;
+    let pulsePattern: number | number[] = 25;
+
+    if (zone === 'here') {
+      intervalMs = 340;
+      pulsePattern = [45, 35, 70];
+    } else if (zone === 'hot') {
+      intervalMs = 560;
+      pulsePattern = 40;
+    } else if (zone === 'warm') {
+      intervalMs = 950;
+      pulsePattern = 28;
+    } else {
+      return;
+    }
+
+    const timer = setInterval(() => {
       if (typeof window !== 'undefined' && 'vibrate' in navigator) {
         try {
-          navigator.vibrate([60, 40, 60, 40, 120]);
+          navigator.vibrate(pulsePattern);
         } catch (_) {}
       }
-    } else if (liveDistance < 2.5) {
-      const delay = Math.max(300, Math.round(liveDistance * 450));
-      interval = setInterval(() => {
-        if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-          try {
-            navigator.vibrate(35);
-          } catch (_) {}
-        }
-      }, delay);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isConnected, liveDistance]);
+    }, intervalMs);
 
-  // Déclencher le flash matériel réel sur la bague (allume les capteurs optiques verts)
+    return () => clearInterval(timer);
+  }, [zone, liveRssi, isStale]);
+
+  // Flash matériel réel des LEDs optiques vertes + rouges sur la bague
   const handleFlashLeds = async () => {
+    if (!qringBle.isConnected()) return;
     setIsFlashing(true);
     if (typeof window !== 'undefined' && 'vibrate' in navigator) {
       try {
-        navigator.vibrate([200, 100, 200, 100, 400]);
+        navigator.vibrate([120, 80, 120]);
       } catch (_) {}
     }
 
-    try {
-      // Commande matérielle réelle envoyée à la bague via BLE (GATT Command 0x1E) : allume les LEDs optiques
-      await qringBle.startRealTimeHeartRate();
-      setTimeout(async () => {
-        try {
-          await qringBle.stopRealTimeHeartRate();
-        } catch (_) {}
-      }, 4000);
-    } catch (err) {
-      console.warn('[FindMyRing] Hardware flash error:', err);
-    }
-
-    setTimeout(() => setIsFlashing(false), 4500);
+    await qringBle.flashRingBeacon(6000);
+    if (lastFlashNoteTimerRef.current) clearTimeout(lastFlashNoteTimerRef.current);
+    lastFlashNoteTimerRef.current = setTimeout(() => {
+      setIsFlashing(false);
+    }, 6000);
   };
 
-  // Relancer une recherche Bluetooth réelle
-  const handleScanBle = async () => {
-    setIsScanning(true);
-    try {
-      if (!isConnected) {
-        const ok = await qringBle.autoConnectSavedDevice();
-        if (!ok) {
-          openModal('pairing');
-        }
-      }
-    } catch (e) {
-      console.warn('[FindMyRing] BLE reconnect:', e);
+  useEffect(() => {
+    return () => {
+      if (lastFlashNoteTimerRef.current) clearTimeout(lastFlashNoteTimerRef.current);
+    };
+  }, []);
+
+  const handleReconnect = async () => {
+    setIsReconnecting(true);
+    const savedId = qringBle.getSavedDeviceId();
+    const savedName = qringBle.getSavedDeviceName() || 'Aurel Ring One';
+    let ok = false;
+    if (savedId) {
+      const res = await qringBle.connectDirectly(savedId, savedName, true);
+      ok = res.success;
+    } else {
+      ok = await qringBle.autoConnectSavedDevice();
+    }
+    setIsReconnecting(false);
+    if (!ok) {
       openModal('pairing');
-    } finally {
-      setTimeout(() => setIsScanning(false), 2000);
     }
   };
 
-  const isHere = liveDistance !== null && liveDistance <= 0.45;
-  const isClose = liveDistance !== null && liveDistance < 1.2 && !isHere;
-  const isAligned = Math.abs(angle) <= 15;
+  // Palette dynamique Chaud / Froid
+  const zoneVisual = (() => {
+    switch (zone) {
+      case 'here':
+        return {
+          accent: '#30D158',
+          bgGlow: 'radial-gradient(circle at 50% 42%, rgba(48, 209, 88, 0.34) 0%, #05160A 60%, #060609 100%)',
+          label: isEn ? 'Right Here · Brûlant' : 'Brûlant · Tout près',
+          hint: isEn
+            ? 'Your ring is within arm’s reach'
+            : 'Votre bague est à portée de main immédiate',
+          orbScale: 1.0,
+          pulseSpeed: '1.1s',
+        };
+      case 'hot':
+        return {
+          accent: '#A3E635',
+          bgGlow: 'radial-gradient(circle at 50% 42%, rgba(163, 230, 53, 0.24) 0%, #0B1408 60%, #060609 100%)',
+          label: isEn ? 'Warm · Very close' : 'Chaud · À proximité',
+          hint: isEn
+            ? 'Check pockets, cushions or desk surface'
+            : 'Regardez autour de vous, bureau, poches ou coussins',
+          orbScale: 0.84,
+          pulseSpeed: '1.5s',
+        };
+      case 'warm':
+        return {
+          accent: '#F59E0B',
+          bgGlow: 'radial-gradient(circle at 50% 42%, rgba(245, 158, 11, 0.2) 0%, #160F06 60%, #060609 100%)',
+          label: isEn ? 'Lukewarm · Same room' : 'Tiède · Dans la pièce',
+          hint: isEn
+            ? 'Walk a few steps to see signal rise or drop'
+            : 'Faites 2 à 3 pas pour voir si le signal augmente',
+          orbScale: 0.68,
+          pulseSpeed: '2.0s',
+        };
+      case 'cold':
+        return {
+          accent: '#60A5FA',
+          bgGlow: 'radial-gradient(circle at 50% 42%, rgba(96, 165, 250, 0.16) 0%, #080E18 60%, #060609 100%)',
+          label: isEn ? 'Cold · Weak signal' : 'Froid · Signal lointain',
+          hint: isEn
+            ? 'Move between rooms while keeping screen awake'
+            : 'Déplacez-vous dans la pièce en gardant l’écran actif',
+          orbScale: 0.54,
+          pulseSpeed: '2.6s',
+        };
+      default:
+        return {
+          accent: '#94A3B8',
+          bgGlow: 'radial-gradient(circle at 50% 42%, rgba(148, 163, 184, 0.12) 0%, #0A0B0F 60%, #060609 100%)',
+          label: isEn ? 'Searching BLE signal...' : 'Recherche du signal Bluetooth...',
+          hint: isEn
+            ? 'Walk slowly around the last GPS location'
+            : 'Déplacez-vous autour de la dernière position connue',
+          orbScale: 0.48,
+          pulseSpeed: '2.8s',
+        };
+    }
+  })();
 
-  const getGuidanceText = () => {
-    if (!isConnected) {
-      return isEn ? 'Ring disconnected' : 'Bague non connectée';
-    }
-    if (isHere) {
-      return isEn ? 'Here' : 'Ici';
-    }
-    if (isClose) {
-      return isEn ? 'Right here nearby' : 'Tout près de vous';
-    }
-    if (isAligned) {
-      return isEn ? 'Straight ahead' : 'Tout droit';
-    }
-    if (angle > 15) {
-      return isEn ? 'To your right' : 'À votre droite';
-    }
-    return isEn ? 'To your left' : 'À votre gauche';
-  };
+  const signalBarPercent =
+    liveRssi !== null
+      ? Math.max(8, Math.min(100, Math.round(((liveRssi + 95) / 55) * 100)))
+      : 0;
 
   return (
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
         zIndex: 1300,
-        background: isHere
-          ? 'radial-gradient(circle at center, #1b5e20 0%, #0d2812 60%, #061109 100%)'
-          : 'radial-gradient(circle at center 45%, #0d2812 0%, #080c09 50%, #040605 100%)',
-        color: '#FAF7F2',
+        background: zoneVisual.bgGlow,
+        transition: 'background 0.45s ease',
         display: 'flex',
         flexDirection: 'column',
+        justifyContent: 'space-between',
         overflow: 'hidden',
-        animation: 'fadeIn 0.25s ease-out',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
+        overscrollBehavior: 'none',
+        touchAction: 'none',
+        animation: 'fadeIn 0.25s ease',
       }}
     >
       <style>{`
-        @keyframes sonarRing {
+        @keyframes precisionSonarWave {
           0% {
-            transform: scale(0.6);
-            opacity: 0.9;
+            transform: scale(0.55);
+            opacity: 0.72;
           }
           100% {
-            transform: scale(2.8);
+            transform: scale(2.15);
             opacity: 0;
-          }
-        }
-        @keyframes glowParticle {
-          0%, 100% {
-            opacity: 0.3;
-            transform: scale(0.95);
-          }
-          50% {
-            opacity: 0.85;
-            transform: scale(1.05);
           }
         }
       `}</style>
@@ -196,7 +315,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       {/* 1. En-tête Apple Precision Finding */}
       <div
         style={{
-          padding: '16px 20px',
+          padding: 'max(14px, env(safe-area-inset-top)) 20px 12px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -208,297 +327,268 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
           onClick={onClose}
           style={{
             background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.18)',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
+            borderRadius: '999px',
+            padding: '7px 14px 7px 10px',
+            color: '#FAF7F2',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FAF7F2',
+            gap: '4px',
+            fontSize: '13px',
+            fontWeight: 600,
             cursor: 'pointer',
-            backdropFilter: 'blur(20px)',
           }}
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={16} />
+          <span>{isEn ? 'Map' : 'Carte'}</span>
         </button>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.75)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            {isEn ? 'Precision Finding' : 'Localisation précise'}
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '0.4px' }}>
+            {isEn ? 'PRECISION FINDING' : 'RADAR PROXIMITÉ'}
           </span>
-          <span style={{ fontSize: '11px', color: isConnected ? '#30D158' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: isConnected ? '#30D158' : '#EF4444',
-                boxShadow: isConnected ? '0 0 8px #30D158' : '0 0 8px #EF4444',
-              }}
-            />
-            {isConnected
-              ? isEn
-                ? 'Aurel Ring One · Connected'
-                : 'Aurel Ring One · Connectée en direct'
-              : isEn
-              ? 'Disconnected · Out of range'
-              : 'Déconnectée · Hors de portée'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+            <Radio size={11} color={liveRssi !== null && !isStale ? zoneVisual.accent : '#94A3B8'} />
+            <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)' }}>
+              {liveRssi !== null
+                ? isStale
+                  ? (isEn ? 'Signal paused...' : 'En attente de paquet...')
+                  : signalSource === 'connected'
+                  ? (isEn ? 'Direct BLE RSSI' : 'Liaison BLE directe')
+                  : (isEn ? 'Live BLE Beacon' : 'Balise BLE détectée')
+                : isConnected
+                ? (isEn ? 'Reading BLE link...' : 'Mesure du signal BLE...')
+                : (isEn ? 'Scanning nearby BLE...' : 'Scan Bluetooth actif')}
+            </span>
+          </div>
         </div>
 
         <button
           type="button"
           onClick={handleFlashLeds}
           disabled={!isConnected}
+          title={isEn ? 'Flash Ring LEDs' : 'Faire clignoter les LEDs'}
           style={{
-            background: isFlashing ? '#30D158' : 'rgba(255, 255, 255, 0.1)',
-            border: isFlashing ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.18)',
-            width: '36px',
-            height: '36px',
+            width: '38px',
+            height: '38px',
             borderRadius: '50%',
+            background: isFlashing ? '#30D158' : 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: isFlashing ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.18)',
+            color: isFlashing ? '#08080C' : '#FAF7F2',
+            opacity: isConnected ? 1 : 0.35,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isFlashing ? '#08080C' : isConnected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.3)',
             cursor: isConnected ? 'pointer' : 'not-allowed',
-            backdropFilter: 'blur(20px)',
-            transition: 'all 0.2s ease',
-            opacity: isConnected ? 1 : 0.4,
           }}
-          title={isEn ? 'Flash optical LEDs on ring' : 'Faire clignoter les capteurs optiques'}
         >
-          <Volume2 size={18} />
+          <Sparkles size={16} />
         </button>
       </div>
 
-      {/* 2. Centre Radar & Flèche Directionnelle */}
+      {/* 2. Radar Sonar Central Chaud / Froid + Tendance de Déplacement */}
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
-          padding: '20px',
+          padding: '0 24px',
         }}
       >
-        {/* Cercles sonar dynamiques */}
-        {isConnected && (
-          <>
-            <div
-              style={{
-                position: 'absolute',
-                width: '240px',
-                height: '240px',
-                borderRadius: '50%',
-                border: isHere ? '2px solid rgba(48, 209, 88, 0.8)' : '1.5px solid rgba(48, 209, 88, 0.35)',
-                animation: 'sonarRing 2.4s infinite cubic-bezier(0.1, 0.8, 0.3, 1)',
-                pointerEvents: 'none',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                width: '240px',
-                height: '240px',
-                borderRadius: '50%',
-                border: isHere ? '2px solid rgba(48, 209, 88, 0.7)' : '1.5px solid rgba(48, 209, 88, 0.25)',
-                animation: 'sonarRing 2.4s infinite cubic-bezier(0.1, 0.8, 0.3, 1) 0.8s',
-                pointerEvents: 'none',
-              }}
-            />
-          </>
-        )}
-
-        {/* État : Non Connectée */}
-        {!isConnected ? (
+        <div
+          style={{
+            position: 'relative',
+            width: '230px',
+            height: '230px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {/* Ondes Sonar animées selon proximité */}
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '16px',
-              textAlign: 'center',
-              maxWidth: '300px',
-            }}
-          >
-            <div
-              style={{
-                width: '90px',
-                height: '90px',
-                borderRadius: '50%',
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1.5px solid rgba(239, 68, 68, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#EF4444',
-              }}
-            >
-              <Bluetooth size={44} />
-            </div>
-
-            <div>
-              <span style={{ fontSize: '18px', fontWeight: 700, color: '#FAF7F2', display: 'block' }}>
-                {isEn ? 'Signal Lost' : 'Signal Bluetooth perdu'}
-              </span>
-              <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '6px', display: 'block', lineHeight: 1.45 }}>
-                {isEn
-                  ? 'Move closer to the last known GPS location or ensure the ring is charged.'
-                  : 'Rapprochez-vous du lieu enregistré sur la carte ou vérifiez que la bague est chargée.'}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleScanBle}
-              disabled={isScanning}
-              style={{
-                marginTop: '8px',
-                padding: '11px 18px',
-                borderRadius: '12px',
-                background: '#30D158',
-                border: 'none',
-                color: '#08080C',
-                fontSize: '12px',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={14} className={isScanning ? 'animate-spin' : ''} />
-              <span>{isScanning ? (isEn ? 'Scanning...' : 'Recherche...') : (isEn ? 'Scan & Reconnect' : 'Scanner le Bluetooth')}</span>
-            </button>
-          </div>
-        ) : isHere ? (
-          /* État "Ici" */
-          <div
-            style={{
-              width: '180px',
-              height: '180px',
+              position: 'absolute',
+              inset: '10px',
               borderRadius: '50%',
-              background: '#30D158',
-              boxShadow: '0 0 80px rgba(48, 209, 88, 0.95), inset 0 0 30px rgba(255, 255, 255, 0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              animation: 'glowParticle 1.5s infinite ease-in-out',
-              color: '#051b0a',
+              border: `1.5px solid ${zoneVisual.accent}`,
+              opacity: liveRssi !== null ? 0.55 : 0.25,
+              animation: `precisionSonarWave ${zoneVisual.pulseSpeed} infinite ease-out`,
             }}
-          >
-            <Check size={90} strokeWidth={3.5} />
-          </div>
-        ) : (
-          /* Flèche directionnelle Apple orientée par le gyroscope */
+          />
           <div
             style={{
-              position: 'relative',
-              width: '200px',
-              height: '200px',
+              position: 'absolute',
+              inset: '10px',
+              borderRadius: '50%',
+              border: `1.5px solid ${zoneVisual.accent}`,
+              opacity: liveRssi !== null ? 0.45 : 0.2,
+              animation: `precisionSonarWave ${zoneVisual.pulseSpeed} infinite ease-out`,
+              animationDelay: '0.65s',
+            }}
+          />
+
+          {/* Cadre de cible fixe */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: '22px',
+              borderRadius: '50%',
+              border: '1px dashed rgba(255, 255, 255, 0.14)',
+            }}
+          />
+
+          {/* Orbe dynamique proportionnelle au RSSI (Style AirPods) */}
+          <div
+            style={{
+              width: '132px',
+              height: '132px',
+              borderRadius: '50%',
+              transform: `scale(${zoneVisual.orbScale})`,
+              transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease, background 0.35s ease',
+              background:
+                liveRssi !== null
+                  ? `radial-gradient(circle, ${zoneVisual.accent}55 0%, ${zoneVisual.accent}1A 70%, transparent 100%)`
+                  : 'rgba(255, 255, 255, 0.05)',
+              border: `2px solid ${zoneVisual.accent}`,
+              boxShadow:
+                liveRssi !== null
+                  ? `0 0 36px ${zoneVisual.accent}55, inset 0 0 24px ${zoneVisual.accent}33`
+                  : 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transform: `rotate(${angle}deg)`,
-              transition: 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)',
             }}
           >
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                background: isAligned
-                  ? 'radial-gradient(circle, rgba(48, 209, 88, 0.35) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(48, 209, 88, 0.18) 0%, transparent 70%)',
-              }}
-            />
-
-            <svg
-              width="140"
-              height="150"
-              viewBox="0 0 140 150"
-              fill="none"
-              style={{
-                filter: isAligned
-                  ? 'drop-shadow(0 0 30px rgba(48, 209, 88, 0.85))'
-                  : 'drop-shadow(0 0 16px rgba(48, 209, 88, 0.45))',
-              }}
-            >
-              <path
-                d="M70 12 L128 126 C130 130 126 135 120 133 L70 112 L20 133 C14 135 10 130 12 126 L70 12 Z"
-                fill={isAligned ? '#30D158' : '#22c55e'}
-                stroke="rgba(255, 255, 255, 0.3)"
-                strokeWidth="2"
-              />
-            </svg>
+            {isHere ? (
+              <div
+                style={{
+                  width: '62px',
+                  height: '62px',
+                  borderRadius: '50%',
+                  background: '#30D158',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 26px rgba(48, 209, 88, 0.85)',
+                }}
+              >
+                <Check size={32} color="#08080C" strokeWidth={3} />
+              </div>
+            ) : (
+              <Bluetooth size={38} color={zoneVisual.accent} strokeWidth={2.2} />
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Message d'orientation dynamique */}
-        {isConnected && (
-          <div style={{ marginTop: '28px', textAlign: 'center' }}>
-            <span
-              style={{
-                fontSize: '22px',
-                fontWeight: 700,
-                color: isHere || isAligned ? '#30D158' : '#FAF7F2',
-                letterSpacing: '-0.3px',
-                display: 'block',
-                transition: 'color 0.2s ease',
-              }}
-            >
-              {getGuidanceText()}
-            </span>
-            <span
-              style={{
-                fontSize: '12px',
-                color: 'rgba(250, 247, 242, 0.6)',
-                marginTop: '4px',
-                display: 'block',
-              }}
-            >
-              {isHere
-                ? isEn
-                  ? 'Your ring is in your immediate hand reach'
-                  : 'Votre bague est à portée de main immédiate'
-                : hasGyroscope
-                ? isEn
-                  ? 'Gyroscope active · Rotate your phone'
-                  : 'Capteurs d’orientation actifs · Tournez votre iPhone'
-                : isEn
-                ? 'Signal locked on Aurel Ring One'
-                : 'Signal capté sur la bague Aurel Ring One'}
-            </span>
+        {/* Pilule de Direction / Tendance réelle (en marchant) */}
+        <div style={{ marginTop: '14px', textAlign: 'center', maxWidth: '320px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '6px 14px',
+              borderRadius: '999px',
+              marginBottom: '10px',
+              background:
+                trend === 'closer'
+                  ? 'rgba(48, 209, 88, 0.16)'
+                  : trend === 'further'
+                  ? 'rgba(245, 158, 11, 0.16)'
+                  : 'rgba(255, 255, 255, 0.08)',
+              border:
+                trend === 'closer'
+                  ? '1px solid rgba(48, 209, 88, 0.45)'
+                  : trend === 'further'
+                  ? '1px solid rgba(245, 158, 11, 0.45)'
+                  : '1px solid rgba(255, 255, 255, 0.14)',
+              color:
+                trend === 'closer'
+                  ? '#30D158'
+                  : trend === 'further'
+                  ? '#FBBF24'
+                  : 'rgba(250, 247, 242, 0.8)',
+              fontSize: '12px',
+              fontWeight: 700,
+            }}
+          >
+            {trend === 'closer' ? (
+              <>
+                <ArrowUp size={15} strokeWidth={2.8} />
+                <span>{isEn ? 'Getting warmer · Keep going' : 'Vous vous rapprochez · Continuez'}</span>
+              </>
+            ) : trend === 'further' ? (
+              <>
+                <ArrowDown size={15} strokeWidth={2.8} />
+                <span>{isEn ? 'Getting colder · Turn back' : 'Vous vous éloignez · Demi-tour'}</span>
+              </>
+            ) : (
+              <>
+                <Move size={14} />
+                <span>
+                  {liveRssi === null
+                    ? (isEn ? 'Waiting for BLE packets' : 'Écoute des paquets BLE')
+                    : (isEn ? 'Walk 2–3 steps to sense direction' : 'Marchez 2–3 pas pour orienter')}
+                </span>
+              </>
+            )}
           </div>
-        )}
+
+          <div
+            style={{
+              fontSize: '21px',
+              fontWeight: 700,
+              color: isHere ? '#30D158' : '#FAF7F2',
+              letterSpacing: '-0.4px',
+            }}
+          >
+            {zoneVisual.label}
+          </div>
+          <div
+            style={{
+              fontSize: '12.5px',
+              color: 'rgba(250, 247, 242, 0.62)',
+              marginTop: '4px',
+              lineHeight: 1.4,
+            }}
+          >
+            {zoneVisual.hint}
+          </div>
+        </div>
       </div>
 
-      {/* 3. Grand Affichage de la Distance & Télémétrie BLE Réelle */}
+      {/* 3. Télémétrie Distance + Signal RSSI + Actions */}
       <div
         style={{
-          padding: '20px 24px 34px 24px',
-          background: 'rgba(8, 12, 9, 0.92)',
+          padding: '16px 22px max(26px, env(safe-area-inset-bottom)) 22px',
+          background: 'rgba(8, 10, 12, 0.9)',
           backdropFilter: 'blur(30px)',
-          borderTop: '1px solid rgba(48, 209, 88, 0.25)',
+          WebkitBackdropFilter: 'blur(30px)',
+          borderTop: `1px solid ${zoneVisual.accent}40`,
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
+          gap: '12px',
           zIndex: 10,
         }}
       >
-        {/* Distance numérique géante */}
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px' }}>
-          {!isConnected || liveDistance === null ? (
+        {/* Distance estimée */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px' }}>
+          {liveDistance === null ? (
             <span
               style={{
-                fontSize: '56px',
+                fontSize: '46px',
                 fontWeight: 300,
                 color: 'rgba(250, 247, 242, 0.35)',
-                letterSpacing: '-1.5px',
+                letterSpacing: '-1.2px',
                 fontFamily: 'var(--font-mono), monospace',
               }}
             >
@@ -507,78 +597,155 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
           ) : isHere ? (
             <span
               style={{
-                fontSize: '56px',
+                fontSize: '48px',
                 fontWeight: 800,
                 color: '#30D158',
                 letterSpacing: '-1.5px',
-                fontFamily: 'var(--font-outfit), sans-serif',
               }}
             >
               {isEn ? 'HERE' : 'ICI'}
             </span>
           ) : (
             <>
+              <span style={{ fontSize: '20px', color: 'rgba(250,247,242,0.45)', fontWeight: 600 }}>~</span>
               <span
                 style={{
-                  fontSize: '56px',
+                  fontSize: '48px',
                   fontWeight: 800,
-                  color: isAligned ? '#30D158' : '#FAF7F2',
+                  color: zoneVisual.accent,
                   letterSpacing: '-1.5px',
                   fontFamily: 'var(--font-mono), monospace',
-                  transition: 'color 0.2s ease',
                 }}
               >
                 {liveDistance.toFixed(1).replace('.', ',')}
               </span>
-              <span
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 700,
-                  color: isAligned ? '#30D158' : 'rgba(250, 247, 242, 0.7)',
-                }}
-              >
-                m
-              </span>
+              <span style={{ fontSize: '22px', fontWeight: 700, color: 'rgba(250, 247, 242, 0.72)' }}>m</span>
             </>
           )}
         </div>
 
-        {/* Barre de Signal RSSI / Bluetooth Réel */}
+        {/* Barre RSSI temps réel */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '10px 14px',
-            borderRadius: '12px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            fontSize: '11px',
+            borderRadius: '14px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Radio size={14} color={isConnected ? '#30D158' : 'rgba(250,247,242,0.4)'} />
-            <span style={{ color: 'rgba(250, 247, 242, 0.8)' }}>
-              {isEn ? 'Radio Signal (RSSI):' : 'Signal radio (RSSI) :'}
-            </span>
-            <span style={{ fontWeight: 700, color: isConnected ? '#30D158' : 'rgba(250,247,242,0.4)', fontFamily: 'var(--font-mono)' }}>
-              {isConnected && liveRssi !== null ? `${liveRssi} dBm` : '-- dBm'}
+            <Radio size={14} color={zoneVisual.accent} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+              {isEn ? 'Signal (BLE RSSI)' : 'Signal (RSSI BLE)'}
             </span>
           </div>
 
-          <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '6px',
+                  borderRadius: '999px',
+                  background: 'rgba(255, 255, 255, 0.12)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${signalBarPercent}%`,
+                    height: '100%',
+                    background: zoneVisual.accent,
+                    borderRadius: '999px',
+                    transition: 'width 0.3s ease, background 0.3s ease',
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: zoneVisual.accent,
+                  fontFamily: 'var(--font-mono)',
+                  minWidth: '58px',
+                  textAlign: 'right',
+                }}
+              >
+                {liveRssi !== null ? `${liveRssi} dBm` : '-- dBm'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bouton principal contextuel : Faire clignoter si connecté, sinon Reconnecter */}
+        {isConnected ? (
+          <button
+            type="button"
+            onClick={handleFlashLeds}
             style={{
-              padding: '2px 7px',
-              borderRadius: '6px',
-              background: isConnected ? 'rgba(48, 209, 88, 0.2)' : 'rgba(239, 68, 68, 0.15)',
-              color: isConnected ? '#30D158' : '#EF4444',
+              width: '100%',
+              padding: '14px',
+              borderRadius: '16px',
+              background: isFlashing ? '#30D158' : 'rgba(255, 255, 255, 0.1)',
+              border: isFlashing ? '1px solid #30D158' : '1px solid rgba(255, 255, 255, 0.2)',
+              color: isFlashing ? '#08080C' : '#FAF7F2',
+              fontSize: '13.5px',
               fontWeight: 700,
-              fontSize: '10px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease',
             }}
           >
-            {isConnected ? (isEn ? 'ACTIVE' : 'ACTIF') : (isEn ? 'DISCONNECTED' : 'DÉCONNECTÉE')}
-          </span>
-        </div>
+            <Volume2 size={17} />
+            <span>
+              {isFlashing
+                ? isEn
+                  ? 'Flashing Optical LEDs (6s)...'
+                  : 'Clignotement des LEDs optiques (6s)...'
+                : isEn
+                ? 'Flash Ring Optical LEDs'
+                : 'Faire clignoter les LEDs de la bague'}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleReconnect}
+            disabled={isReconnecting}
+            style={{
+              width: '100%',
+              padding: '14px',
+              borderRadius: '16px',
+              background: liveRssi !== null ? '#30D158' : 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              color: liveRssi !== null ? '#08080C' : '#FAF7F2',
+              fontSize: '13.5px',
+              fontWeight: 700,
+              cursor: isReconnecting ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <RefreshCw size={16} />
+            <span>
+              {isReconnecting
+                ? isEn
+                  ? 'Connecting...'
+                  : 'Connexion...'
+                : isEn
+                ? 'Connect to Flash LEDs'
+                : 'Reconnecter pour faire clignoter'}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

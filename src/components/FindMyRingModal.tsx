@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes } from '../data/health';
-import { qringBle } from '../lib/qringBleService';
+import { qringBle, RingLastLocation } from '../lib/qringBleService';
+import { requestBrowserNotificationPermission } from '../lib/apnsService';
 import { initAppleMapKit, cleanMapAttributions } from '../lib/appleMapKit';
 import { PrecisionFindingView } from './PrecisionFindingView';
 import L from 'leaflet';
@@ -43,6 +44,22 @@ const TILES_DARK = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/
 const TILES_DARK_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
 const TILES_SATELLITE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
+function formatRelativeSeen(ts: number | null, isEn: boolean): string {
+  if (!ts) return '--';
+  const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (diffSec < 60) return isEn ? 'Just now' : 'À l’instant';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return isEn ? `${diffMin}m ago` : `Il y a ${diffMin} min`;
+  const d = new Date(ts);
+  const now = new Date();
+  const hhmm = d.toLocaleTimeString(isEn ? 'en-US' : 'fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) {
+    return isEn ? `Today at ${hhmm}` : `Aujourd’hui · ${hhmm}`;
+  }
+  const day = d.toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short' });
+  return `${day} · ${hhmm}`;
+}
+
 export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBack }) => {
   const { ring, finish, language } = useApp();
   const { isClosing, handleClose } = useModalAnimation(onClose);
@@ -56,12 +73,19 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   const appleMarkerRef = useRef<any>(null);
   const leafletMarkerRef = useRef<L.Marker | null>(null);
 
+  const initialSavedLoc = qringBle.getLastKnownLocation();
   const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
-  const [coords, setCoords] = useState<[number, number]>(DEFAULT_COORDS);
+  const [coords, setCoords] = useState<[number, number]>(() =>
+    initialSavedLoc ? [initialSavedLoc.lat, initialSavedLoc.lng] : DEFAULT_COORDS
+  );
+  const [lastSeenTs, setLastSeenTs] = useState<number | null>(() => initialSavedLoc?.ts ?? null);
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
+  const [flashNotice, setFlashNotice] = useState<string | null>(null);
   const [showProximityRadar, setShowProximityRadar] = useState<boolean>(false);
   const [showPrecisionView, setShowPrecisionView] = useState<boolean>(false);
-  const [locationAddress, setLocationAddress] = useState<string>('Paris, France');
+  const [locationAddress, setLocationAddress] = useState<string>(
+    isEn ? 'Locating position...' : 'Recherche position GPS...'
+  );
   const [isAppleMapKitActive, setIsAppleMapKitActive] = useState<boolean>(false);
 
   // Système de Localisation Aurel Radar
@@ -73,47 +97,68 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
   });
   const [showLostModeModal, setShowLostModeModal] = useState<boolean>(false);
   const [lostPhone, setLostPhone] = useState<string>(() => {
-    return localStorage.getItem('vyta_lost_phone') || '+33 6 12 34 56 78';
+    return localStorage.getItem('vyta_lost_phone') || '';
   });
   const [lostMsg, setLostMsg] = useState<string>(() => {
     return (
       localStorage.getItem('vyta_lost_msg') ||
-      'Cette bague Aurel Ring One appartient à Julien. Merci de me contacter si vous la trouvez.'
+      'Cette bague Aurel Ring One appartient à son propriétaire. Merci de me contacter si vous la trouvez.'
     );
   });
 
-  // 1. Détection de la position réelle (HTML5 Geolocation) pour la dernière position connue
+  // 1. Géolocalisation réelle : position de dernière déconnexion BLE si hors ligne, sinon GPS direct
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setCoords([lat, lng]);
+    let active = true;
 
-          // Reverse geocoding via OpenStreetMap Nominatim pour afficher la rue / ville
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-            .then((r) => r.json())
-            .then((data) => {
-              if (data && data.display_name) {
-                const parts = data.display_name.split(',');
-                const shortAddr = parts.slice(0, 3).join(',').trim();
-                setLocationAddress(shortAddr);
-              } else {
-                setLocationAddress(`${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`);
-              }
-            })
-            .catch(() => {
-              setLocationAddress(`${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`);
-            });
-        },
-        (err) => {
-          console.log('Find My GPS fallback note:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
-      );
+    const resolveAddress = (lat: number, lng: number) => {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!active) return;
+          if (data && data.display_name) {
+            const parts = data.display_name.split(',');
+            setLocationAddress(parts.slice(0, 3).join(',').trim());
+          } else {
+            setLocationAddress(`${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`);
+          }
+        })
+        .catch(() => {
+          if (active) setLocationAddress(`${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`);
+        });
+    };
+
+    const saved = qringBle.getLastKnownLocation();
+    if (!isConnected && saved) {
+      setCoords([saved.lat, saved.lng]);
+      setLastSeenTs(saved.ts);
+      resolveAddress(saved.lat, saved.lng);
+    } else {
+      qringBle.captureCurrentRingLocation(isConnected ? 'connected' : 'manual').then((loc) => {
+        if (!active) return;
+        if (loc) {
+          setCoords([loc.lat, loc.lng]);
+          setLastSeenTs(loc.ts);
+          resolveAddress(loc.lat, loc.lng);
+        } else {
+          setLocationAddress(isEn ? 'GPS position unavailable' : 'Position GPS non enregistrée');
+        }
+      });
     }
-  }, []);
+
+    const onLocUpdated = (e: Event) => {
+      const loc = (e as CustomEvent<RingLastLocation>).detail;
+      if (!active || !loc) return;
+      setCoords([loc.lat, loc.lng]);
+      setLastSeenTs(loc.ts);
+      resolveAddress(loc.lat, loc.lng);
+    };
+
+    window.addEventListener('aurelRingLocationUpdated', onLocUpdated as EventListener);
+    return () => {
+      active = false;
+      window.removeEventListener('aurelRingLocationUpdated', onLocUpdated as EventListener);
+    };
+  }, [isConnected, isEn]);
 
   // 2. Initialisation de la Carte Apple MapKit JS (Dark Mode) avec fallback Leaflet
   useEffect(() => {
@@ -146,7 +191,9 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
               color: '#30D158',
               glyphText: '💍',
               title: isEn ? 'Aurel Ring One' : 'Bague Aurel Ring One',
-              subtitle: isEn ? 'Last known position (4m ago)' : 'Dernière position connue (il y a 4 min)',
+              subtitle: isConnected
+                ? isEn ? 'Live BLE connection' : 'Connectée en direct'
+                : `${isEn ? 'Last seen' : 'Dernière position'} · ${formatRelativeSeen(lastSeenTs, isEn)}`,
               selected: true,
             });
             map.addAnnotation(ringAnnotation);
@@ -232,6 +279,9 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
       appleMapInstanceRef.current.setCenterAnimated(coord);
       if (appleMarkerRef.current) {
         appleMarkerRef.current.coordinate = coord;
+        appleMarkerRef.current.subtitle = isConnected
+          ? isEn ? 'Live BLE connection' : 'Connectée en direct'
+          : `${isEn ? 'Last seen' : 'Dernière position'} · ${formatRelativeSeen(lastSeenTs, isEn)}`;
       }
     } else if (leafletMapRef.current) {
       leafletMapRef.current.panTo(coords);
@@ -239,7 +289,7 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
         leafletMarkerRef.current.setLatLng(coords);
       }
     }
-  }, [coords]);
+  }, [coords, isConnected, lastSeenTs, isEn]);
 
   // Recenter sur la bague
   const handleRecenter = () => {
@@ -276,17 +326,37 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
     }
   };
 
-  // Déclencher le flash lumineux & vibration de la bague
-  const handleFlashLeds = () => {
+  // Déclencher le vrai flash lumineux des LEDs optiques (vert + rouge) de la bague via BLE
+  const handleFlashLeds = async () => {
+    if (!qringBle.isConnected()) {
+      setFlashNotice(
+        isEn
+          ? 'Ring out of reach — use Find radar first to locate its Bluetooth signal.'
+          : 'Bague hors de portée BLE — lancez Rechercher pour vous en approcher.'
+      );
+      setTimeout(() => setFlashNotice(null), 3500);
+      return;
+    }
+
+    setFlashNotice(null);
     setIsFlashing(true);
     if (typeof window !== 'undefined' && 'vibrate' in navigator) {
       try {
-        navigator.vibrate([200, 100, 200, 100, 400]);
+        navigator.vibrate([120, 80, 120]);
       } catch (_) {}
     }
+
+    const ok = await qringBle.flashRingBeacon(6000);
+    if (!ok) {
+      setIsFlashing(false);
+      setFlashNotice(isEn ? 'Unable to reach ring LEDs' : 'Impossible de joindre les LEDs de la bague');
+      setTimeout(() => setFlashNotice(null), 3000);
+      return;
+    }
+
     setTimeout(() => {
       setIsFlashing(false);
-    }, 4500);
+    }, 6000);
   };
 
   // Ouvrir l'itinéraire à pied dans Apple Plans
@@ -300,6 +370,9 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
     const next = !separationAlertEnabled;
     setSeparationAlertEnabled(next);
     localStorage.setItem('vyta_separation_alert', next ? 'true' : 'false');
+    if (next) {
+      requestBrowserNotificationPermission();
+    }
   };
 
   // Sauvegarder le mode perdu
@@ -619,7 +692,11 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                       : isEn ? 'Last known location' : 'Dernière position connue'}
                   </span>
                   <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>
-                    {isConnected ? (isEn ? 'Direct link' : 'Liaison directe') : (isEn ? 'GPS recorded' : 'Enregistrée par GPS')}
+                    {isConnected
+                      ? isEn ? 'Direct link' : 'Liaison directe'
+                      : lastSeenTs
+                      ? formatRelativeSeen(lastSeenTs, isEn)
+                      : isEn ? 'GPS recorded' : 'Enregistrée par GPS'}
                   </span>
                 </div>
               </div>
@@ -631,10 +708,30 @@ export const FindMyRingModal: React.FC<FindMyRingModalProps> = ({ onClose, onBac
                 {isConnected ? (isEn ? 'Connected' : 'À portée') : (isEn ? 'Disconnected' : 'Hors de portée')}
               </span>
               <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', display: 'block', marginTop: '1px' }}>
-                {isConnected ? (isEn ? 'Signal locked' : 'Signal capté') : '--'}
+                {isConnected
+                  ? (isEn ? 'Signal locked' : 'Signal capté')
+                  : lastSeenTs
+                  ? formatRelativeSeen(lastSeenTs, isEn)
+                  : '--'}
               </span>
             </div>
           </div>
+
+          {flashNotice && (
+            <div
+              style={{
+                padding: '8px 10px',
+                borderRadius: '10px',
+                background: 'rgba(245, 158, 11, 0.14)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                color: '#FBBF24',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}
+            >
+              {flashNotice}
+            </div>
+          )}
 
           {/* Adresse géolocalisée */}
           <div

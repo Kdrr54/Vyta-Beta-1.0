@@ -27,6 +27,25 @@
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 import { NapRecord } from '../types';
+import { dispatchApplePush } from './apnsService';
+
+export interface RingLastLocation {
+  lat: number;
+  lng: number;
+  ts: number;
+  accuracy?: number;
+  reason?: 'connected' | 'disconnected' | 'periodic' | 'manual';
+}
+
+export interface BleRssiSample {
+  rssi: number;
+  source: 'connected' | 'scan';
+  deviceId: string;
+  name?: string;
+  ts: number;
+}
+
+export const LAST_RING_LOCATION_KEY = 'aurel_last_ring_location';
 
 // QRing Primary Vendor Service (Used by all QRing / Colmi R02 / QCWireless hardware)
 export const QRING_SERVICE_UUID = '6e40fff0-b5a3-f393-e0a9-e50e24dcca9e';
@@ -208,6 +227,9 @@ class QRingBleService {
   private lastLiveRearmAt = 0;
   private lastAutoMeasureSlot = -1;
   private isAutoSpotMeasuring = false;
+  private lastSeparationAlertAt = 0;
+  private flashBeaconTimer: any = null;
+  private radarActiveCleanup: (() => void) | null = null;
   private bleLogs: BleLogEntry[] = (() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -307,6 +329,63 @@ class QRingBleService {
     } catch (_) {
       return null;
     }
+  }
+
+  public getLastKnownLocation(): RingLastLocation | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(LAST_RING_LOCATION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (
+        typeof parsed?.lat === 'number' &&
+        Number.isFinite(parsed.lat) &&
+        typeof parsed?.lng === 'number' &&
+        Number.isFinite(parsed.lng)
+      ) {
+        return parsed as RingLastLocation;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  public saveLastKnownLocation(loc: RingLastLocation): void {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(LAST_RING_LOCATION_KEY, JSON.stringify(loc));
+      window.dispatchEvent(new CustomEvent('aurelRingLocationUpdated', { detail: loc }));
+    } catch (_) {}
+  }
+
+  public captureCurrentRingLocation(
+    reason: RingLastLocation['reason'] = 'periodic'
+  ): Promise<RingLastLocation | null> {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      return Promise.resolve(this.getLastKnownLocation());
+    }
+    return new Promise((resolve) => {
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const loc: RingLastLocation = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: typeof pos.coords.accuracy === 'number' ? Math.round(pos.coords.accuracy) : undefined,
+              ts: Date.now(),
+              reason,
+            };
+            this.saveLastKnownLocation(loc);
+            resolve(loc);
+          },
+          () => resolve(this.getLastKnownLocation()),
+          { enableHighAccuracy: reason === 'disconnected' || reason === 'manual', timeout: 5000, maximumAge: 60000 }
+        );
+      } catch (_) {
+        resolve(this.getLastKnownLocation());
+      }
+    });
   }
 
   public subscribe(listener: RingListener): () => void {
@@ -455,6 +534,7 @@ class QRingBleService {
 
       try {
         const now = Date.now();
+        this.captureCurrentRingLocation('periodic');
         if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
           await this.syncAllRingData();
         } else {
@@ -1023,8 +1103,23 @@ class QRingBleService {
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
-          // Silently trigger background auto-reconnect if not explicitly unlinked by user
+          // Capture last known GPS position & optionally fire separation alert on unexpected drop
+          this.captureCurrentRingLocation('disconnected');
           if (!this.userExplicitlyDisconnected) {
+            if (typeof window !== 'undefined') {
+              try {
+                const sepEnabled = localStorage.getItem('vyta_separation_alert') !== 'false';
+                const now = Date.now();
+                if (sepEnabled && now - this.lastSeparationAlertAt > 60000) {
+                  this.lastSeparationAlertAt = now;
+                  dispatchApplePush(
+                    'Aurel Ring One déconnectée',
+                    'Signal Bluetooth perdu — dernière position enregistrée dans Localiser.',
+                    'battery'
+                  );
+                }
+              } catch (_) {}
+            }
             console.log('[QRing BLE Native] Disconnection detected, launching auto-reconnect engine...');
             this.scheduleAutoReconnect();
           }
@@ -1238,6 +1333,7 @@ class QRingBleService {
 
       // 5. Start Keep-Alive Heartbeat (every 20s to prevent ring dormant sleep)
       this.startHeartbeat();
+      this.captureCurrentRingLocation('connected');
 
       this.notify({
         isConnected: true,
@@ -2558,6 +2654,164 @@ class QRingBleService {
   public async stopRealTimeTemperature(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live skin temperature measurement...');
     return await this.stopLiveStream(0x05);
+  }
+
+  /**
+   * Visual Beacon: pulses the ring's internal green (PPG HR) and red (SpO2) optical LEDs
+   * for ~6 seconds so the user can spot the ring in a dark room / sofa / bag.
+   */
+  public async flashRingBeacon(durationMs: number = 6000): Promise<boolean> {
+    if (!this.isConnected()) return false;
+    if (this.flashBeaconTimer) {
+      clearTimeout(this.flashBeaconTimer);
+      this.flashBeaconTimer = null;
+    }
+
+    const wasHrActive = this.isRealTimeHrActive;
+    try {
+      this.pushBleLog('TX', `Balise lumineuse LED (${Math.round(durationMs / 1000)}s)`);
+      // Phase 1: Green optical PPG LEDs on full steady drive
+      await this.writeBytes(this.makePacket(0x69, [0x01, 0x01]));
+      await new Promise((r) => setTimeout(r, 90));
+      await this.writeBytes(this.makePacket(0x1E, [0x03]));
+
+      // Briefly switch to bright Red/IR SpO2 LEDs mid-way so both emitters blink visibly
+      const midTimer = setTimeout(async () => {
+        if (!this.isConnected()) return;
+        try {
+          await this.writeBytes(this.makePacket(0x69, [0x01, 0x04]));
+          await new Promise((r) => setTimeout(r, 80));
+          await this.writeBytes(this.makePacket(0x69, [0x03, 0x01]));
+        } catch (_) {}
+      }, Math.min(2400, Math.round(durationMs * 0.45)));
+
+      this.flashBeaconTimer = setTimeout(async () => {
+        clearTimeout(midTimer);
+        this.flashBeaconTimer = null;
+        if (!this.isConnected()) return;
+        try {
+          await this.writeBytes(this.makePacket(0x69, [0x03, 0x04]));
+          if (!wasHrActive) {
+            await new Promise((r) => setTimeout(r, 80));
+            await this.writeBytes(this.makePacket(0x69, [0x01, 0x04]));
+            await new Promise((r) => setTimeout(r, 70));
+            await this.writeBytes(this.makePacket(0x1E, [0x00]));
+          } else {
+            await new Promise((r) => setTimeout(r, 80));
+            await this.writeBytes(this.makePacket(0x69, [0x01, 0x01]));
+          }
+        } catch (_) {}
+      }, durationMs);
+
+      return true;
+    } catch (e) {
+      console.warn('[QRing BLE] flashRingBeacon error:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Live BLE RSSI Radar (Find My Ring Precision Mode):
+   * - On iOS WKWebView: uses native CoreBluetooth `vytaBleRadar` (`readRSSI()` when connected + duplicate scan when disconnected)
+   * - Fallback on Android / Capacitor when disconnected: `BleClient.requestLEScan({ allowDuplicates: true })`
+   */
+  public async startRssiRadar(onReading: (sample: BleRssiSample) => void): Promise<() => void> {
+    this.stopRssiRadar();
+
+    const targetId = this.getConnectedDeviceId() || this.getSavedDeviceId() || '';
+    const savedName = (this.getSavedDeviceName() || '').toUpperCase();
+    let active = true;
+    let startedCapacitorScan = false;
+
+    const matchesTarget = (deviceId: string, rawName?: string): boolean => {
+      if (targetId && deviceId.toLowerCase() === targetId.toLowerCase()) return true;
+      const upper = (rawName || '').trim().toUpperCase();
+      if (!upper) return false;
+      if (savedName && upper.includes(savedName)) return true;
+      return ['AUREL', 'QRING', 'VYTA', 'RING', 'R21', 'R20', 'R02', 'R06', 'R10', 'COLMI'].some((k) =>
+        upper.includes(k)
+      );
+    };
+
+    const nativeEventListener = (e: Event) => {
+      if (!active) return;
+      const detail = (e as CustomEvent<BleRssiSample>).detail;
+      if (!detail || typeof detail.rssi !== 'number') return;
+      if (detail.rssi >= 0 || detail.rssi <= -120) return;
+      if (detail.source === 'scan' && targetId && detail.deviceId && !matchesTarget(detail.deviceId, detail.name)) {
+        return;
+      }
+      onReading(detail);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('nativeBleRssi', nativeEventListener as EventListener);
+    }
+
+    let hasNativeBridge = false;
+    try {
+      const webkit = (window as any)?.webkit;
+      if (webkit?.messageHandlers?.vytaBleRadar) {
+        webkit.messageHandlers.vytaBleRadar.postMessage({ action: 'start', deviceId: targetId });
+        hasNativeBridge = true;
+      }
+    } catch (_) {}
+
+    // Fallback Capacitor BLE duplicate scan when native Swift bridge is unavailable (e.g. Android) and disconnected
+    if (!hasNativeBridge && Capacitor.isNativePlatform() && !this.isConnected()) {
+      try {
+        if (!this.isNativeInitialized) {
+          await BleClient.initialize();
+          this.isNativeInitialized = true;
+        }
+        await BleClient.requestLEScan({ allowDuplicates: true }, (result) => {
+          if (!active) return;
+          const rssi = typeof result.rssi === 'number' ? result.rssi : null;
+          if (rssi === null || rssi >= 0 || rssi <= -120) return;
+          const rawName = (result.localName || result.device?.name || '').trim();
+          if (!matchesTarget(result.device.deviceId, rawName)) return;
+          onReading({
+            rssi,
+            source: 'scan',
+            deviceId: result.device.deviceId,
+            name: rawName || 'Aurel Ring One',
+            ts: Date.now(),
+          });
+        });
+        startedCapacitorScan = true;
+      } catch (e) {
+        console.warn('[QRing BLE Radar] Capacitor LE scan fallback error:', e);
+      }
+    }
+
+    const cleanup = () => {
+      if (!active) return;
+      active = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('nativeBleRssi', nativeEventListener as EventListener);
+      }
+      if (hasNativeBridge) {
+        try {
+          (window as any)?.webkit?.messageHandlers?.vytaBleRadar?.postMessage({ action: 'stop' });
+        } catch (_) {}
+      }
+      if (startedCapacitorScan) {
+        BleClient.stopLEScan().catch(() => {});
+      }
+      if (this.radarActiveCleanup === cleanup) {
+        this.radarActiveCleanup = null;
+      }
+    };
+
+    this.radarActiveCleanup = cleanup;
+    return cleanup;
+  }
+
+  public stopRssiRadar(): void {
+    if (this.radarActiveCleanup) {
+      this.radarActiveCleanup();
+      this.radarActiveCleanup = null;
+    }
   }
 
   /**

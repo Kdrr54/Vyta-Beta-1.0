@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import WebKit
 import CoreLocation
+import CoreBluetooth
 import UserNotifications
 #if canImport(ActivityKit)
 import ActivityKit
@@ -94,11 +95,18 @@ class WorkoutLiveActivityManager {
 }
 #endif
 
-class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
+class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate, CBCentralManagerDelegate, CBPeripheralDelegate {
     private weak var defaultUIDelegate: WKUIDelegate?
     private let locationManager = CLLocationManager()
     private var isWorkoutActive = false
     var recordedPoints: [[String: Any]] = []
+
+    // Native CoreBluetooth Find-My-Ring RSSI radar
+    private var bleCentralManager: CBCentralManager?
+    private var radarTargetDeviceId: String?
+    private var radarPeripheral: CBPeripheral?
+    private var radarTimer: Timer?
+    private var isBleRadarActive = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -136,11 +144,13 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             locationManager.showsBackgroundLocationIndicator = true
         }
 
-        // Add script message handlers for workout tracking & native alerts
+        // Add script message handlers for workout tracking, BLE radar & native alerts
         self.webView?.configuration.userContentController.removeScriptMessageHandler(forName: "vytaWorkoutTracker")
         self.webView?.configuration.userContentController.add(self, name: "vytaWorkoutTracker")
         self.webView?.configuration.userContentController.removeScriptMessageHandler(forName: "vytaNotification")
         self.webView?.configuration.userContentController.add(self, name: "vytaNotification")
+        self.webView?.configuration.userContentController.removeScriptMessageHandler(forName: "vytaBleRadar")
+        self.webView?.configuration.userContentController.add(self, name: "vytaBleRadar")
         UNUserNotificationCenter.current().delegate = self
     }
 
@@ -158,6 +168,18 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
 
     // MARK: - WKScriptMessageHandler
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "vytaBleRadar" {
+            guard let dict = message.body as? [String: Any], let action = dict["action"] as? String else { return }
+            if action == "start" {
+                let rawId = (dict["deviceId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.radarTargetDeviceId = (rawId?.isEmpty == false) ? rawId : nil
+                self.startNativeBleRadar()
+            } else if action == "stop" {
+                self.stopNativeBleRadar()
+            }
+            return
+        }
+
         if message.name == "vytaNotification" {
             guard let dict = message.body as? [String: Any], let action = dict["action"] as? String else { return }
             let center = UNUserNotificationCenter.current()
@@ -348,6 +370,144 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
         DispatchQueue.main.async { [weak self] in
             self?.webView?.evaluateJavaScript(script, completionHandler: nil)
         }
+    }
+
+    // MARK: - Native CoreBluetooth RSSI Radar (Find My Ring)
+    private func isCandidateRingPeripheral(name: String?, uuidString: String) -> Bool {
+        if let targetId = radarTargetDeviceId,
+           uuidString.caseInsensitiveCompare(targetId) == .orderedSame {
+            return true
+        }
+        guard let upper = name?.uppercased(), !upper.isEmpty else { return false }
+        let keywords = ["AUREL", "QRING", "VYTA", "RING", "R21", "R20", "R02", "R06", "R10", "COLMI"]
+        return keywords.contains { upper.contains($0) }
+    }
+
+    private func startNativeBleRadar() {
+        isBleRadarActive = true
+        if bleCentralManager == nil {
+            bleCentralManager = CBCentralManager(
+                delegate: self,
+                queue: .main,
+                options: [CBCentralManagerOptionShowPowerAlertKey: false]
+            )
+            return
+        }
+        if bleCentralManager?.state == .poweredOn {
+            beginBleRadarLookup()
+        }
+    }
+
+    private func stopNativeBleRadar() {
+        isBleRadarActive = false
+        radarTimer?.invalidate()
+        radarTimer = nil
+        bleCentralManager?.stopScan()
+        radarPeripheral?.delegate = nil
+    }
+
+    private func beginBleRadarLookup() {
+        guard isBleRadarActive, let central = bleCentralManager, central.state == .poweredOn else { return }
+
+        radarTimer?.invalidate()
+        radarTimer = nil
+
+        let serviceUUIDs = [
+            CBUUID(string: "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"),
+            CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"),
+            CBUUID(string: "DE5BF728-D711-4E47-AF26-65E3012A5DC7"),
+            CBUUID(string: "180F"),
+            CBUUID(string: "180D")
+        ]
+        let connected = central.retrieveConnectedPeripherals(withServices: serviceUUIDs)
+        let connectedMatch = connected.first(where: {
+            isCandidateRingPeripheral(name: $0.name, uuidString: $0.identifier.uuidString)
+        })
+
+        // Attach to already-connected peripheral to poll readRSSI() without hijacking disconnected link state
+        if let p = connectedMatch {
+            radarPeripheral = p
+            p.delegate = self
+            if p.state == .connected {
+                p.readRSSI()
+            } else {
+                central.connect(p, options: nil)
+            }
+            radarTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
+                guard let self = self, self.isBleRadarActive, let periph = self.radarPeripheral else { return }
+                if periph.state == .connected {
+                    periph.readRSSI()
+                }
+            }
+        } else {
+            radarPeripheral = nil
+        }
+
+        // Also scan with AllowDuplicates so a disconnected/nearby ring's advertising beacons emit live RSSI
+        central.scanForPeripherals(
+            withServices: nil,
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+        )
+    }
+
+    private func dispatchBleRssiToWeb(rssi: Int, source: String, deviceId: String, name: String) {
+        let safeId = deviceId
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let safeName = name
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        let script = "window.dispatchEvent(new CustomEvent('nativeBleRssi', { detail: { rssi: \(rssi), source: '\(source)', deviceId: \"\(safeId)\", name: \"\(safeName)\", ts: \(ts) } }));"
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state == .poweredOn && isBleRadarActive {
+            beginBleRadarLookup()
+        } else if central.state != .poweredOn {
+            radarTimer?.invalidate()
+            radarTimer = nil
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard isBleRadarActive, peripheral.identifier == radarPeripheral?.identifier else { return }
+        peripheral.readRSSI()
+    }
+
+    func centralManager(
+        _ central: CBCentralManager,
+        didDiscover peripheral: CBPeripheral,
+        advertisementData: [String: Any],
+        rssi RSSI: NSNumber
+    ) {
+        guard isBleRadarActive else { return }
+        let val = RSSI.intValue
+        guard val < 0 && val > -120 else { return }
+        let advName = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name
+        guard isCandidateRingPeripheral(name: advName, uuidString: peripheral.identifier.uuidString) else { return }
+        dispatchBleRssiToWeb(
+            rssi: val,
+            source: "scan",
+            deviceId: peripheral.identifier.uuidString,
+            name: advName ?? "Aurel Ring One"
+        )
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard isBleRadarActive, error == nil else { return }
+        let val = RSSI.intValue
+        guard val < 0 && val > -120 else { return }
+        dispatchBleRssiToWeb(
+            rssi: val,
+            source: "connected",
+            deviceId: peripheral.identifier.uuidString,
+            name: peripheral.name ?? "Aurel Ring One"
+        )
     }
 
     // MARK: - WKUIDelegate: Suppress "localhost" web prompt and auto-grant to Vyta
