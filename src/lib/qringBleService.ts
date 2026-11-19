@@ -221,6 +221,7 @@ class QRingBleService {
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
+  private lastProgrammedStrictMode: boolean | null = null;
   private needsBoundaryAlign = false;
   private boundaryAlignTimer: any = null;
   private isRealTimeHrActive = false;
@@ -256,9 +257,11 @@ class QRingBleService {
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
             typeof parsed?.minutes === 'number' &&
+            typeof parsed?.strict === 'boolean' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
+            this.lastProgrammedStrictMode = parsed.strict;
             this.needsBoundaryAlign = Boolean(parsed?.needsAlign);
           }
         }
@@ -303,6 +306,14 @@ class QRingBleService {
               this.syncAllRingData();
             }
           }
+        }
+      });
+
+      window.addEventListener('nativeAppActive', () => {
+        if (!this.isConnected() && !this.userExplicitlyDisconnected) {
+          this.autoConnectSavedDevice();
+        } else if (this.isConnected() && this.needsBoundaryAlign && this.isNearClockBoundary(this.configuredIntervalMinutes)) {
+          this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
         }
       });
 
@@ -1603,6 +1614,43 @@ class QRingBleService {
    * - Command 0x38 (CMD_HRV): [0x02, enabledByte, intervalMin]
    * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
+  public isStrictLedModeEnabled(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem('vyta_strict_led_schedule') !== 'false';
+    } catch {
+      return true;
+    }
+  }
+
+  public async setStrictLedMode(strict: boolean): Promise<boolean> {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('vyta_strict_led_schedule', strict ? 'true' : 'false');
+      } catch (_) {}
+    }
+    return await this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
+  }
+
+  public getBoundaryAlignStatus(): { aligned: boolean; nextLabel: string; minutes: number } {
+    const mins = this.configuredIntervalMinutes;
+    if (mins <= 0) {
+      return { aligned: true, nextLabel: '--', minutes: mins };
+    }
+    const now = new Date();
+    const stepMin = mins >= 60 ? 60 : Math.max(15, mins);
+    const nextSlotMin = Math.floor(now.getMinutes() / stepMin) * stepMin + stepMin;
+    const target = new Date(now.getTime());
+    target.setMinutes(nextSlotMin, 0, 0);
+    const hh = String(target.getHours()).padStart(2, '0');
+    const mm = String(target.getMinutes()).padStart(2, '0');
+    return {
+      aligned: !this.needsBoundaryAlign,
+      nextLabel: `${hh}:${mm}`,
+      minutes: mins,
+    };
+  }
+
   public async setAllSensorIntervals(minutes?: number, force: boolean = false): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
     this.configuredIntervalMinutes = mins;
@@ -1616,8 +1664,10 @@ class QRingBleService {
       return false;
     }
 
-    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
-    if (!force && this.lastProgrammedIntervalMinutes === mins) {
+    const strictNow = this.isStrictLedModeEnabled();
+
+    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence & strict LED mode
+    if (!force && this.lastProgrammedIntervalMinutes === mins && this.lastProgrammedStrictMode === strictNow) {
       if (this.needsBoundaryAlign && mins > 0) {
         this.scheduleBoundaryAlignment(mins);
       }
@@ -1627,6 +1677,7 @@ class QRingBleService {
     const alignedNow = mins > 0 ? this.isNearClockBoundary(mins) : true;
     this.needsBoundaryAlign = mins > 0 && !alignedNow;
     this.lastProgrammedIntervalMinutes = mins;
+    this.lastProgrammedStrictMode = strictNow;
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(
@@ -1634,6 +1685,7 @@ class QRingBleService {
           JSON.stringify({
             deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
             minutes: mins,
+            strict: strictNow,
             needsAlign: this.needsBoundaryAlign,
             ts: Date.now(),
           })
@@ -1648,27 +1700,30 @@ class QRingBleService {
       this.boundaryAlignTimer = null;
     }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
+    // In strict single-LED mode, disable autonomous SpO2 (0x2C), HRV (0x38) and Stress (0x36) loops
+    // because R21 firmware ignores 60m interval on them and fires ~6 extra green/red LED flashes per hour.
+    const secondaryEnabledByte = mins > 0 && !strictNow ? 0x01 : 0x02;
     console.log(
-      `[QRing BLE] Programming all ring sensor intervals strictly to user setting: ${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'})`
+      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), Secondary=${secondaryEnabledByte === 1 ? 'ON' : 'OFF (strict single LED)'}`
     );
 
-    // 1. Heart rate (0x16)
+    // 1. Heart rate (0x16) — primary scheduled green LED timer
     await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 70));
 
-    // 2. SpO2 (0x2C)
-    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, mins & 0xFF]));
+    // 2. SpO2 (0x2C) — RED LED
+    await this.writeBytes(this.makePacket(0x2C, [0x02, secondaryEnabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 70));
 
     // 3. HRV (0x38)
-    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x38, [0x02, secondaryEnabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 70));
 
     // 4. Stress (0x36)
-    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, mins & 0xFF]));
+    await this.writeBytes(this.makePacket(0x36, [0x02, secondaryEnabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 70));
 
-    // 5. Temperature (0x3A)
+    // 5. Temperature (0x3A) — NTC thermistor (0 LEDs)
     await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 60));
 
@@ -2500,7 +2555,10 @@ class QRingBleService {
             }
           } catch (_) {}
         }
-        if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
+        if (
+          this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes ||
+          this.lastProgrammedStrictMode !== this.isStrictLedModeEnabled()
+        ) {
           await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
         } else if (this.needsBoundaryAlign && this.isNearClockBoundary(this.configuredIntervalMinutes)) {
@@ -3657,6 +3715,7 @@ class QRingBleService {
     }
     if (manual) {
       this.lastProgrammedIntervalMinutes = null;
+      this.lastProgrammedStrictMode = null;
       this.needsBoundaryAlign = false;
     }
     this.notify({ isConnected: false });

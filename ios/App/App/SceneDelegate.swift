@@ -619,6 +619,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func sceneDidBecomeActive(_ scene: UIScene) {
         if let mainVC = window?.rootViewController as? MainViewController {
             mainVC.flushBufferedPointsToWeb()
+            mainVC.webView?.evaluateJavaScript(
+                "window.dispatchEvent(new CustomEvent('nativeAppActive'));",
+                completionHandler: nil
+            )
         }
     }
 
