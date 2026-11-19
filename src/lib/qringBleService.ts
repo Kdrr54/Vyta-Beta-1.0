@@ -248,6 +248,20 @@ class QRingBleService {
   constructor() {
     if (typeof window !== 'undefined') {
       try {
+        const saved = localStorage.getItem('vyta_hw_programmed_interval');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
+          if (
+            typeof parsed?.minutes === 'number' &&
+            (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
+          ) {
+            this.lastProgrammedIntervalMinutes = parsed.minutes;
+          }
+        }
+      } catch (_) {}
+
+      try {
         const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
         if (intervalsStr) {
           const parsed = JSON.parse(intervalsStr);
@@ -1100,7 +1114,6 @@ class QRingBleService {
           console.warn('[QRing BLE Native] Peripheral disconnected:', disconnectedId || deviceId);
           this.pushBleLog('EVT', `Déconnectée (${deviceName})`);
           this.connectedDeviceId = null;
-          this.lastProgrammedIntervalMinutes = null;
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
@@ -1606,6 +1619,18 @@ class QRingBleService {
     }
 
     this.lastProgrammedIntervalMinutes = mins;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          'vyta_hw_programmed_interval',
+          JSON.stringify({
+            deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
+            minutes: mins,
+            ts: Date.now(),
+          })
+        );
+      } catch (_) {}
+    }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
     console.log(
       `[QRing BLE] Programming all ring sensor intervals strictly to user setting: ${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'})`
@@ -3539,6 +3564,7 @@ class QRingBleService {
         try {
           localStorage.removeItem('vyta_ble_saved_device_id');
           localStorage.removeItem('vyta_ble_saved_device_name');
+          localStorage.removeItem('vyta_hw_programmed_interval');
         } catch (_) {}
       }
     }
@@ -3566,7 +3592,9 @@ class QRingBleService {
       clearInterval(this.realTimeHrTimer);
       this.realTimeHrTimer = null;
     }
-    this.lastProgrammedIntervalMinutes = null;
+    if (manual) {
+      this.lastProgrammedIntervalMinutes = null;
+    }
     this.notify({ isConnected: false });
   }
 }
