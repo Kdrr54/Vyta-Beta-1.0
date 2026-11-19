@@ -116,15 +116,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     setIsSyncingRing(true);
     setSyncFeedback(null);
     try {
-      await qringBle.syncAllRingData();
+      await qringBle.syncAllRingData(true);
       setSyncFeedback(isEn ? 'Synchronized!' : 'Synchronisé !');
     } catch (_) {
       setSyncFeedback(isEn ? 'Sync finished' : 'Synchro terminée');
-    }
-    setTimeout(() => {
+    } finally {
       setIsSyncingRing(false);
-      setTimeout(() => setSyncFeedback(null), 2500);
-    }, 1100);
+      setTimeout(() => setSyncFeedback(null), 2200);
+    }
   };
 
   const handleStartCalibration = async () => {

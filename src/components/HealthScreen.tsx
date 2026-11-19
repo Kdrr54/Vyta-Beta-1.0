@@ -39,27 +39,26 @@ export const HealthScreen: React.FC = () => {
     setIsSyncingRing(true);
     setSyncFeedback(language === 'fr' ? 'Synchronisation de la bague...' : 'Syncing ring data...');
     try {
-      await qringBle.syncAllRingData();
+      await qringBle.syncAllRingData(true);
       setSyncFeedback(language === 'fr' ? '✓ Données de la bague synchronisées' : '✓ Ring data synchronized');
     } catch (_) {
       setSyncFeedback(language === 'fr' ? 'Échec de synchronisation' : 'Sync failed');
-    }
-    setTimeout(() => {
+    } finally {
       setIsSyncingRing(false);
-      setTimeout(() => setSyncFeedback(null), 3000);
-    }, 1800);
+      setTimeout(() => setSyncFeedback(null), 2400);
+    }
   };
 
-  // Synchroniser automatiquement à l'affichage ou au retour sur l'onglet Santé
+  // Synchroniser automatiquement avec cooldown (20s géré dans syncAllRingData)
   React.useEffect(() => {
     if (qringBle.isConnected()) {
-      qringBle.syncAllRingData();
+      qringBle.syncAllRingData(false);
     }
   }, []);
 
   React.useEffect(() => {
     if (ring.isConnected && qringBle.isConnected()) {
-      qringBle.syncAllRingData();
+      qringBle.syncAllRingData(false);
     }
   }, [ring.isConnected]);
 

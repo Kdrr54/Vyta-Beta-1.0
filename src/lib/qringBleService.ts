@@ -217,6 +217,7 @@ class QRingBleService {
   private userExplicitlyDisconnected = false;
   private lastPeriodicSyncTime = 0;
   private isSyncing = false;
+  private activeSyncPromise: Promise<boolean> | null = null;
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
@@ -1232,7 +1233,7 @@ class QRingBleService {
         }
       }
 
-      // 3. Also check Standard Battery GATT service (0x180F)
+      // 3. Battery status (quick single read)
       try {
         const batVal = await BleClient.read(
           deviceId,
@@ -1248,7 +1249,7 @@ class QRingBleService {
         }
       } catch (_) {}
 
-      // 3b. Also attempt to subscribe to standard Bluetooth SIG Heart Rate Service (0x180D / 0x2A37) if exposed by ring
+      // 3b. Subscribe to standard Bluetooth SIG Heart Rate Service (0x180D / 0x2A37) if exposed by ring
       try {
         await BleClient.startNotifications(
           deviceId,
@@ -1269,13 +1270,6 @@ class QRingBleService {
         console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate notifications active');
       } catch (_) {}
 
-      // 3c. Read real Serial Number, Firmware Revision & MAC / System ID from Device Information Service (0x180A)
-      let realSerial: string | undefined;
-      let realFirmware: string | undefined;
-      let realMac: string | undefined = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(deviceId)
-        ? deviceId.toUpperCase()
-        : undefined;
-
       const decodeGattUtf8 = (dv?: DataView | null): string | undefined => {
         if (!dv || dv.byteLength === 0) return undefined;
         try {
@@ -1287,61 +1281,74 @@ class QRingBleService {
         }
       };
 
-      try {
-        const snDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SERIAL_CHAR_UUID);
-        realSerial = decodeGattUtf8(snDv);
-      } catch (_) {}
+      const macFallbackFromId = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(deviceId)
+        ? deviceId.toUpperCase()
+        : undefined;
+      const hexFallback = deviceId.replace(/[^0-9A-Fa-f]/g, '').toUpperCase().slice(-12).padStart(12, '0');
+      const provisionalMac =
+        macFallbackFromId ||
+        `${hexFallback.slice(0, 2)}:${hexFallback.slice(2, 4)}:${hexFallback.slice(4, 6)}:${hexFallback.slice(6, 8)}:${hexFallback.slice(8, 10)}:${hexFallback.slice(10, 12)}`;
+      const provisionalSerial = `AR01-${hexFallback.slice(-8, -4) || '0000'}-${hexFallback.slice(-4) || '0000'}`;
 
-      try {
-        const fwDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_FIRMWARE_CHAR_UUID);
-        realFirmware = decodeGattUtf8(fwDv);
-      } catch (_) {}
-
-      if (!realMac) {
-        try {
-          const sysDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SYSTEM_ID_CHAR_UUID);
-          if (sysDv && sysDv.byteLength >= 8) {
-            const b = new Uint8Array(sysDv.buffer, sysDv.byteOffset, sysDv.byteLength);
-            // IEEE EUI-64 system ID stores 6-byte MAC across [0..2] & [5..7] (or reversed)
-            const macBytes = [b[7], b[6], b[5], b[2], b[1], b[0]];
-            const nonZero = macBytes.some((v) => v !== 0 && v !== 0xff);
-            if (nonZero) {
-              realMac = macBytes.map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join(':');
-            }
-          }
-        } catch (_) {}
-      }
-
-      // Derive deterministic hardware serial/ID if 0x2A25 is empty on firmware
-      if (!realSerial) {
-        const hexSeed = (realMac || deviceId).replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
-        const tail = hexSeed.slice(-8) || '00000000';
-        realSerial = `AR01-${tail.slice(0, 4)}-${tail.slice(4)}`;
-      }
-      if (!realMac) {
-        const hex = deviceId.replace(/[^0-9A-Fa-f]/g, '').toUpperCase().slice(-12).padStart(12, '0');
-        realMac = `${hex.slice(0, 2)}:${hex.slice(2, 4)}:${hex.slice(4, 6)}:${hex.slice(6, 8)}:${hex.slice(8, 10)}:${hex.slice(10, 12)}`;
-      }
-
-      // 4. Send Hardware Protocol Handshakes & Configuration (skip if triggered for instant live measure)
-      this.pushBleLog('EVT', `Connectée (${deviceName}, SN=${realSerial}${realFirmware ? `, FW=${realFirmware}` : ''}${batteryLevel ? `, ${batteryLevel}%` : ''})`);
-      if (!skipInitialSync) {
-        await this.syncAllRingData();
-      } else {
-        await this.sendTimeSync();
-      }
-
-      // 5. Start Keep-Alive Heartbeat (every 20s to prevent ring dormant sleep)
+      // 4. Notify app IMMEDIATELY that ring is connected (never block UI/radar behind 8s history sync)
       this.startHeartbeat();
       this.captureCurrentRingLocation('connected');
+      this.pushBleLog('EVT', `Connectée (${deviceName}${batteryLevel ? `, ${batteryLevel}%` : ''})`);
 
       this.notify({
         isConnected: true,
         deviceName,
-        serialNumber: realSerial,
-        firmwareVersion: realFirmware,
-        macAddress: realMac,
+        serialNumber: provisionalSerial,
+        macAddress: provisionalMac,
         batteryPct: batteryLevel,
+      });
+
+      // 5. Fetch Device Info + run initial sync asynchronously without blocking connection state
+      Promise.resolve().then(async () => {
+        if (!this.isConnected() || this.connectedDeviceId !== deviceId) return;
+        let realSerial: string | undefined;
+        let realFirmware: string | undefined;
+        let realMac: string | undefined = macFallbackFromId;
+
+        try {
+          const snDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SERIAL_CHAR_UUID);
+          realSerial = decodeGattUtf8(snDv);
+        } catch (_) {}
+
+        try {
+          const fwDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_FIRMWARE_CHAR_UUID);
+          realFirmware = decodeGattUtf8(fwDv);
+        } catch (_) {}
+
+        if (!realMac) {
+          try {
+            const sysDv = await BleClient.read(deviceId, DEVICE_INFO_SERVICE_UUID, DEVICE_SYSTEM_ID_CHAR_UUID);
+            if (sysDv && sysDv.byteLength >= 8) {
+              const b = new Uint8Array(sysDv.buffer, sysDv.byteOffset, sysDv.byteLength);
+              const macBytes = [b[7], b[6], b[5], b[2], b[1], b[0]];
+              if (macBytes.some((v) => v !== 0 && v !== 0xff)) {
+                realMac = macBytes.map((v) => v.toString(16).padStart(2, '0').toUpperCase()).join(':');
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (realSerial || realFirmware || realMac) {
+          this.notify({
+            isConnected: true,
+            deviceName,
+            serialNumber: realSerial || provisionalSerial,
+            firmwareVersion: realFirmware,
+            macAddress: realMac || provisionalMac,
+            batteryPct: batteryLevel,
+          });
+        }
+
+        if (!skipInitialSync) {
+          await this.syncAllRingData(true);
+        } else {
+          await this.sendTimeSync();
+        }
       });
 
       return { success: true, deviceName, battery: batteryLevel };
@@ -1606,28 +1613,23 @@ class QRingBleService {
 
     // 1. Heart rate (0x16)
     await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 70));
 
     // 2. SpO2 (0x2C)
     await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 70));
 
     // 3. HRV (0x38)
     await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 70));
 
     // 4. Stress (0x36)
     await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 70));
 
     // 5. Temperature (0x3A)
     await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 140));
-
-    // 6. Verify 0x16 & 0x2C hardware ack
-    await this.writeBytes(this.makePacket(0x16, [0x01]));
-    await new Promise((r) => setTimeout(r, 100));
-    await this.writeBytes(this.makePacket(0x2C, [0x01]));
+    await new Promise((r) => setTimeout(r, 60));
 
     return true;
   }
@@ -1679,7 +1681,7 @@ class QRingBleService {
     // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
     const p43 = this.makePacket(0x43, [dayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
     await this.writeBytes(p43);
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 120));
 
     // 2. QCBand daily total
     const p7 = this.makePacket(0x07, [dayOffset & 0xFF]);
@@ -1712,11 +1714,11 @@ class QRingBleService {
     // 1. Big Data V2 Sleep query (Gadgetbridge YawellRingDeviceSupport verbatim: [0xBC, 0x27, 0x01, 0x00, 0xFF, 0x00, 0xFF])
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       await this.writeBigDataBytes([0xBC, 0x27, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 180));
     } else {
       const packet = this.makePacket(0xBC, [0x27, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
       await this.writeBytes(packet);
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => setTimeout(r, 150));
     }
 
     // 2. Fallback Colmi R02 UART Sleep query ONLY for today (dayOffset = 0, NEVER dayOffset = 1 which overwrites today!)
@@ -1765,16 +1767,16 @@ class QRingBleService {
   public async requestTemperatureData(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 / 0x26 / 0x74)...');
     await this.writeBytes(this.makePacket(0x3A, [0x03, 0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 60));
     await this.writeBytes(this.makePacket(0x75, [0x00]));
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 60));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       await this.writeBigDataBytes([0xBC, 0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 70));
       await this.writeBigDataBytes([0xBC, 0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
     } else {
       await this.writeBytes(this.makePacket(0xBC, [0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 70));
       await this.writeBytes(this.makePacket(0xBC, [0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
     }
     return true;
@@ -2373,90 +2375,100 @@ class QRingBleService {
    * 8. Queries steps, distance, calories (Command 67, 7 & 72)
    * 9. Queries battery level (Command 3)
    */
-  public async syncAllRingData(): Promise<boolean> {
+  public async syncAllRingData(force: boolean = false): Promise<boolean> {
     if (!this.isConnected()) {
       console.warn('[QRing BLE] Cannot sync: ring is not connected.');
       return false;
     }
-    if (this.isSyncing || this.activeLiveDataType !== null || this.isRealTimeHrActive) {
+    if (this.activeSyncPromise) {
+      return this.activeSyncPromise;
+    }
+    if (this.activeLiveDataType !== null || this.isRealTimeHrActive) {
       return false;
     }
+    if (!force && this.lastPeriodicSyncTime > 0 && Date.now() - this.lastPeriodicSyncTime < 20000) {
+      return true;
+    }
+
     this.isSyncing = true;
     this.lastPeriodicSyncTime = Date.now();
-    console.log('[QRing BLE] === Starting Full Hardware Data Sync (Optical LED Silent Mode) ===');
-    try {
-      // 1. Clock synchronization with BCD (Essential: enables nocturnal sleep detection)
-      await this.sendTimeSync();
-      await new Promise((r) => setTimeout(r, 300));
+    console.log('[QRing BLE] === Starting Fast Hardware Data Sync ===');
 
-      // 2. Program autonomous firmware sensor intervals ONLY if not yet programmed on this connection or changed by user
-      if (typeof window !== 'undefined') {
-        try {
-          const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
-          if (intervalsStr) {
-            const parsed = JSON.parse(intervalsStr);
-            if (parsed.heartRate === 'pause') {
-              this.configuredIntervalMinutes = 0;
-            } else if (parsed.heartRate === '30min') {
-              this.configuredIntervalMinutes = 30;
-            } else if (parsed.heartRate === '1h') {
-              this.configuredIntervalMinutes = 60;
-            } else if (parsed.heartRate === '2h') {
-              this.configuredIntervalMinutes = 120;
-            } else if (parsed.heartRate === '15min') {
-              this.configuredIntervalMinutes = 15;
+    this.activeSyncPromise = (async () => {
+      try {
+        // 1. Clock synchronization + Battery request immediately
+        await this.sendTimeSync();
+        await this.sendBatteryRequest();
+        await new Promise((r) => setTimeout(r, 80));
+
+        // 2. Program autonomous firmware sensor intervals ONLY if not yet programmed or changed
+        if (typeof window !== 'undefined') {
+          try {
+            const intervalsStr = localStorage.getItem('vyta_sensor_intervals');
+            if (intervalsStr) {
+              const parsed = JSON.parse(intervalsStr);
+              if (parsed.heartRate === 'pause') {
+                this.configuredIntervalMinutes = 0;
+              } else if (parsed.heartRate === '30min') {
+                this.configuredIntervalMinutes = 30;
+              } else if (parsed.heartRate === '1h') {
+                this.configuredIntervalMinutes = 60;
+              } else if (parsed.heartRate === '2h') {
+                this.configuredIntervalMinutes = 120;
+              } else if (parsed.heartRate === '15min') {
+                this.configuredIntervalMinutes = 15;
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+        if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
+          await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
+          await new Promise((r) => setTimeout(r, 90));
+        }
+
+        // 3. Stored full-day heart rate logs
+        await this.requestHeartRateLog();
+        await new Promise((r) => setTimeout(r, 420));
+
+        // 4. Stored sleep logs
+        await this.requestSleepData();
+        await new Promise((r) => setTimeout(r, 220));
+
+        // 5. Stored SpO2 logs
+        await this.requestSpo2Data();
+        await new Promise((r) => setTimeout(r, 200));
+
+        // 6. Stored 30-min HRV (VRC) logs
+        await this.requestHrvLog();
+        await new Promise((r) => setTimeout(r, 180));
+
+        // 7. Stored 30-min Stress logs
+        await this.requestStressLog();
+        await new Promise((r) => setTimeout(r, 180));
+
+        // 8. Stored Skin Temperature logs
+        await this.requestTemperatureData();
+        await new Promise((r) => setTimeout(r, 140));
+
+        // 9. Steps and activity detail + sports counters
+        await this.requestStepsData(0);
+        await new Promise((r) => setTimeout(r, 140));
+
+        await this.requestTodaySports();
+        await new Promise((r) => setTimeout(r, 120));
+
+        console.log('[QRing BLE] === Fast Hardware Data Sync Completed ===');
+        return true;
+      } catch (e) {
+        console.error('[QRing BLE] Sync error:', e);
+        return false;
+      } finally {
+        this.isSyncing = false;
+        this.activeSyncPromise = null;
       }
-      if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
-        await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
-        await new Promise((r) => setTimeout(r, 300));
-      }
+    })();
 
-      // 3. Stored full-day heart rate logs (flash memory only, 0 LEDs, given 1300ms to stream all 24 frames cleanly)
-      await this.requestHeartRateLog();
-      await new Promise((r) => setTimeout(r, 1300));
-
-      // 4. Stored sleep logs (BigData 0xBC 0x27 flash memory only, 0 LEDs)
-      await this.requestSleepData();
-      await new Promise((r) => setTimeout(r, 600));
-
-      // 5. Stored SpO2 logs (BigData 0xBC 0x2A flash memory only, 0 LEDs)
-      await this.requestSpo2Data();
-      await new Promise((r) => setTimeout(r, 550));
-
-      // 6. Stored 30-min HRV (VRC) logs (Command 0x39 flash memory only, 0 LEDs)
-      await this.requestHrvLog();
-      await new Promise((r) => setTimeout(r, 450));
-
-      // 7. Stored 30-min Stress logs (Command 0x37 flash memory only, 0 LEDs)
-      await this.requestStressLog();
-      await new Promise((r) => setTimeout(r, 450));
-
-      // 8. Stored Skin Temperature logs (BigData 0xBC 0x25 flash memory only, 0 LEDs)
-      await this.requestTemperatureData();
-      await new Promise((r) => setTimeout(r, 350));
-
-      // 9. Steps and activity detail
-      await this.requestStepsData(0);
-      await new Promise((r) => setTimeout(r, 350));
-
-      // 10. Live sports counters
-      await this.requestTodaySports();
-      await new Promise((r) => setTimeout(r, 300));
-
-      // 11. Battery status
-      await this.sendBatteryRequest();
-
-      console.log('[QRing BLE] === Full Hardware Data Sync Completed (Optical Sensor Sleeping) ===');
-      return true;
-    } catch (e) {
-      console.error('[QRing BLE] Sync error:', e);
-      return false;
-    } finally {
-      this.isSyncing = false;
-    }
+    return this.activeSyncPromise;
   }
 
   /**
