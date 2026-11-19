@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { queryPrismAI } from '../lib/prismService';
@@ -15,6 +15,9 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
   const isMono = cardThemeMode === 'monochrome';
+  const initialViewportHeightRef = useRef<number>(
+    typeof window !== 'undefined' ? window.innerHeight : 844
+  );
   const [vvLayout, setVvLayout] = useState<{ top: number; height: number | null; isKeyboard: boolean }>({
     top: 0,
     height: null,
@@ -22,23 +25,30 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
   });
 
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const onVvChange = () => {
-      const diff = window.innerHeight - vv.height;
-      const isKb = diff > 100;
+    if (typeof window === 'undefined') return;
+    if (window.innerHeight > initialViewportHeightRef.current) {
+      initialViewportHeightRef.current = window.innerHeight;
+    }
+    const checkViewport = () => {
+      const vv = window.visualViewport;
+      const curH = vv ? vv.height : window.innerHeight;
+      const baseH = initialViewportHeightRef.current;
+      const isKb = curH < baseH - 120 || window.innerHeight < baseH - 120;
       setVvLayout({
-        top: isKb ? Math.max(0, Math.round(vv.offsetTop)) : 0,
-        height: isKb ? Math.max(300, Math.round(vv.height)) : null,
+        top: isKb && vv ? Math.max(0, Math.round(vv.offsetTop)) : 0,
+        height: isKb ? Math.max(260, Math.round(curH)) : null,
         isKeyboard: isKb,
       });
       if (window.scrollY !== 0) window.scrollTo(0, 0);
     };
-    vv.addEventListener('resize', onVvChange);
-    vv.addEventListener('scroll', onVvChange);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', checkViewport);
+    vv?.addEventListener('scroll', checkViewport);
+    window.addEventListener('resize', checkViewport);
     return () => {
-      vv.removeEventListener('resize', onVvChange);
-      vv.removeEventListener('scroll', onVvChange);
+      vv?.removeEventListener('resize', checkViewport);
+      vv?.removeEventListener('scroll', checkViewport);
+      window.removeEventListener('resize', checkViewport);
     };
   }, []);
 
@@ -102,8 +112,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         top: 0,
         left: 0,
         right: 0,
-        height: vvLayout.height ? `${vvLayout.height}px` : '100%',
-        paddingTop: 'max(68px, calc(env(safe-area-inset-top, 44px) + 14px))',
+        bottom: 0,
+        paddingTop: 'max(64px, calc(env(safe-area-inset-top, 44px) + 10px))',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -290,7 +300,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         </div>
 
         {/* Exact 21st.dev MorphOrb Thinking & Input Component */}
-        <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative', width: '100%', overflow: 'hidden' }}>
           <MorphOrb
             onSubmit={handleAskAurelius}
             minThinkMs={450}

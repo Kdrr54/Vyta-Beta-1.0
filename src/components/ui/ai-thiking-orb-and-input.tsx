@@ -46,10 +46,10 @@ const cardW = (el?: HTMLElement | null) => {
   return Math.min(360, w - 32);
 };
 const homeDy = (el?: HTMLElement | null, _elevated = false, viewportHeight?: number | null) => {
-  const h = el && el.clientHeight > 180 ? el.clientHeight : (viewportHeight && viewportHeight > 200 ? viewportHeight : window.innerHeight);
-  // Keep pill comfortably anchored near bottom of .mo-root so it glides seamlessly with keyboard resize without colliding with fixed suggestions
-  const bottomMargin = h < 520 ? 44 : 56;
-  return Math.max(20, h * 0.54 - bottomMargin);
+  const h = el && el.clientHeight > 120 ? el.clientHeight : (viewportHeight && viewportHeight > 160 ? viewportHeight : window.innerHeight);
+  // Keep pill comfortably anchored near bottom of .mo-root so it glides seamlessly with native keyboard resize
+  const bottomMargin = h < 480 ? 40 : 54;
+  return Math.max(16, h * 0.54 - bottomMargin);
 };
 
 /* ───────────────────────── math + easing ───────────────────────── */
@@ -1063,12 +1063,14 @@ export default function MorphOrb(props: MorphOrbProps) {
       <div className="mo-bg" aria-hidden="true" />
       <div className="mo-halo" aria-hidden="true" />
 
-      {/* Mobile Idle Hero & Quick Suggestion Pills (always stationary in idle) */}
-      {(greetingTitle || (suggestions && suggestions.length > 0)) && (
+      {/* Mobile Idle Hero & Quick Suggestion Pills (always stationary in idle; compacts cleanly on keyboard open) */}
+      {(greetingTitle || (suggestions && suggestions.length > 0)) && (() => {
+        const compactForKeyboard = isFocused || isKeyboardOpen || (viewportHeight !== null && viewportHeight < 480);
+        return (
         <div
           style={{
             position: "absolute",
-            top: "10px",
+            top: compactForKeyboard ? "6px" : "10px",
             left: 0,
             right: 0,
             padding: "0 18px",
@@ -1076,7 +1078,7 @@ export default function MorphOrb(props: MorphOrbProps) {
             flexDirection: "column",
             alignItems: "center",
             textAlign: "center",
-            gap: "8px",
+            gap: compactForKeyboard ? "4px" : "8px",
             zIndex: 8,
             opacity: phase === "idle" ? 1 : 0,
             transform: phase === "idle" ? "translate3d(0, 0, 0)" : "translate3d(0, -10px, 0)",
@@ -1085,8 +1087,8 @@ export default function MorphOrb(props: MorphOrbProps) {
           }}
         >
           {phase === "idle" && (
-            <div style={{ pointerEvents: "none", marginBottom: "-6px" }}>
-              <AureliusOrb status="idle" size={88} accentMode={accentMode} />
+            <div style={{ pointerEvents: "none", marginBottom: compactForKeyboard ? "-10px" : "-6px" }}>
+              <AureliusOrb status="idle" size={compactForKeyboard ? 56 : 88} accentMode={accentMode} />
             </div>
           )}
 
@@ -1094,7 +1096,7 @@ export default function MorphOrb(props: MorphOrbProps) {
             <div style={{ display: "flex", flexDirection: "column", gap: "3px", maxWidth: "320px" }}>
               <h3
                 style={{
-                  fontSize: "19px",
+                  fontSize: compactForKeyboard ? "16px" : "19px",
                   fontWeight: 700,
                   color: "#FAF7F2",
                   letterSpacing: "-0.4px",
@@ -1103,7 +1105,7 @@ export default function MorphOrb(props: MorphOrbProps) {
               >
                 {greetingTitle}
               </h3>
-              {greetingSubtitle && (
+              {greetingSubtitle && !compactForKeyboard && (
                 <p
                   style={{
                     fontSize: "12.5px",
@@ -1118,7 +1120,7 @@ export default function MorphOrb(props: MorphOrbProps) {
             </div>
           )}
 
-          {suggestions && suggestions.length > 0 && (
+          {suggestions && suggestions.length > 0 && !compactForKeyboard && (
             <div
               style={{
                 display: "flex",
@@ -1160,7 +1162,8 @@ export default function MorphOrb(props: MorphOrbProps) {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       <div className="mo-mover" ref={moverRef}>
         {Array.from({ length: 6 }).map((_, i) => (
@@ -1195,8 +1198,15 @@ export default function MorphOrb(props: MorphOrbProps) {
               spellCheck={false}
               onFocus={() => {
                 setIsFocused(true);
-                if (typeof window !== "undefined" && window.scrollY !== 0) {
-                  window.scrollTo(0, 0);
+                const resetScroll = () => {
+                  if (typeof window !== "undefined" && window.scrollY !== 0) window.scrollTo(0, 0);
+                  if (rootRef.current) rootRef.current.scrollTop = 0;
+                };
+                resetScroll();
+                if (typeof window !== "undefined") {
+                  window.setTimeout(resetScroll, 60);
+                  window.setTimeout(resetScroll, 180);
+                  window.setTimeout(resetScroll, 320);
                 }
               }}
               onBlur={() => setIsFocused(false)}
