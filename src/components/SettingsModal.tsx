@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
 import { RingFinish } from '../types';
-import { qringBle, BleLogEntry } from '../lib/qringBleService';
+import { qringBle, BleLogEntry, RingMeasureEvent } from '../lib/qringBleService';
 import { checkWarrantyForEmail, getAccountEmail, setAccountEmail } from '../lib/warrantyService';
 import {
   X,
@@ -77,10 +77,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [isCheckingWarranty, setIsCheckingWarranty] = useState(false);
   const [showBleLogs, setShowBleLogs] = useState(false);
   const [bleLogs, setBleLogs] = useState<BleLogEntry[]>(() => qringBle.getBleLogs());
+  const [measureEvents, setMeasureEvents] = useState<RingMeasureEvent[]>(() => qringBle.getMeasureEvents());
+  const [showRawBleFrames, setShowRawBleFrames] = useState(false);
   const [copiedLogs, setCopiedLogs] = useState(false);
 
   useEffect(() => {
-    return qringBle.subscribeLogs(setBleLogs);
+    const unsubLogs = qringBle.subscribeLogs(setBleLogs);
+    const unsubMeasures = qringBle.subscribeMeasureEvents(setMeasureEvents);
+    return () => {
+      unsubLogs();
+      unsubMeasures();
+    };
   }, []);
 
   const isConnected = Boolean(ring.isConnected);
@@ -1070,7 +1077,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     </span>
                   </div>
                   <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.55)', fontFamily: 'var(--font-mono)' }}>
-                    {bleLogs.length} {showBleLogs ? '▾' : '▸'}
+                    {(showRawBleFrames ? bleLogs.length : measureEvents.length)} {showBleLogs ? '▾' : '▸'}
                   </span>
                 </div>
 
@@ -1081,7 +1088,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         type="button"
                         onClick={() => {
                           triggerHaptic();
-                          qringBle.querySensorConfigs();
+                          qringBle.syncAllRingData(true);
                         }}
                         style={{
                           padding: '6px 10px',
@@ -1094,15 +1101,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           cursor: 'pointer',
                         }}
                       >
-                        {isEn ? 'Read Ring Config' : 'Lire config bague'}
+                        {isEn ? 'Refresh' : 'Actualiser'}
                       </button>
                       <button
                         type="button"
                         onClick={async () => {
                           triggerHaptic();
-                          const text = bleLogs
-                            .map((l) => `[${l.time}] ${l.dir} ${l.summary}${l.hex ? ` | ${l.hex}` : ''}`)
-                            .join('\n');
+                          const text = showRawBleFrames
+                            ? bleLogs
+                                .map((l) => `[${l.time}] ${l.dir} ${l.summary}${l.hex ? ` | ${l.hex}` : ''}`)
+                                .join('\n')
+                            : measureEvents
+                                .map((ev) => `${ev.label} ${ev.time}${ev.value ? ` (${ev.value})` : ''}`)
+                                .join('\n');
                           try {
                             await navigator.clipboard.writeText(text);
                             setCopiedLogs(true);
@@ -1130,7 +1141,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         type="button"
                         onClick={() => {
                           triggerHaptic();
-                          qringBle.clearBleLogs();
+                          if (showRawBleFrames) {
+                            qringBle.clearBleLogs();
+                          } else {
+                            qringBle.clearMeasureEvents();
+                          }
                         }}
                         style={{
                           padding: '6px 10px',
@@ -1149,6 +1164,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         <Trash2 size={11} />
                         {isEn ? 'Clear' : 'Effacer'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic();
+                          setShowRawBleFrames((v) => !v);
+                        }}
+                        style={{
+                          padding: '6px 9px',
+                          borderRadius: '9px',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          background: showRawBleFrames ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.03)',
+                          color: 'rgba(250, 247, 242, 0.6)',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          marginLeft: 'auto',
+                        }}
+                      >
+                        {showRawBleFrames ? (isEn ? 'Measurements' : 'Mesures') : 'BLE'}
+                      </button>
                     </div>
 
                     <div
@@ -1163,38 +1198,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         flexDirection: 'column',
                         gap: '5px',
                         fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
+                        fontSize: '11px',
                       }}
                     >
-                      {bleLogs.length === 0 ? (
-                        <span style={{ color: 'rgba(250, 247, 242, 0.4)' }}>
-                          {isEn ? 'No BLE activity recorded yet.' : 'Aucune trame BLE enregistrée pour le moment.'}
+                      {showRawBleFrames ? (
+                        bleLogs.length === 0 ? (
+                          <span style={{ color: 'rgba(250, 247, 242, 0.4)', fontSize: '10px' }}>
+                            {isEn ? 'No BLE activity recorded yet.' : 'Aucune trame BLE enregistrée pour le moment.'}
+                          </span>
+                        ) : (
+                          bleLogs.map((log) => {
+                            const dirColor =
+                              log.dir === 'RX' ? '#30D158' : log.dir === 'TX' ? '#FBBF24' : '#38BDF8';
+                            return (
+                              <div
+                                key={log.id}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '1px',
+                                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                                  paddingBottom: '4px',
+                                  fontSize: '10px',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ color: 'rgba(250, 247, 242, 0.4)' }}>{log.time}</span>
+                                  <span style={{ color: dirColor, fontWeight: 700 }}>{log.dir}</span>
+                                  <span style={{ color: '#FAF7F2', wordBreak: 'break-word' }}>{log.summary}</span>
+                                </div>
+                                {log.hex && (
+                                  <span style={{ color: 'rgba(250, 247, 242, 0.35)', fontSize: '9px', paddingLeft: '62px' }}>
+                                    {log.hex}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })
+                        )
+                      ) : measureEvents.length === 0 ? (
+                        <span style={{ color: 'rgba(250, 247, 242, 0.45)', fontSize: '10.5px' }}>
+                          {isEn
+                            ? 'No ring light-up or sensor measurement logged yet.'
+                            : 'Aucune mesure ou allumage LED détecté pour le moment.'}
                         </span>
                       ) : (
-                        bleLogs.map((log) => {
-                          const dirColor =
-                            log.dir === 'RX' ? '#30D158' : log.dir === 'TX' ? '#FBBF24' : '#38BDF8';
+                        measureEvents.map((ev) => {
+                          const dotColor =
+                            ev.led === 'red' ? '#FF453A' : ev.led === 'amber' ? '#FBBF24' : '#30D158';
                           return (
                             <div
-                              key={log.id}
+                              key={ev.id}
                               style={{
                                 display: 'flex',
-                                flexDirection: 'column',
-                                gap: '1px',
-                                borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                                paddingBottom: '4px',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                padding: '4px 0',
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ color: 'rgba(250, 247, 242, 0.4)' }}>{log.time}</span>
-                                <span style={{ color: dirColor, fontWeight: 700 }}>{log.dir}</span>
-                                <span style={{ color: '#FAF7F2', wordBreak: 'break-word' }}>{log.summary}</span>
-                              </div>
-                              {log.hex && (
-                                <span style={{ color: 'rgba(250, 247, 242, 0.35)', fontSize: '9px', paddingLeft: '62px' }}>
-                                  {log.hex}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                                <span
+                                  style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    background: dotColor,
+                                    boxShadow: `0 0 6px ${dotColor}`,
+                                    flexShrink: 0,
+                                  }}
+                                />
+                                <span style={{ color: '#FAF7F2', fontWeight: 600 }}>
+                                  {ev.label}
                                 </span>
-                              )}
+                                {ev.value && (
+                                  <span style={{ color: 'rgba(250, 247, 242, 0.55)', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {ev.value}
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ color: '#30D158', fontWeight: 700, flexShrink: 0 }}>
+                                {ev.time}
+                              </span>
                             </div>
                           );
                         })

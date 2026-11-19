@@ -155,11 +155,25 @@ export interface BleLogEntry {
   hex?: string;
 }
 
+export interface RingMeasureEvent {
+  id: string;
+  dateKey: string;
+  time: string; // HH:MM
+  minutesOfDay: number;
+  kind: 'bpm' | 'temp' | 'spo2' | 'hrv' | 'stress' | 'led';
+  label: string;
+  value?: string;
+  led?: 'green' | 'red' | 'amber';
+  source: 'auto' | 'live';
+}
+
 type RingListener = (data: BleRingData) => void;
 type DeviceDiscoveryListener = (device: DiscoveredBleDevice) => void;
 type BleLogListener = (logs: BleLogEntry[]) => void;
+type MeasureEventListener = (events: RingMeasureEvent[]) => void;
 
 const BLE_LOG_STORAGE_KEY = 'aurel_ble_debug_logs';
+const MEASURE_EVENT_STORAGE_KEY = 'aurel_ring_measure_events';
 
 class QRingBleService {
   // Web Bluetooth handles
@@ -246,6 +260,18 @@ class QRingBleService {
   })();
   private logListeners = new Set<BleLogListener>();
   private logSeq = Date.now();
+  private measureEvents: RingMeasureEvent[] = (() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(MEASURE_EVENT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.slice(0, 120);
+      }
+    } catch (_) {}
+    return [];
+  })();
+  private measureEventListeners = new Set<MeasureEventListener>();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -434,6 +460,101 @@ class QRingBleService {
     this.logListeners.forEach((cb) => {
       try { cb([]); } catch (_) {}
     });
+  }
+
+  private getTodayDateKey(now: Date = new Date()): string {
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private formatMinutesHHMM(totalMinutes: number): string {
+    const clamped = Math.max(0, Math.min(1439, Math.floor(totalMinutes)));
+    const h = String(Math.floor(clamped / 60)).padStart(2, '0');
+    const m = String(clamped % 60).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
+  public subscribeMeasureEvents(listener: MeasureEventListener): () => void {
+    this.measureEventListeners.add(listener);
+    listener([...this.measureEvents]);
+    return () => this.measureEventListeners.delete(listener);
+  }
+
+  public getMeasureEvents(): RingMeasureEvent[] {
+    return [...this.measureEvents];
+  }
+
+  public clearMeasureEvents(): void {
+    this.measureEvents = [];
+    try {
+      localStorage.removeItem(MEASURE_EVENT_STORAGE_KEY);
+    } catch (_) {}
+    this.measureEventListeners.forEach((cb) => {
+      try { cb([]); } catch (_) {}
+    });
+  }
+
+  private upsertMeasureEvents(incoming: RingMeasureEvent[]): void {
+    if (!incoming || incoming.length === 0) return;
+    const byId = new Map<string, RingMeasureEvent>();
+    for (const ev of this.measureEvents) {
+      byId.set(ev.id, ev);
+    }
+    let changed = false;
+    for (const ev of incoming) {
+      const prev = byId.get(ev.id);
+      if (!prev || prev.value !== ev.value || prev.source !== ev.source) {
+        byId.set(ev.id, prev ? { ...prev, ...ev, value: ev.value || prev.value } : ev);
+        changed = true;
+      }
+    }
+    if (!changed) return;
+
+    const sorted = Array.from(byId.values())
+      .sort((a, b) => {
+        if (a.dateKey !== b.dateKey) return b.dateKey.localeCompare(a.dateKey);
+        if (a.minutesOfDay !== b.minutesOfDay) return b.minutesOfDay - a.minutesOfDay;
+        return a.label.localeCompare(b.label);
+      })
+      .slice(0, 120);
+
+    this.measureEvents = sorted;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(MEASURE_EVENT_STORAGE_KEY, JSON.stringify(sorted));
+      } catch (_) {}
+    }
+    this.measureEventListeners.forEach((cb) => {
+      try { cb([...sorted]); } catch (_) {}
+    });
+  }
+
+  private recordLiveMeasureEvent(
+    kind: RingMeasureEvent['kind'],
+    label: string,
+    value: string | undefined,
+    led: RingMeasureEvent['led'],
+    source: RingMeasureEvent['source'] = 'live'
+  ): void {
+    const now = new Date();
+    const dateKey = this.getTodayDateKey(now);
+    const minutesOfDay = now.getHours() * 60 + now.getMinutes();
+    const time = this.formatMinutesHHMM(minutesOfDay);
+    this.upsertMeasureEvents([
+      {
+        id: `${dateKey}|${kind}|${time}`,
+        dateKey,
+        time,
+        minutesOfDay,
+        kind,
+        label,
+        value,
+        led,
+        source,
+      },
+    ]);
   }
 
   private describeBlePacket(dir: 'TX' | 'RX', bytes: number[]): string {
@@ -1968,6 +2089,27 @@ class QRingBleService {
         `[QRing BLE] Finalized Heart Rate Log (rawLen=${rawLen}, slotMin=${slotMin}, currentSlot=${currentSlot} at ${now.getHours()}h${now.getMinutes()}): latest=${latestBpm} bpm, resting=${restingBpm} bpm, min=${minBpm}, max=${maxBpm}`
       );
 
+      // Enregistrer dans l'activité les heures réelles où la bague a mesuré le BPM
+      const dateKey = this.getTodayDateKey(now);
+      const bpmEvents: RingMeasureEvent[] = [];
+      clampedLog.forEach((bpm, slotIdx) => {
+        if (bpm < 40 || bpm > 200) return;
+        const minutesOfDay = slotIdx * slotMin;
+        const time = this.formatMinutesHHMM(minutesOfDay);
+        bpmEvents.push({
+          id: `${dateKey}|bpm|${time}`,
+          dateKey,
+          time,
+          minutesOfDay,
+          kind: 'bpm',
+          label: 'BPM',
+          value: `${bpm} bpm`,
+          led: 'green',
+          source: 'auto',
+        });
+      });
+      this.upsertMeasureEvents(bpmEvents);
+
       this.notify({
         heartRate: latestBpm,
         heartRateLog: halfHourLog,
@@ -2000,6 +2142,25 @@ class QRingBleService {
     console.log(
       `[QRing BLE] Finalized 30-min Stress Log (0x37): latest=${latestStress}, avg=${stressAvg}, min=${stressMin}, max=${stressMax}`
     );
+    const dateKey = this.getTodayDateKey(now);
+    const stressEvents: RingMeasureEvent[] = [];
+    clamped.forEach((v, slotIdx) => {
+      if (v <= 0) return;
+      const minutesOfDay = slotIdx * 30;
+      const time = this.formatMinutesHHMM(minutesOfDay);
+      stressEvents.push({
+        id: `${dateKey}|stress|${time}`,
+        dateKey,
+        time,
+        minutesOfDay,
+        kind: 'stress',
+        label: 'Stress',
+        value: `${v}`,
+        led: 'green',
+        source: 'auto',
+      });
+    });
+    this.upsertMeasureEvents(stressEvents);
     this.notify({
       stress: latestStress,
       stressAvg,
@@ -2026,6 +2187,25 @@ class QRingBleService {
 
     const latestHrv = valid[valid.length - 1];
     console.log(`[QRing BLE] Finalized 30-min HRV Log (0x39): latest=${latestHrv} ms (${valid.length} points)`);
+    const dateKey = this.getTodayDateKey(now);
+    const hrvEvents: RingMeasureEvent[] = [];
+    clamped.forEach((v, slotIdx) => {
+      if (v < 5) return;
+      const minutesOfDay = slotIdx * 30;
+      const time = this.formatMinutesHHMM(minutesOfDay);
+      hrvEvents.push({
+        id: `${dateKey}|hrv|${time}`,
+        dateKey,
+        time,
+        minutesOfDay,
+        kind: 'hrv',
+        label: 'VRC',
+        value: `${v} ms`,
+        led: 'green',
+        source: 'auto',
+      });
+    });
+    this.upsertMeasureEvents(hrvEvents);
     this.notify({
       hrv: latestHrv,
       hrvLog: clamped,
@@ -2366,6 +2546,22 @@ class QRingBleService {
               if (v0 > maxSpo2) maxSpo2 = v0;
               spo2Log[slot0] = v0;
             }
+            // Journaliser tous les créneaux SpO2 réels (y compris :30 si le firmware a allumé la LED rouge)
+            if (v1 > 0 && slot1 <= currentHalfSlot) {
+              const dk = this.getTodayDateKey(now);
+              const t1 = this.formatMinutesHHMM(slot1 * 30);
+              this.upsertMeasureEvents([{
+                id: `${dk}|spo2|${t1}`,
+                dateKey: dk,
+                time: t1,
+                minutesOfDay: slot1 * 30,
+                kind: 'spo2',
+                label: 'SpO2',
+                value: `${v1}%`,
+                led: 'red',
+                source: 'auto',
+              }]);
+            }
             // Jamais répliquer v0 sur :30 ; enregistrer v1 sur :30 uniquement si v1 est réel et cadence < 60 min
             if (this.configuredIntervalMinutes < 60 && v1 > 0 && slot1 <= currentHalfSlot) {
               latestSpo2 = v1;
@@ -2379,6 +2575,25 @@ class QRingBleService {
       }
 
       if (latestSpo2 >= 70 && latestSpo2 <= 100) {
+        const dk = this.getTodayDateKey(now);
+        const spo2Events: RingMeasureEvent[] = [];
+        spo2Log.forEach((v, sIdx) => {
+          if (v >= 70 && v <= 100) {
+            const tm = this.formatMinutesHHMM(sIdx * 30);
+            spo2Events.push({
+              id: `${dk}|spo2|${tm}`,
+              dateKey: dk,
+              time: tm,
+              minutesOfDay: sIdx * 30,
+              kind: 'spo2',
+              label: 'SpO2',
+              value: `${v}%`,
+              led: 'red',
+              source: 'auto',
+            });
+          }
+        });
+        this.upsertMeasureEvents(spo2Events);
         console.log(
           `[QRing BLE] Parsed BigData SpO2 (0x2A): latest=${latestSpo2}%, min=${minSpo2 <= 100 ? minSpo2 : latestSpo2}%, max=${maxSpo2 >= 70 ? maxSpo2 : latestSpo2}%`
         );
@@ -2420,6 +2635,21 @@ class QRingBleService {
                 t = raw;
               }
               if (t >= 30 && t <= 42) {
+                if (daysAgo === 0) {
+                  const dk = this.getTodayDateKey(now);
+                  const tm = this.formatMinutesHHMM(slotIdx * 30);
+                  this.upsertMeasureEvents([{
+                    id: `${dk}|temp|${tm}`,
+                    dateKey: dk,
+                    time: tm,
+                    minutesOfDay: slotIdx * 30,
+                    kind: 'temp',
+                    label: 'Température',
+                    value: `${t.toFixed(1)}°C`,
+                    led: 'amber',
+                    source: 'auto',
+                  }]);
+                }
                 if (this.configuredIntervalMinutes < 60 || half === 0) {
                   dayLatestTemp = t;
                   tempLog[slotIdx] = t;
@@ -2618,6 +2848,17 @@ class QRingBleService {
 
     // 1. Send Action.START (0x01) once to open the photodiode / thermal stream
     const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
+    if (ok) {
+      if (dataType === 0x01) {
+        this.recordLiveMeasureEvent('bpm', 'BPM', 'LED verte allumée', 'green', 'live');
+      } else if (dataType === 0x03) {
+        this.recordLiveMeasureEvent('spo2', 'SpO2', 'LED rouge allumée', 'red', 'live');
+      } else if (dataType === 0x05) {
+        this.recordLiveMeasureEvent('temp', 'Température', 'Mesure en cours', 'amber', 'live');
+      } else if (dataType === 0x0A) {
+        this.recordLiveMeasureEvent('hrv', 'VRC', 'LED verte allumée', 'green', 'live');
+      }
+    }
 
     // 2. Spaced secondary/legacy commands to prevent CoreBluetooth RX collisions
     for (const pktBytes of legacyPackets) {
@@ -2766,6 +3007,7 @@ class QRingBleService {
     const wasHrActive = this.isRealTimeHrActive;
     try {
       this.pushBleLog('TX', `Balise lumineuse LED (${Math.round(durationMs / 1000)}s)`);
+      this.recordLiveMeasureEvent('led', 'Balise LED', 'Clignotement vert / rouge', 'green', 'live');
       // Phase 1: Green optical PPG LEDs on full steady drive
       await this.writeBytes(this.makePacket(0x69, [0x01, 0x01]));
       await new Promise((r) => setTimeout(r, 90));
@@ -3411,6 +3653,7 @@ class QRingBleService {
         if (bpm >= 40 && bpm <= 220) {
           this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (status:', statusOrErr, ')');
+          this.recordLiveMeasureEvent('bpm', 'BPM', `${bpm} bpm`, 'green', 'live');
           this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
           return;
         } else {
@@ -3428,6 +3671,7 @@ class QRingBleService {
         if (spo2Val > 0) {
           this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Command 105 Real SpO2 Received:', spo2Val, '%');
+          this.recordLiveMeasureEvent('spo2', 'SpO2', `${spo2Val}%`, 'red', 'live');
           this.notify({ spo2: spo2Val, isConnected: true });
           return;
         }
@@ -3442,6 +3686,7 @@ class QRingBleService {
         }
         if (hrvVal > 0) {
           console.log('[QRing BLE] Command 105 HRV Received:', hrvVal, 'ms');
+          this.recordLiveMeasureEvent('hrv', 'VRC', `${hrvVal} ms`, 'green', 'live');
           this.notify({ hrv: hrvVal, isConnected: true });
           return;
         }
@@ -3469,6 +3714,7 @@ class QRingBleService {
 
         if (tempC >= 30 && tempC <= 43) {
           console.log('[QRing BLE] Command 105 Real Skin Temperature Received:', tempC, '°C');
+          this.recordLiveMeasureEvent('temp', 'Température', `${tempC.toFixed(1)}°C`, 'amber', 'live');
           this.notify({ skinTemp: tempC, isConnected: true });
           return;
         }
@@ -3489,6 +3735,7 @@ class QRingBleService {
       if (bpm >= 40 && bpm <= 220) {
         this.lastLiveDataAt = Date.now();
         console.log('[QRing BLE] Command 30 Real PPG Heart Rate Received:', bpm, 'bpm (b1:', b1, 'b2:', b2, ')');
+        this.recordLiveMeasureEvent('bpm', 'BPM', `${bpm} bpm`, 'green', 'live');
         this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
         return;
       }
@@ -3507,9 +3754,11 @@ class QRingBleService {
         if (subType === 0x01 && val >= 40 && val <= 220) {
           this.lastLiveDataAt = Date.now();
           console.log('[QRing BLE] Notification 0x73 (type=1) Heart Rate:', val, 'bpm');
+          this.recordLiveMeasureEvent('bpm', 'BPM', `${val} bpm`, 'green', 'live');
           this.notify({ heartRate: val, liveHeartRate: val, isConnected: true });
         } else if (subType === 0x03 && val >= 70 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=3) SpO2:', val, '%');
+          this.recordLiveMeasureEvent('spo2', 'SpO2', `${val}%`, 'red', 'live');
           this.notify({ spo2: val, isConnected: true });
         } else if (subType === 0x05) {
           // Temperature Push Notification (R21 / QCBand)
@@ -3535,6 +3784,7 @@ class QRingBleService {
 
           if (tempC >= 30 && tempC <= 43) {
             console.log('[QRing BLE] Notification 0x73 (type=5) Skin Temperature:', tempC, '°C');
+            this.recordLiveMeasureEvent('temp', 'Température', `${tempC.toFixed(1)}°C`, 'amber', 'live');
             this.notify({ skinTemp: tempC, isConnected: true });
           }
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
@@ -3560,6 +3810,7 @@ class QRingBleService {
       else if (raw1 >= 100 && raw1 <= 220 && raw1 !== 0xFF) tempC = parseFloat((raw1 / 10 + 20).toFixed(2));
       if (tempC >= 30 && tempC <= 43) {
         console.log('[QRing BLE] Direct Temp Packet (0x' + header.toString(16) + '):', tempC, '°C');
+        this.recordLiveMeasureEvent('temp', 'Température', `${tempC.toFixed(1)}°C`, 'amber', 'live');
         this.notify({ skinTemp: tempC, isConnected: true });
       }
       return;
