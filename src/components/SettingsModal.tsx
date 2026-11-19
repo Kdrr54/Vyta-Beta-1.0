@@ -79,6 +79,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [bleLogs, setBleLogs] = useState<BleLogEntry[]>(() => qringBle.getBleLogs());
   const [measureEvents, setMeasureEvents] = useState<RingMeasureEvent[]>(() => qringBle.getMeasureEvents());
   const [showRawBleFrames, setShowRawBleFrames] = useState(false);
+  const [isRefreshingMeasures, setIsRefreshingMeasures] = useState(false);
   const [copiedLogs, setCopiedLogs] = useState(false);
 
   useEffect(() => {
@@ -89,6 +90,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       unsubMeasures();
     };
   }, []);
+
+  // Dès l'ouverture d'Activité Bluetooth de la bague (Temp), lire la mémoire flash puis rafraîchir toutes les 12 s
+  useEffect(() => {
+    if (!showBleLogs || !qringBle.isConnected()) return;
+    let cancelled = false;
+    const runRefresh = async () => {
+      if (cancelled) return;
+      setIsRefreshingMeasures(true);
+      await qringBle.refreshMeasureActivity();
+      if (!cancelled) setIsRefreshingMeasures(false);
+    };
+    runRefresh();
+    const t = setInterval(runRefresh, 12000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [showBleLogs]);
 
   const isConnected = Boolean(ring.isConnected);
   const isAurelCareActive = ring.aurelCareActive === true;
@@ -1086,9 +1105,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           triggerHaptic();
-                          qringBle.syncAllRingData(true);
+                          setIsRefreshingMeasures(true);
+                          await qringBle.refreshMeasureActivity();
+                          setIsRefreshingMeasures(false);
                         }}
                         style={{
                           padding: '6px 10px',
@@ -1101,7 +1122,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           cursor: 'pointer',
                         }}
                       >
-                        {isEn ? 'Refresh' : 'Actualiser'}
+                        {isRefreshingMeasures
+                          ? (isEn ? 'Reading...' : 'Lecture...')
+                          : (isEn ? 'Refresh' : 'Actualiser')}
                       </button>
                       <button
                         type="button"
@@ -1237,10 +1260,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           })
                         )
                       ) : measureEvents.length === 0 ? (
-                        <span style={{ color: 'rgba(250, 247, 242, 0.45)', fontSize: '10.5px' }}>
+                        <span style={{ color: 'rgba(250, 247, 242, 0.5)', fontSize: '10px', lineHeight: 1.45 }}>
                           {isEn
-                            ? 'No ring light-up or sensor measurement logged yet.'
-                            : 'Aucune mesure ou allumage LED détecté pour le moment.'}
+                            ? 'No measurement saved yet. Note: autonomous LED checks take ~20s before writing to flash memory (auto-refreshes every 12s).'
+                            : 'Aucune mesure enregistrée pour le moment. Une mesure LED autonome met ~20 s à s’écrire en mémoire (lecture auto toutes les 12 s ici).'}
                         </span>
                       ) : (
                         measureEvents.map((ev) => {

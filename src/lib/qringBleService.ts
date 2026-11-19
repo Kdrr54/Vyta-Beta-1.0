@@ -2786,6 +2786,32 @@ class QRingBleService {
   }
 
   /**
+   * Fast flash-only sensor activity refresh (0 LEDs, ~0.9s):
+   * Reads HR (0x15), Temp (0xBC 0x25/0x26), SpO2 (0xBC 0x2A), HRV (0x39), Stress (0x37)
+   * so recent autonomous ring LED cycles show up in Activité Temp immediately.
+   */
+  public async refreshMeasureActivity(): Promise<boolean> {
+    if (!this.isConnected()) return false;
+    if (this.activeSyncPromise) return this.activeSyncPromise;
+    if (this.activeLiveDataType !== null || this.isRealTimeHrActive) return false;
+    try {
+      await this.requestHeartRateLog();
+      await new Promise((r) => setTimeout(r, 320));
+      await this.requestTemperatureData();
+      await new Promise((r) => setTimeout(r, 140));
+      await this.requestSpo2Data();
+      await new Promise((r) => setTimeout(r, 160));
+      await this.requestHrvLog();
+      await new Promise((r) => setTimeout(r, 140));
+      await this.requestStressLog();
+      await new Promise((r) => setTimeout(r, 140));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
    * Send 16-byte battery status request packet to the ring:
    * 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03
    */
@@ -3437,10 +3463,26 @@ class QRingBleService {
             }
           } else {
             const baseSlot = (packetNr - 1) * 12;
+            const curHalf = Math.min(47, Math.max(0, Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 30)));
+            const dk = this.getTodayDateKey();
             for (let i = startByte; i < Math.min(len, 14); i++) {
               const val = dataView.getUint8(i);
               const slotIdx = baseSlot + (i - startByte);
               if (val > 0 && val <= 100 && slotIdx >= 0 && slotIdx < 48) {
+                if (slotIdx <= curHalf) {
+                  const tm = this.formatMinutesHHMM(slotIdx * 30);
+                  this.upsertMeasureEvents([{
+                    id: `${dk}|stress|${tm}`,
+                    dateKey: dk,
+                    time: tm,
+                    minutesOfDay: slotIdx * 30,
+                    kind: 'stress',
+                    label: 'Stress',
+                    value: `${val}`,
+                    led: 'green',
+                    source: 'auto',
+                  }]);
+                }
                 if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
                   this.stressLogSlots[slotIdx] = val;
                 }
@@ -3486,10 +3528,26 @@ class QRingBleService {
             }
           } else {
             const baseSlot = (packetNr - 1) * 12;
+            const curHalf = Math.min(47, Math.max(0, Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 30)));
+            const dk = this.getTodayDateKey();
             for (let i = startByte; i < Math.min(len, 14); i++) {
               const val = dataView.getUint8(i);
               const slotIdx = baseSlot + (i - startByte);
               if (val >= 5 && val < 250 && slotIdx >= 0 && slotIdx < 48) {
+                if (slotIdx <= curHalf) {
+                  const tm = this.formatMinutesHHMM(slotIdx * 30);
+                  this.upsertMeasureEvents([{
+                    id: `${dk}|hrv|${tm}`,
+                    dateKey: dk,
+                    time: tm,
+                    minutesOfDay: slotIdx * 30,
+                    kind: 'hrv',
+                    label: 'VRC',
+                    value: `${val} ms`,
+                    led: 'green',
+                    source: 'auto',
+                  }]);
+                }
                 if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
                   this.hrvLogSlots[slotIdx] = val;
                 }
@@ -3790,6 +3848,8 @@ class QRingBleService {
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=0x0C) Battery:', val, '%');
           this.notify({ batteryPct: val, isConnected: true });
+        } else {
+          this.recordLiveMeasureEvent('led', 'Activité capteur', `Signal bague (${subType})`, 'green', 'live');
         }
         return;
       }
