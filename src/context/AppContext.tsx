@@ -75,7 +75,7 @@ function syncBodyEnergy(cur: DayMetrics, isToday: boolean): void {
  * - Chute marquée de la VRC sous la baseline personnelle (<= -12ms)
  * - Signe combiné prodromique (tempDelta >= +0.35°C et hrvDelta <= -8ms)
  */
-function computeImmunityAnomaly(cur: DayMetrics): { tempDelta: number; hrvDelta: number } | null {
+function computeImmunityAnomaly(cur: DayMetrics): { tempDelta: number; hrvDelta: number; detectedAtTs?: number } | null {
   const hasTemp = (cur.skinTemp ?? 0) > 0 || (cur.tempDelta !== undefined && cur.tempDelta !== 0);
   const hasHrv = (cur.hrv ?? 0) > 0;
   if (!hasTemp && !hasHrv) return null;
@@ -92,6 +92,7 @@ function computeImmunityAnomaly(cur: DayMetrics): { tempDelta: number; hrvDelta:
     return {
       tempDelta: tempDelta > 0 ? parseFloat(tempDelta.toFixed(1)) : 0,
       hrvDelta,
+      detectedAtTs: cur.anomaly?.detectedAtTs || Date.now(),
     };
   }
   return null;

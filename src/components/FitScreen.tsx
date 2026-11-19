@@ -81,17 +81,23 @@ export interface StoredRoute {
 
 const initialStoredRoutes: StoredRoute[] = [];
 
+export type GymSetType = 'warmup' | 'normal' | 'heavy' | 'drop';
+
 export interface GymSet {
   id: string;
   weightKg: number;
   reps: number;
   done: boolean;
+  setType?: GymSetType;
+  rpe?: number;
 }
 
 export interface GymExercise {
   id: string;
   name: string;
   sets: GymSet[];
+  restSec?: number;
+  notes?: string;
 }
 
 const initialWorkoutExercises: GymExercise[] = [];
@@ -269,6 +275,7 @@ export const FitScreen: React.FC = () => {
   }, [storedRoutes]);
 
   const [showNewRouteModal, setShowNewRouteModal] = useState<boolean>(false);
+  const [routeFilter, setRouteFilter] = useState<'all' | 'outdoor' | 'treadmill'>('all');
   const [newRouteTitle, setNewRouteTitle] = useState<string>('');
   const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
   const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
@@ -1150,6 +1157,35 @@ export const FitScreen: React.FC = () => {
   const [newExSetsCount, setNewExSetsCount] = useState<number>(3);
   const [newExWeight, setNewExWeight] = useState<number>(60);
   const [newExReps, setNewExReps] = useState<number>(10);
+  const [newExRestSec, setNewExRestSec] = useState<number>(90);
+  const [newExNotes, setNewExNotes] = useState<string>('');
+  const [newExDraftSets, setNewExDraftSets] = useState<{ weightKg: number; reps: number; setType: GymSetType; rpe?: number }[]>([
+    { weightKg: 60, reps: 10, setType: 'normal' },
+    { weightKg: 60, reps: 10, setType: 'normal' },
+    { weightKg: 60, reps: 10, setType: 'normal' },
+  ]);
+
+  const syncDraftSetsCount = (nextCount: number) => {
+    const clamped = Math.max(1, Math.min(12, nextCount));
+    setNewExSetsCount(clamped);
+    setNewExDraftSets((prev) => {
+      if (prev.length === clamped) return prev;
+      if (prev.length > clamped) return prev.slice(0, clamped);
+      const last = prev[prev.length - 1] || { weightKg: newExWeight, reps: newExReps, setType: 'normal' as GymSetType };
+      const added = Array.from({ length: clamped - prev.length }, () => ({ ...last }));
+      return [...prev, ...added];
+    });
+  };
+
+  const applyDefaultToDraftSets = (patch: { weightKg?: number; reps?: number }) => {
+    setNewExDraftSets((prev) =>
+      prev.map((s) => ({
+        ...s,
+        ...(patch.weightKg !== undefined ? { weightKg: patch.weightKg } : {}),
+        ...(patch.reps !== undefined ? { reps: patch.reps } : {}),
+      }))
+    );
+  };
 
   const [showNewSessionModal, setShowNewSessionModal] = useState<boolean>(false);
   const [newSessionTitleInput, setNewSessionTitleInput] = useState<string>('');
@@ -1194,9 +1230,11 @@ export const FitScreen: React.FC = () => {
 
   const toggleSetDone = (exId: string, setId: string) => {
     let markedDone = false;
+    let exerciseRestSec = targetRestSeconds;
     setExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exId) return ex;
+        if (ex.restSec && ex.restSec > 0) exerciseRestSec = ex.restSec;
         return {
           ...ex,
           sets: ex.sets.map((s) => {
@@ -1209,9 +1247,10 @@ export const FitScreen: React.FC = () => {
       })
     );
 
-    // Auto-trigger configurable rest timer if marked done
+    // Auto-trigger configurable rest timer (per-exercise if configured)
     if (markedDone) {
-      setRestSeconds(targetRestSeconds);
+      setTargetRestSeconds(exerciseRestSec);
+      setRestSeconds(exerciseRestSec);
       setTimerRunning(true);
     }
   };
@@ -1257,10 +1296,53 @@ export const FitScreen: React.FC = () => {
           id: `${ex.id}-s${Date.now()}-${ex.sets.length + 1}`,
           weightKg: lastSet ? lastSet.weightKg : 50,
           reps: lastSet ? lastSet.reps : 10,
+          setType: lastSet?.setType || 'normal',
+          rpe: lastSet?.rpe,
           done: false,
         };
         return { ...ex, sets: [...ex.sets, newSet] };
       })
+    );
+  };
+
+  const updateSetMeta = (
+    exId: string,
+    setId: string,
+    patch: { setType?: GymSetType; rpe?: number; weightKg?: number; reps?: number }
+  ) => {
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exId) return ex;
+        return {
+          ...ex,
+          sets: ex.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)),
+        };
+      })
+    );
+  };
+
+  const duplicateSetInExercise = (exId: string, setId: string) => {
+    setExercises((prev) =>
+      prev.map((ex) => {
+        if (ex.id !== exId) return ex;
+        const idx = ex.sets.findIndex((s) => s.id === setId);
+        if (idx === -1) return ex;
+        const src = ex.sets[idx];
+        const copy: GymSet = {
+          ...src,
+          id: `${ex.id}-s${Date.now()}-dup`,
+          done: false,
+        };
+        const nextSets = [...ex.sets];
+        nextSets.splice(idx + 1, 0, copy);
+        return { ...ex, sets: nextSets };
+      })
+    );
+  };
+
+  const updateExerciseMeta = (exId: string, patch: { restSec?: number; notes?: string }) => {
+    setExercises((prev) =>
+      prev.map((ex) => (ex.id === exId ? { ...ex, ...patch } : ex))
     );
   };
 
@@ -1299,19 +1381,34 @@ export const FitScreen: React.FC = () => {
     );
   };
 
-  const handleAddExercise = (name: string, count: number, weight: number, reps: number) => {
-    const cleanName = name.trim() || 'Exercice sans titre';
+  const handleAddExercise = (name: string) => {
+    const cleanName = name.trim() || (isEn ? 'Untitled Exercise' : 'Exercice sans titre');
     const exId = `ex-${Date.now()}`;
-    const sets: GymSet[] = Array.from({ length: Math.max(1, count) }, (_, i) => ({
+    const sets: GymSet[] = (newExDraftSets.length > 0
+      ? newExDraftSets
+      : [{ weightKg: newExWeight, reps: newExReps, setType: 'normal' as GymSetType }]
+    ).map((s, i) => ({
       id: `${exId}-s${i + 1}`,
-      weightKg: weight,
-      reps: reps,
+      weightKg: s.weightKg,
+      reps: s.reps,
+      setType: s.setType,
+      ...(s.rpe ? { rpe: s.rpe } : {}),
       done: false,
     }));
 
-    setExercises((prev) => [...prev, { id: exId, name: cleanName, sets }]);
+    setExercises((prev) => [
+      ...prev,
+      {
+        id: exId,
+        name: cleanName,
+        sets,
+        restSec: newExRestSec,
+        ...(newExNotes.trim() ? { notes: newExNotes.trim() } : {}),
+      },
+    ]);
     setShowAddModal(false);
     setNewExName('');
+    setNewExNotes('');
   };
 
   const handleCreateNewSession = (title: string) => {
@@ -1703,367 +1800,320 @@ export const FitScreen: React.FC = () => {
       )}
 
       {/* ==================== 2. MODE MES TRAJETS ENREGISTRÉS ==================== */}
-      {subTab === 'trajets' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* En-tête Trajets */}
-          <div className="session-header-card">
+      {subTab === 'trajets' && (() => {
+        const filteredRoutes = storedRoutes.filter((r) => {
+          if (routeFilter === 'treadmill') return !!r.isIndoor;
+          if (routeFilter === 'outdoor') return !r.isIndoor && (r.distanceKm >= 0.05 || (r.realGpsPoints && r.realGpsPoints.length >= 2));
+          return true;
+        });
+        const totalKm = storedRoutes.reduce((acc, r) => acc + r.distanceKm, 0);
+        const totalElev = storedRoutes.reduce((acc, r) => acc + r.elevationM, 0);
+
+        return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* En-tête Trajets + Filtres */}
+          <div className="session-header-card" style={{ gap: '10px' }}>
             <div className="session-title-row">
               <div>
                 <span className="session-title-text" style={{ fontSize: '17px' }}>
                   {isEn ? 'My Routes' : 'Mes Trajets'}
                 </span>
+                <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '2px' }}>
+                  {storedRoutes.length} {isEn ? 'sessions' : 'séances'} · {totalKm.toFixed(1)} km · +{totalElev} m
+                </div>
               </div>
 
               <button
                 type="button"
                 className="add-exercise-btn-main"
-                style={{ flex: '0 0 auto', padding: '8px 13px', background: '#FFFFFF', color: '#000000' }}
+                style={{ flex: '0 0 auto', padding: '7px 12px', fontSize: '12px', background: '#FFFFFF', color: '#000000' }}
                 onClick={() => setShowNewRouteModal(true)}
               >
-                <Plus size={14} />
+                <Plus size={13} />
                 <span>{isEn ? 'New Route' : 'Nouveau trajet'}</span>
               </button>
             </div>
-          </div>
 
-          {/* Résumé global des trajets */}
-          <div className="activity-raw-card">
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">
-                <Route size={11} />
-                <span>{isEn ? 'Routes' : 'Parcours'}</span>
-              </span>
-              <div>
-                <span className="activity-raw-val">{storedRoutes.length}</span>
-              </div>
-            </div>
-
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">
-                <Navigation size={11} />
-                <span>{isEn ? 'Total Distance' : 'Distance cumulée'}</span>
-              </span>
-              <div>
-                <span className="activity-raw-val">
-                  {storedRoutes.reduce((acc, r) => acc + r.distanceKm, 0).toFixed(1)}
-                </span>
-                <span className="activity-raw-unit">km</span>
-              </div>
-            </div>
-
-            <div className="activity-raw-item">
-              <span className="activity-raw-label">
-                <TrendingUp size={11} />
-                <span>{isEn ? 'Total Elevation' : 'Dénivelé total'}</span>
-              </span>
-              <div>
-                <span className="activity-raw-val">
-                  +{storedRoutes.reduce((acc, r) => acc + r.elevationM, 0)}
-                </span>
-                <span className="activity-raw-unit">m</span>
-              </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[
+                { id: 'all' as const, label: isEn ? `All (${storedRoutes.length})` : `Tous (${storedRoutes.length})` },
+                { id: 'outdoor' as const, label: isEn ? 'Outdoor GPS' : 'Extérieur' },
+                { id: 'treadmill' as const, label: isEn ? 'Treadmill' : 'Tapis' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setRouteFilter(f.id)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 8px',
+                    borderRadius: '10px',
+                    background: routeFilter === f.id ? 'rgba(255, 255, 255, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+                    border: routeFilter === f.id ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    color: routeFilter === f.id ? '#FFFFFF' : 'rgba(250, 247, 242, 0.6)',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Liste de tous les trajets stockés */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {storedRoutes.map((route) => (
+          {/* Liste compacte et lisible des trajets */}
+          {filteredRoutes.length === 0 ? (
+            <div
+              style={{
+                padding: '28px 18px',
+                borderRadius: '18px',
+                background: 'rgba(18, 18, 22, 0.78)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                textAlign: 'center',
+                color: 'rgba(250, 247, 242, 0.58)',
+                fontSize: '13px',
+              }}
+            >
+              {isEn ? 'No sessions in this filter yet.' : 'Aucune séance enregistrée dans ce filtre.'}
+            </div>
+          ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {filteredRoutes.map((route) => {
+              const visual = getRouteThumbnailSvg(route);
+              const avgSpeedStr =
+                route.distanceKm > 0 && route.durationSec > 0
+                  ? `${(route.distanceKm / (route.durationSec / 3600)).toFixed(1).replace('.', ',')} km/h`
+                  : null;
+              const isRealTrack = !visual.isSinglePoint && !route.isIndoor;
+
+              return (
               <div
                 key={route.id}
-                className="session-card"
+                onClick={() => {
+                  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                    try { navigator.vibrate(20); } catch (_) {}
+                  }
+                  setRouteModalTab(route.isIndoor || !isRealTrack ? 'charts' : 'map');
+                  setViewingRouteForMap(route);
+                }}
                 style={{
-                  padding: '16px',
+                  padding: '12px',
                   display: 'flex',
-                  flexDirection: 'column',
+                  alignItems: 'center',
                   gap: '12px',
                   borderRadius: '18px',
-                  background: 'rgba(20, 20, 24, 0.75)',
+                  background: 'rgba(18, 18, 22, 0.86)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
+                  cursor: 'pointer',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  {/* Mini SVG Trajectory Preview (Toucher pour ouvrir sur Apple Maps) */}
-                  {(() => {
-                    const visual = getRouteThumbnailSvg(route);
-                    return (
-                      <div
-                        onClick={() => {
-                          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                            try { navigator.vibrate(25); } catch (_) {}
-                          }
-                          setRouteModalTab(route.isIndoor ? 'charts' : 'map');
-                          setViewingRouteForMap(route);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        title={route.isIndoor ? 'Voir les données du tapis de course' : 'Toucher pour voir le trajet sur Apple Maps'}
-                        style={{
-                          width: '68px',
-                          height: '68px',
-                          borderRadius: '16px',
-                          background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.06) 0%, rgba(12, 12, 16, 0.98) 100%)',
-                          border: route.isIndoor ? '1px solid rgba(252, 82, 0, 0.35)' : '1px solid rgba(255, 255, 255, 0.16)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          position: 'relative',
-                          overflow: 'hidden',
-                          boxShadow: 'inset 0 0 14px rgba(0,0,0,0.8), 0 4px 14px rgba(0,0,0,0.4)',
-                          cursor: 'pointer',
-                          transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                        }}
-                      >
-                        <svg viewBox={visual.viewBox} style={{ width: '54px', height: '54px', overflow: 'visible' }}>
-                          {/* Faint Tactical Radar Crosshair Grid */}
-                          <line x1="12" y1="50" x2="88" y2="50" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
-                          <line x1="50" y1="12" x2="50" y2="88" stroke="rgba(255, 255, 255, 0.05)" strokeDasharray="2 3" strokeWidth="0.8" />
+                {/* Miniature compacte 56x56 */}
+                <div
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '14px',
+                    background: 'radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.05) 0%, rgba(12, 12, 16, 0.98) 100%)',
+                    border: route.isIndoor ? '1px solid rgba(252, 82, 0, 0.35)' : '1px solid rgba(255, 255, 255, 0.14)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <svg viewBox={visual.viewBox} style={{ width: '44px', height: '44px', overflow: 'visible' }}>
+                    {route.isIndoor ? (
+                      <>
+                        <circle cx="50" cy="46" r="21" fill="none" stroke="rgba(252, 82, 0, 0.22)" strokeWidth="1.2" strokeDasharray="4 3" />
+                        <path d="M 28 54 L 72 54" stroke="#FC5200" strokeWidth="3.2" strokeLinecap="round" />
+                        <path d="M 34 44 L 44 36 L 52 44 L 62 34" fill="none" stroke="#FAF7F2" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                        <text x="50" y="79" textAnchor="middle" fill="#FC5200" fontSize="8.5" fontWeight="800" fontFamily="var(--font-mono)">
+                          TAPIS
+                        </text>
+                      </>
+                    ) : visual.isSinglePoint ? (
+                      <>
+                        <circle cx="50" cy="50" r="20" fill="none" stroke="rgba(48, 209, 88, 0.18)" strokeWidth="1" strokeDasharray="3 3" />
+                        <circle cx="50" cy="50" r="5" fill="#30D158" />
+                        <text x="50" y="80" textAnchor="middle" fill="rgba(250, 247, 242, 0.55)" fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)">
+                          FIXE
+                        </text>
+                      </>
+                    ) : (
+                      <>
+                        <path
+                          d={visual.pathD}
+                          fill="none"
+                          stroke="#FAF7F2"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <circle cx={visual.startPoint.x} cy={visual.startPoint.y} r="3.5" fill="#30D158" stroke="#0A0A0C" strokeWidth="1.5" />
+                        <circle cx={visual.endPoint.x} cy={visual.endPoint.y} r="3.5" fill="#FFFFFF" stroke="#0A0A0C" strokeWidth="1.5" />
+                      </>
+                    )}
+                  </svg>
+                </div>
 
-                          {route.isIndoor ? (
-                            <>
-                              <circle cx="50" cy="46" r="21" fill="none" stroke="rgba(252, 82, 0, 0.22)" strokeWidth="1.2" strokeDasharray="4 3" />
-                              <path d="M 28 54 L 72 54" stroke="#FC5200" strokeWidth="3.2" strokeLinecap="round" />
-                              <path d="M 34 44 L 44 36 L 52 44 L 62 34" fill="none" stroke="#FAF7F2" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                              <text x="50" y="79" textAnchor="middle" fill="#FC5200" fontSize="8.5" fontWeight="800" fontFamily="var(--font-mono)" letterSpacing="0.06em">
-                                TAPIS
-                              </text>
-                            </>
-                          ) : visual.isSinglePoint ? (
-                            <>
-                              <circle cx="50" cy="50" r="22" fill="none" stroke="rgba(48, 209, 88, 0.16)" strokeWidth="1" strokeDasharray="3 3" />
-                              <circle cx="50" cy="50" r="13" fill="rgba(48, 209, 88, 0.12)" stroke="rgba(48, 209, 88, 0.4)" strokeWidth="1" />
-                              <circle cx="50" cy="50" r="4.5" fill="#30D158" stroke="#000000" strokeWidth="1.5" />
-                              <text x="50" y="80" textAnchor="middle" fill="rgba(250, 247, 242, 0.55)" fontSize="8.5" fontWeight="700" fontFamily="var(--font-mono)" letterSpacing="0.06em">
-                                FIXE
-                              </text>
-                            </>
-                          ) : (
-                            <>
-                              {/* Ambient Glowing Under-Trace */}
-                              <path
-                                d={visual.pathD}
-                                fill="none"
-                                stroke="rgba(255, 255, 255, 0.3)"
-                                strokeWidth="5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                style={{ filter: 'drop-shadow(0 0 6px rgba(255, 255, 255, 0.6))' }}
-                              />
-                              {/* Crisp Core Route Line */}
-                              <path
-                                d={visual.pathD}
-                                fill="none"
-                                stroke="#FAF7F2"
-                                strokeWidth="2.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              {/* Start Pin: Green Dot */}
-                              <circle
-                                cx={visual.startPoint.x}
-                                cy={visual.startPoint.y}
-                                r="3.5"
-                                fill="#30D158"
-                                stroke="#0A0A0C"
-                                strokeWidth="1.5"
-                              />
-                              {/* Finish Pin: High-Contrast White Pin */}
-                              <circle
-                                cx={visual.endPoint.x}
-                                cy={visual.endPoint.y}
-                                r="3.5"
-                                fill="#FFFFFF"
-                                stroke="#0A0A0C"
-                                strokeWidth="1.5"
-                              />
-                            </>
-                          )}
-                        </svg>
-
-                        {/* Mini Apple Maps indicator pill */}
-                        <div
-                          style={{
-                            position: 'absolute',
-                            bottom: '3px',
-                            right: '3px',
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '6px',
-                            background: 'rgba(10, 10, 14, 0.88)',
-                            border: '1px solid rgba(255, 255, 255, 0.22)',
-                            backdropFilter: 'blur(6px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
-                          }}
-                        >
-                          {route.isIndoor ? <Activity size={10} color="#FC5200" /> : <MapPin size={10} color="#30D158" />}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Details */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {/* Infos principales sur 2 lignes propres */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {route.title}
                     </span>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      {route.location} · {formatRouteDateStr(route)}
-                    </div>
-
-                    {/* Specs row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', fontFamily: 'var(--font-mono)' }}>
-                        {route.distanceKm.toFixed(2)} km
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {route.location} · {formatRouteDateStr(route)}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
+                      {route.distanceKm.toFixed(2)} km
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)', fontFamily: 'var(--font-mono)' }}>
+                      {fmtClockSec(route.durationSec)}
+                    </span>
+                    {avgSpeedStr && (
+                      <span style={{ fontSize: '11px', color: '#38BDF8', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                        {avgSpeedStr}
                       </span>
-                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                        ⏱ {fmtClockSec(route.durationSec)}
+                    )}
+                    {route.avgHr > 40 && (
+                      <span style={{ fontSize: '11px', color: '#FF5A52', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                        ♥ {route.avgHr}
                       </span>
-                      <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                        ⚡ {route.distanceKm > 0 && route.durationSec > 0 ? `${(route.distanceKm / (route.durationSec / 3600)).toFixed(1).replace('.', ',')} km/h` : '-- km/h'}
-                      </span>
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Actions: Lancer, Partager, Supprimer */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                {/* Actions compactes à droite */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                  {isRealTrack && (
+                    <button
+                      type="button"
+                      onClick={() => loadAndStartRoute(route)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '10px',
+                        background: '#FFFFFF',
+                        color: '#000000',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                      title={isEn ? 'Start this route' : 'Lancer ce trajet'}
+                    >
+                      <Play size={13} fill="#000000" />
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => loadAndStartRoute(route)}
-                    style={{
-                      flex: 1,
-                      padding: '9px 12px',
-                      borderRadius: '10px',
-                      background: '#FFFFFF',
-                      color: '#000000',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '12.5px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <Play size={13} fill="#000000" />
-                    <span>{isEn ? 'Start this route' : 'Lancer ce trajet'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                        try { navigator.vibrate(25); } catch (_) {}
-                      }
+                    onClick={() => {
                       setRouteModalTab('charts');
                       setViewingRouteForMap(route);
                     }}
                     style={{
-                      padding: '9px 12px',
+                      width: '32px',
+                      height: '32px',
                       borderRadius: '10px',
                       background: 'rgba(56, 189, 248, 0.14)',
-                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      border: '1px solid rgba(56, 189, 248, 0.28)',
                       color: '#38BDF8',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      transition: 'all 0.15s ease',
-                    }}
-                    title="Voir les diagrammes de vitesse, cardio et dénivelé"
-                  >
-                    <Activity size={13} strokeWidth={2.4} />
-                    <span>Diagrammes</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={(e) => shareStoredRoute(route, e)}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      color: '#FFFFFF',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
                     }}
-                    title={isEn ? 'Share this route' : 'Partager ce trajet'}
+                    title="Diagrammes"
                   >
-                    <Share2 size={14} />
+                    <BarChart3 size={14} />
                   </button>
-
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={(e) => shareStoredRoute(route, e)}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#FAF7F2',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                    }}
+                    title={isEn ? 'Share' : 'Partager'}
+                  >
+                    <Share2 size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       setManagingRoute(route);
                       setEditingRouteTitle(route.title);
                       setShowRouteDeleteConfirm(false);
                     }}
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width: '32px',
+                      height: '32px',
                       borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      color: '#FFFFFF',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      color: '#FAF7F2',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
-                      flexShrink: 0,
                     }}
-                    title={isEn ? 'Manage route' : 'Gérer ce trajet'}
+                    title={isEn ? 'Manage' : 'Gérer'}
                   >
-                    <MoreVertical size={16} />
+                    <MoreVertical size={14} />
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
+          )}
         </div>
-      )}
+        );
+      })()}
 
-      {/* Modal Nouveau Trajet Manuel */}
-      {showNewRouteModal && (
+      {/* Modal Nouveau Trajet Manuel (Portal root sans scroll arrière-plan) */}
+      {showNewRouteModal && typeof document !== 'undefined' && createPortal(
         <div
+          className="modal-backdrop"
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            zIndex: 100,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            zIndex: 99999,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             justifyContent: 'center',
-            padding: '20px',
+            padding: 0,
           }}
           onClick={() => setShowNewRouteModal(false)}
         >
           <div
+            className="modal-sheet"
             style={{
-              background: '#151518',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '20px',
-              padding: '22px',
+              background: '#141418',
+              borderTop: '1px solid rgba(255, 255, 255, 0.15)',
               width: '100%',
-              maxWidth: '380px',
+              maxWidth: '430px',
               display: 'flex',
               flexDirection: 'column',
               gap: '14px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2175,89 +2225,88 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ==================== 3. MODE MUSCULATION (GYM LOGGER) ==================== */}
       {subTab === 'gym' && (
         !isWorkoutActive ? (
-          /* ==================== VUE 1 : SÉANCE PERSONNALISÉE ==================== */
+          /* ==================== VUE 1 : SÉANCE PERSONNALISÉE (SANS DOUBLON) ==================== */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Header Sélection */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 18px',
-                borderRadius: '22px',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
-                  {isEn ? 'Strength Training' : 'Musculation'}
-                </h2>
-                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px', display: 'block' }}>
-                  {isEn ? 'Create your own custom workout' : 'Créez votre séance et ajoutez vos exercices'}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="add-exercise-btn-main"
-                style={{ padding: '8px 12px', fontSize: '11.5px' }}
-                onClick={() => setShowNewSessionModal(true)}
-              >
-                <Plus size={13} />
-                <span>{isEn ? 'New Workout' : 'Nouvelle séance'}</span>
-              </button>
-            </div>
-
-            {/* Si une séance existe pour ce jour */}
-            {exercises.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '14px 16px',
-                  borderRadius: '18px',
-                  background: 'linear-gradient(135deg, rgba(184, 35, 72, 0.22), rgba(255, 255, 255, 0.05))',
-                  border: '1.5px solid var(--gold)',
-                  boxShadow: '0 4px 20px rgba(184, 35, 72, 0.25)',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--gold)', boxShadow: '0 0 10px var(--gold)' }} />
+            {exercises.length > 0 ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 18px',
+                    borderRadius: '22px',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
                   <div>
-                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#FFFFFF' }}>
-                      {sessionTitle}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
-                      {exercises.length} {isEn ? 'exercises' : 'exercices'} • {doneSetsCount} {isEn ? 'sets completed' : 'séries faites'} • {totalTonnageKg} kg
+                    <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
+                      {isEn ? 'Strength Training' : 'Musculation'}
+                    </h2>
+                    <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px', display: 'block' }}>
+                      {isEn ? 'Resume or start a new session' : 'Reprenez ou démarrez une nouvelle séance'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="add-exercise-btn-main"
+                    style={{ padding: '8px 12px', fontSize: '11.5px' }}
+                    onClick={() => setShowNewSessionModal(true)}
+                  >
+                    <Plus size={13} />
+                    <span>{isEn ? 'New Workout' : 'Nouvelle séance'}</span>
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    borderRadius: '18px',
+                    background: 'linear-gradient(135deg, rgba(184, 35, 72, 0.22), rgba(255, 255, 255, 0.05))',
+                    border: '1.5px solid var(--gold)',
+                    boxShadow: '0 4px 20px rgba(184, 35, 72, 0.25)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--gold)', boxShadow: '0 0 10px var(--gold)' }} />
+                    <div>
+                      <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#FFFFFF' }}>
+                        {sessionTitle}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.65)' }}>
+                        {exercises.length} {isEn ? 'exercises' : 'exercices'} • {doneSetsCount} {isEn ? 'sets completed' : 'séries faites'} • {totalTonnageKg} kg
+                      </div>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    className="add-exercise-btn-main"
+                    style={{ padding: '7px 14px', fontSize: '11.5px' }}
+                    onClick={() => setIsWorkoutActive(true)}
+                  >
+                    <span>{isEn ? 'Open' : 'Ouvrir'}</span>
+                    <ChevronRight size={13} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="add-exercise-btn-main"
-                  style={{ padding: '7px 14px', fontSize: '11.5px' }}
-                  onClick={() => setIsWorkoutActive(true)}
-                >
-                  <span>{isEn ? 'Open' : 'Ouvrir'}</span>
-                  <ChevronRight size={13} />
-                </button>
-              </div>
-            )}
-
-            {exercises.length === 0 && (
+              </>
+            ) : (
               <div
                 style={{
-                  padding: '28px 18px',
-                  borderRadius: '20px',
-                  background: 'rgba(18, 18, 22, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  padding: '28px 20px',
+                  borderRadius: '22px',
+                  background: 'rgba(18, 18, 22, 0.88)',
+                  border: '1px solid rgba(255, 255, 255, 0.09)',
                   textAlign: 'center',
                   display: 'flex',
                   flexDirection: 'column',
@@ -2265,18 +2314,21 @@ export const FitScreen: React.FC = () => {
                   gap: '10px',
                 }}
               >
-                <Dumbbell size={26} color="rgba(250, 247, 242, 0.45)" />
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#FAF7F2' }}>
+                <Dumbbell size={28} color="rgba(250, 247, 242, 0.5)" />
+                <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#FAF7F2', margin: 0 }}>
                   {isEn ? 'No workout started today' : 'Aucune séance démarrée aujourd’hui'}
-                </div>
+                </h2>
+                <span style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.58)', maxWidth: '250px' }}>
+                  {isEn ? 'Create your session and configure each exercise & each set' : 'Créez votre séance libre et paramétrez chaque exercice et chaque série'}
+                </span>
                 <button
                   type="button"
                   className="add-exercise-btn-main"
-                  style={{ padding: '10px 16px', fontSize: '12.5px', marginTop: '4px' }}
+                  style={{ padding: '11px 18px', fontSize: '13px', marginTop: '6px' }}
                   onClick={() => setShowNewSessionModal(true)}
                 >
                   <Plus size={14} />
-                  <span>{isEn ? 'Create custom workout' : 'Créer une séance libre'}</span>
+                  <span>{isEn ? 'Create Workout' : 'Nouvelle séance'}</span>
                 </button>
               </div>
             )}
@@ -2304,7 +2356,7 @@ export const FitScreen: React.FC = () => {
                   }}
                 >
                   <ArrowLeft size={13} />
-                  <span>{isEn ? 'Change workout' : 'Choisir une autre séance'}</span>
+                  <span>{isEn ? 'Workouts' : 'Séances'}</span>
                 </button>
                 <span
                   className="health-badge"
@@ -2365,19 +2417,11 @@ export const FitScreen: React.FC = () => {
                 <button
                   type="button"
                   className="add-exercise-btn-main"
+                  style={{ flex: 1 }}
                   onClick={() => setShowAddModal(true)}
                 >
                   <Plus size={14} />
                   <span>{isEn ? 'Add exercise' : 'Ajouter un exercice'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="new-session-btn"
-                  onClick={() => setIsWorkoutActive(false)}
-                >
-                  <RotateCcw size={13} />
-                  <span>{isEn ? 'Change workout' : 'Changer de séance'}</span>
                 </button>
               </div>
             </div>
@@ -2542,19 +2586,31 @@ export const FitScreen: React.FC = () => {
             {exercises.map((ex) => (
               <div key={ex.id} className="gym-exercise-card">
                 <div className="gym-exercise-header">
-                  <div>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
-                      {ex.name}
-                    </span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                      {ex.sets.length} {ex.sets.length > 1 ? (isEn ? 'sets' : 'séries') : (isEn ? 'set' : 'série')}
-                    </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
+                        {ex.name}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        {ex.sets.length} {ex.sets.length > 1 ? (isEn ? 'sets' : 'séries') : (isEn ? 'set' : 'série')}
+                      </span>
+                      {ex.restSec && (
+                        <span style={{ fontSize: '10px', color: '#38BDF8', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                          ⏱ {ex.restSec}s
+                        </span>
+                      )}
+                    </div>
+                    {ex.notes && (
+                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '2px' }}>
+                        {ex.notes}
+                      </div>
+                    )}
                   </div>
                   <button
                     type="button"
                     className="exercise-manage-pill-btn"
                     onClick={() => setManagingExId(ex.id)}
-                    title={isEn ? 'Exercise settings (weight, sets, delete)' : "Paramètres de l'exercice (poids, séries, suppression)"}
+                    title={isEn ? 'Exercise settings (weight, sets, rest, RPE)' : "Paramètres complets de l'exercice et de chaque série"}
                   >
                     <Sliders size={12} color="var(--gold)" />
                     <span>{isEn ? 'Manage' : 'Gérer'}</span>
@@ -2562,11 +2618,23 @@ export const FitScreen: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {ex.sets.map((s, setIdx) => (
+                  {ex.sets.map((s, setIdx) => {
+                    const typeTag =
+                      s.setType === 'warmup' ? 'E' : s.setType === 'heavy' ? 'L' : s.setType === 'drop' ? 'D' : '';
+                    const typeColor =
+                      s.setType === 'warmup' ? '#38BDF8' : s.setType === 'heavy' ? '#FF9F0A' : s.setType === 'drop' ? '#FF453A' : 'var(--text-tertiary)';
+                    return (
                     <div key={s.id} className="gym-set-row">
-                      <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-                        S{setIdx + 1}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: '34px' }}>
+                        <span style={{ color: typeColor, fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '12px' }}>
+                          {typeTag ? `${typeTag}${setIdx + 1}` : `S${setIdx + 1}`}
+                        </span>
+                        {s.rpe && (
+                          <span style={{ fontSize: '9px', color: '#C4B5FD', fontWeight: 700 }}>
+                            @{s.rpe}
+                          </span>
+                        )}
+                      </div>
 
                       {/* Stepper kg */}
                       <div className="set-mini-control">
@@ -2620,7 +2688,8 @@ export const FitScreen: React.FC = () => {
                         {s.done ? <Check size={14} /> : <Plus size={13} />}
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* + Ajouter une série */}
@@ -2635,23 +2704,14 @@ export const FitScreen: React.FC = () => {
               </div>
             ))}
 
-            {/* Bottom Actions Row */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-              <button
-                type="button"
-                className="new-session-btn"
-                style={{ flex: 1, padding: '12px', borderRadius: '14px' }}
-                onClick={() => setIsWorkoutActive(false)}
-              >
-                <ArrowLeft size={14} />
-                <span>{isEn ? 'Workouts' : 'Changer de séance'}</span>
-              </button>
-              {doneSetsCount > 0 && (
+            {/* Bottom Actions Row (Share uniquement si séries validées, sans bouton Changer doublon) */}
+            {doneSetsCount > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                 <button
                   type="button"
                   className="apple-pay-btn"
                   style={{
-                    flex: 1.6,
+                    flex: 1,
                     background: '#FFFFFF',
                     color: '#000000',
                     fontWeight: 700,
@@ -2663,8 +2723,8 @@ export const FitScreen: React.FC = () => {
                   <Share2 size={15} />
                   <span>{isEn ? 'Finish & Share' : 'Terminer & Partager'}</span>
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )
       )}
@@ -2730,8 +2790,8 @@ export const FitScreen: React.FC = () => {
       )}
       </div>
 
-      {/* ==================== MODAL AJOUTER UN EXERCICE ==================== */}
-      {showAddModal && (
+      {/* ==================== MODAL AJOUTER UN EXERCICE (PORTAL + CONFIG SÉRIE PAR SÉRIE) ==================== */}
+      {showAddModal && typeof document !== 'undefined' && createPortal(
         <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
           <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -2745,26 +2805,26 @@ export const FitScreen: React.FC = () => {
                     letterSpacing: '0.05em',
                   }}
                 >
-                  Séance en cours
+                  {isEn ? 'Active Workout' : 'Séance en cours'}
                 </span>
                 <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-                  Ajouter un Exercice
+                  {isEn ? 'Add Exercise' : 'Ajouter un Exercice'}
                 </h2>
               </div>
               <button
                 type="button"
                 className="modal-close-btn"
                 onClick={() => setShowAddModal(false)}
-                aria-label="Fermer"
+                aria-label={isEn ? 'Close' : 'Fermer'}
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Titre de l'exercice */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Titre de l'exercice
+                {isEn ? 'Exercise Title' : "Titre de l'exercice"}
               </label>
               <input
                 type="text"
@@ -2775,131 +2835,123 @@ export const FitScreen: React.FC = () => {
               />
             </div>
 
-            {/* Configurations des séries, poids et répétitions */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              {/* Séries */}
+            {/* Base rapide + repos spécifique */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
               <div
                 style={{
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '14px',
-                  padding: '10px',
+                  padding: '9px',
                   textAlign: 'center',
                 }}
               >
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Séries
+                <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>
+                  {isEn ? 'Sets' : 'Séries'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExSetsCount((prev) => Math.max(1, prev - 1))}
+                    onClick={() => syncDraftSetsCount(newExSetsCount - 1)}
                   >
                     <Minus size={12} />
                   </button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', minWidth: '24px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', minWidth: '22px' }}>
                     {newExSetsCount}
                   </span>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExSetsCount((prev) => Math.min(10, prev + 1))}
+                    onClick={() => syncDraftSetsCount(newExSetsCount + 1)}
                   >
                     <Plus size={12} />
                   </button>
                 </div>
               </div>
 
-              {/* Poids */}
               <div
                 style={{
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '14px',
-                  padding: '10px',
+                  padding: '9px',
                   textAlign: 'center',
                 }}
               >
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Charge (kg)
+                <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>
+                  {isEn ? 'Base kg' : 'Base (kg)'}
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExWeight((prev) => Math.max(0, Math.round((prev - 2.5) * 10) / 10))}
+                    onClick={() => {
+                      const nextW = Math.max(0, Math.round((newExWeight - 2.5) * 10) / 10);
+                      setNewExWeight(nextW);
+                      applyDefaultToDraftSets({ weightKg: nextW });
+                    }}
                   >
                     <Minus size={12} />
                   </button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', minWidth: '38px' }}>
+                  <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#fff', minWidth: '32px' }}>
                     {newExWeight}
                   </span>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExWeight((prev) => Math.round((prev + 2.5) * 10) / 10)}
+                    onClick={() => {
+                      const nextW = Math.round((newExWeight + 2.5) * 10) / 10;
+                      setNewExWeight(nextW);
+                      applyDefaultToDraftSets({ weightKg: nextW });
+                    }}
                   >
                     <Plus size={12} />
                   </button>
                 </div>
               </div>
 
-              {/* Répétitions */}
               <div
                 style={{
                   background: 'rgba(255,255,255,0.03)',
                   border: '1px solid var(--border-subtle)',
                   borderRadius: '14px',
-                  padding: '10px',
+                  padding: '9px',
                   textAlign: 'center',
                 }}
               >
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: 'var(--text-secondary)',
-                    display: 'block',
-                    marginBottom: '6px',
-                  }}
-                >
-                  Répétitions
+                <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>
+                  {isEn ? 'Base reps' : 'Base réps'}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExReps((prev) => Math.max(1, prev - 1))}
+                    onClick={() => {
+                      const nextR = Math.max(1, newExReps - 1);
+                      setNewExReps(nextR);
+                      applyDefaultToDraftSets({ reps: nextR });
+                    }}
                   >
                     <Minus size={12} />
                   </button>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', minWidth: '24px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#fff', minWidth: '22px' }}>
                     {newExReps}
                   </span>
                   <button
                     type="button"
                     className="mini-step-btn"
                     style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '6px' }}
-                    onClick={() => setNewExReps((prev) => Math.min(50, prev + 1))}
+                    onClick={() => {
+                      const nextR = Math.min(50, newExReps + 1);
+                      setNewExReps(nextR);
+                      applyDefaultToDraftSets({ reps: nextR });
+                    }}
                   >
                     <Plus size={12} />
                   </button>
@@ -2907,21 +2959,182 @@ export const FitScreen: React.FC = () => {
               </div>
             </div>
 
+            {/* Repos dédié à cet exercice */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  {isEn ? 'Rest timer for this exercise' : 'Temps de repos de l’exercice'}
+                </span>
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#38BDF8', fontFamily: 'var(--font-mono)' }}>
+                  {newExRestSec}s
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {[45, 60, 90, 120, 180].map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => setNewExRestSec(sec)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 4px',
+                      borderRadius: '9px',
+                      background: newExRestSec === sec ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                      border: newExRestSec === sec ? '1px solid rgba(56, 189, 248, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                      color: '#FAF7F2',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {sec >= 60 ? `${sec / 60}m${sec % 60 ? sec % 60 : ''}` : `${sec}s`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Détail série par série (Poids, Réps, Type) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                {isEn ? 'Customize each set' : 'Paramétrer chaque série'}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '190px', overflowY: 'auto', overscrollBehaviorY: 'contain' }}>
+                {newExDraftSets.map((s, idx) => {
+                  const typeOrder: GymSetType[] = ['normal', 'warmup', 'heavy', 'drop'];
+                  const nextType = typeOrder[(typeOrder.indexOf(s.setType) + 1) % typeOrder.length];
+                  const badgeLabel =
+                    s.setType === 'warmup'
+                      ? (isEn ? 'W' : 'Échauff.')
+                      : s.setType === 'heavy'
+                      ? (isEn ? 'H' : 'Lourde')
+                      : s.setType === 'drop'
+                      ? 'Drop'
+                      : (isEn ? 'N' : 'Norm.');
+                  const badgeColor =
+                    s.setType === 'warmup' ? '#38BDF8' : s.setType === 'heavy' ? '#FF9F0A' : s.setType === 'drop' ? '#FF453A' : 'rgba(250, 247, 242, 0.72)';
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '7px 9px',
+                        borderRadius: '11px',
+                        background: 'rgba(255, 255, 255, 0.035)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', minWidth: '22px' }}>
+                        S{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewExDraftSets((prev) =>
+                            prev.map((row, i) => (i === idx ? { ...row, setType: nextType } : row))
+                          )
+                        }
+                        style={{
+                          padding: '4px 7px',
+                          borderRadius: '7px',
+                          background: 'rgba(255, 255, 255, 0.07)',
+                          border: `1px solid ${badgeColor}55`,
+                          color: badgeColor,
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          minWidth: '50px',
+                        }}
+                      >
+                        {badgeLabel}
+                      </button>
+                      <div className="set-mini-control" style={{ flex: 1 }}>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() =>
+                            setNewExDraftSets((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, weightKg: Math.max(0, Math.round((row.weightKg - 2.5) * 10) / 10) } : row
+                              )
+                            )
+                          }
+                        >
+                          -
+                        </button>
+                        <span className="mini-step-val" style={{ fontSize: '11.5px' }}>{s.weightKg}kg</span>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() =>
+                            setNewExDraftSets((prev) =>
+                              prev.map((row, i) =>
+                                i === idx ? { ...row, weightKg: Math.round((row.weightKg + 2.5) * 10) / 10 } : row
+                              )
+                            )
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="set-mini-control" style={{ flex: 0.9 }}>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() =>
+                            setNewExDraftSets((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, reps: Math.max(1, row.reps - 1) } : row))
+                            )
+                          }
+                        >
+                          -
+                        </button>
+                        <span className="mini-step-val" style={{ fontSize: '11.5px' }}>{s.reps}r</span>
+                        <button
+                          type="button"
+                          className="mini-step-btn"
+                          onClick={() =>
+                            setNewExDraftSets((prev) =>
+                              prev.map((row, i) => (i === idx ? { ...row, reps: Math.min(50, row.reps + 1) } : row))
+                            )
+                          }
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Consigne optionnelle */}
+            <input
+              type="text"
+              className="settings-input"
+              placeholder={isEn ? 'Optional note (tempo, grip, incline...)' : 'Note optionnelle (tempo, prise, inclinaison...)'}
+              value={newExNotes}
+              onChange={(e) => setNewExNotes(e.target.value)}
+            />
+
             <button
               type="button"
               className="add-exercise-btn-main"
-              style={{ padding: '12px', marginTop: '6px' }}
-              onClick={() => handleAddExercise(newExName, newExSetsCount, newExWeight, newExReps)}
+              style={{ padding: '12px', marginTop: '2px' }}
+              onClick={() => handleAddExercise(newExName)}
             >
               <Plus size={15} />
               <span>{isEn ? 'Confirm & Add to Workout' : 'Valider et Ajouter à la Séance'}</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* ==================== MODAL NOUVELLE SÉANCE ==================== */}
-      {showNewSessionModal && (
+      {/* ==================== MODAL NOUVELLE SÉANCE (PORTAL ROOT) ==================== */}
+      {showNewSessionModal && typeof document !== 'undefined' && createPortal(
         <div className="modal-backdrop" onClick={() => setShowNewSessionModal(false)}>
           <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -2974,7 +3187,8 @@ export const FitScreen: React.FC = () => {
               <span>{isEn ? 'Start this workout' : 'Démarrer cette séance'}</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Paramètres de l'exercice */}
@@ -2990,6 +3204,9 @@ export const FitScreen: React.FC = () => {
               onApplyWeightDeltaAll={(delta) => applyWeightDeltaAll(curEx.id, delta)}
               onAdjustWeight={(setId, delta) => adjustWeight(curEx.id, setId, delta)}
               onAdjustReps={(setId, delta) => adjustReps(curEx.id, setId, delta)}
+              onUpdateSetMeta={(setId, patch) => updateSetMeta(curEx.id, setId, patch)}
+              onDuplicateSet={(setId) => duplicateSetInExercise(curEx.id, setId)}
+              onUpdateExerciseMeta={(patch) => updateExerciseMeta(curEx.id, patch)}
               onDeleteSet={(setId) => deleteSet(curEx.id, setId)}
               onAddSet={() => addSetToExercise(curEx.id)}
               onDeleteExercise={() => {

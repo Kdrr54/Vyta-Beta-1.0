@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import {
   Calendar as CalendarIcon,
@@ -1383,8 +1384,9 @@ export const CycleScreen: React.FC = () => {
       {/* =========================================================================
           SETUP & CALIBRATION MODAL / SHEET
           ========================================================================= */}
-      {showConfigModal && (
+      {showConfigModal && typeof document !== 'undefined' && createPortal(
         <div
+          className="modal-backdrop"
           style={{
             position: 'fixed',
             top: 0,
@@ -1394,7 +1396,7 @@ export const CycleScreen: React.FC = () => {
             background: 'rgba(0, 0, 0, 0.85)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            zIndex: 100,
+            zIndex: 99999,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -1402,6 +1404,8 @@ export const CycleScreen: React.FC = () => {
             padding: 'calc(env(safe-area-inset-top, 24px) + 10px) 16px calc(env(safe-area-inset-bottom, 24px) + 20px) 16px',
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+            overscrollBehavior: 'contain',
             animation: 'fadeIn 200ms ease-out',
           }}
         >
@@ -1643,7 +1647,8 @@ export const CycleScreen: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 7. Nocturnal Basal Body Temperature (BBT) 28-day Curve */}

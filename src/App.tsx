@@ -92,6 +92,36 @@ const AppInner: React.FC = () => {
     }
   }, [tab]);
 
+  // Verrouillage universel du scroll d'arrière-plan dès qu'une modale (.modal-backdrop) est ouverte
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const syncScrollLock = () => {
+      const hasModal = Boolean(document.querySelector('.modal-backdrop'));
+      const scroller = document.querySelector('.app-scroll-container') as HTMLElement | null;
+      if (scroller) {
+        scroller.style.overflowY = hasModal ? 'hidden' : '';
+        scroller.style.touchAction = hasModal ? 'none' : '';
+        scroller.style.overscrollBehavior = hasModal ? 'none' : '';
+      }
+      document.body.style.overflow = hasModal ? 'hidden' : '';
+      document.documentElement.style.overflow = hasModal ? 'hidden' : '';
+    };
+    syncScrollLock();
+    const observer = new MutationObserver(syncScrollLock);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      const scroller = document.querySelector('.app-scroll-container') as HTMLElement | null;
+      if (scroller) {
+        scroller.style.overflowY = '';
+        scroller.style.touchAction = '';
+        scroller.style.overscrollBehavior = '';
+      }
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
   // Si la bague n'est pas encore appairée (premier lancement) :
   // Afficher IMMÉDIATEMENT et EXCLUSIVEMENT la page d'appairage en plein écran mobile.
   if (!isPaired) {

@@ -73,7 +73,7 @@ export interface DayMetrics {
   spo2Min?: number;
   spo2Max?: number;
   spo2Log?: number[];
-  anomaly: { tempDelta: number; hrvDelta: number } | null;
+  anomaly: { tempDelta: number; hrvDelta: number; detectedAtTs?: number } | null;
   sleep: SleepSummary;
   naps?: NapRecord[];
   stress?: number;

@@ -83,10 +83,13 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.74);
-  z-index: 120;
+  z-index: 9000;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  align-items: center;
+  touch-action: none;
+  overscroll-behavior: none;
   animation: modalBackdropFadeIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: opacity;
 }

@@ -1,20 +1,39 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Sparkles, ShieldCheck } from 'lucide-react';
+import { Sparkles, ShieldCheck, Clock } from 'lucide-react';
 
 interface ImmunityRadarProps {
-  anomaly: { tempDelta: number; hrvDelta: number } | null;
+  anomaly: { tempDelta: number; hrvDelta: number; detectedAtTs?: number } | null;
   hasHrv?: boolean;
   hasTemp?: boolean;
 }
 
 export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = false, hasTemp = false }) => {
-  const { t, isFirstLaunch, cardThemeMode } = useApp();
+  const { t, isFirstLaunch, cardThemeMode, language } = useApp();
   const isMono = cardThemeMode === 'monochrome';
+  const isEn = language === 'en';
 
   const hasData = !isFirstLaunch && (hasHrv || hasTemp);
   // Une anomalie n'existe QUE si la bague a transmis des données et qu'un écart réel a été détecté
   const hasAnomaly = hasData && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
+
+  const detectedLabel = React.useMemo(() => {
+    if (!hasAnomaly || !anomaly) return null;
+    const ts = anomaly.detectedAtTs || Date.now();
+    const d = new Date(ts);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const hhmm = d.toLocaleTimeString(isEn ? 'en-US' : 'fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) {
+      return isEn ? `Detected today at ${hhmm}` : `Détectée aujourd’hui à ${hhmm}`;
+    }
+    if (d.toDateString() === yesterday.toDateString()) {
+      return isEn ? `Detected yesterday at ${hhmm}` : `Détectée hier à ${hhmm}`;
+    }
+    const dayStr = d.toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short' });
+    return isEn ? `Detected ${dayStr} at ${hhmm}` : `Détectée le ${dayStr} à ${hhmm}`;
+  }, [hasAnomaly, anomaly, isEn]);
 
   return (
     <div
@@ -68,7 +87,24 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = 
         </div>
 
         {hasAnomaly ? (
-          <span className="immunity-badge-alert">{t('immunity.anomaly_detected')}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+            <span className="immunity-badge-alert">{t('immunity.anomaly_detected')}</span>
+            {detectedLabel && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 162, 154, 0.88)',
+                }}
+              >
+                <Clock size={10} />
+                <span>{detectedLabel}</span>
+              </span>
+            )}
+          </div>
         ) : (
           <span className="immunity-shield-badge">
             {!hasData ? 'En attente de mesures' : t('immunity.shield_active')}

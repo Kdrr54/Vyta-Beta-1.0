@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { useApp } from '../context/AppContext';
-import { GymExercise } from './FitScreen';
+import { GymExercise, GymSetType } from './FitScreen';
 import {
-  Settings2,
   X,
   Plus,
   Minus,
   Trash2,
-  Dumbbell,
   AlertTriangle,
   Layers,
   Check,
   Edit3,
   Sliders,
+  Timer,
+  Copy,
+  FileText,
 } from 'lucide-react';
 
 interface ExerciseSettingsModalProps {
@@ -23,10 +25,20 @@ interface ExerciseSettingsModalProps {
   onApplyWeightDeltaAll: (deltaKg: number) => void;
   onAdjustWeight: (setId: string, delta: number) => void;
   onAdjustReps: (setId: string, delta: number) => void;
+  onUpdateSetMeta: (setId: string, patch: { setType?: GymSetType; rpe?: number; weightKg?: number; reps?: number }) => void;
+  onDuplicateSet: (setId: string) => void;
+  onUpdateExerciseMeta: (patch: { restSec?: number; notes?: string }) => void;
   onDeleteSet: (setId: string) => void;
   onAddSet: () => void;
   onDeleteExercise: () => void;
 }
+
+const SET_TYPE_LABELS: { id: GymSetType; shortFr: string; shortEn: string; labelFr: string; labelEn: string; color: string }[] = [
+  { id: 'warmup', shortFr: 'E', shortEn: 'W', labelFr: 'Échauff.', labelEn: 'Warmup', color: '#38BDF8' },
+  { id: 'normal', shortFr: 'N', shortEn: 'N', labelFr: 'Normale', labelEn: 'Normal', color: '#FAF7F2' },
+  { id: 'heavy', shortFr: 'L', shortEn: 'H', labelFr: 'Lourde', labelEn: 'Heavy', color: '#FF9F0A' },
+  { id: 'drop', shortFr: 'D', shortEn: 'D', labelFr: 'Drop', labelEn: 'Drop', color: '#FF453A' },
+];
 
 export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   exercise,
@@ -35,6 +47,9 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   onApplyWeightDeltaAll,
   onAdjustWeight,
   onAdjustReps,
+  onUpdateSetMeta,
+  onDuplicateSet,
+  onUpdateExerciseMeta,
   onDeleteSet,
   onAddSet,
   onDeleteExercise,
@@ -44,6 +59,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
   const { isClosing, handleClose } = useModalAnimation(onClose);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(exercise.name);
+  const [editedNotes, setEditedNotes] = useState(exercise.notes || '');
   const [confirmDeleteEx, setConfirmDeleteEx] = useState(false);
 
   const handleSaveName = (e: React.FormEvent) => {
@@ -54,7 +70,11 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
     setIsEditingName(false);
   };
 
-  return (
+  const restSec = exercise.restSec ?? 90;
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className={`modal-backdrop ${isClosing ? "is-closing" : ""}`} onClick={handleClose} role="dialog" aria-modal="true">
       <div className={`exercise-settings-sheet modal-sheet ${isClosing ? "is-closing" : ""}`} onClick={(e) => e.stopPropagation()}>
         {/* Grabber bar */}
@@ -168,13 +188,67 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* 3. GESTION DES SÉRIES (Poids, répétitions, ajout & suppression) */}
+        {/* 3. PARAMÈTRES D'EXERCICE : REPOS & NOTES */}
+        <div className="ex-settings-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Timer size={13} color="var(--gold)" />
+              <span className="ex-settings-section-label">
+                {isEn ? 'Rest per set' : 'Repos par série'}
+              </span>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
+              {restSec}s
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+            {[45, 60, 90, 120, 180].map((sec) => (
+              <button
+                key={sec}
+                type="button"
+                onClick={() => onUpdateExerciseMeta({ restSec: sec })}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  borderRadius: '8px',
+                  background: restSec === sec ? 'rgba(255, 255, 255, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                  border: restSec === sec ? '1px solid rgba(255, 255, 255, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  color: '#FAF7F2',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {sec >= 60 ? `${sec / 60}m${sec % 60 ? sec % 60 : ''}` : `${sec}s`}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <FileText size={12} color="var(--text-secondary)" />
+            <span className="ex-settings-section-label">
+              {isEn ? 'Technique Note' : 'Consigne / Note technique'}
+            </span>
+          </div>
+          <input
+            type="text"
+            className="ex-settings-input"
+            placeholder={isEn ? 'Tempo 3-1-1, bench angle, grip...' : 'Ex: Tempo contrôlé, banc 30°, prise large...'}
+            value={editedNotes}
+            onChange={(e) => {
+              setEditedNotes(e.target.value);
+              onUpdateExerciseMeta({ notes: e.target.value });
+            }}
+          />
+        </div>
+
+        {/* 4. GESTION INDIVIDUELLE DE CHAQUE SÉRIE */}
         <div className="ex-settings-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Layers size={13} color="var(--gold)" />
               <span className="ex-settings-section-label">
-                {isEn ? 'Weight & Reps' : 'Poids & Répétitions'} ({exercise.sets.length})
+                {isEn ? 'Per-Set Configuration' : 'Paramètres série par série'} ({exercise.sets.length})
               </span>
             </div>
             <button
@@ -183,87 +257,147 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
               onClick={onAddSet}
             >
               <Plus size={12} />
-              <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
+              <span>{isEn ? 'Add set' : 'Ajouter'}</span>
             </button>
           </div>
 
-          <div className="ex-sets-manage-list">
-            {exercise.sets.map((s, idx) => (
-              <div key={s.id} className="ex-set-manage-row" style={{ gap: '8px' }}>
-                <span className="ex-set-num-badge" style={{ minWidth: '24px', textAlign: 'center' }}>
-                  {idx + 1}
-                </span>
+          <div className="ex-sets-manage-list" style={{ gap: '8px' }}>
+            {exercise.sets.map((s, idx) => {
+              const curType = s.setType || 'normal';
+              const nextType = SET_TYPE_LABELS[(SET_TYPE_LABELS.findIndex((t) => t.id === curType) + 1) % SET_TYPE_LABELS.length];
+              const typeMeta = SET_TYPE_LABELS.find((t) => t.id === curType) || SET_TYPE_LABELS[1];
+              return (
+                <div
+                  key={s.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '7px',
+                    padding: '9px 10px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="ex-set-num-badge" style={{ minWidth: '24px', textAlign: 'center' }}>
+                        S{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateSetMeta(s.id, { setType: nextType.id })}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: '7px',
+                          background: 'rgba(255, 255, 255, 0.07)',
+                          border: `1px solid ${typeMeta.color}44`,
+                          color: typeMeta.color,
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title={isEn ? 'Tap to switch set type' : 'Toucher pour changer le type de série'}
+                      >
+                        {isEn ? typeMeta.labelEn : typeMeta.labelFr}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextRpe = !s.rpe ? 7 : s.rpe >= 10 ? undefined : s.rpe + 1;
+                          onUpdateSetMeta(s.id, { rpe: nextRpe });
+                        }}
+                        style={{
+                          padding: '3px 7px',
+                          borderRadius: '7px',
+                          background: s.rpe ? 'rgba(167, 139, 250, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+                          border: s.rpe ? '1px solid rgba(167, 139, 250, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+                          color: s.rpe ? '#C4B5FD' : 'rgba(250, 247, 242, 0.45)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {s.rpe ? `RPE ${s.rpe}` : 'RPE --'}
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => onDuplicateSet(s.id)}
+                        style={{
+                          padding: '4px 6px',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          color: '#FAF7F2',
+                          cursor: 'pointer',
+                        }}
+                        title={isEn ? 'Duplicate set' : 'Dupliquer la série'}
+                      >
+                        <Copy size={11} />
+                      </button>
+                      {exercise.sets.length > 1 && (
+                        <button
+                          type="button"
+                          className="ex-delete-set-btn"
+                          style={{ padding: '4px 6px' }}
+                          onClick={() => onDeleteSet(s.id)}
+                          title={isEn ? `Delete set ${idx + 1}` : `Supprimer la série ${idx + 1}`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Stepper Poids (kg) */}
-                <div className="set-mini-control" style={{ flex: 1 }}>
-                  <button
-                    type="button"
-                    className="mini-step-btn"
-                    onClick={() => onAdjustWeight(s.id, -2.5)}
-                    title="-2.5 kg"
-                  >
-                    -
-                  </button>
-                  <span className="mini-step-val">{s.weightKg} kg</span>
-                  <button
-                    type="button"
-                    className="mini-step-btn"
-                    onClick={() => onAdjustWeight(s.id, 2.5)}
-                    title="+2.5 kg"
-                  >
-                    +
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* Charge kg */}
+                    <div className="set-mini-control" style={{ flex: 1 }}>
+                      <button
+                        type="button"
+                        className="mini-step-btn"
+                        onClick={() => onAdjustWeight(s.id, -2.5)}
+                        title="-2.5 kg"
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="mini-step-val">{s.weightKg} kg</span>
+                      <button
+                        type="button"
+                        className="mini-step-btn"
+                        onClick={() => onAdjustWeight(s.id, 2.5)}
+                        title="+2.5 kg"
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+
+                    {/* Répétitions */}
+                    <div className="set-mini-control" style={{ flex: 1 }}>
+                      <button
+                        type="button"
+                        className="mini-step-btn"
+                        onClick={() => onAdjustReps(s.id, -1)}
+                        title={isEn ? '-1 rep' : '-1 rép'}
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
+                      <button
+                        type="button"
+                        className="mini-step-btn"
+                        onClick={() => onAdjustReps(s.id, 1)}
+                        title={isEn ? '+1 rep' : '+1 rép'}
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-
-                {/* Stepper Répétitions */}
-                <div className="set-mini-control" style={{ flex: 1 }}>
-                  <button
-                    type="button"
-                    className="mini-step-btn"
-                    onClick={() => onAdjustReps(s.id, -1)}
-                    title={isEn ? '-1 rep' : '-1 rép'}
-                  >
-                    -
-                  </button>
-                  <span className="mini-step-val">{s.reps} {isEn ? 'reps' : 'réps'}</span>
-                  <button
-                    type="button"
-                    className="mini-step-btn"
-                    onClick={() => onAdjustReps(s.id, 1)}
-                    title={isEn ? '+1 rep' : '+1 rép'}
-                  >
-                    +
-                  </button>
-                </div>
-
-                {exercise.sets.length > 1 ? (
-                  <button
-                    type="button"
-                    className="ex-delete-set-btn"
-                    style={{ padding: '5px 7px' }}
-                    onClick={() => onDeleteSet(s.id)}
-                    title={isEn ? `Delete set ${idx + 1}` : `Supprimer la série ${idx + 1}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                ) : (
-                  <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', width: '28px', textAlign: 'center' }}>
-                    —
-                  </span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-
-          <button
-            type="button"
-            className="add-set-link-btn"
-            style={{ marginTop: '2px' }}
-            onClick={onAddSet}
-          >
-            <Plus size={13} />
-            <span>{isEn ? 'Add set' : 'Ajouter une série'}</span>
-          </button>
         </div>
 
         {/* 4. SUPPRESSION SÉCURISÉE DE L'EXERCICE */}
@@ -309,6 +443,7 @@ export const ExerciseSettingsModal: React.FC<ExerciseSettingsModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
