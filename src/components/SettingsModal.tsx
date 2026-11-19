@@ -78,8 +78,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [showBleLogs, setShowBleLogs] = useState(false);
   const [bleLogs, setBleLogs] = useState<BleLogEntry[]>(() => qringBle.getBleLogs());
   const [copiedLogs, setCopiedLogs] = useState(false);
-  const [strictLedMode, setStrictLedMode] = useState<boolean>(() => qringBle.isStrictLedModeEnabled());
-  const alignStatus = qringBle.getBoundaryAlignStatus();
 
   useEffect(() => {
     return qringBle.subscribeLogs(setBleLogs);
@@ -1714,55 +1712,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       </span>
                     </button>
                   ))}
-                </div>
-
-                {/* Mode LED strict : coupe les 6 allumages auto supplémentaires (SpO2 rouge, VRC, Stress) */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Strict 1-flash schedule (HR only)' : 'Cycle strict (1 seul allumage / créneau)'}
-                    </span>
-                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.52)', lineHeight: 1.35 }}>
-                      {strictLedMode
-                        ? isEn
-                          ? 'Disables extra auto SpO2 (red), HRV & Stress loops that flashed ~8x/h.'
-                          : 'Coupe SpO2 rouge, VRC et Stress auto qui allumaient la bague ~8×/h.'
-                        : isEn
-                        ? 'All secondary optical loops active (~6–8 flashes/h).'
-                        : 'Tous capteurs optiques auto actifs (~6–8 allumages/h).'}
-                    </span>
-                    {(sensorIntervals?.heartRate as string) !== 'pause' && (
-                      <span style={{ fontSize: '10px', color: alignStatus.aligned ? '#30D158' : '#F59E0B', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                        {alignStatus.aligned
-                          ? isEn ? 'Clock aligned on :00 / :30 ✓' : 'Calé sur heure ronde :00 / :30 ✓'
-                          : isEn
-                          ? `Keep app open at ${alignStatus.nextLabel} to snap to exact hour`
-                          : `Garder l'app ouverte à ${alignStatus.nextLabel} pour caler sur :00/:30`}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={strictLedMode}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      triggerHaptic();
-                      setStrictLedMode(next);
-                      qringBle.setStrictLedMode(next);
-                    }}
-                    style={{ accentColor: '#30D158', width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
-                  />
                 </div>
               </div>
 
