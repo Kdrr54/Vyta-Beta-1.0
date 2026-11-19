@@ -2723,6 +2723,26 @@ class QRingBleService {
   }
 
   /**
+   * Zero-LED tiny RF keep-alive ping used only while Find-My-Ring Radar is open:
+   * wakes BLE connection out of Slave Latency so CoreBluetooth measures live RSSI immediately
+   * instead of repeating cached values from seconds ago.
+   */
+  public async sendRadarPing(): Promise<void> {
+    if (!this.isConnected() || this.isSyncing || this.activeLiveDataType !== null) return;
+    try {
+      if (Capacitor.isNativePlatform() && this.connectedDeviceId) {
+        const pkt = numbersToDataView(this.makePacket(0x03, [0x00]));
+        await BleClient.writeWithoutResponse(
+          this.connectedDeviceId,
+          this.activeServiceUuid,
+          this.activeRxUuid,
+          pkt
+        );
+      }
+    } catch (_) {}
+  }
+
+  /**
    * Live BLE RSSI Radar (Find My Ring Precision Mode):
    * - On iOS WKWebView: uses native CoreBluetooth `vytaBleRadar` (`readRSSI()` when connected + duplicate scan when disconnected)
    * - Fallback on Android / Capacitor when disconnected: `BleClient.requestLEScan({ allowDuplicates: true })`

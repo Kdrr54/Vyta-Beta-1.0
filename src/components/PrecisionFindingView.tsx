@@ -27,16 +27,17 @@ interface RssiPoint {
 }
 
 function estimateMetersFromRssi(rssi: number): number {
-  // Petite antenne bague titane : RSSI de référence @ 1m ≈ -62 dBm, exposant intérieur n ≈ 2.2
-  const raw = Math.pow(10, (-62 - rssi) / (10 * 2.2));
+  // Petite antenne bague titane : RSSI de référence @ 1m ≈ -63 dBm, exposant intérieur n ≈ 2.2
+  const raw = Math.pow(10, (-63 - rssi) / (10 * 2.2));
   const clamped = Math.max(0.1, Math.min(15.0, raw));
   return Math.round(clamped * 10) / 10;
 }
 
-function getZoneFromRssi(rssi: number | null): ProximityZone {
+function getZoneFromRssi(rssi: number | null, wasHere: boolean): ProximityZone {
   if (rssi === null) return 'searching';
-  if (rssi >= -56) return 'here';
-  if (rssi >= -66) return 'hot';
+  // Hystérésis : déclenche "ICI" dès -59 dBm (à portée de main), maintient jusqu'à -63 dBm si enveloppée dans la main
+  if (rssi >= -59 || (wasHere && rssi >= -63)) return 'here';
+  if (rssi >= -67) return 'hot';
   if (rssi >= -77) return 'warm';
   return 'cold';
 }
@@ -62,6 +63,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
   const emaRef = useRef<number | null>(null);
   const historyRef = useRef<RssiPoint[]>([]);
   const lastFlashNoteTimerRef = useRef<any>(null);
+  const isHereStickyRef = useRef<boolean>(false);
 
   // Suivre l'état de connexion BLE en direct
   useEffect(() => {
@@ -73,7 +75,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
     };
   }, []);
 
-  // Radar RSSI CoreBluetooth / BLE réel en temps réel
+  // Radar RSSI CoreBluetooth / BLE réel en temps réel + RF ping anti-latence
   useEffect(() => {
     let cleanupFn: (() => void) | null = null;
     let mounted = true;
@@ -82,13 +84,13 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       if (!mounted) return;
       const now = sample.ts || Date.now();
 
-      // Filtre asymétrique rapide à la hausse (attaque instantanée dès qu'on s'approche, lissage doux aux baisses RF)
+      // À bout portant (≥ -58 dBm) : aucun retard de filtre, un paquet fort n'arrive physiquement que tout près !
       const prev = emaRef.current;
       let nextEma: number;
-      if (prev === null) {
+      if (prev === null || sample.rssi >= -58) {
         nextEma = sample.rssi;
       } else if (sample.rssi >= prev) {
-        const gain = sample.rssi - prev >= 8 ? 0.85 : 0.72;
+        const gain = sample.rssi - prev >= 6 ? 0.88 : 0.78;
         nextEma = prev * (1 - gain) + sample.rssi * gain;
       } else {
         nextEma = prev * 0.68 + sample.rssi * 0.32;
@@ -96,19 +98,22 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       emaRef.current = nextEma;
 
       const roundedRssi = Math.round(nextEma);
+      const nextZone = getZoneFromRssi(roundedRssi, isHereStickyRef.current);
+      isHereStickyRef.current = nextZone === 'here';
+
       setLiveRssi(roundedRssi);
       setLiveDistance(estimateMetersFromRssi(nextEma));
       setSignalSource(sample.source);
       setLastSampleTs(now);
       setIsStale(false);
 
-      // Fenêtre glissante réactive (6s) pour indiquer immédiatement rapprochement / éloignement
-      const buf = historyRef.current.filter((p) => now - p.ts <= 6000);
+      // Fenêtre glissante réactive (5s) pour indiquer rapprochement / éloignement
+      const buf = historyRef.current.filter((p) => now - p.ts <= 5000);
       buf.push({ rssi: sample.rssi, ts: now });
       historyRef.current = buf;
 
-      const recent = buf.filter((p) => now - p.ts <= 1400);
-      const older = buf.filter((p) => now - p.ts > 1400 && now - p.ts <= 4500);
+      const recent = buf.filter((p) => now - p.ts <= 1200);
+      const older = buf.filter((p) => now - p.ts > 1200 && now - p.ts <= 4000);
 
       if (recent.length >= 2 && older.length >= 2) {
         const recentAvg = recent.reduce((s, p) => s + p.rssi, 0) / recent.length;
@@ -134,8 +139,20 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       }
     });
 
+    // Ping BLE silencieux (0 LED) toutes les 320 ms pour casser la Slave Latency iOS
+    // et rafraîchir le RSSI radio réel immédiatement lorsque la bague est immobile
+    const pingTimer = isConnected
+      ? setInterval(() => {
+          qringBle.sendRadarPing();
+        }, 320)
+      : null;
+    if (isConnected) {
+      qringBle.sendRadarPing();
+    }
+
     return () => {
       mounted = false;
+      if (pingTimer) clearInterval(pingTimer);
       if (cleanupFn) cleanupFn();
       qringBle.stopRssiRadar();
     };
@@ -150,7 +167,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
     return () => clearInterval(t);
   }, [lastSampleTs]);
 
-  const zone = getZoneFromRssi(liveRssi);
+  const zone = getZoneFromRssi(liveRssi, isHereStickyRef.current);
   const isHere = zone === 'here';
 
   // Retour haptique proportionnel au RSSI réel (Style Apple AirPods Chaud / Froid)
@@ -230,7 +247,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
         return {
           accent: '#30D158',
           bgGlow: 'radial-gradient(circle at 50% 42%, rgba(48, 209, 88, 0.34) 0%, #05160A 60%, #060609 100%)',
-          label: isEn ? 'Right Here · Brûlant' : 'Brûlant · Tout près',
+          label: isEn ? 'Ring Found · Right Here' : 'Bague trouvée !',
           hint: isEn
             ? 'Your ring is within arm’s reach'
             : 'Votre bague est à portée de main immédiate',

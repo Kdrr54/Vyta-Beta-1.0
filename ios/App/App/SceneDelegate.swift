@@ -101,11 +101,12 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
     private var isWorkoutActive = false
     var recordedPoints: [[String: Any]] = []
 
-    // Native CoreBluetooth Find-My-Ring RSSI radar
+    // Native CoreBluetooth Find-My-Ring RSSI radar (dedicated serial queue keeps main UI thread free)
+    private let bleRadarQueue = DispatchQueue(label: "com.aurel.ble.radar")
     private var bleCentralManager: CBCentralManager?
     private var radarTargetDeviceId: String?
     private var radarPeripheral: CBPeripheral?
-    private var radarTimer: Timer?
+    private var radarTimer: DispatchSourceTimer?
     private var isBleRadarActive = false
 
     override func viewDidLoad() {
@@ -172,8 +173,8 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             guard let dict = message.body as? [String: Any], let action = dict["action"] as? String else { return }
             if action == "start" {
                 let rawId = (dict["deviceId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                self.radarTargetDeviceId = (rawId?.isEmpty == false) ? rawId : nil
-                self.startNativeBleRadar()
+                let cleanId = (rawId?.isEmpty == false) ? rawId : nil
+                self.startNativeBleRadar(targetDeviceId: cleanId)
             } else if action == "stop" {
                 self.stopNativeBleRadar()
             }
@@ -383,71 +384,92 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
         return keywords.contains { upper.contains($0) }
     }
 
-    private func startNativeBleRadar() {
-        isBleRadarActive = true
-        if bleCentralManager == nil {
-            bleCentralManager = CBCentralManager(
-                delegate: self,
-                queue: .main,
-                options: [CBCentralManagerOptionShowPowerAlertKey: false]
-            )
-            return
-        }
-        if bleCentralManager?.state == .poweredOn {
-            beginBleRadarLookup()
+    private func startNativeBleRadar(targetDeviceId: String?) {
+        bleRadarQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.radarTargetDeviceId = targetDeviceId
+            self.isBleRadarActive = true
+            if self.bleCentralManager == nil {
+                self.bleCentralManager = CBCentralManager(
+                    delegate: self,
+                    queue: self.bleRadarQueue,
+                    options: [CBCentralManagerOptionShowPowerAlertKey: false]
+                )
+                return
+            }
+            if self.bleCentralManager?.state == .poweredOn {
+                self.beginBleRadarLookup()
+            }
         }
     }
 
     private func stopNativeBleRadar() {
-        isBleRadarActive = false
-        radarTimer?.invalidate()
+        bleRadarQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.isBleRadarActive = false
+            self.radarTimer?.cancel()
+            self.radarTimer = nil
+            self.bleCentralManager?.stopScan()
+            self.radarPeripheral?.delegate = nil
+        }
+    }
+
+    private func startRadarPollTimer() {
+        radarTimer?.cancel()
         radarTimer = nil
-        bleCentralManager?.stopScan()
-        radarPeripheral?.delegate = nil
+        let timer = DispatchSource.makeTimerSource(queue: bleRadarQueue)
+        timer.schedule(deadline: .now() + .milliseconds(50), repeating: .milliseconds(150))
+        timer.setEventHandler { [weak self] in
+            guard let self = self, self.isBleRadarActive, let periph = self.radarPeripheral else { return }
+            if periph.state == .connected {
+                periph.readRSSI()
+            }
+        }
+        timer.resume()
+        radarTimer = timer
     }
 
     private func beginBleRadarLookup() {
         guard isBleRadarActive, let central = bleCentralManager, central.state == .poweredOn else { return }
 
-        radarTimer?.invalidate()
+        radarTimer?.cancel()
         radarTimer = nil
 
         let serviceUUIDs = [
             CBUUID(string: "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"),
             CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"),
             CBUUID(string: "DE5BF728-D711-4E47-AF26-65E3012A5DC7"),
+            CBUUID(string: "FEE7"),
             CBUUID(string: "180F"),
-            CBUUID(string: "180D")
+            CBUUID(string: "180D"),
+            CBUUID(string: "180A"),
+            CBUUID(string: "1800")
         ]
         let connected = central.retrieveConnectedPeripherals(withServices: serviceUUIDs)
         let connectedMatch = connected.first(where: {
             isCandidateRingPeripheral(name: $0.name, uuidString: $0.identifier.uuidString)
         })
 
-        // Attach to already-connected peripheral to poll readRSSI() without hijacking disconnected link state
+        // Attach to already-connected peripheral to poll readRSSI() with 100% radio priority
         if let p = connectedMatch {
+            central.stopScan()
             radarPeripheral = p
             p.delegate = self
             if p.state == .connected {
                 p.readRSSI()
+                startRadarPollTimer()
             } else {
                 central.connect(p, options: nil)
-            }
-            radarTimer = Timer.scheduledTimer(withTimeInterval: 0.20, repeats: true) { [weak self] _ in
-                guard let self = self, self.isBleRadarActive, let periph = self.radarPeripheral else { return }
-                if periph.state == .connected {
-                    periph.readRSSI()
-                }
+                startRadarPollTimer()
             }
         } else {
             radarPeripheral = nil
+            // Disconnected / nearby ring: scan with AllowDuplicates for live advertising RSSI
+            central.scanForPeripherals(
+                withServices: nil,
+                options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+            )
         }
-
-        // Also scan with AllowDuplicates so a disconnected/nearby ring's advertising beacons emit live RSSI
-        central.scanForPeripherals(
-            withServices: nil,
-            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
-        )
     }
 
     private func dispatchBleRssiToWeb(rssi: Int, source: String, deviceId: String, name: String) {
@@ -469,14 +491,26 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
         if central.state == .poweredOn && isBleRadarActive {
             beginBleRadarLookup()
         } else if central.state != .poweredOn {
-            radarTimer?.invalidate()
+            radarTimer?.cancel()
             radarTimer = nil
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard isBleRadarActive, peripheral.identifier == radarPeripheral?.identifier else { return }
+        central.stopScan()
         peripheral.readRSSI()
+    }
+
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        guard isBleRadarActive, peripheral.identifier == radarPeripheral?.identifier else { return }
+        radarTimer?.cancel()
+        radarTimer = nil
+        radarPeripheral = nil
+        central.scanForPeripherals(
+            withServices: nil,
+            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+        )
     }
 
     func centralManager(
