@@ -27,17 +27,17 @@ interface RssiPoint {
 }
 
 function estimateMetersFromRssi(rssi: number): number {
-  // BLE smart ring reference RSSI @ 1m ≈ -58 dBm, indoor path-loss exponent n ≈ 2.2
-  const raw = Math.pow(10, (-58 - rssi) / (10 * 2.2));
-  const clamped = Math.max(0.2, Math.min(15.0, raw));
+  // Petite antenne bague titane : RSSI de référence @ 1m ≈ -62 dBm, exposant intérieur n ≈ 2.2
+  const raw = Math.pow(10, (-62 - rssi) / (10 * 2.2));
+  const clamped = Math.max(0.1, Math.min(15.0, raw));
   return Math.round(clamped * 10) / 10;
 }
 
 function getZoneFromRssi(rssi: number | null): ProximityZone {
   if (rssi === null) return 'searching';
-  if (rssi >= -53) return 'here';
-  if (rssi >= -64) return 'hot';
-  if (rssi >= -76) return 'warm';
+  if (rssi >= -56) return 'here';
+  if (rssi >= -66) return 'hot';
+  if (rssi >= -77) return 'warm';
   return 'cold';
 }
 
@@ -82,9 +82,17 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       if (!mounted) return;
       const now = sample.ts || Date.now();
 
-      // Lissage exponentiel (EMA) pour absorber le bruit multi-trajets BLE
+      // Filtre asymétrique rapide à la hausse (attaque instantanée dès qu'on s'approche, lissage doux aux baisses RF)
       const prev = emaRef.current;
-      const nextEma = prev === null ? sample.rssi : prev * 0.65 + sample.rssi * 0.35;
+      let nextEma: number;
+      if (prev === null) {
+        nextEma = sample.rssi;
+      } else if (sample.rssi >= prev) {
+        const gain = sample.rssi - prev >= 8 ? 0.85 : 0.72;
+        nextEma = prev * (1 - gain) + sample.rssi * gain;
+      } else {
+        nextEma = prev * 0.68 + sample.rssi * 0.32;
+      }
       emaRef.current = nextEma;
 
       const roundedRssi = Math.round(nextEma);
@@ -94,26 +102,26 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
       setLastSampleTs(now);
       setIsStale(false);
 
-      // Fenêtre glissante 10s pour calculer si on se rapproche ou s'éloigne
-      const buf = historyRef.current.filter((p) => now - p.ts <= 10000);
+      // Fenêtre glissante réactive (6s) pour indiquer immédiatement rapprochement / éloignement
+      const buf = historyRef.current.filter((p) => now - p.ts <= 6000);
       buf.push({ rssi: sample.rssi, ts: now });
       historyRef.current = buf;
 
-      const recent = buf.filter((p) => now - p.ts <= 2600);
-      const older = buf.filter((p) => now - p.ts > 2600 && now - p.ts <= 8500);
+      const recent = buf.filter((p) => now - p.ts <= 1400);
+      const older = buf.filter((p) => now - p.ts > 1400 && now - p.ts <= 4500);
 
       if (recent.length >= 2 && older.length >= 2) {
         const recentAvg = recent.reduce((s, p) => s + p.rssi, 0) / recent.length;
         const olderAvg = older.reduce((s, p) => s + p.rssi, 0) / older.length;
         const delta = recentAvg - olderAvg;
-        if (delta >= 2.2) {
+        if (delta >= 2.0) {
           setTrend('closer');
-        } else if (delta <= -2.2) {
+        } else if (delta <= -2.0) {
           setTrend('further');
         } else {
           setTrend('steady');
         }
-      } else if (buf.length >= 3) {
+      } else if (buf.length >= 2) {
         setTrend('steady');
       }
     };
@@ -147,10 +155,10 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
 
   // Retour haptique proportionnel au RSSI réel (Style Apple AirPods Chaud / Froid)
   useEffect(() => {
-    if (liveRssi === null || isStale) return;
+    if (zone === 'searching' || zone === 'cold' || isStale) return;
 
-    let intervalMs = 1400;
-    let pulsePattern: number | number[] = 25;
+    let intervalMs = 950;
+    let pulsePattern: number | number[] = 28;
 
     if (zone === 'here') {
       intervalMs = 340;
@@ -158,23 +166,22 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
     } else if (zone === 'hot') {
       intervalMs = 560;
       pulsePattern = 40;
-    } else if (zone === 'warm') {
-      intervalMs = 950;
-      pulsePattern = 28;
-    } else {
-      return;
     }
 
-    const timer = setInterval(() => {
+    const triggerPulse = () => {
       if (typeof window !== 'undefined' && 'vibrate' in navigator) {
         try {
           navigator.vibrate(pulsePattern);
         } catch (_) {}
       }
-    }, intervalMs);
+    };
+
+    // Impulsion immédiate dès le passage dans la zone (surtout "ICI")
+    triggerPulse();
+    const timer = setInterval(triggerPulse, intervalMs);
 
     return () => clearInterval(timer);
-  }, [zone, liveRssi, isStale]);
+  }, [zone, isStale]);
 
   // Flash matériel réel des LEDs optiques vertes + rouges sur la bague
   const handleFlashLeds = async () => {
@@ -453,7 +460,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
               height: '132px',
               borderRadius: '50%',
               transform: `scale(${zoneVisual.orbScale})`,
-              transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease, background 0.35s ease',
+              transition: 'transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, background 0.18s ease',
               background:
                 liveRssi !== null
                   ? `radial-gradient(circle, ${zoneVisual.accent}55 0%, ${zoneVisual.accent}1A 70%, transparent 100%)`
@@ -660,7 +667,7 @@ export const PrecisionFindingView: React.FC<PrecisionFindingViewProps> = ({
                     height: '100%',
                     background: zoneVisual.accent,
                     borderRadius: '999px',
-                    transition: 'width 0.3s ease, background 0.3s ease',
+                    transition: 'width 0.15s ease, background 0.15s ease',
                   }}
                 />
               </div>

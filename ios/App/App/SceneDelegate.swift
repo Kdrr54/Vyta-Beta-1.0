@@ -433,7 +433,7 @@ class MainViewController: CAPBridgeViewController, WKUIDelegate, CLLocationManag
             } else {
                 central.connect(p, options: nil)
             }
-            radarTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
+            radarTimer = Timer.scheduledTimer(withTimeInterval: 0.20, repeats: true) { [weak self] _ in
                 guard let self = self, self.isBleRadarActive, let periph = self.radarPeripheral else { return }
                 if periph.state == .connected {
                     periph.readRSSI()
