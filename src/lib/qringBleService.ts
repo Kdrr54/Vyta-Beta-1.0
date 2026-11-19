@@ -221,6 +221,8 @@ class QRingBleService {
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
+  private needsBoundaryAlign = false;
+  private boundaryAlignTimer: any = null;
   private isRealTimeHrActive = false;
   private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
@@ -257,6 +259,7 @@ class QRingBleService {
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
+            this.needsBoundaryAlign = Boolean(parsed?.needsAlign);
           }
         }
       } catch (_) {}
@@ -1615,9 +1618,14 @@ class QRingBleService {
 
     // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
     if (!force && this.lastProgrammedIntervalMinutes === mins) {
+      if (this.needsBoundaryAlign && mins > 0) {
+        this.scheduleBoundaryAlignment(mins);
+      }
       return true;
     }
 
+    const alignedNow = mins > 0 ? this.isNearClockBoundary(mins) : true;
+    this.needsBoundaryAlign = mins > 0 && !alignedNow;
     this.lastProgrammedIntervalMinutes = mins;
     if (typeof window !== 'undefined') {
       try {
@@ -1626,10 +1634,18 @@ class QRingBleService {
           JSON.stringify({
             deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
             minutes: mins,
+            needsAlign: this.needsBoundaryAlign,
             ts: Date.now(),
           })
         );
       } catch (_) {}
+    }
+
+    if (this.needsBoundaryAlign && mins > 0) {
+      this.scheduleBoundaryAlignment(mins);
+    } else if (this.boundaryAlignTimer) {
+      clearTimeout(this.boundaryAlignTimer);
+      this.boundaryAlignTimer = null;
     }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
     console.log(
@@ -1661,6 +1677,46 @@ class QRingBleService {
 
   public async setHeartRateInterval(minutes?: number): Promise<boolean> {
     return this.setAllSensorIntervals(minutes);
+  }
+
+  private isNearClockBoundary(intervalMins: number, now: Date = new Date()): boolean {
+    if (intervalMins <= 0) return true;
+    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, intervalMins);
+    const modMin = now.getMinutes() % stepMin;
+    const modSec = modMin * 60 + now.getSeconds();
+    const stepSec = stepMin * 60;
+    return modSec <= 90 || modSec >= stepSec - 90;
+  }
+
+  private scheduleBoundaryAlignment(intervalMins: number): void {
+    if (this.boundaryAlignTimer) {
+      clearTimeout(this.boundaryAlignTimer);
+      this.boundaryAlignTimer = null;
+    }
+    if (intervalMins <= 0) return;
+
+    const now = new Date();
+    if (this.isNearClockBoundary(intervalMins, now)) {
+      if (this.isConnected() && this.needsBoundaryAlign) {
+        this.setAllSensorIntervals(intervalMins, true);
+      }
+      return;
+    }
+
+    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, intervalMins);
+    const currentMin = now.getMinutes();
+    const nextSlotMin = Math.floor(currentMin / stepMin) * stepMin + stepMin;
+    const target = new Date(now.getTime());
+    target.setMinutes(nextSlotMin, 2, 0);
+    const delayMs = Math.max(2000, target.getTime() - now.getTime());
+
+    this.boundaryAlignTimer = setTimeout(() => {
+      this.boundaryAlignTimer = null;
+      if (this.isConnected() && this.needsBoundaryAlign && this.configuredIntervalMinutes === intervalMins) {
+        console.log(`[QRing BLE] Aligning hardware timer cleanly onto :00/:30 clock boundary (${intervalMins}m)...`);
+        this.setAllSensorIntervals(intervalMins, true);
+      }
+    }, delayMs);
   }
 
   /**
@@ -1790,9 +1846,7 @@ class QRingBleService {
    * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25, 0x26, 0x74)
    */
   public async requestTemperatureData(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 / 0x26 / 0x74)...');
-    await this.writeBytes(this.makePacket(0x3A, [0x03, 0x02, 0x01]));
-    await new Promise((r) => setTimeout(r, 60));
+    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 / 0x26 / 0x74 - 0 LEDs)...');
     await this.writeBytes(this.makePacket(0x75, [0x00]));
     await new Promise((r) => setTimeout(r, 60));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
@@ -2449,6 +2503,11 @@ class QRingBleService {
         if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
           await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
+        } else if (this.needsBoundaryAlign && this.isNearClockBoundary(this.configuredIntervalMinutes)) {
+          await this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
+          await new Promise((r) => setTimeout(r, 90));
+        } else if (this.needsBoundaryAlign && !this.boundaryAlignTimer) {
+          this.scheduleBoundaryAlignment(this.configuredIntervalMinutes);
         }
 
         // 3. Stored full-day heart rate logs
@@ -3592,8 +3651,13 @@ class QRingBleService {
       clearInterval(this.realTimeHrTimer);
       this.realTimeHrTimer = null;
     }
+    if (this.boundaryAlignTimer) {
+      clearTimeout(this.boundaryAlignTimer);
+      this.boundaryAlignTimer = null;
+    }
     if (manual) {
       this.lastProgrammedIntervalMinutes = null;
+      this.needsBoundaryAlign = false;
     }
     this.notify({ isConnected: false });
   }
