@@ -92,12 +92,12 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
 
   return (
     <div
-      className={`aurelius-backdrop ${isClosing ? 'is-closing' : ''}`}
+      className={`modal-backdrop aurelius-backdrop ${isClosing ? 'is-closing' : ''}`}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
       style={{
-        zIndex: 1200,
+        zIndex: 9100,
         position: 'fixed',
         top: 0,
         left: 0,
@@ -191,14 +191,16 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '10px',
             zIndex: 30,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
             <div
               style={{
                 width: '32px',
                 height: '32px',
+                flexShrink: 0,
                 borderRadius: '50%',
                 background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
                 border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
@@ -210,7 +212,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
             >
               <Sparkles size={15} color={isMono ? '#FAF7F2' : '#C084FC'} strokeWidth={1.8} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, paddingRight: '4px' }}>
               <span
                 style={{
                   fontSize: '15px',
@@ -232,13 +234,13 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
                 }}
               >
                 {isEn
-                  ? 'Biological Intelligence · Aurel Ring One'
-                  : 'Intelligence Biologique · Aurel Ring One'}
+                  ? 'Biological AI · Aurel Ring One'
+                  : 'Intelligence Bio · Aurel Ring One'}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => {
