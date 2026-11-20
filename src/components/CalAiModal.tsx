@@ -576,7 +576,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         />
 
         {/* Zone de Contenu Déroulant */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px 18px' }}>
+        <div key={activeTab} className="subtab-view" style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px 18px' }}>
           {activeTab === 'scan' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Cadre de Capture Aurel */}

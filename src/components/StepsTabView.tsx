@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Flame, Footprints, MapPin, RefreshCw, SlidersHorizontal, Target, Timer, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { emptyDayMetrics, weekMetrics } from '../data/health';
@@ -359,91 +360,98 @@ export const StepsTabView: React.FC = () => {
             </button>
           </div>
 
-          {editingGoal && (
-            <div
-              style={{
-                width: '100%',
-                marginTop: '12px',
-                padding: '10px',
-                borderRadius: '16px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.75)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Target size={12} color={accent} />
-                  {isEn ? 'Daily step goal' : 'Objectif quotidien'}
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => updateGoal(goal - 500)}
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.14)',
-                      background: 'rgba(255,255,255,0.06)',
-                      color: '#FAF7F2',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    −
-                  </button>
-                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2', minWidth: '56px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmtNum(goal)}
+          <AnimatePresence>
+            {editingGoal && (
+              <motion.div
+                key="steps-goal-editor"
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 440, damping: 32 }}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '10px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.75)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Target size={12} color={accent} />
+                    {isEn ? 'Daily step goal' : 'Objectif quotidien'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => updateGoal(goal + 500)}
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.14)',
-                      background: 'rgba(255,255,255,0.06)',
-                      color: '#FAF7F2',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {GOAL_PRESETS.map((preset) => {
-                  const active = goal === preset;
-                  return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button
-                      key={preset}
                       type="button"
-                      onClick={() => updateGoal(preset)}
+                      onClick={() => updateGoal(goal - 500)}
                       style={{
-                        flex: 1,
-                        minWidth: '52px',
-                        padding: '6px 4px',
-                        borderRadius: '10px',
-                        border: `1px solid ${active ? accentBorder : 'rgba(255, 255, 255, 0.1)'}`,
-                        background: active ? accentSoft : 'rgba(255, 255, 255, 0.04)',
-                        color: active ? accent : 'rgba(250, 247, 242, 0.72)',
-                        fontSize: '11px',
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#FAF7F2',
                         fontWeight: 700,
                         cursor: 'pointer',
                       }}
                     >
-                      {fmtNum(preset)}
+                      −
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#FAF7F2', minWidth: '56px', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtNum(goal)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateGoal(goal + 500)}
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.14)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: '#FAF7F2',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {GOAL_PRESETS.map((preset) => {
+                    const active = goal === preset;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => updateGoal(preset)}
+                        style={{
+                          flex: 1,
+                          minWidth: '52px',
+                          padding: '6px 4px',
+                          borderRadius: '10px',
+                          border: `1px solid ${active ? accentBorder : 'rgba(255, 255, 255, 0.1)'}`,
+                          background: active ? accentSoft : 'rgba(255, 255, 255, 0.04)',
+                          color: active ? accent : 'rgba(250, 247, 242, 0.72)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {fmtNum(preset)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

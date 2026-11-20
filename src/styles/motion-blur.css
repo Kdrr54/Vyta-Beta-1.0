@@ -222,28 +222,110 @@
 .motion-blur-press,
 button,
 [role="button"] {
-  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease, background-color 220ms ease, border-color 220ms ease;
+  transition:
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 180ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .motion-blur-press:active,
+button:active:not(:disabled),
 [role="button"]:active {
-  transform: scale(0.975);
+  transform: scale(0.962) translateZ(0);
+  transition-duration: 95ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.apple-press-card {
+  transition:
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms ease,
+    border-color 220ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.apple-press-card:active {
+  transform: scale(0.978) translateZ(0);
+  transition-duration: 100ms;
 }
 
 /* --------------------------------------------------------------------------
-   9. ACCESSIBILITY: PREFERS REDUCED MOTION
+   9. UNIVERSAL SUBTAB, CARD, PANEL & LIST STAGGER ANIMATIONS (GPU ONLY)
+   -------------------------------------------------------------------------- */
+.metric-tab-pane,
+.settings-tab-pane,
+.apple-panel-enter {
+  animation: applePanelEnter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes applePanelEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.988);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.apple-list-item {
+  animation: appleListItemEnter 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(min(var(--stagger-i, 0), 8) * 32ms);
+  will-change: transform, opacity;
+}
+
+@keyframes appleListItemEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* Fallback for any modal inner container using .modal-card */
+.modal-backdrop .modal-card {
+  animation: modalSheetSlideUp 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Lock page scroll behind Framer Motion backdrops too */
+body:has(.modal-backdrop-spring) .app-scroll-container,
+body:has(.modal-backdrop-spring),
+html:has(.modal-backdrop-spring) {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   10. ACCESSIBILITY: PREFERS REDUCED MOTION
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .apple-tab-view,
   .day-view-transition,
   .subtab-view,
+  .metric-tab-pane,
+  .settings-tab-pane,
+  .apple-panel-enter,
+  .apple-list-item,
   .modal-backdrop,
   .modal-sheet,
+  .modal-backdrop .modal-card,
   .metric-detail-sheet,
   .pairing-overlay-container,
   .tab-item.active svg {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transform: none !important;
   }
 }

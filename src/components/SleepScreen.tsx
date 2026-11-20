@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import { AnimatedSheet } from './ui/AnimatedSheet';
 import { useApp } from '../context/AppContext';
 import { weekMetrics, TODAY_INDEX, buildHypnogram, statusFor, emptyDayMetrics } from '../data/health';
 import { WeekSelector } from './WeekSelector';
@@ -1303,49 +1303,29 @@ export const SleepScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal / Bottom Sheet : Ajuster les heures de sommeil (24h/24) via Portal pour éviter tout décalage */}
-      {showAdjustSleepModal && typeof document !== 'undefined' && createPortal(
-        <div
-          className="modal-backdrop"
-          onClick={() => setShowAdjustSleepModal(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 10002,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            padding: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(14px)',
-            WebkitBackdropFilter: 'blur(14px)',
-          }}
-        >
-          <div
-            className="modal-sheet"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '430px',
-              margin: '0 auto',
-              background: '#121218',
-              borderTopLeftRadius: '28px',
-              borderTopRightRadius: '28px',
-              border: '1px solid rgba(167, 139, 250, 0.25)',
-              borderBottom: 'none',
-              padding: '16px 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
-              animation: 'slideUp 260ms cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            {/* Grabber */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
-              <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
-            </div>
+      {/* Modal / Bottom Sheet : Ajuster les heures de sommeil (AnimatedSheet) */}
+      <AnimatedSheet
+        isOpen={showAdjustSleepModal}
+        onClose={() => setShowAdjustSleepModal(false)}
+        backdropStyle={{
+          zIndex: 10002,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+        }}
+        sheetStyle={{
+          background: '#121218',
+          border: '1px solid rgba(167, 139, 250, 0.25)',
+          borderBottom: 'none',
+          padding: '16px 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px',
+          gap: '16px',
+          boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
+        }}
+      >
+        {/* Grabber */}
+        <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+        </div>
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1532,10 +1512,7 @@ export const SleepScreen: React.FC = () => {
               <Check size={16} />
               <span>{isEn ? 'Save & Calculate Cycles' : 'Valider et Calculer les Cycles'}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
+      </AnimatedSheet>
     </div>
   );
 };

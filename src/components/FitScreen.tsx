@@ -14,7 +14,8 @@ function calculateGpsDistanceMeters(lat1: number, lon1: number, lat2: number, lo
 }
 
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatedSheet, SPRING_SNAPPY } from './ui/AnimatedSheet';
 import { useApp } from '../context/AppContext';
 import { qringBle } from '../lib/qringBleService';
 import { run, zones, routeRaw, fitRoute, toPath } from '../data/fit';
@@ -306,8 +307,15 @@ export const FitScreen: React.FC = () => {
   const [newRouteDist, setNewRouteDist] = useState<string>('5.0');
   const [newRouteLoc, setNewRouteLoc] = useState<string>('Paris');
   const [viewingRouteForMap, setViewingRouteForMap] = useState<StoredRoute | null>(null);
+  const lastViewingRouteRef = useRef<StoredRoute | null>(null);
+  if (viewingRouteForMap) lastViewingRouteRef.current = viewingRouteForMap;
+  const activeViewingRoute = viewingRouteForMap || lastViewingRouteRef.current;
+
   const [routeModalTab, setRouteModalTab] = useState<'map' | 'charts'>('map');
   const [managingRoute, setManagingRoute] = useState<StoredRoute | null>(null);
+  const lastManagingRouteRef = useRef<StoredRoute | null>(null);
+  if (managingRoute) lastManagingRouteRef.current = managingRoute;
+  const activeManagingRoute = managingRoute || lastManagingRouteRef.current;
   const [editingRouteTitle, setEditingRouteTitle] = useState<string>('');
   const [showRouteDeleteConfirm, setShowRouteDeleteConfirm] = useState<boolean>(false);
   const [isSimulatingRoute, setIsSimulatingRoute] = useState<boolean>(false);
@@ -1868,6 +1876,8 @@ export const FitScreen: React.FC = () => {
           {/* Liste compacte et lisible des trajets */}
           {filteredRoutes.length === 0 ? (
             <div
+              key={`empty-${routeFilter}`}
+              className="apple-panel-enter"
               style={{
                 padding: '28px 18px',
                 borderRadius: '18px',
@@ -1881,8 +1891,8 @@ export const FitScreen: React.FC = () => {
               {isEn ? 'No sessions in this filter yet.' : 'Aucune séance enregistrée dans ce filtre.'}
             </div>
           ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-            {filteredRoutes.map((route) => {
+          <div key={`list-${routeFilter}`} style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {filteredRoutes.map((route, idx) => {
               const visual = getRouteThumbnailSvg(route);
               const avgSpeedStr =
                 route.distanceKm > 0 && route.durationSec > 0
@@ -1893,6 +1903,7 @@ export const FitScreen: React.FC = () => {
               return (
               <div
                 key={route.id}
+                className="apple-list-item apple-press-card"
                 onClick={() => {
                   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
                     try { navigator.vibrate(20); } catch (_) {}
@@ -1901,6 +1912,7 @@ export const FitScreen: React.FC = () => {
                   setViewingRouteForMap(route);
                 }}
                 style={{
+                  ['--stagger-i' as string]: idx,
                   padding: '12px',
                   display: 'flex',
                   alignItems: 'center',
@@ -2089,37 +2101,19 @@ export const FitScreen: React.FC = () => {
         );
       })()}
 
-      {/* Modal Nouveau Trajet Manuel (Portal root sans scroll arrière-plan) */}
-      {showNewRouteModal && typeof document !== 'undefined' && createPortal(
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            padding: 0,
-          }}
-          onClick={() => setShowNewRouteModal(false)}
-        >
-          <div
-            className="modal-sheet"
-            style={{
-              background: '#141418',
-              borderTop: '1px solid rgba(255, 255, 255, 0.15)',
-              width: '100%',
-              maxWidth: '430px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+      {/* Modal Nouveau Trajet Manuel (AnimatedSheet) */}
+      <AnimatedSheet
+        isOpen={showNewRouteModal}
+        onClose={() => setShowNewRouteModal(false)}
+        sheetStyle={{
+          background: '#141418',
+          borderTop: '1px solid rgba(255, 255, 255, 0.15)',
+          gap: '14px',
+        }}
+      >
+        <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+        </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '17px', fontWeight: 700, color: '#FFFFFF' }}>Nouveau Trajet</span>
               <button
@@ -2227,16 +2221,13 @@ export const FitScreen: React.FC = () => {
                 {isEn ? 'Create & Save' : 'Créer et Enregistrer'}
               </button>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      </AnimatedSheet>
 
       {/* ==================== 3. MODE MUSCULATION (GYM LOGGER) ==================== */}
       {subTab === 'gym' && (
         !isWorkoutActive ? (
           /* ==================== VUE 1 : SÉANCE PERSONNALISÉE (SANS DOUBLON) ==================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div key="gym-home" className="apple-panel-enter" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {exercises.length > 0 ? (
               <>
                 <div
@@ -2338,7 +2329,7 @@ export const FitScreen: React.FC = () => {
           </div>
         ) : (
           /* ==================== VUE 2 : EXERCICES & SÉANCES ACTIVES ==================== */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div key="gym-active" className="apple-panel-enter" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Header de la Séance Personnalisée */}
             <div className="session-header-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -2733,10 +2724,19 @@ export const FitScreen: React.FC = () => {
       )}
       </div>
 
-      {/* ==================== MODAL AJOUTER UN EXERCICE (PORTAL + CONFIG SÉRIE PAR SÉRIE) ==================== */}
-      {showAddModal && typeof document !== 'undefined' && createPortal(
-        <div className="modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+      {/* ==================== MODAL AJOUTER UN EXERCICE (AnimatedSheet) ==================== */}
+      <AnimatedSheet
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        sheetClassName="modal-sheet-styled"
+        sheetStyle={{
+          background: '#141418',
+          gap: '14px',
+        }}
+      >
+        <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+        </div>
             <div className="modal-header">
               <div>
                 <span
@@ -3071,15 +3071,21 @@ export const FitScreen: React.FC = () => {
               <Plus size={15} />
               <span>{isEn ? 'Confirm & Add to Workout' : 'Valider et Ajouter à la Séance'}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
+      </AnimatedSheet>
 
-      {/* ==================== MODAL NOUVELLE SÉANCE (PORTAL ROOT) ==================== */}
-      {showNewSessionModal && typeof document !== 'undefined' && createPortal(
-        <div className="modal-backdrop" onClick={() => setShowNewSessionModal(false)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+      {/* ==================== MODAL NOUVELLE SÉANCE (AnimatedSheet) ==================== */}
+      <AnimatedSheet
+        isOpen={showNewSessionModal}
+        onClose={() => setShowNewSessionModal(false)}
+        sheetClassName="modal-sheet-styled"
+        sheetStyle={{
+          background: '#141418',
+          gap: '14px',
+        }}
+      >
+        <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+        </div>
             <div className="modal-header">
               <div>
                 <span
@@ -3129,10 +3135,7 @@ export const FitScreen: React.FC = () => {
               <Check size={15} />
               <span>{isEn ? 'Start this workout' : 'Démarrer cette séance'}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
+      </AnimatedSheet>
 
       {/* Modal Paramètres de l'exercice */}
       {managingExId && (
@@ -3162,61 +3165,36 @@ export const FitScreen: React.FC = () => {
       )}
 
       {/* Modal Dédiée : Visualisation du trajet sur Apple Maps & Simulation */}
-      {viewingRouteForMap && typeof document !== 'undefined' && createPortal(
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setIsSimulatingRoute(false);
-            setSimProgress(0);
-            setViewingRouteForMap(null);
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            width: '100vw',
-            height: '100dvh',
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            padding: 0,
-            background: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            overflow: 'hidden',
-            touchAction: 'none',
-            overscrollBehavior: 'none',
-          }}
-        >
-          <div
-            className="modal-card"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '430px',
-              height: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
-              maxHeight: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
-              margin: '0 auto',
-              background: '#0D0E12',
-              borderTopLeftRadius: '28px',
-              borderTopRightRadius: '28px',
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 0,
-              border: '1px solid rgba(255, 255, 255, 0.14)',
-              borderBottom: 'none',
-              padding: '14px 16px calc(14px + env(safe-area-inset-bottom, 10px)) 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.95)',
-              overflow: routeModalTab === 'charts' ? 'auto' : 'hidden',
-              touchAction: routeModalTab === 'charts' ? 'pan-y' : 'none',
-              overscrollBehavior: 'none',
-            }}
-          >
+      <AnimatedSheet
+        isOpen={Boolean(viewingRouteForMap)}
+        onClose={() => {
+          setIsSimulatingRoute(false);
+          setSimProgress(0);
+          setViewingRouteForMap(null);
+        }}
+        backdropStyle={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          touchAction: 'none',
+          overscrollBehavior: 'none',
+        }}
+        sheetStyle={{
+          height: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 24px) - 20px)',
+          background: '#0D0E12',
+          padding: '14px 16px calc(14px + env(safe-area-inset-bottom, 10px)) 16px',
+          gap: '10px',
+          boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.95)',
+          overflow: routeModalTab === 'charts' ? 'auto' : 'hidden',
+          touchAction: routeModalTab === 'charts' ? 'pan-y' : 'none',
+          overscrollBehavior: 'none',
+        }}
+      >
+        {activeViewingRoute && ((viewingRouteForMap) => (
+          <>
             {/* Grabber Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-2px', marginBottom: '2px', flexShrink: 0 }}>
+            <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-2px', marginBottom: '2px', flexShrink: 0, padding: '4px 0', cursor: 'grab' }}>
               <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.28)' }} />
             </div>
 
@@ -3345,6 +3323,8 @@ export const FitScreen: React.FC = () => {
 
             {routeModalTab === 'charts' ? (
               <div
+                key="route-charts-pane"
+                className="apple-panel-enter"
                 style={{
                   flex: 1,
                   minHeight: 0,
@@ -3745,60 +3725,27 @@ export const FitScreen: React.FC = () => {
                 </div>
               </>
             )}
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        ))(activeViewingRoute)}
+      </AnimatedSheet>
 
       {/* Modal / Bottom Sheet: Gestionnaire de Trajet (3 petits points) */}
-      {managingRoute && typeof document !== 'undefined' && createPortal(
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setManagingRoute(null);
-            setShowRouteDeleteConfirm(false);
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            width: '100vw',
-            height: '100dvh',
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            padding: 0,
-            background: 'rgba(0, 0, 0, 0.78)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            className="modal-card"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '430px',
-              margin: '0 auto',
-              background: 'rgba(18, 18, 22, 0.98)',
-              borderTopLeftRadius: '28px',
-              borderTopRightRadius: '28px',
-              borderBottomLeftRadius: 0,
-              borderBottomRightRadius: 0,
-              border: '1px solid rgba(255, 255, 255, 0.14)',
-              borderBottom: 'none',
-              padding: '16px 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.85)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-          >
+      <AnimatedSheet
+        isOpen={Boolean(managingRoute)}
+        onClose={() => {
+          setManagingRoute(null);
+          setShowRouteDeleteConfirm(false);
+        }}
+        sheetStyle={{
+          background: 'rgba(18, 18, 22, 0.98)',
+          gap: '16px',
+          padding: '16px 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px',
+        }}
+      >
+        {activeManagingRoute && ((managingRoute) => (
+          <>
             {/* Grabber Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+            <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px', padding: '4px 0', cursor: 'grab' }}>
               <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
             </div>
 
@@ -4080,82 +4027,96 @@ export const FitScreen: React.FC = () => {
 
             {/* Zone de suppression */}
             <div style={{ paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-              {!showRouteDeleteConfirm ? (
-                <button
-                  type="button"
-                  onClick={() => setShowRouteDeleteConfirm(true)}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 69, 58, 0.1)',
-                    border: '1px solid rgba(255, 69, 58, 0.25)',
-                    color: '#FF453A',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <Trash2 size={15} />
-                  <span>{isEn ? 'Delete this route' : 'Supprimer ce trajet'}</span>
-                </button>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 69, 58, 0.08)', border: '1px solid rgba(255, 69, 58, 0.3)', borderRadius: '12px', padding: '12px' }}>
-                  <div style={{ fontSize: '12.5px', color: '#FFFFFF', textAlign: 'center', fontWeight: 500 }}>
-                    {isEn ? 'Are you sure you want to delete this route?' : 'Voulez-vous vraiment supprimer ce trajet ?'}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowRouteDeleteConfirm(false)}
-                      style={{
-                        flex: 1,
-                        padding: '9px',
-                        borderRadius: '8px',
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        color: '#FFFFFF',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isEn ? 'Cancel' : 'Annuler'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const idToDelete = managingRoute.id;
-                        deleteRoute(idToDelete);
-                        setManagingRoute(null);
-                        setShowRouteDeleteConfirm(false);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '9px',
-                        borderRadius: '8px',
-                        background: '#FF453A',
-                        border: 'none',
-                        color: '#FFFFFF',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isEn ? 'Confirm Delete' : 'Confirmer'}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                {!showRouteDeleteConfirm ? (
+                  <motion.button
+                    key="delete-trigger"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    transition={SPRING_SNAPPY}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setShowRouteDeleteConfirm(true)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      background: 'rgba(255, 69, 58, 0.1)',
+                      border: '1px solid rgba(255, 69, 58, 0.25)',
+                      color: '#FF453A',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    <span>{isEn ? 'Delete this route' : 'Supprimer ce trajet'}</span>
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="delete-confirm"
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={SPRING_SNAPPY}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 69, 58, 0.08)', border: '1px solid rgba(255, 69, 58, 0.3)', borderRadius: '12px', padding: '12px' }}
+                  >
+                    <div style={{ fontSize: '12.5px', color: '#FFFFFF', textAlign: 'center', fontWeight: 500 }}>
+                      {isEn ? 'Are you sure you want to delete this route?' : 'Voulez-vous vraiment supprimer ce trajet ?'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowRouteDeleteConfirm(false)}
+                        style={{
+                          flex: 1,
+                          padding: '9px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          color: '#FFFFFF',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isEn ? 'Cancel' : 'Annuler'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idToDelete = managingRoute.id;
+                          deleteRoute(idToDelete);
+                          setManagingRoute(null);
+                          setShowRouteDeleteConfirm(false);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '9px',
+                          borderRadius: '8px',
+                          background: '#FF453A',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isEn ? 'Confirm Delete' : 'Confirmer'}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        ))(activeManagingRoute)}
+      </AnimatedSheet>
       </div>
 
       {/* Live Running Screen (Strava / Apple Fitness Native Experience) */}

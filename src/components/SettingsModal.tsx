@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { useModalAnimation } from '../hooks/useModalAnimation';
 import { finishes, calculateEstimatedBatteryDays, formatRemainingBatteryTime } from '../data/health';
@@ -413,6 +414,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     setActiveTab(tab.id);
                   }}
                   style={{
+                    position: 'relative',
                     flex: 1,
                     display: 'flex',
                     alignItems: 'center',
@@ -420,18 +422,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     gap: '5px',
                     padding: '8px 4px',
                     borderRadius: '10px',
-                    background: isActive ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                    border: isActive ? '1px solid rgba(255, 255, 255, 0.18)' : '1px solid transparent',
+                    background: 'transparent',
+                    border: '1px solid transparent',
                     color: isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
                     fontSize: '11.5px',
                     fontWeight: isActive ? 700 : 500,
                     cursor: 'pointer',
-                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-                    boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.4)' : 'none',
+                    transition: 'color 0.18s ease',
                   }}
                 >
-                  <span style={{ opacity: isActive ? 1 : 0.7 }}>{tab.icon}</span>
-                  <span>{tab.label}</span>
+                  {isActive && (
+                    <motion.span
+                      layoutId="settingsTabPill"
+                      transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: '10px',
+                        background: 'rgba(255, 255, 255, 0.12)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+                        zIndex: 0,
+                      }}
+                    />
+                  )}
+                  <span style={{ position: 'relative', zIndex: 1, opacity: isActive ? 1 : 0.7 }}>{tab.icon}</span>
+                  <span style={{ position: 'relative', zIndex: 1 }}>{tab.label}</span>
                 </button>
               );
             })}
@@ -458,7 +474,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               TAB 1: BAGUE & MATÉRIEL (HARDWARE & BLE)
               ========================================================== */}
           {activeTab === 'ring' && (
-            <>
+            <div key="settings-ring" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* 1. Hero Ring Card */}
               <div
                 style={{
@@ -1314,14 +1330,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </>
                 )}
               </div>
-            </>
+            </div>
           )}
 
           {/* ==========================================================
               TAB 2: PROFIL BIOMÉTRIQUE & MORPHOLOGIE
               ========================================================== */}
           {activeTab === 'profile' && (
-            <>
+            <div key="settings-profile" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Sexe Biologique Switcher */}
               <div
                 style={{
@@ -1694,14 +1710,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </button>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* ==========================================================
               TAB 3: CAPTEURS BIOMÉTRIQUES & AUTONOMIE
               ========================================================== */}
           {activeTab === 'sensors' && (
-            <>
+            <div key="settings-sensors" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Presets d'autonomie Card */}
               <div
                 style={{
@@ -1940,14 +1956,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   ))}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* ==========================================================
               TAB 4: SYSTÈME, ÉCOSYSTÈME & PRÉFÉRENCES
               ========================================================== */}
           {activeTab === 'system' && (
-            <>
+            <div key="settings-system" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Écosystème Connecté (HealthKit & APNs) */}
               <div
                 style={{
@@ -2317,7 +2333,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     : 'Aurel Labs LLC (New Mexico, USA) · Modèle Zéro Abonnement'}
                 </span>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>

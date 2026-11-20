@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, X, Check, ExternalLink, Key, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { AnimatedSheet } from './ui/AnimatedSheet';
 import { testGeminiApiKey, getStoredGeminiKey, setStoredGeminiKey } from '../lib/geminiService';
 
 interface GeminiApiKeyModalProps {
@@ -17,8 +18,6 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
   const [showKey, setShowKey] = useState<boolean>(false);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-
-  if (!isOpen) return null;
 
   const handleTestAndSave = async () => {
     const clean = apiKey.trim();
@@ -63,43 +62,29 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
   };
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
+    <AnimatedSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      centered
+      portal={false}
+      backdropStyle={{
         background: 'rgba(0, 0, 0, 0.75)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        animation: 'fadeIn 200ms ease',
+      }}
+      sheetStyle={{
+        width: '100%',
+        maxWidth: '440px',
+        borderRadius: '26px',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(217, 249, 112, 0.18) 0%, rgba(10, 10, 12, 0.98) 75%), #0A0A0E',
+        border: '1px solid rgba(217, 249, 112, 0.35)',
+        boxShadow: '0 24px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(217, 249, 112, 0.15)',
+        padding: '22px 20px',
+        gap: '14px',
+        color: '#FAF7F2',
+        position: 'relative',
       }}
     >
-      <div
-        className="modal-sheet"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: '440px',
-          borderRadius: '26px',
-          background: 'radial-gradient(ellipse at 50% 0%, rgba(217, 249, 112, 0.18) 0%, rgba(10, 10, 12, 0.98) 75%), #0A0A0E',
-          border: '1px solid rgba(217, 249, 112, 0.35)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(217, 249, 112, 0.15)',
-          padding: '22px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          color: '#FAF7F2',
-          position: 'relative',
-        }}
-      >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
@@ -336,7 +321,6 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
             )}
           </button>
         </div>
-      </div>
-    </div>
+    </AnimatedSheet>
   );
 };

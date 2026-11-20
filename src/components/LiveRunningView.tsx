@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatedSheet } from './ui/AnimatedSheet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ChevronDown, Settings, Compass, Layers, Navigation, Maximize2, Pause, Play, Square, Zap, X, Heart, Share2, Flame, Activity, Plus, Minus } from 'lucide-react';
@@ -1330,37 +1331,32 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         )}
       </div>
 
-      {/* SETTINGS MODAL DIALOG */}
-      {isSettingsOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 900,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            animation: 'fadeIn 200ms ease',
-          }}
-          onClick={() => setIsSettingsOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: '#161618',
-              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
-              borderTopLeftRadius: '24px',
-              borderTopRightRadius: '24px',
-              padding: '20px 20px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* SETTINGS MODAL DIALOG (AnimatedSheet) */}
+      <AnimatedSheet
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        portal={false}
+        backdropStyle={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 900,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+        sheetStyle={{
+          background: '#161618',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          borderTopLeftRadius: '24px',
+          borderTopRightRadius: '24px',
+          padding: '16px 20px calc(max(24px, env(safe-area-inset-bottom)) + 16px) 20px',
+          gap: '16px',
+        }}
+      >
+        <div data-sheet-drag-handle="true" style={{ display: 'flex', justifyContent: 'center', marginTop: '-4px' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '999px', background: 'rgba(255, 255, 255, 0.25)' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#FFF', margin: 0 }}>Réglages Course GPS</h3>
               <button
                 type="button"
@@ -1450,9 +1446,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                 Recentrer 🎯
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </AnimatedSheet>
     </div>
   );
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useModalAnimation } from '../hooks/useModalAnimation';
 import { Sun, X } from 'lucide-react';
 
 interface NapModalProps {
@@ -8,6 +9,7 @@ interface NapModalProps {
 
 export const NapModal: React.FC<NapModalProps> = ({ onClose }) => {
   const { language, addManualNap, initialNapPreset } = useApp();
+  const { isClosing, handleClose } = useModalAnimation(onClose);
   const isEn = language === 'en';
 
   const [napPreset, setNapPreset] = useState<'power' | 'restful' | 'cycle'>(
@@ -52,13 +54,13 @@ export const NapModal: React.FC<NapModalProps> = ({ onClose }) => {
       lightMin: napPreset === 'power' ? napDurationMin : (napPreset === 'restful' ? Math.round(napDurationMin * 0.7) : Math.round(napDurationMin * 0.55)),
       remMin: napPreset === 'cycle' ? Math.round(napDurationMin * 0.2) : 0,
     });
-    onClose();
+    handleClose();
   };
 
   return (
     <div
-      className="modal-backdrop"
-      onClick={onClose}
+      className={`modal-backdrop ${isClosing ? 'is-closing' : ''}`}
+      onClick={handleClose}
       style={{
         position: 'fixed',
         inset: 0,
@@ -73,7 +75,7 @@ export const NapModal: React.FC<NapModalProps> = ({ onClose }) => {
       }}
     >
       <div
-        className="modal-sheet"
+        className={`modal-sheet ${isClosing ? 'is-closing' : ''}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -88,7 +90,6 @@ export const NapModal: React.FC<NapModalProps> = ({ onClose }) => {
           boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.9)',
           maxHeight: '90vh',
           overflow: 'hidden',
-          animation: 'slideUp 240ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Grabber */}
@@ -124,7 +125,7 @@ export const NapModal: React.FC<NapModalProps> = ({ onClose }) => {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Fermer"
             style={{
               background: 'rgba(255, 255, 255, 0.08)',
