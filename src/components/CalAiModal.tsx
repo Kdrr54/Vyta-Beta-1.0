@@ -33,7 +33,8 @@ import {
 } from 'lucide-react';
 
 interface CalAiModalProps {
-  onClose: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
   initialImage?: { base64: string; mimeType: string; dataUrl: string };
 }
 
@@ -52,9 +53,9 @@ function formatDateKeyLabel(dateKey: string, isEn: boolean): string {
   return shortDate;
 }
 
-export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage }) => {
+export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = false, initialImage }) => {
   const { language, weekData, selectedDay, selectedDateKey, cardThemeMode } = useApp();
-  const { isClosing, handleClose } = useModalAnimation(onClose);
+  const { isClosing, handleClose } = useModalAnimation(onClose || (() => {}));
   const isEn = language === 'en';
   const isMono = cardThemeMode === 'monochrome';
   const accent = isMono ? '#FAF7F2' : '#C084FC';
@@ -188,167 +189,10 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
   const carbsPercent = Math.min(100, Math.round((dailySummary.carbs / dailyTargets.carbs) * 100));
   const fatPercent = Math.min(100, Math.round((dailySummary.fat / dailyTargets.fat) * 100));
 
-  return (
-    <div
-      className={`calai-backdrop ${isClosing ? 'is-closing' : ''}`}
-      onClick={handleClose}
-      role="dialog"
-      aria-modal="true"
-      style={{
-        zIndex: 1300,
-        position: 'fixed',
-        inset: 0,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        background: 'rgba(0, 0, 0, 0.74)',
-      }}
-    >
-      <style>{`
-        @keyframes calaiBackdropIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes calaiBackdropOut {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-        .calai-backdrop {
-          animation: calaiBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-          will-change: opacity;
-        }
-        .calai-backdrop.is-closing {
-          animation: calaiBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
-          pointer-events: none;
-        }
-        @keyframes calaiSheetSlideUp {
-          0% {
-            transform: translate3d(0, 100%, 0);
-            opacity: 0.75;
-          }
-          100% {
-            transform: translate3d(0, 0, 0);
-            opacity: 1;
-          }
-        }
-        @keyframes calaiSheetSlideDown {
-          0% {
-            transform: translate3d(0, 0, 0);
-            opacity: 1;
-          }
-          100% {
-            transform: translate3d(0, 100%, 0);
-            opacity: 0;
-          }
-        }
-        .calai-sheet {
-          animation: calaiSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
-          will-change: transform, opacity;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-        .calai-sheet.is-closing {
-          animation: calaiSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
-        }
-      `}</style>
-      <div
-        className={`calai-sheet ${isClosing ? 'is-closing' : ''}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: '430px',
-          height: '92vh',
-          maxHeight: '880px',
-          background: isMono
-            ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
-            : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
-          borderRadius: '30px 30px 0 0',
-          border: isMono
-            ? '1px solid rgba(255, 248, 240, 0.16)'
-            : '1px solid rgba(192, 132, 252, 0.28)',
-          borderBottom: 'none',
-          boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {/* Barre de préhension iOS */}
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '10px 0 4px 0' }}>
-          <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255, 248, 240, 0.2)' }} />
-        </div>
-
-        {/* En-tête Aurel Labs · Aurelius Nutrition */}
-        <div
-          style={{
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255, 248, 240, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
-                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: isMono ? 'none' : '0 0 12px rgba(192, 132, 252, 0.22)',
-              }}
-            >
-              <Sparkles size={16} color={accent} strokeWidth={1.8} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '17px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
-                  Aurelius
-                </span>
-                <span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.45)' }}>
-                  ·
-                </span>
-                <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.88)' }}>
-                  Nutrition
-                </span>
-              </div>
-              <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)' }}>
-                {isEn ? 'Biological Vision & Aurel Balance' : 'Vision Biologique & Équilibre Aurel'}
-              </span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Fermer"
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.07)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: 'rgba(250, 247, 242, 0.8)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background 0.18s ease',
-            }}
-          >
-            <X size={16} />
-          </button>
-        </div>
-
+  const innerBody = (
+    <>
         {/* Onglets Aurel Nutrition */}
-        <div style={{ display: 'flex', padding: '10px 18px', gap: '8px' }}>
+        <div style={{ display: 'flex', padding: embedded ? '0 0 10px 0' : '10px 18px', gap: '8px' }}>
           <button
             type="button"
             onClick={() => setActiveTab('scan')}
@@ -407,7 +251,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         {/* Sélecteur de jour (Historique & saisie jour par jour) */}
         <div
           style={{
-            margin: '0 18px 10px 18px',
+            margin: embedded ? '0 0 10px 0' : '0 18px 10px 18px',
             padding: '7px 10px',
             borderRadius: '14px',
             background: 'rgba(255, 255, 255, 0.035)',
@@ -469,7 +313,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         {/* Carte Énergie & Métabolisme de la journée */}
         <div
           style={{
-            margin: '0 18px 12px 18px',
+            margin: embedded ? '0 0 12px 0' : '0 18px 12px 18px',
             padding: '14px 16px',
             borderRadius: '22px',
             background: isMono
@@ -576,7 +420,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
         />
 
         {/* Zone de Contenu Déroulant */}
-        <div key={activeTab} className="subtab-view" style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px 18px' }}>
+        <div
+          key={activeTab}
+          className="subtab-view"
+          style={
+            embedded
+              ? { display: 'flex', flexDirection: 'column', gap: '12px' }
+              : { flex: 1, overflowY: 'auto', padding: '0 18px 24px 18px' }
+          }
+        >
           {activeTab === 'scan' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Cadre de Capture Aurel */}
@@ -1142,6 +994,177 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, initialImage })
             </div>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingBottom: '16px' }}>
+        {innerBody}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`calai-backdrop ${isClosing ? 'is-closing' : ''}`}
+      onClick={handleClose}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        zIndex: 1300,
+        position: 'fixed',
+        inset: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        background: 'rgba(0, 0, 0, 0.74)',
+      }}
+    >
+      <style>{`
+        @keyframes calaiBackdropIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes calaiBackdropOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        .calai-backdrop {
+          animation: calaiBackdropIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: opacity;
+        }
+        .calai-backdrop.is-closing {
+          animation: calaiBackdropOut 200ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+          pointer-events: none;
+        }
+        @keyframes calaiSheetSlideUp {
+          0% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0.75;
+          }
+          100% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+        }
+        @keyframes calaiSheetSlideDown {
+          0% {
+            transform: translate3d(0, 0, 0);
+            opacity: 1;
+          }
+          100% {
+            transform: translate3d(0, 100%, 0);
+            opacity: 0;
+          }
+        }
+        .calai-sheet {
+          animation: calaiSheetSlideUp 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .calai-sheet.is-closing {
+          animation: calaiSheetSlideDown 220ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+        }
+      `}</style>
+      <div
+        className={`calai-sheet ${isClosing ? 'is-closing' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: '430px',
+          height: '92vh',
+          maxHeight: '880px',
+          background: isMono
+            ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
+            : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
+          borderRadius: '30px 30px 0 0',
+          border: isMono
+            ? '1px solid rgba(255, 248, 240, 0.16)'
+            : '1px solid rgba(192, 132, 252, 0.28)',
+          borderBottom: 'none',
+          boxShadow: '0 -20px 50px rgba(0, 0, 0, 0.95)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        {/* Barre de préhension iOS */}
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '10px 0 4px 0' }}>
+          <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'rgba(255, 248, 240, 0.2)' }} />
+        </div>
+
+        {/* En-tête Aurel Labs · Aurelius Nutrition */}
+        <div
+          style={{
+            padding: '12px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid rgba(255, 248, 240, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: isMono ? 'rgba(255, 255, 255, 0.08)' : 'rgba(192, 132, 252, 0.16)',
+                border: isMono ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid rgba(192, 132, 252, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: isMono ? 'none' : '0 0 12px rgba(192, 132, 252, 0.22)',
+              }}
+            >
+              <Sparkles size={16} color={accent} strokeWidth={1.8} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '17px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.3px' }}>
+                  Aurelius
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: 400, color: 'rgba(250, 247, 242, 0.45)' }}>
+                  ·
+                </span>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.88)' }}>
+                  Nutrition
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)' }}>
+                {isEn ? 'Biological Vision & Aurel Balance' : 'Vision Biologique & Équilibre Aurel'}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="Fermer"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.07)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              color: 'rgba(250, 247, 242, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.18s ease',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {innerBody}
       </div>
     </div>
   );

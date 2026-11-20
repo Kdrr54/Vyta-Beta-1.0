@@ -26,6 +26,7 @@ import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
 import { StepsTabView } from './StepsTabView';
+import { CalAiModal } from './CalAiModal';
 import { 
   Zap,
   Flame, 
@@ -214,27 +215,35 @@ export const FitScreen: React.FC = () => {
   const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile, todayIndex } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const resolveInitialFitSubTab = (): 'steps' | 'run' | 'trajets' | 'gym' => {
+  const resolveInitialFitSubTab = (): 'steps' | 'run' | 'gym' | 'nutrition' => {
     if (typeof window !== 'undefined') {
       try {
         const pending = sessionStorage.getItem('vyta_pending_fit_subtab');
-        if (pending === 'steps' || pending === 'run' || pending === 'trajets' || pending === 'gym') {
+        if (pending === 'steps' || pending === 'run' || pending === 'gym' || pending === 'nutrition') {
           sessionStorage.removeItem('vyta_pending_fit_subtab');
           return pending;
+        }
+        if (pending === 'trajets') {
+          sessionStorage.removeItem('vyta_pending_fit_subtab');
+          return 'run';
         }
       } catch (_) {}
     }
     const q = params?.get('fit');
-    if (q === 'steps' || q === 'run' || q === 'trajets' || q === 'gym') return q;
+    if (q === 'steps' || q === 'run' || q === 'gym' || q === 'nutrition') return q;
+    if (q === 'trajets') return 'run';
     return 'steps';
   };
-  const [subTab, setSubTab] = useState<'steps' | 'run' | 'trajets' | 'gym'>(resolveInitialFitSubTab);
+  const [subTab, setSubTab] = useState<'steps' | 'run' | 'gym' | 'nutrition'>(resolveInitialFitSubTab);
 
   useEffect(() => {
     const onOpenSubTab = (e: Event) => {
       const target = (e as CustomEvent<string>)?.detail;
-      if (target === 'steps' || target === 'run' || target === 'trajets' || target === 'gym') {
+      if (target === 'steps' || target === 'run' || target === 'gym' || target === 'nutrition') {
         setSubTab(target);
+        try { sessionStorage.removeItem('vyta_pending_fit_subtab'); } catch (_) {}
+      } else if (target === 'trajets') {
+        setSubTab('run');
         try { sessionStorage.removeItem('vyta_pending_fit_subtab'); } catch (_) {}
       }
     };
@@ -948,7 +957,7 @@ export const FitScreen: React.FC = () => {
       isIndoor: isTreadmill,
     };
     setStoredRoutes((prev) => [newRoute, ...prev]);
-    setSubTab('trajets');
+    setSubTab('run');
   };
 
   const getRouteTelemetry = (r: StoredRoute): TelemetryPoint[] => {
@@ -1526,7 +1535,7 @@ export const FitScreen: React.FC = () => {
         <h1 className="header-title">Fit</h1>
       </div>
 
-      {/* 4-Section Segmented Control (Pas, Course, Trajets, Musculation) */}
+      {/* 4-Section Segmented Control (Pas, Course, Musculation, Nutrition) */}
       <div className="segmented-control" role="tablist">
         <button
           type="button"
@@ -1544,17 +1553,17 @@ export const FitScreen: React.FC = () => {
         </button>
         <button
           type="button"
-          className={`segmented-btn ${subTab === 'trajets' ? 'active' : ''}`}
-          onClick={() => setSubTab('trajets')}
-        >
-          {isEn ? 'Routes' : 'Trajets'}
-        </button>
-        <button
-          type="button"
           className={`segmented-btn ${subTab === 'gym' ? 'active' : ''}`}
           onClick={() => setSubTab('gym')}
         >
           {isEn ? 'Strength' : 'Musculation'}
+        </button>
+        <button
+          type="button"
+          className={`segmented-btn ${subTab === 'nutrition' ? 'active' : ''}`}
+          onClick={() => setSubTab('nutrition')}
+        >
+          Nutrition
         </button>
       </div>
 
@@ -1807,11 +1816,9 @@ export const FitScreen: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* ==================== 2. MODE MES TRAJETS ENREGISTRÉS ==================== */}
-      {subTab === 'trajets' && (() => {
+          {/* Historique & Trajets enregistrés directement sous la carte dans Course */}
+          {(() => {
         const filteredRoutes = storedRoutes.filter((r) => {
           if (routeFilter === 'treadmill') return !!r.isIndoor;
           if (routeFilter === 'outdoor') return !r.isIndoor && (r.distanceKm >= 0.05 || (r.realGpsPoints && r.realGpsPoints.length >= 2));
@@ -1821,7 +1828,7 @@ export const FitScreen: React.FC = () => {
         const totalElev = storedRoutes.reduce((acc, r) => acc + r.elevationM, 0);
 
         return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           {/* En-tête Trajets + Filtres */}
           <div className="session-header-card" style={{ gap: '10px' }}>
             <div className="session-title-row">
@@ -2100,6 +2107,8 @@ export const FitScreen: React.FC = () => {
         </div>
         );
       })()}
+        </div>
+      )}
 
       {/* Modal Nouveau Trajet Manuel (AnimatedSheet) */}
       <AnimatedSheet
@@ -2722,6 +2731,9 @@ export const FitScreen: React.FC = () => {
           </div>
         )
       )}
+
+      {/* ==================== 4. ONGLET NUTRITION (CALORIE & MACRO SCANNER) ==================== */}
+      {subTab === 'nutrition' && <CalAiModal embedded />}
       </div>
 
       {/* ==================== MODAL AJOUTER UN EXERCICE (AnimatedSheet) ==================== */}
