@@ -68,15 +68,20 @@ public struct WorkoutLiveActivityWidget: Widget {
 
                         // 2. Vitesse moyenne
                         VStack(spacing: 3) {
-                            Text(context.state.paceText)
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundColor(.white)
-                            Text("Vitesse moyenne\n(km/h)")
-                                .font(.system(size: 9, weight: .medium))
-                                .multilineTextAlignment(.center)
+                            let speedNum = context.state.paceText.replacingOccurrences(of: " km/h", with: "").trimmingCharacters(in: .whitespaces)
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text(speedNum == "--:--" ? "0,0" : speedNum)
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundColor(.white)
+                                Text("km/h")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.gray)
+                            }
+                            Text("Vitesse")
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundColor(.gray)
-                                .lineLimit(2)
+                                .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity)
 
@@ -137,8 +142,20 @@ struct LockScreenLiveActivityView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Header Row: Course à pied + Orange Running Icon
+            // Header Row: Heart Rate (left if > 40) + Title + Running Icon (right)
             HStack {
+                if context.state.currentHeartRate > 40 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.red)
+                        Text("\(context.state.currentHeartRate) bpm")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                } else {
+                    Color.clear.frame(width: 24, height: 14)
+                }
                 Spacer()
                 Text(context.attributes.workoutTitle)
                     .font(.system(size: 14, weight: .bold))
@@ -148,12 +165,12 @@ struct LockScreenLiveActivityView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Color(red: 252/255, green: 82/255, blue: 0/255))
             }
-            .padding(.top, 4)
+            .padding(.top, 2)
 
-            // 3-Column Metrics Row: Temps | Allure moyenne | Distance
+            // 3-Column Metrics Row: Temps | Vitesse | Distance
             HStack(alignment: .top, spacing: 0) {
                 // 1. Temps
-                VStack(spacing: 4) {
+                VStack(spacing: 3) {
                     if context.state.isPaused {
                         Text(formatSeconds(context.state.elapsedTime))
                             .font(.system(size: 26, weight: .bold, design: .rounded))
@@ -172,32 +189,42 @@ struct LockScreenLiveActivityView: View {
                 .frame(maxWidth: .infinity)
 
                 // 2. Vitesse moyenne
-                VStack(spacing: 4) {
-                    Text(context.state.paceText)
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundColor(.white)
-                    Text("Vitesse moyenne\n(km/h)")
-                        .font(.system(size: 10, weight: .medium))
-                        .multilineTextAlignment(.center)
+                VStack(spacing: 3) {
+                    let speedNum = context.state.paceText.replacingOccurrences(of: " km/h", with: "").trimmingCharacters(in: .whitespaces)
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(speedNum == "--:--" ? "0,0" : speedNum)
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundColor(.white)
+                        Text("km/h")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    Text("Vitesse")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.gray)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity)
 
                 // 3. Distance (km)
-                VStack(spacing: 4) {
-                    Text(String(format: "%.2f", context.state.distanceKm).replacingOccurrences(of: ".", with: ","))
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundColor(.white)
-                    Text("Distance (km)")
+                VStack(spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                        Text(String(format: "%.2f", context.state.distanceKm).replacingOccurrences(of: ".", with: ","))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundColor(.white)
+                        Text("km")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    Text("Distance")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.gray)
                 }
                 .frame(maxWidth: .infinity)
             }
-            .padding(.bottom, 6)
+            .padding(.bottom, 2)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

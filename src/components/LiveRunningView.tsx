@@ -952,9 +952,10 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
       {!isSheetExpanded && (
         <div
           onClick={() => setIsSheetExpanded(true)}
+          onTouchMove={(e) => { if (e.cancelable) e.preventDefault(); }}
           style={{
             position: 'absolute',
-            bottom: 'calc(max(20px, env(safe-area-inset-bottom)) + 92px)',
+            bottom: 'calc(max(18px, env(safe-area-inset-bottom)) + 126px)',
             left: '16px',
             right: '16px',
             background: 'rgba(22, 22, 24, 0.94)',
@@ -962,10 +963,11 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             borderRadius: '18px',
-            padding: '14px 16px',
+            padding: '13px 16px',
             boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
             zIndex: 500,
             cursor: 'pointer',
+            touchAction: 'none',
             transition: 'transform 160ms ease, opacity 160ms ease',
           }}
         >
@@ -976,10 +978,10 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              marginBottom: '12px',
+              marginBottom: '10px',
             }}
           >
-            <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
+            <span style={{ fontSize: '14.5px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.2px' }}>
               {isTreadmill ? (isEn ? 'Treadmill Run' : 'Course sur tapis') : (isEn ? 'Outdoor Run' : 'Course à pied')}
             </span>
             <button
@@ -1016,7 +1018,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             <div style={{ textAlign: 'left' }}>
               <div
                 style={{
-                  fontSize: '26px',
+                  fontSize: '25px',
                   fontWeight: 800,
                   color: '#FFFFFF',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
@@ -1027,56 +1029,66 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
               >
                 {formatTime(runDurationSec)}
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '3px' }}>
                 Temps
               </div>
             </div>
 
-            {/* 2. Vitesse en km/h */}
+            {/* 2. Vitesse en km/h (compact inline unit) */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div
-                style={{
-                  fontSize: '26px',
-                  fontWeight: 800,
-                  color: '#FFFFFF',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '-0.5px',
-                  lineHeight: 1.1,
-                }}
-              >
-                {formatSpeed()}
+              <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '3px' }}>
+                <span
+                  style={{
+                    fontSize: '25px',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.5px',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {formatSpeed()}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#8E8E93' }}>
+                  km/h
+                </span>
               </div>
               <div
                 style={{
                   fontSize: '11px',
                   fontWeight: 600,
                   color: '#8E8E93',
-                  marginTop: '4px',
+                  marginTop: '3px',
                   lineHeight: 1.2,
                 }}
               >
-                Vitesse (km/h)
+                Vitesse
               </div>
             </div>
 
             {/* 3. Distance */}
             <div style={{ textAlign: 'right' }}>
-              <div
-                style={{
-                  fontSize: '26px',
-                  fontWeight: 800,
-                  color: '#FFFFFF',
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '-0.5px',
-                  lineHeight: 1.1,
-                }}
-              >
-                {runDistanceKm.toFixed(2).replace('.', ',')}
+              <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '3px', justifyContent: 'flex-end' }}>
+                <span
+                  style={{
+                    fontSize: '25px',
+                    fontWeight: 800,
+                    color: '#FFFFFF',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '-0.5px',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {runDistanceKm.toFixed(2).replace('.', ',')}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#8E8E93' }}>
+                  km
+                </span>
               </div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '4px' }}>
-                Distance (km)
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#8E8E93', marginTop: '3px' }}>
+                Distance
               </div>
             </div>
           </div>
@@ -1200,6 +1212,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
 
       {/* PINNED STATIONARY BOTTOM ACTION BAR */}
       <div
+        onTouchMove={(e) => { if (e.cancelable) e.preventDefault(); }}
         style={{
           position: 'absolute',
           bottom: 0,
@@ -1208,6 +1221,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           background: '#0D0D10',
           padding: '8px 16px calc(max(18px, env(safe-area-inset-bottom)) + 10px) 16px',
           zIndex: 620,
+          touchAction: 'none',
         }}
       >
         {/* RUNNING STATE: Full-Width Bright Orange "❚❚ Pause" Button */}

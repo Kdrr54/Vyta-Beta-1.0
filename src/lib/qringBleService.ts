@@ -3137,8 +3137,9 @@ class QRingBleService {
       } catch (_) {}
     }
 
-    // 3. Maintain stream with Action.CONTINUE (0x03) every 1400ms (inside firmware ~2s watchdog).
-    // Never interrupt the 8-18s optical PPG acquisition loop with premature Action.START resets!
+    // 3. Real-time optical stream maintainer (non-destructive 2200ms tick):
+    // Do NOT bombard 0x69 [dataType, 0x03] every 1.4s before the ring finishes its initial optical lock;
+    // send CONTINUE gently once 0x69 responds (lastLiveAckAt > 0), and run legacy 0x1E [0x01] after 7s if no BPM arrived yet.
     this.realTimeHrTimer = setInterval(async () => {
       if (this.activeLiveDataType !== dataType) {
         if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
@@ -3163,13 +3164,12 @@ class QRingBleService {
       }
 
       const now = Date.now();
-      // If 0x69 produced no BPM yet after 7s (silent) or 25s (ACKs without BPM), try legacy fallback (e.g. 0x1E)
+      // If 0x69 produced no valid BPM after 7s (either silent or 0 BPM frames), trigger legacy poll (0x1E 0x01)
       if (
-        !sentFallback &&
         fallbackPackets.length > 0 &&
         this.lastLiveDataAt === 0 &&
-        ((this.lastLiveAckAt === 0 && now - this.lastLiveRearmAt >= 7000) ||
-          (now - this.lastLiveRearmAt >= 25000))
+        now - this.lastLiveRearmAt >= 7000 &&
+        (!sentFallback || Math.floor((now - this.lastLiveRearmAt) / 4500) !== Math.floor((now - 2200 - this.lastLiveRearmAt) / 4500))
       ) {
         sentFallback = true;
         try {
@@ -3184,8 +3184,8 @@ class QRingBleService {
         ? now - this.lastLiveDataAt
         : Math.min(now - this.lastLiveRearmAt, this.lastLiveAckAt > 0 ? now - this.lastLiveAckAt + 12000 : now - this.lastLiveRearmAt);
 
-      // Only re-arm Action.START after a real timeout (>= 22s silent, e.g. firmware 30-45s auto-stop)
-      if (staleDuration >= 22000 && now - this.lastLiveRearmAt >= 22000) {
+      // Re-arm Action.START only if genuinely timed out (>= 24s silent)
+      if (staleDuration >= 24000 && now - this.lastLiveRearmAt >= 24000) {
         this.lastLiveRearmAt = now;
         sentFallback = false;
         try {
@@ -3198,10 +3198,13 @@ class QRingBleService {
         return;
       }
 
-      try {
-        await this.writeBytes(this.makePacket(0x69, [dataType, 0x03]));
-      } catch (_) {}
-    }, 1400);
+      // Send 0x69 CONTINUE only once 0x69 has acknowledged OR after 3.5s settle window
+      if (this.lastLiveAckAt > 0 || now - this.lastLiveRearmAt >= 3500) {
+        try {
+          await this.writeBytes(this.makePacket(0x69, [dataType, 0x03]));
+        } catch (_) {}
+      }
+    }, 2200);
 
     return ok;
   }

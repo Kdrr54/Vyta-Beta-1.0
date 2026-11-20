@@ -530,11 +530,10 @@ export const FitScreen: React.FC = () => {
         const curAvgSpeed = currentDist > 0.01 && elapsed > 0
           ? (currentDist / (elapsed / 3600)).toFixed(1).replace('.', ',')
           : '0,0';
-        const curSpeedText = `${curAvgSpeed} km/h`;
         notifyNativeWorkout('update', {
           elapsedTime: elapsed,
           distanceKm: Math.round(currentDist * 100) / 100,
-          paceText: curSpeedText,
+          paceText: curAvgSpeed,
           currentHeartRate: curHr,
           isPaused: false,
         });
@@ -828,7 +827,7 @@ export const FitScreen: React.FC = () => {
       workoutTitle: runMode === 'treadmill' ? 'Course sur tapis' : 'Course à pied',
       elapsedTime: 0,
       distanceKm: 0,
-      paceText: '--:--',
+      paceText: '0,0',
       currentHeartRate: liveBpm > 0 ? liveBpm : 0,
       isPaused: false,
     });
@@ -847,7 +846,7 @@ export const FitScreen: React.FC = () => {
     notifyNativeWorkout('pause', {
       elapsedTime: runDurationSec,
       distanceKm: Math.round(runDistanceKm * 100) / 100,
-      paceText: `${curAvgSpeed} km/h`,
+      paceText: curAvgSpeed,
       currentHeartRate: liveBpm > 0 ? liveBpm : 0,
       isPaused: true,
     });
@@ -868,7 +867,7 @@ export const FitScreen: React.FC = () => {
     notifyNativeWorkout('resume', {
       elapsedTime: accumulatedDurRef.current,
       distanceKm: Math.round(runDistanceKm * 100) / 100,
-      paceText: `${curAvgSpeed} km/h`,
+      paceText: curAvgSpeed,
       currentHeartRate: liveBpm > 0 ? liveBpm : 0,
       isPaused: false,
     });
