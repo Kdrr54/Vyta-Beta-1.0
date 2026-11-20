@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Sparkles, ShieldCheck, Clock } from 'lucide-react';
+import { evaluateDailyImmunity, IMMUNITY_MIN_DAY_SAMPLES } from '../lib/immunityRadar';
 
 interface ImmunityRadarProps {
   anomaly: { tempDelta: number; hrvDelta: number; detectedAtTs?: number } | null;
@@ -9,13 +10,24 @@ interface ImmunityRadarProps {
 }
 
 export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = false, hasTemp = false }) => {
-  const { t, isFirstLaunch, cardThemeMode, language } = useApp();
+  const { t, isFirstLaunch, cardThemeMode, language, weekData, selectedDay } = useApp();
   const isMono = cardThemeMode === 'monochrome';
   const isEn = language === 'en';
 
-  const hasData = !isFirstLaunch && (hasHrv || hasTemp);
-  // Une anomalie n'existe QUE si la bague a transmis des données et qu'un écart réel a été détecté
-  const hasAnomaly = hasData && !!anomaly && (anomaly.tempDelta !== 0 || anomaly.hrvDelta !== 0);
+  const curDay = weekData && weekData[selectedDay] ? weekData[selectedDay] : null;
+  const dailyEval = React.useMemo(
+    () => evaluateDailyImmunity(curDay, weekData, selectedDay),
+    [curDay, weekData, selectedDay]
+  );
+
+  const hasData = !isFirstLaunch && (hasHrv || hasTemp || dailyEval.sampleCount > 0);
+  const resolvedAnomaly = dailyEval.anomaly ?? (dailyEval.status === 'collecting' ? null : anomaly);
+  // Une anomalie n'est affichée que lorsque l'évaluation sur la journée entière confirme un écart durable
+  const hasAnomaly =
+    hasData &&
+    dailyEval.status === 'anomaly' &&
+    !!resolvedAnomaly &&
+    (resolvedAnomaly.tempDelta !== 0 || resolvedAnomaly.hrvDelta !== 0);
 
   const detectedLabel = React.useMemo(() => {
     if (!hasAnomaly || !anomaly) return null;
@@ -101,29 +113,41 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = 
                 }}
               >
                 <Clock size={10} />
-                <span>{detectedLabel}</span>
+                <span>
+                  {detectedLabel} · {dailyEval.sampleCount} {isEn ? 'samples' : 'relevés'}
+                </span>
               </span>
             )}
           </div>
         ) : (
           <span className="immunity-shield-badge">
-            {!hasData ? 'En attente de mesures' : t('immunity.shield_active')}
+            {!hasData
+              ? isEn
+                ? 'Waiting for data'
+                : 'En attente de mesures'
+              : dailyEval.status === 'collecting'
+              ? isEn
+                ? `Full-day scan (${dailyEval.sampleCount}/${IMMUNITY_MIN_DAY_SAMPLES})`
+                : `Analyse journée (${dailyEval.sampleCount}/${IMMUNITY_MIN_DAY_SAMPLES})`
+              : isEn
+              ? `Shield Active · ${dailyEval.sampleCount} samples`
+              : `${t('immunity.shield_active')} · ${dailyEval.sampleCount} relevés`}
           </span>
         )}
       </div>
 
-      {/* Affichage d'un diagnostic et protocole d'action UNIQUEMENT en cas de VRAIE anomalie détectée */}
-      {hasAnomaly && anomaly ? (
+      {/* Affichage d'un diagnostic et protocole d'action UNIQUEMENT en cas de VRAIE anomalie durable sur la journée */}
+      {hasAnomaly && resolvedAnomaly ? (
         <>
           <div className="immunity-metrics-row">
             <div className="immunity-metric-box">
               <span className="metric-name">{t('health.temp')}</span>
-              <span className="metric-val-alert">+{anomaly.tempDelta} °C</span>
+              <span className="metric-val-alert">+{resolvedAnomaly.tempDelta} °C</span>
             </div>
 
             <div className="immunity-metric-box">
               <span className="metric-name">{t('health.hrv')}</span>
-              <span className="metric-val-alert">{anomaly.hrvDelta} ms</span>
+              <span className="metric-val-alert">{resolvedAnomaly.hrvDelta} ms</span>
             </div>
           </div>
 
@@ -143,11 +167,11 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = 
                 <div className="covyta-diag-list">
                   <div className="covyta-diag-row">
                     <span className="diag-num red">1.</span>
-                    <span>{t('immunity.diag_factor_temp')} (<strong>+{anomaly.tempDelta} °C</strong>)</span>
+                    <span>{t('immunity.diag_factor_temp')} (<strong>+{resolvedAnomaly.tempDelta} °C</strong>)</span>
                   </div>
                   <div className="covyta-diag-row">
                     <span className="diag-num red">2.</span>
-                    <span>{t('immunity.diag_factor_hrv')} (<strong>{anomaly.hrvDelta} ms</strong>)</span>
+                    <span>{t('immunity.diag_factor_hrv')} (<strong>{resolvedAnomaly.hrvDelta} ms</strong>)</span>
                   </div>
                 </div>
               </div>
@@ -173,28 +197,48 @@ export const ImmunityRadar: React.FC<ImmunityRadarProps> = ({ anomaly, hasHrv = 
           </div>
         </>
       ) : (
-        /* État sain ou en attente : AUCUN faux diagnostic affiché */
+        /* État sain, en cours d'analyse journée ou en attente : AUCUN faux diagnostic affiché */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
           <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-            {!hasData ? 'En attente des relevés VRC et température' : t('immunity.no_anomaly')}
+            {!hasData
+              ? isEn
+                ? 'Waiting for HRV and temperature measurements'
+                : 'En attente des relevés VRC et température'
+              : dailyEval.status === 'collecting'
+              ? isEn
+                ? `Evaluating across the full day (${dailyEval.sampleCount}/${IMMUNITY_MIN_DAY_SAMPLES} readings)`
+                : `Évaluation en cours sur la journée (${dailyEval.sampleCount}/${IMMUNITY_MIN_DAY_SAMPLES} relevés)`
+              : t('immunity.no_anomaly')}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '2px', color: '#D1D1D6' }}>
             {!hasData ? (
               <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.65)', lineHeight: 1.45 }}>
                 Synchronisez votre bague pour analyser votre VRC et votre température cutanée. Aucune validation n'est affichée sans mesures réelles.
               </span>
+            ) : dailyEval.status === 'collecting' ? (
+              <span style={{ fontSize: '11.5px', color: 'rgba(250, 247, 242, 0.72)', lineHeight: 1.45 }}>
+                {isEn
+                  ? `Current averages${dailyEval.avgTemp ? ` · Temp ${dailyEval.avgTemp}°C` : ''}${dailyEval.avgHrv ? ` · HRV ${dailyEval.avgHrv} ms` : ''}. Confirmed only after ${IMMUNITY_MIN_DAY_SAMPLES}+ readings across the day to avoid false alerts.`
+                  : `Moyennes actuelles${dailyEval.avgTemp ? ` · Temp. ${dailyEval.avgTemp}°C` : ''}${dailyEval.avgHrv ? ` · VRC ${dailyEval.avgHrv} ms` : ''}. Confirmation uniquement après ${IMMUNITY_MIN_DAY_SAMPLES} relevés répartis sur la journée pour éviter les fausses alertes.`}
+              </span>
             ) : (
               <>
-                {hasTemp && (
+                {(hasTemp || dailyEval.avgTemp !== null) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
-                    <span>{t('immunity.temp_normal')}</span>
+                    <span>
+                      {t('immunity.temp_normal')}
+                      {dailyEval.avgTemp !== null ? ` (${dailyEval.avgTemp}°C moy.)` : ''}
+                    </span>
                   </div>
                 )}
-                {hasHrv && (
+                {(hasHrv || dailyEval.avgHrv !== null) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ color: isMono ? '#FAF7F2' : '#30D158' }}>✓</span>
-                    <span>{t('immunity.hrv_stable')}</span>
+                    <span>
+                      {t('immunity.hrv_stable')}
+                      {dailyEval.avgHrv !== null ? ` (${dailyEval.avgHrv} ms moy.)` : ''}
+                    </span>
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
