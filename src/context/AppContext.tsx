@@ -726,27 +726,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.wearCalibrationScore !== undefined) {
         updateRing({ wearCalibrationScore: data.wearCalibrationScore, wearCalibrationDate: "Aujourd'hui" });
       }
-      if (data.steps !== undefined && data.steps > 0) {
+      if ((data.steps !== undefined && data.steps > 0) || (Array.isArray(data.stepsHourly) && data.stepsHourly.some((v) => v > 0))) {
         // Guard & auto-repair if a 24-bit Little-Endian step value (> 120000) ever arrives
-        const safeSteps = data.steps > 120000
-          ? (((data.steps & 0xFF) << 16) | (data.steps & 0xFF00) | ((data.steps >> 16) & 0xFF))
-          : data.steps;
+        const rawSteps = data.steps ?? 0;
+        const safeSteps = rawSteps > 120000
+          ? (((rawSteps & 0xFF) << 16) | (rawSteps & 0xFF00) | ((rawSteps >> 16) & 0xFF))
+          : rawSteps;
         setWeekData((prev) => {
           const next = [...prev];
           const idx = TODAY_INDEX;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
-          cur.steps = safeSteps;
+          const prevSteps = cur.steps || 0;
+          const nextSteps = safeSteps > 0 ? Math.max(prevSteps, safeSteps) : prevSteps;
+          cur.steps = nextSteps;
+
+          if (Array.isArray(data.stepsHourly) && data.stepsHourly.length === 24 && data.stepsHourly.some((v) => v > 0)) {
+            cur.stepsHourly = data.stepsHourly;
+          } else if (prevSteps > 0 && nextSteps > prevSteps) {
+            const curHour = new Date().getHours();
+            const hourly = Array.isArray(cur.stepsHourly) && cur.stepsHourly.length === 24
+              ? [...cur.stepsHourly]
+              : new Array(24).fill(0);
+            hourly[curHour] = (hourly[curHour] || 0) + (nextSteps - prevSteps);
+            cur.stepsHourly = hourly;
+          }
+
           if (data.calories !== undefined && data.calories > 0) {
-            const safeKcal = data.calories > 1500 && safeSteps < 10000 ? Math.round(data.calories / 1000) : data.calories;
-            cur.activeKcal = safeKcal > 0 ? safeKcal : Math.max(1, Math.round(safeSteps * 0.04));
-          } else if (safeSteps > 0 && (!cur.activeKcal || cur.activeKcal === 0 || cur.activeKcal > 1500)) {
-            cur.activeKcal = Math.max(1, Math.round(safeSteps * 0.04));
+            const safeKcal = data.calories > 1500 && nextSteps < 10000 ? Math.round(data.calories / 1000) : data.calories;
+            cur.activeKcal = safeKcal > 0 ? safeKcal : Math.max(1, Math.round(nextSteps * 0.04));
+          } else if (nextSteps > 0 && (!cur.activeKcal || cur.activeKcal === 0 || cur.activeKcal > 1500)) {
+            cur.activeKcal = Math.max(1, Math.round(nextSteps * 0.04));
           }
           if (data.distanceKm && data.distanceKm > 0) cur.distanceKm = data.distanceKm;
           if (cur.pillars) {
             cur.pillars = {
               ...cur.pillars,
-              activity: Math.min(100, Math.round((safeSteps / 10000) * 100)),
+              activity: Math.min(100, Math.round((nextSteps / 10000) * 100)),
             };
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;

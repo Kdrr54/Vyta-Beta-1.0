@@ -52,6 +52,8 @@ export interface DayMetrics {
   score: number;
   pillars: { sleep: number; recovery: number; activity: number };
   steps: number;
+  /** 24 relevés horaires réels (00h -> 23h) issus des blocs 15 min 0x43 ou variations en direct. */
+  stepsHourly?: number[];
   distanceKm: number;
   activeKcal: number;
   bodyEnergy: number;

@@ -24,6 +24,7 @@ import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
 import { RunTelemetryCharts, TelemetryPoint } from './RunTelemetryCharts';
+import { StepsTabView } from './StepsTabView';
 import { 
   Zap,
   Flame, 
@@ -212,8 +213,33 @@ export const FitScreen: React.FC = () => {
   const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const initialSubTab = (params?.get('fit') as 'run' | 'trajets' | 'gym' | 'feed') || 'run';
-  const [subTab, setSubTab] = useState<'run' | 'trajets' | 'gym' | 'feed'>(initialSubTab);
+  const resolveInitialFitSubTab = (): 'steps' | 'run' | 'trajets' | 'gym' | 'feed' => {
+    if (typeof window !== 'undefined') {
+      try {
+        const pending = sessionStorage.getItem('vyta_pending_fit_subtab');
+        if (pending === 'steps' || pending === 'run' || pending === 'trajets' || pending === 'gym' || pending === 'feed') {
+          sessionStorage.removeItem('vyta_pending_fit_subtab');
+          return pending;
+        }
+      } catch (_) {}
+    }
+    const q = params?.get('fit');
+    if (q === 'steps' || q === 'run' || q === 'trajets' || q === 'gym' || q === 'feed') return q;
+    return 'steps';
+  };
+  const [subTab, setSubTab] = useState<'steps' | 'run' | 'trajets' | 'gym' | 'feed'>(resolveInitialFitSubTab);
+
+  useEffect(() => {
+    const onOpenSubTab = (e: Event) => {
+      const target = (e as CustomEvent<string>)?.detail;
+      if (target === 'steps' || target === 'run' || target === 'trajets' || target === 'gym' || target === 'feed') {
+        setSubTab(target);
+        try { sessionStorage.removeItem('vyta_pending_fit_subtab'); } catch (_) {}
+      }
+    };
+    window.addEventListener('vyta:open-fit-subtab', onOpenSubTab);
+    return () => window.removeEventListener('vyta:open-fit-subtab', onOpenSubTab);
+  }, []);
 
   const [storedRoutes, setStoredRoutes] = useState<StoredRoute[]>(() => {
     if (typeof window !== 'undefined') {
@@ -1510,8 +1536,15 @@ export const FitScreen: React.FC = () => {
         <h1 className="header-title">Fit</h1>
       </div>
 
-      {/* 4-Section Segmented Control (Course, Trajets, Musculation, Cercle) */}
+      {/* 5-Section Segmented Control (Pas, Course, Trajets, Musculation, Cercle) */}
       <div className="segmented-control" role="tablist">
+        <button
+          type="button"
+          className={`segmented-btn ${subTab === 'steps' ? 'active' : ''}`}
+          onClick={() => setSubTab('steps')}
+        >
+          {isEn ? 'Steps' : 'Pas'}
+        </button>
         <button
           type="button"
           className={`segmented-btn ${subTab === 'run' ? 'active' : ''}`}
@@ -1542,8 +1575,9 @@ export const FitScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* ==================== 1. MODE COURSE & CARDIO ==================== */}
+      {/* ==================== 0. ONGLET PAS DE LA JOURNÉE ==================== */}
       <div key={subTab} className="subtab-view">
+      {subTab === 'steps' && <StepsTabView />}
       {subTab === 'run' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {/* Running in progress banner if minimized */}

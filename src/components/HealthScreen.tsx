@@ -74,7 +74,24 @@ export const HealthScreen: React.FC = () => {
       : dayData?.tempDelta !== undefined && dayData.tempDelta !== 0
       ? (36.5 + dayData.tempDelta).toFixed(1)
       : '--';
-  const stepsProgress = Math.min(100, Math.round(((dayData.steps || 0) / 10000) * 100));
+  const [stepsGoal, setStepsGoal] = React.useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('vyta_steps_goal'));
+      if (Number.isFinite(saved) && saved >= 1000 && saved <= 50000) return Math.round(saved);
+    } catch (_) {}
+    return 10000;
+  });
+
+  React.useEffect(() => {
+    const onGoalChanged = (e: Event) => {
+      const next = Number((e as CustomEvent<number>)?.detail);
+      if (Number.isFinite(next) && next >= 1000) setStepsGoal(next);
+    };
+    window.addEventListener('vyta:steps-goal-changed', onGoalChanged);
+    return () => window.removeEventListener('vyta:steps-goal-changed', onGoalChanged);
+  }, []);
+
+  const stepsProgress = Math.min(100, Math.round(((dayData.steps || 0) / stepsGoal) * 100));
   const prevDayData = selectedDay > 0 ? (weekData && weekData[selectedDay - 1]) : null;
   const scoreDiffYesterday =
     prevDayData && prevDayData.score > 0 && prevDayData.sleep?.score > 0 && dayData.score > 0
@@ -715,10 +732,14 @@ export const HealthScreen: React.FC = () => {
             CARD 2: "Pas effectués" (Calories & Activité) - VIBRANT ORANGE
             ----------------------------------------------------------------- */}
         <div
-          onClick={() => setTab('fit')}
+          onClick={() => {
+            try { sessionStorage.setItem('vyta_pending_fit_subtab', 'steps'); } catch (_) {}
+            window.dispatchEvent(new CustomEvent('vyta:open-fit-subtab', { detail: 'steps' }));
+            setTab('fit');
+          }}
           role="button"
           tabIndex={0}
-          title="Voir le suivi complet de l'activité & des pas"
+          title="Voir le suivi complet des pas de la journée"
           style={{
             position: 'relative',
             minHeight: '160px',

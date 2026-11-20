@@ -88,6 +88,7 @@ export interface BleRingData {
   maxBpm?: number;
   restingBpm?: number;
   steps?: number;
+  stepsHourly?: number[];
   calories?: number;
   distanceKm?: number;
   daysAgo?: number;
@@ -220,6 +221,8 @@ class QRingBleService {
   private hrvDebounceTimer: any = null;
   private hrvTotalPackets = 0;
   private hrvPeriodMinutes = 60;
+  private stepsQuarterSlots: number[] = new Array(96).fill(0);
+  private stepsDetailDebounceTimer: any = null;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -1989,6 +1992,9 @@ class QRingBleService {
    */
   public async requestStepsData(dayOffset: number = 0): Promise<boolean> {
     console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
+    if (dayOffset === 0) {
+      this.stepsQuarterSlots = new Array(96).fill(0);
+    }
     // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
     const p43 = this.makePacket(0x43, [dayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
     await this.writeBytes(p43);
@@ -2232,6 +2238,30 @@ class QRingBleService {
       });
     }
     this.resolveHrLogWaiters();
+  }
+
+  private finalizeStepsDetailLog() {
+    if (this.stepsDetailDebounceTimer) {
+      clearTimeout(this.stepsDetailDebounceTimer);
+      this.stepsDetailDebounceTimer = null;
+    }
+    const hourly = new Array(24).fill(0);
+    let total = 0;
+    for (let q = 0; q < 96; q++) {
+      const s = this.stepsQuarterSlots[q];
+      if (s > 0) {
+        hourly[Math.floor(q / 4)] += s;
+        total += s;
+      }
+    }
+    if (total > 0) {
+      console.log('[QRing BLE] Finalized 0x43 Hourly Steps Log: total=', total);
+      this.notify({
+        stepsHourly: hourly,
+        steps: total,
+        isConnected: true,
+      });
+    }
   }
 
   /**
@@ -3583,14 +3613,34 @@ class QRingBleService {
 
     // 2c. Colmi R02 V1 15-minute Activity Log (header 0x43 / 67)
     if (header === 67 || header === 0x43) {
-      if (len >= 13 && dataView.getUint8(1) !== 0xF0 && dataView.getUint8(1) !== 255) {
-        const cal = dataView.getUint16(7, true);
-        const st = dataView.getUint16(9, true);
-        const dist = dataView.getUint16(11, true);
-        if (st > 0 || cal > 0) {
-          console.log('[QRing BLE] Cmd 0x43 Activity detail: steps:', st, 'cal:', cal, 'dist:', dist);
+      if (len >= 2) {
+        const sub = dataView.getUint8(1);
+        if (sub === 0xF0) {
+          this.stepsQuarterSlots = new Array(96).fill(0);
+          return;
+        }
+        if (sub === 0xFF || sub === 255) {
+          this.finalizeStepsDetailLog();
+          return;
+        }
+        if (len >= 13) {
+          const timeIndex = dataView.getUint8(4);
+          const cal = dataView.getUint16(7, true);
+          const st = dataView.getUint16(9, true);
+          const dist = dataView.getUint16(11, true);
+          const now = new Date();
+          const currentQuarter = now.getHours() * 4 + Math.floor(now.getMinutes() / 15);
+          if (timeIndex < 96 && timeIndex <= currentQuarter && st > 0 && st <= 25000) {
+            this.stepsQuarterSlots[timeIndex] = st;
+            if (this.stepsDetailDebounceTimer) clearTimeout(this.stepsDetailDebounceTimer);
+            this.stepsDetailDebounceTimer = setTimeout(() => this.finalizeStepsDetailLog(), 280);
+          }
+          if (st > 0 || cal > 0) {
+            console.log('[QRing BLE] Cmd 0x43 Activity detail: slot=', timeIndex, 'steps:', st, 'cal:', cal, 'dist:', dist);
+          }
         }
       }
+      return;
     }
 
     // 2d. Stored 30-min Stress History (Command 55 / 0x37 — Gadgetbridge historicalStress)
