@@ -294,7 +294,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 4 &&
+            parsed?.cfgVer === 5 &&
             typeof parsed?.minutes === 'number' &&
             typeof parsed?.strict === 'boolean' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
@@ -302,7 +302,13 @@ class QRingBleService {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
             this.lastProgrammedStrictMode = parsed.strict;
             this.needsBoundaryAlign = false;
+          } else {
+            // Nettoyage unique des anciens caches (builds 232-235) pour réactiver tous les capteurs 1h + 30m
+            localStorage.removeItem('vyta_strict_led_schedule');
+            localStorage.removeItem('vyta_hw_programmed_interval');
           }
+        } else {
+          localStorage.removeItem('vyta_strict_led_schedule');
         }
       } catch (_) {}
 
@@ -748,7 +754,6 @@ class QRingBleService {
         console.log('[QRing BLE AutoReconnect] Auto-reconnect successful!');
         this.reconnectAttempts = 0;
         this.stopAutoReconnect();
-        this.syncAllRingData();
         return;
       }
 
@@ -1511,6 +1516,12 @@ class QRingBleService {
           await this.syncAllRingData(true);
         } else {
           await this.sendTimeSync();
+          if (
+            this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes ||
+            this.lastProgrammedStrictMode !== this.isStrictLedModeEnabled()
+          ) {
+            await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
+          }
         }
       });
 
@@ -1833,24 +1844,6 @@ class QRingBleService {
     }
 
     this.needsBoundaryAlign = false;
-    this.lastProgrammedIntervalMinutes = mins;
-    this.lastProgrammedStrictMode = strictNow;
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(
-          'vyta_hw_programmed_interval',
-          JSON.stringify({
-            cfgVer: 4,
-            deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
-            minutes: mins,
-            strict: strictNow,
-            needsAlign: false,
-            ts: Date.now(),
-          })
-        );
-      } catch (_) {}
-    }
-
     if (this.boundaryAlignTimer) {
       clearTimeout(this.boundaryAlignTimer);
       this.boundaryAlignTimer = null;
@@ -1858,32 +1851,53 @@ class QRingBleService {
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
     // When strict single-LED mode is ON, disable 0x2C (SpO2), 0x38 (HRV), 0x36 (Stress)
     const secondaryEnabledByte = mins > 0 && !strictNow ? 0x01 : 0x02;
-    const secondaryMinsByte = secondaryEnabledByte === 0x01 ? (mins & 0xFF) : 0x00;
+    const secondaryMinsByte = secondaryEnabledByte === 0x01 ? (Math.min(30, mins) & 0xFF) : 0x00;
+    const tempMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00;
     console.log(
-      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), SpO2/VRC/Stress=${secondaryEnabledByte === 1 ? 'ON' : 'OFF (strict)'}`
+      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), SpO2/VRC/Stress=${secondaryEnabledByte === 1 ? `${secondaryMinsByte}m ON` : 'OFF (strict)'}`
     );
 
     // 1. Heart rate (0x16) — primary scheduled green LED timer
-    await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 140));
+    const ok16 = await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
+    await new Promise((r) => setTimeout(r, 160));
 
-    // 2. SpO2 (0x2C) — RED LED
+    // 2. SpO2 (0x2C) — RED LED (30m cadence)
     await this.writeBytes(this.makePacket(0x2C, [0x02, secondaryEnabledByte, secondaryMinsByte]));
-    await new Promise((r) => setTimeout(r, 140));
+    await new Promise((r) => setTimeout(r, 160));
 
-    // 3. HRV (0x38)
+    // 3. HRV (0x38) — 30m cadence
     await this.writeBytes(this.makePacket(0x38, [0x02, secondaryEnabledByte, secondaryMinsByte]));
-    await new Promise((r) => setTimeout(r, 140));
+    await new Promise((r) => setTimeout(r, 160));
 
-    // 4. Stress (0x36)
+    // 4. Stress (0x36) — 30m cadence
     await this.writeBytes(this.makePacket(0x36, [0x02, secondaryEnabledByte, secondaryMinsByte]));
+    await new Promise((r) => setTimeout(r, 160));
+
+    // 5. Temperature (0x3A) — NTC thermistor (0 LEDs, 30m cadence)
+    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, tempMinsByte]));
     await new Promise((r) => setTimeout(r, 140));
 
-    // 5. Temperature (0x3A) — NTC thermistor (0 LEDs)
-    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 120));
+    if (ok16) {
+      this.lastProgrammedIntervalMinutes = mins;
+      this.lastProgrammedStrictMode = strictNow;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            'vyta_hw_programmed_interval',
+            JSON.stringify({
+              cfgVer: 5,
+              deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
+              minutes: mins,
+              strict: strictNow,
+              needsAlign: false,
+              ts: Date.now(),
+            })
+          );
+        } catch (_) {}
+      }
+    }
 
-    return true;
+    return ok16;
   }
 
   public async setHeartRateInterval(minutes?: number): Promise<boolean> {
@@ -2011,7 +2025,7 @@ class QRingBleService {
 
   public async requestStepsData(dayOffset: number = 0): Promise<boolean> {
     if (!this.isConnected()) {
-      const reconnected = await this.attemptSilentReconnect(true);
+      const reconnected = await this.attemptSilentReconnect(false);
       if (!reconnected || !this.isConnected()) return false;
     }
     console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
@@ -2193,23 +2207,14 @@ class QRingBleService {
     });
 
     // Regroup real ring readings into 48 half-hour slots (00:00, 00:30 ... 23:30).
-    // Keep the most recent valid hardware reading within each displayed bucket instead of dropping
-    // newer 5m/15m readings recorded after :25, which previously caused BPM to stay frozen for up to an hour.
-    const isHourlyCadence = this.configuredIntervalMinutes >= 60;
+    // Preserve every real half-hour slot (:00 and :30) regardless of whether HR cadence is 30m or 60m.
     const halfHourLog: number[] = new Array(48).fill(0);
     clampedLog.forEach((bpm, slotIdx) => {
       if (bpm < 40 || bpm > 200) return;
       const minute = slotIdx * slotMin;
-      if (isHourlyCadence) {
-        const hourSlot = Math.floor(minute / 60) * 2;
-        if (hourSlot >= 0 && hourSlot < 48) {
-          halfHourLog[hourSlot] = bpm;
-        }
-      } else {
-        const half = Math.floor(minute / 30);
-        if (half >= 0 && half < 48) {
-          halfHourLog[half] = bpm;
-        }
+      const half = Math.floor(minute / 30);
+      if (half >= 0 && half < 48) {
+        halfHourLog[half] = bpm;
       }
     });
 
