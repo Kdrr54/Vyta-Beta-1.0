@@ -82,8 +82,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const [showRawBleFrames, setShowRawBleFrames] = useState(false);
   const [isRefreshingMeasures, setIsRefreshingMeasures] = useState(false);
   const [copiedLogs, setCopiedLogs] = useState(false);
-  const [strictLedMode, setStrictLedMode] = useState<boolean>(() => qringBle.isStrictLedModeEnabled());
-  const alignStatus = qringBle.getBoundaryAlignStatus();
 
   useEffect(() => {
     const unsubLogs = qringBle.subscribeLogs(setBleLogs);
@@ -1839,55 +1837,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       </span>
                     </button>
                   ))}
-                </div>
-
-                {/* Cycle strict : coupe VRC (0x38), Stress (0x36) et SpO2 rouge (0x2C) auto qui forcent :30 et :32 */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                  }}
-                >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Strict schedule (disable :30 SpO2/HRV/Stress)' : 'Mode strict (coupe :30 VRC / Stress / SpO2 rouge)'}
-                    </span>
-                    <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.52)', lineHeight: 1.35 }}>
-                      {strictLedMode
-                        ? isEn
-                          ? 'Only Heart Rate runs on your exact 1h/30m interval (+ silent Temp). Manual Measure still works.'
-                          : 'Seul le BPM suit ton rythme exact 1h/30m (+ Température sans LED). Mesurer reste dispo.'
-                        : isEn
-                        ? 'Auto SpO2 (red LED), HRV & Stress active (~every 30m).'
-                        : 'SpO2 rouge, VRC et Stress auto actifs (toutes les ~30m).'}
-                    </span>
-                    {(sensorIntervals?.heartRate as string) !== 'pause' && (
-                      <span style={{ fontSize: '10px', color: alignStatus.aligned ? '#30D158' : '#F59E0B', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
-                        {alignStatus.aligned
-                          ? isEn ? 'Clock aligned on :00 / :30 ✓' : 'Calé sur heure ronde :00 / :30 ✓'
-                          : isEn
-                          ? `Keep app open at ${alignStatus.nextLabel} to align`
-                          : `Garder l'app ouverte à ${alignStatus.nextLabel} pour caler`}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={strictLedMode}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      triggerHaptic();
-                      setStrictLedMode(next);
-                      qringBle.setStrictLedMode(next);
-                    }}
-                    style={{ accentColor: '#30D158', width: '18px', height: '18px', cursor: 'pointer', flexShrink: 0 }}
-                  />
                 </div>
               </div>
 

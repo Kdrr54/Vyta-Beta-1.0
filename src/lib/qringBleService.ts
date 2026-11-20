@@ -244,7 +244,6 @@ class QRingBleService {
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
-  private lastProgrammedStrictMode: boolean | null = null;
   private needsBoundaryAlign = false;
   private boundaryAlignTimer: any = null;
   private lastIntervalFixAt = 0;
@@ -294,16 +293,14 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 5 &&
+            parsed?.cfgVer === 6 &&
             typeof parsed?.minutes === 'number' &&
-            typeof parsed?.strict === 'boolean' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
-            this.lastProgrammedStrictMode = parsed.strict;
             this.needsBoundaryAlign = false;
           } else {
-            // Nettoyage unique des anciens caches (builds 232-235) pour réactiver tous les capteurs 1h + 30m
+            // Nettoyage unique des anciens caches pour réactiver tous les capteurs sans mode strict
             localStorage.removeItem('vyta_strict_led_schedule');
             localStorage.removeItem('vyta_hw_programmed_interval');
           }
@@ -1516,10 +1513,7 @@ class QRingBleService {
           await this.syncAllRingData(true);
         } else {
           await this.sendTimeSync();
-          if (
-            this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes ||
-            this.lastProgrammedStrictMode !== this.isStrictLedModeEnabled()
-          ) {
+          if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
             await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           }
         }
@@ -1786,43 +1780,6 @@ class QRingBleService {
    * - Command 0x38 (CMD_HRV): [0x02, enabledByte, intervalMin]
    * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
-  public isStrictLedModeEnabled(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem('vyta_strict_led_schedule') === 'true';
-    } catch {
-      return false;
-    }
-  }
-
-  public async setStrictLedMode(strict: boolean): Promise<boolean> {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('vyta_strict_led_schedule', strict ? 'true' : 'false');
-      } catch (_) {}
-    }
-    return await this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
-  }
-
-  public getBoundaryAlignStatus(): { aligned: boolean; nextLabel: string; minutes: number } {
-    const mins = this.configuredIntervalMinutes;
-    if (mins <= 0) {
-      return { aligned: true, nextLabel: '--', minutes: mins };
-    }
-    const now = new Date();
-    const stepMin = mins >= 60 ? 60 : Math.max(15, mins);
-    const nextSlotMin = Math.floor(now.getMinutes() / stepMin) * stepMin + stepMin;
-    const target = new Date(now.getTime());
-    target.setMinutes(nextSlotMin, 0, 0);
-    const hh = String(target.getHours()).padStart(2, '0');
-    const mm = String(target.getMinutes()).padStart(2, '0');
-    return {
-      aligned: !this.needsBoundaryAlign,
-      nextLabel: `${hh}:${mm}`,
-      minutes: mins,
-    };
-  }
-
   public async setAllSensorIntervals(minutes?: number, force: boolean = false): Promise<boolean> {
     const mins = minutes ?? this.configuredIntervalMinutes;
     this.configuredIntervalMinutes = mins;
@@ -1836,10 +1793,8 @@ class QRingBleService {
       return false;
     }
 
-    const strictNow = this.isStrictLedModeEnabled();
-
-    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence & strict LED mode
-    if (!force && this.lastProgrammedIntervalMinutes === mins && this.lastProgrammedStrictMode === strictNow) {
+    // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
+    if (!force && this.lastProgrammedIntervalMinutes === mins) {
       return true;
     }
 
@@ -1849,12 +1804,10 @@ class QRingBleService {
       this.boundaryAlignTimer = null;
     }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    // When strict single-LED mode is ON, disable 0x2C (SpO2), 0x38 (HRV), 0x36 (Stress)
-    const secondaryEnabledByte = mins > 0 && !strictNow ? 0x01 : 0x02;
-    const secondaryMinsByte = secondaryEnabledByte === 0x01 ? (Math.min(30, mins) & 0xFF) : 0x00;
+    const secondaryMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00;
     const tempMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00;
     console.log(
-      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), SpO2/VRC/Stress=${secondaryEnabledByte === 1 ? `${secondaryMinsByte}m ON` : 'OFF (strict)'}`
+      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), SpO2/VRC/Stress/Temp=${mins > 0 ? `${secondaryMinsByte}m ON` : 'OFF'}`
     );
 
     // 1. Heart rate (0x16) — primary scheduled green LED timer
@@ -1862,15 +1815,15 @@ class QRingBleService {
     await new Promise((r) => setTimeout(r, 160));
 
     // 2. SpO2 (0x2C) — RED LED (30m cadence)
-    await this.writeBytes(this.makePacket(0x2C, [0x02, secondaryEnabledByte, secondaryMinsByte]));
+    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, secondaryMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
     // 3. HRV (0x38) — 30m cadence
-    await this.writeBytes(this.makePacket(0x38, [0x02, secondaryEnabledByte, secondaryMinsByte]));
+    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, secondaryMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
     // 4. Stress (0x36) — 30m cadence
-    await this.writeBytes(this.makePacket(0x36, [0x02, secondaryEnabledByte, secondaryMinsByte]));
+    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, secondaryMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
     // 5. Temperature (0x3A) — NTC thermistor (0 LEDs, 30m cadence)
@@ -1879,16 +1832,14 @@ class QRingBleService {
 
     if (ok16) {
       this.lastProgrammedIntervalMinutes = mins;
-      this.lastProgrammedStrictMode = strictNow;
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 5,
+              cfgVer: 6,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
-              strict: strictNow,
               needsAlign: false,
               ts: Date.now(),
             })
@@ -2950,10 +2901,7 @@ class QRingBleService {
             }
           } catch (_) {}
         }
-        if (
-          this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes ||
-          this.lastProgrammedStrictMode !== this.isStrictLedModeEnabled()
-        ) {
+        if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
           await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
         } else {
@@ -3645,7 +3593,7 @@ class QRingBleService {
       const isEnabled = enabledRaw === 1;
       console.log(`[QRing BLE] Ring Sensor ${sensorName} (0x${header.toString(16)}) preference confirmed: enabled=${isEnabled} (sub=${subType})`);
 
-      const wantSecondaryOn = this.configuredIntervalMinutes > 0 && !this.isStrictLedModeEnabled();
+      const wantSecondaryOn = this.configuredIntervalMinutes > 0;
       const validReadOrWrite = len >= 3 && (subType === 1 || subType === 2) && (enabledRaw === 0 || enabledRaw === 1 || enabledRaw === 2);
       if (validReadOrWrite && isEnabled !== wantSecondaryOn && Date.now() - this.lastIntervalFixAt > 10000) {
         this.lastIntervalFixAt = Date.now();
@@ -3805,11 +3753,27 @@ class QRingBleService {
           const startByte = 2;
           if (isHourly) {
             const baseHour = (packetNr - 1) * 12;
+            const curHour = new Date().getHours();
+            const dk = this.getTodayDateKey();
             for (let i = startByte; i < Math.min(len, 14); i++) {
               const val = dataView.getUint8(i);
               const hour = baseHour + (i - startByte);
               if (val > 0 && val <= 100 && hour >= 0 && hour < 24) {
                 this.stressLogSlots[hour * 2] = val;
+                if (hour <= curHour) {
+                  const tm = this.formatMinutesHHMM(hour * 60);
+                  this.upsertMeasureEvents([{
+                    id: `${dk}|stress|${tm}`,
+                    dateKey: dk,
+                    time: tm,
+                    minutesOfDay: hour * 60,
+                    kind: 'stress',
+                    label: 'Stress',
+                    value: `${val}`,
+                    led: 'green',
+                    source: 'auto',
+                  }]);
+                }
               }
             }
           } else {
@@ -3869,11 +3833,27 @@ class QRingBleService {
           const startByte = 2;
           if (isHourly) {
             const baseHour = (packetNr - 1) * 12;
+            const curHour = new Date().getHours();
+            const dk = this.getTodayDateKey();
             for (let i = startByte; i < Math.min(len, 14); i++) {
               const val = dataView.getUint8(i);
               const hour = baseHour + (i - startByte);
               if (val >= 5 && val < 250 && hour >= 0 && hour < 24) {
                 this.hrvLogSlots[hour * 2] = val;
+                if (hour <= curHour) {
+                  const tm = this.formatMinutesHHMM(hour * 60);
+                  this.upsertMeasureEvents([{
+                    id: `${dk}|hrv|${tm}`,
+                    dateKey: dk,
+                    time: tm,
+                    minutesOfDay: hour * 60,
+                    kind: 'hrv',
+                    label: 'VRC',
+                    value: `${val} ms`,
+                    led: 'green',
+                    source: 'auto',
+                  }]);
+                }
               }
             }
           } else {
@@ -3948,19 +3928,27 @@ class QRingBleService {
           const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
 
           if (steps >= 0 && steps <= 120000) {
+            const detail43Sum =
+              effectiveDaysAgo === 0 ? this.stepsQuarterSlots.reduce((acc, v) => acc + (v || 0), 0) : 0;
+            const resolvedSteps =
+              effectiveDaysAgo === 0 && detail43Sum > steps ? detail43Sum : steps;
             console.log(
               '[QRing BLE] Cmd 0x07 (sub-packet 0) authoritative activity: j-',
               effectiveDaysAgo,
               'dateBytes:',
               [b2, b3, b4, b5].map((x) => x.toString(16).padStart(2, '0')).join(' '),
               'steps:',
+              resolvedSteps,
+              '(0x07=',
               steps,
-              'kcal:',
+              '0x43=',
+              detail43Sum,
+              ') kcal:',
               cal
             );
             this.notify({
               daysAgo: effectiveDaysAgo,
-              steps,
+              steps: resolvedSteps,
               stepsAuthoritative: true,
               calories: cal,
               isConnected: true,
@@ -4331,7 +4319,6 @@ class QRingBleService {
     }
     if (manual) {
       this.lastProgrammedIntervalMinutes = null;
-      this.lastProgrammedStrictMode = null;
       this.needsBoundaryAlign = false;
     }
     this.notify({ isConnected: false });
