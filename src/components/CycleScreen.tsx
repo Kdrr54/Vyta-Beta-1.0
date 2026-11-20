@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Flame,
   Zap,
   Droplets,
   PenLine,
@@ -1651,56 +1650,107 @@ export const CycleScreen: React.FC = () => {
         document.body
       )}
 
-      {/* 7. Nocturnal Basal Body Temperature (BBT) 28-day Curve */}
+      {/* 7. Température Basale Nocturne — Vue claire autour de la ligne de base */}
       {(() => {
-        const minT = 36.1;
-        const maxT = 36.88;
-        const chartW = 320;
-        const chartH = 120;
-        const padX = 26;
-        const padTop = 22;
-        const padBottom = 22;
-        const graphW = chartW - padX * 2;
+        const measuredDays = tempPoints.filter((p) => p.temp >= 30);
+        const baselineTemp =
+          measuredDays.length > 0
+            ? measuredDays.reduce((acc, p) => acc + p.temp, 0) / measuredDays.length
+            : 36.4;
+
+        const allTempsForScale =
+          measuredDays.length > 0
+            ? [...measuredDays.map((p) => p.temp), baselineTemp]
+            : [36.0, 36.4, 36.8];
+
+        const rawMin = Math.min(...allTempsForScale);
+        const rawMax = Math.max(...allTempsForScale);
+        const span = Math.max(0.7, rawMax - rawMin + 0.36);
+        const mid = (rawMin + rawMax) / 2;
+        const minT = Number((mid - span / 2).toFixed(2));
+        const maxT = Number((mid + span / 2).toFixed(2));
+
+        const chartW = 330;
+        const chartH = 148;
+        const padLeft = 36;
+        const padRight = 14;
+        const padTop = 26;
+        const padBottom = 18;
+        const graphW = chartW - padLeft - padRight;
         const graphH = chartH - padTop - padBottom;
 
-        const getPtCoord = (pt: DayTempPoint, idx: number) => {
-          const x = padX + (idx / Math.max(1, cycleLength - 1)) * graphW;
-          const effTemp = pt.temp > 0 ? pt.temp : 36.35;
-          const ratio = (effTemp - minT) / (maxT - minT);
-          const y = chartH - padBottom - ratio * graphH;
-          return { x, y, hasTemp: pt.temp > 0 };
+        const tempToY = (t: number) => {
+          const clamped = Math.max(minT, Math.min(maxT, t));
+          const ratio = (clamped - minT) / Math.max(0.01, maxT - minT);
+          return chartH - padBottom - ratio * graphH;
         };
 
-        const pts = tempPoints.map((pt, i) => getPtCoord(pt, i));
+        const baselineY = tempToY(baselineTemp);
 
-        // Only plot real measured days
+        const pts = tempPoints.map((pt, idx) => {
+          const x = padLeft + (idx / Math.max(1, cycleLength - 1)) * graphW;
+          const hasTemp = pt.temp >= 30;
+          const y = hasTemp ? tempToY(pt.temp) : baselineY;
+          const delta = hasTemp ? pt.temp - baselineTemp : 0;
+          return { x, y, hasTemp, delta, day: pt.day, temp: pt.temp, phase: pt.phase };
+        });
+
         const measuredPts = pts.filter((p) => p.hasTemp);
-        const projectedPts: typeof pts = [];
+        const measuredCurvePath =
+          measuredPts.length > 1
+            ? measuredPts
+                .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+                .join(' ')
+            : '';
 
-        const buildSmoothPath = (points: { x: number; y: number }[]) => {
-          if (points.length <= 1) return '';
-          return points.reduce((acc, curr, i, arr) => {
-            if (i === 0) return `M ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
-            const prev = arr[i - 1];
-            const midX = (prev.x + curr.x) / 2;
-            const midY = (prev.y + curr.y) / 2;
-            return `${acc} Q ${prev.x.toFixed(1)} ${prev.y.toFixed(1)}, ${midX.toFixed(1)} ${midY.toFixed(1)} T ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
-          }, '');
-        };
-
-        const measuredCurvePath = buildSmoothPath(measuredPts);
-        const projectedCurvePath = buildSmoothPath(projectedPts);
-        const fullCurvePath = buildSmoothPath(pts);
-
-        const baselineY = chartH - padBottom - ((36.35 - minT) / (maxT - minT)) * graphH;
-        const ovuDayIndex = cycleLength - 14 - 1;
-        const ovuCoord = pts[Math.min(ovuDayIndex, pts.length - 1)] || pts[0];
+        const ovuDayIndex = Math.max(0, Math.min(pts.length - 1, cycleLength - 14 - 1));
+        const ovuCoord = pts[ovuDayIndex] || pts[0];
         const activeIdx = Math.min(Math.max(0, selectedCycleDay - 1), pts.length - 1);
         const activeCoord = pts[activeIdx];
+        const isOvulationWindow =
+          selectedCycleDay >= cycleLength - 15 && selectedCycleDay <= cycleLength - 13;
 
-        const isFollicularOrPeriod = selectedCycleDay <= (cycleLength - 14 - 1);
-        const isOvulationWindow = selectedCycleDay >= (cycleLength - 14) && selectedCycleDay <= (cycleLength - 14 + 2);
-        const isLutealPhase = selectedCycleDay > (cycleLength - 14 + 2);
+        const activeDelta =
+          selectedPoint.temp >= 30 ? selectedPoint.temp - baselineTemp : null;
+        const deltaStr =
+          activeDelta !== null
+            ? `${activeDelta >= 0 ? '+' : ''}${activeDelta.toFixed(2).replace('.', ',')} °C`
+            : null;
+        const deltaIsWarm = activeDelta !== null && activeDelta >= 0.08;
+        const deltaIsCool = activeDelta !== null && activeDelta <= -0.08;
+        const deltaColor = deltaIsWarm
+          ? '#FF7B54'
+          : deltaIsCool
+          ? '#60A5FA'
+          : '#D4D4D8';
+
+        const pillLeftPct = Math.max(18, Math.min(82, (activeCoord.x / chartW) * 100));
+
+        const getSimpleTempExplanation = () => {
+          if (selectedPoint.temp < 30) {
+            if (measuredDays.length > 0) {
+              return isEn
+                ? `No sleep reading on Day ${selectedCycleDay}. Tap or slide across the white dots to inspect measured nights.`
+                : `Aucune mesure enregistrée pour J${selectedCycleDay}. Touchez ou glissez sur les points pour consulter vos nuits mesurées.`;
+            }
+            return isEn
+              ? `Wear your ring at night to establish your personal baseline (${baselineTemp.toFixed(1).replace('.', ',')} °C) and detect post-ovulation warming.`
+              : `Portez votre bague la nuit pour calculer votre moyenne personnelle et repérer la hausse thermique après l'ovulation.`;
+          }
+          if (activeDelta !== null && activeDelta >= 0.15) {
+            return isEn
+              ? `Warmer than your ${baselineTemp.toFixed(2)} °C baseline (${deltaStr}): typical progesterone rise after ovulation (luteal phase).`
+              : `Température en hausse (${deltaStr} vs votre base à ${baselineTemp.toFixed(2).replace('.', ',')} °C) : signe typique après l'ovulation (progestérone).`;
+          }
+          if (activeDelta !== null && activeDelta <= -0.15) {
+            return isEn
+              ? `Cooler than your ${baselineTemp.toFixed(2)} °C baseline (${deltaStr}): normal lower range before ovulation.`
+              : `Température basse (${deltaStr} vs votre base à ${baselineTemp.toFixed(2).replace('.', ',')} °C) : niveau habituel avant l'ovulation.`;
+          }
+          return isEn
+            ? `Close to your personal baseline (${baselineTemp.toFixed(2)} °C). Stable nocturnal thermal balance.`
+            : `Proche de votre ligne de base (${baselineTemp.toFixed(2).replace('.', ',')} °C). Équilibre thermique nocturne stable.`;
+        };
 
         return (
           <div
@@ -1715,28 +1765,56 @@ export const CycleScreen: React.FC = () => {
               marginTop: '14px',
             }}
           >
-            {/* Header: Title & Live Measure action */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            {/* En-tête lisible : Température + Écart vs base + Bouton Mesurer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {isEn ? 'Basal Body Temperature (BBT)' : 'Température Basale Nocturne'}
+                  {isEn ? 'Nocturnal Basal Temp' : 'Température Basale Nocturne'}
                 </span>
-                <div style={{ marginTop: '3px' }}>
-                  <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
-                    {selectedPoint.temp > 0 ? `${selectedPoint.temp.toFixed(2).replace('.', ',')} °C` : '-- °C'}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                    {selectedPoint.temp >= 30 ? `${selectedPoint.temp.toFixed(2).replace('.', ',')} °C` : '-- °C'}
                   </span>
+                  {deltaStr && (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        background: deltaIsWarm
+                          ? 'rgba(255, 123, 84, 0.16)'
+                          : deltaIsCool
+                          ? 'rgba(96, 165, 250, 0.16)'
+                          : 'rgba(255, 255, 255, 0.08)',
+                        color: deltaColor,
+                        border: `1px solid ${deltaIsWarm ? 'rgba(255, 123, 84, 0.35)' : deltaIsCool ? 'rgba(96, 165, 250, 0.35)' : 'rgba(255, 255, 255, 0.14)'}`,
+                      }}
+                    >
+                      {deltaStr} {isEn ? 'vs base' : 'vs base'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.52)', marginTop: '2px' }}>
+                  {measuredDays.length > 0
+                    ? isEn
+                      ? `Personal baseline: ${baselineTemp.toFixed(2)} °C (${measuredDays.length} night${measuredDays.length > 1 ? 's' : ''})`
+                      : `Ligne de base : ${baselineTemp.toFixed(2).replace('.', ',')} °C (${measuredDays.length} nuit${measuredDays.length > 1 ? 's' : ''})`
+                    : isEn
+                    ? 'Awaiting night ring measurements'
+                    : 'En attente des mesures nocturnes de la bague'}
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => openMetricDetail('temp')}
-                title={isEn ? "Open 24h Skin Temperature details & Live Measure" : "Ouvrir le détail 24h & Mesure en direct"}
+                title={isEn ? 'Open 24h Skin Temperature details & Live Measure' : 'Ouvrir le détail 24h & Mesure en direct'}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
-                  padding: '5px 12px',
+                  padding: '6px 12px',
                   borderRadius: '999px',
                   background: 'rgba(251, 191, 36, 0.12)',
                   border: '1px solid rgba(251, 191, 36, 0.35)',
@@ -1745,16 +1823,15 @@ export const CycleScreen: React.FC = () => {
                   fontWeight: 600,
                   cursor: 'pointer',
                   outline: 'none',
-                  transition: 'all 0.15s ease',
+                  flexShrink: 0,
                 }}
               >
                 <Thermometer size={12} color="#FBBF24" />
-                <span>{isEn ? 'Live Measure' : 'Mesurer (20s)'}</span>
+                <span>{isEn ? 'Measure (20s)' : 'Mesurer (20s)'}</span>
               </button>
             </div>
 
-
-            {/* Interactive SVG Chart (Draggable according to J) */}
+            {/* Graphique 28 jours sans débordement, centré sur la ligne de base */}
             <div
               ref={chartContainerRef}
               onPointerDown={handleChartPointerDown}
@@ -1766,158 +1843,175 @@ export const CycleScreen: React.FC = () => {
                 height: `${chartH}px`,
                 position: 'relative',
                 overflow: 'hidden',
+                borderRadius: '14px',
+                background: 'rgba(255, 255, 255, 0.025)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
                 cursor: isDraggingChart ? 'grabbing' : 'ew-resize',
                 touchAction: 'none',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
               }}
-              title={isEn ? "Drag horizontally to select any cycle day" : "Glissez horizontalement pour déplacer le point selon les J"}
+              title={isEn ? 'Drag horizontally to inspect any cycle day' : 'Glissez horizontalement pour inspecter un jour'}
             >
-              <svg width="100%" height={chartH} viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="tempFillGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.18" />
-                    <stop offset="50%" stopColor="#BF5AF2" stopOpacity="0.06" />
-                    <stop offset="100%" stopColor="#0A84FF" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Shaded vertical band for Ovulation window */}
+              <svg width="100%" height={chartH} viewBox={`0 0 ${chartW} ${chartH}`} style={{ display: 'block' }}>
+                {/* Bande fenêtre d'ovulation */}
                 <rect
-                  x={ovuCoord.x - 14}
+                  x={ovuCoord.x - 16}
                   y={padTop - 4}
-                  width="28"
+                  width="32"
                   height={graphH + 8}
                   fill="rgba(255, 214, 10, 0.08)"
                   rx="6"
                 />
+                <text
+                  x={ovuCoord.x}
+                  y={padTop + 7}
+                  fill="rgba(255, 214, 10, 0.72)"
+                  fontSize="7.5"
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  OVUL.
+                </text>
 
-                {/* Upper line: 36.8°C */}
-                <line x1={padX} y1={padTop} x2={chartW - padX} y2={padTop} stroke="rgba(255, 255, 255, 0.06)" />
-                <text x={chartW - padX + 2} y={padTop + 3} fill="rgba(255, 255, 255, 0.3)" fontSize="8.5" textAnchor="start">36,8°</text>
+                {/* Repères axe Y gauche : Max, Base, Min */}
+                <line x1={padLeft} y1={padTop} x2={chartW - padRight} y2={padTop} stroke="rgba(255, 255, 255, 0.05)" />
+                <text x={padLeft - 5} y={padTop + 3} fill="rgba(255, 255, 255, 0.42)" fontSize="8.5" textAnchor="end">
+                  {maxT.toFixed(1).replace('.', ',')}°
+                </text>
 
-                {/* Baseline reference: 36.35°C */}
+                {/* Ligne de base personnelle */}
                 <line
-                  x1={padX}
+                  x1={padLeft}
                   y1={baselineY}
-                  x2={chartW - padX}
+                  x2={chartW - padRight}
                   y2={baselineY}
-                  stroke="rgba(255, 255, 255, 0.22)"
+                  stroke="rgba(255, 255, 255, 0.28)"
+                  strokeWidth="1"
                   strokeDasharray="3 3"
                 />
+                <text x={padLeft - 5} y={baselineY + 3} fill="rgba(255, 255, 255, 0.75)" fontSize="8.5" fontWeight="700" textAnchor="end">
+                  {baselineTemp.toFixed(1).replace('.', ',')}°
+                </text>
 
-                {/* Lower line: 36.2°C */}
-                <line x1={padX} y1={chartH - padBottom} x2={chartW - padX} y2={chartH - padBottom} stroke="rgba(255, 255, 255, 0.06)" />
-                <text x={chartW - padX + 2} y={chartH - padBottom + 3} fill="rgba(255, 255, 255, 0.3)" fontSize="8.5" textAnchor="start">36,2°</text>
+                <line x1={padLeft} y1={chartH - padBottom} x2={chartW - padRight} y2={chartH - padBottom} stroke="rgba(255, 255, 255, 0.05)" />
+                <text x={padLeft - 5} y={chartH - padBottom + 3} fill="rgba(255, 255, 255, 0.42)" fontSize="8.5" textAnchor="end">
+                  {minT.toFixed(1).replace('.', ',')}°
+                </text>
 
-                {/* Area under curve */}
-                {measuredCurvePath && measuredPts.length > 1 && (
-                  <path
-                    d={`${measuredCurvePath} L ${measuredPts[measuredPts.length - 1].x.toFixed(1)} ${chartH - padBottom} L ${measuredPts[0].x.toFixed(1)} ${chartH - padBottom} Z`}
-                    fill="url(#tempFillGrad)"
-                  />
+                {/* Petits repères pour les jours non encore mesurés */}
+                {pts.map((p) =>
+                  !p.hasTemp ? (
+                    <circle
+                      key={`empty-${p.day}`}
+                      cx={p.x}
+                      cy={baselineY}
+                      r="1.3"
+                      fill="rgba(255, 255, 255, 0.16)"
+                    />
+                  ) : null
                 )}
 
-                {/* 1. REAL MEASURED LINE: Solid White for past/current days */}
-                {measuredCurvePath ? (
+                {/* Tiges verticales depuis la ligne de base (chaud = haut orange, frais = bas bleu) */}
+                {measuredPts.map((p) => {
+                  const warm = p.delta >= 0;
+                  return (
+                    <line
+                      key={`stem-${p.day}`}
+                      x1={p.x}
+                      y1={baselineY}
+                      x2={p.x}
+                      y2={p.y}
+                      stroke={warm ? 'rgba(255, 123, 84, 0.48)' : 'rgba(96, 165, 250, 0.48)'}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+
+                {/* Courbe continue des points mesurés */}
+                {measuredCurvePath && (
                   <path
                     d={measuredCurvePath}
                     fill="none"
-                    stroke="#FFFFFF"
-                    strokeWidth="2.8"
+                    stroke="rgba(255, 255, 255, 0.85)"
+                    strokeWidth="2"
                     strokeLinecap="round"
-                  />
-                ) : null}
-
-                {/* Measured Day Points */}
-                {measuredPts.map((p, idx) => (
-                  <circle
-                    key={idx}
-                    cx={p.x}
-                    cy={p.y}
-                    r="2.5"
-                    fill="#FFFFFF"
-                  />
-                ))}
-
-                {/* 2. FUTURE DAYS PROJECTION: Subtle Dashed Line */}
-                {projectedCurvePath && (
-                  <path
-                    d={projectedCurvePath}
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.45)"
-                    strokeWidth="1.8"
-                    strokeDasharray="4 4"
-                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 )}
 
-                {/* Ovulation marker pin */}
-                <line
-                  x1={ovuCoord.x}
-                  y1={padTop}
-                  x2={ovuCoord.x}
-                  y2={chartH - padBottom}
-                  stroke="#FFD60A"
-                  strokeWidth="1"
-                  strokeDasharray="2 2"
-                  opacity="0.6"
-                />
+                {/* Points blancs mesurés */}
+                {measuredPts.map((p) => {
+                  const warm = p.delta >= 0;
+                  return (
+                    <circle
+                      key={`pt-${p.day}`}
+                      cx={p.x}
+                      cy={p.y}
+                      r="3.2"
+                      fill={warm ? '#FF7B54' : '#60A5FA'}
+                      stroke="#FFFFFF"
+                      strokeWidth="1.4"
+                    />
+                  );
+                })}
 
-                {/* Active day vertical cursor */}
+                {/* Curseur vertical du jour sélectionné */}
                 <line
                   x1={activeCoord.x}
-                  y1={padTop - 6}
+                  y1={padTop - 4}
                   x2={activeCoord.x}
                   y2={chartH - padBottom + 4}
-                  stroke={isDraggingChart ? "#FFFFFF" : "rgba(255, 255, 255, 0.45)"}
-                  strokeWidth={isDraggingChart ? "2" : "1.5"}
+                  stroke={isDraggingChart ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
+                  strokeWidth={isDraggingChart ? '1.8' : '1.2'}
                   strokeDasharray="2 2"
                 />
 
-                {/* Active Day Point Halo & Circle */}
+                {/* Point actif */}
                 <circle
                   cx={activeCoord.x}
                   cy={activeCoord.y}
-                  r={isDraggingChart ? "11" : "8"}
-                  fill={currentInfo.color}
-                  opacity={isDraggingChart ? "0.6" : "0.35"}
+                  r={isDraggingChart ? '9' : '6.5'}
+                  fill={activeCoord.hasTemp ? (activeCoord.delta >= 0 ? '#FF7B54' : '#60A5FA') : currentInfo.color}
+                  opacity={isDraggingChart ? '0.45' : '0.28'}
                 />
                 <circle
                   cx={activeCoord.x}
                   cy={activeCoord.y}
-                  r={isDraggingChart ? "5.5" : "4.5"}
+                  r="4"
                   fill="#FFFFFF"
-                  stroke={currentInfo.color}
-                  strokeWidth="2.5"
+                  stroke={activeCoord.hasTemp ? (activeCoord.delta >= 0 ? '#FF7B54' : '#60A5FA') : currentInfo.color}
+                  strokeWidth="2"
                 />
               </svg>
 
-              {/* Floating Pill on Active Point */}
+              {/* Étiquette flottante toujours visible sans déborder */}
               <div
                 style={{
                   position: 'absolute',
-                  left: `${(activeCoord.x / chartW) * 100}%`,
-                  top: `${Math.max(14, activeCoord.y - 18)}px`,
-                  transform: `translate(-50%, -50%) scale(${isDraggingChart ? 1.08 : 1})`,
-                  background: 'rgba(0, 0, 0, 0.9)',
-                  border: `1px solid ${isDraggingChart ? '#FFFFFF' : currentInfo.color}`,
+                  left: `${pillLeftPct}%`,
+                  top: '12px',
+                  transform: `translate(-50%, -50%) scale(${isDraggingChart ? 1.06 : 1})`,
+                  background: 'rgba(10, 10, 14, 0.92)',
+                  border: `1px solid ${activeCoord.hasTemp ? (activeCoord.delta >= 0 ? 'rgba(255, 123, 84, 0.65)' : 'rgba(96, 165, 250, 0.65)') : 'rgba(255, 255, 255, 0.25)'}`,
                   borderRadius: '999px',
-                  padding: '2px 8px',
-                  fontSize: '9.5px',
-                  fontWeight: 800,
+                  padding: '2px 9px',
+                  fontSize: '10px',
+                  fontWeight: 700,
                   color: '#FFFFFF',
                   whiteSpace: 'nowrap',
                   pointerEvents: 'none',
-                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.6)',
-                  transition: isDraggingChart ? 'none' : 'transform 120ms ease',
+                  boxShadow: '0 2px 10px rgba(0, 0, 0, 0.65)',
                 }}
               >
-                {selectedPoint.temp > 0 ? `J${selectedCycleDay} · ${selectedPoint.temp.toFixed(2)} °C` : `J${selectedCycleDay} · -- °C`}
+                {selectedPoint.temp >= 30
+                  ? `J${selectedCycleDay} · ${selectedPoint.temp.toFixed(2).replace('.', ',')} °C`
+                  : `J${selectedCycleDay} · ${isEn ? 'Not measured' : 'Non mesuré'}`}
               </div>
             </div>
 
-            {/* X-Axis Cycle Days Timeline */}
+            {/* Axe des jours du cycle */}
             <div
               style={{
                 display: 'flex',
@@ -1934,7 +2028,7 @@ export const CycleScreen: React.FC = () => {
               </span>
               <span>J7</span>
               <span style={{ color: isOvulationWindow ? '#FFD60A' : '#E5C100', fontWeight: 700 }}>
-                {isEn ? 'D14 Ovulation' : 'J14 Ovulation ✨'}
+                {isEn ? 'D14 Ovulation' : 'J14 Ovulation'}
               </span>
               <span>J21</span>
               <span style={{ color: selectedCycleDay >= 26 ? '#FFFFFF' : 'inherit', fontWeight: selectedCycleDay >= 26 ? 700 : 500 }}>
@@ -1942,33 +2036,33 @@ export const CycleScreen: React.FC = () => {
               </span>
             </div>
 
-            {/* Legend: Real Measurement vs Projection */}
+            {/* Légende simple à 3 repères */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '14px',
-                fontSize: '9.5px',
+                flexWrap: 'wrap',
+                gap: '12px',
+                fontSize: '10px',
                 color: 'var(--text-secondary)',
-                marginTop: '1px',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: '12px', height: '2.5px', background: '#FFFFFF', borderRadius: '2px' }} />
-                <span style={{ color: '#FFFFFF', fontWeight: 600 }}>
-                  {isEn ? 'Measured by Ring' : 'Mesuré par la bague'}
-                </span>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#60A5FA' }} />
+                <span>{isEn ? 'Below baseline' : 'Phase basse'}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <span style={{ width: '12px', height: '0', borderTop: '2px dashed rgba(255, 255, 255, 0.5)' }} />
-                <span>
-                  {isEn ? 'Forecast model' : 'Projection théorique'}
-                </span>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#FF7B54' }} />
+                <span>{isEn ? 'Warm shift (post-ovulation)' : 'Hausse post-ovulation'}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '12px', height: '0', borderTop: '1.5px dashed rgba(255, 255, 255, 0.5)' }} />
+                <span>{isEn ? 'Baseline' : 'Base'}</span>
               </div>
             </div>
 
-            {/* Explanatory Context Note: What does this mean? */}
+            {/* Explication claire en français */}
             <div
               style={{
                 background: 'rgba(255, 255, 255, 0.04)',
@@ -1981,51 +2075,25 @@ export const CycleScreen: React.FC = () => {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <TrendingUp size={13} color="#30D158" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#FFFFFF' }}>
-                  {selectedPoint.temp > 0
-                    ? (isEn ? `Day ${selectedCycleDay} · Measured Night Reading` : `Jour ${selectedCycleDay} · Donnée réelle mesurée par la bague`)
-                    : (isEn ? `Day ${selectedCycleDay} · Awaiting Ring Measurement` : `Jour ${selectedCycleDay} · En attente de mesure de la bague`)}
+                <TrendingUp size={13} color={deltaIsWarm ? '#FF7B54' : '#60A5FA'} />
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#FFFFFF' }}>
+                  {selectedPoint.temp >= 30
+                    ? isEn
+                      ? `Day ${selectedCycleDay} · ${currentInfo.badgeEn}`
+                      : `Jour ${selectedCycleDay} · ${selectedPoint.temp.toFixed(2).replace('.', ',')} °C (${deltaStr})`
+                    : isEn
+                    ? `Day ${selectedCycleDay} · No ring measurement`
+                    : `Jour ${selectedCycleDay} · En attente de mesure`}
                 </span>
               </div>
 
-              <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.8)', lineHeight: 1.45 }}>
-                {selectedPoint.temp > 0
-                  ? (isEn
-                      ? `Real skin temperature measured by your ring (${selectedPoint.temp.toFixed(2)}°C).`
-                      : `Température cutanée réelle mesurée par votre bague (${selectedPoint.temp.toFixed(2)} °C).`)
-                  : (isEn
-                      ? `No temperature reading recorded for this day. Your Aurel Ring One only plots real measured nocturnal temperatures.`
-                      : `Aucune mesure thermique enregistrée pour ce jour. Votre bague Aurel Ring One affiche uniquement vos vraies mesures nocturnes.`)}
+              <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255, 255, 255, 0.78)', lineHeight: 1.45 }}>
+                {getSimpleTempExplanation()}
               </p>
             </div>
           </div>
         );
       })()}
-
-      {/* 8. Hormonal Vitality & Workout Prescription */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, rgba(43, 4, 4, 0.5) 0%, rgba(20, 2, 2, 0.7) 100%)',
-          border: '1.5px solid #2b0404',
-          borderRadius: '20px',
-          padding: '16px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          marginTop: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Flame size={14} color="#C44558" />
-          <span style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF' }}>
-            {isEn ? 'Training & Recovery Guidance' : 'Conseil Entraînement & Récupération'}
-          </span>
-        </div>
-        <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.45 }}>
-          {isEn ? currentInfo.adviceEn : currentInfo.adviceFr}
-        </p>
-      </div>
     </div>
   );
 };
