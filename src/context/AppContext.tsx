@@ -584,7 +584,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.hrv = data.hrv!;
           if (Array.isArray(data.hrvLog) && data.hrvLog.length === 48) {
-            cur.hrvLog = data.hrvLog;
+            const existing = Array.isArray(cur.hrvLog) && cur.hrvLog.length === 48 ? cur.hrvLog : new Array(48).fill(0);
+            cur.hrvLog = data.hrvLog.map((v, i) => (v > 0 ? v : existing[i] || 0));
           } else {
             const now = new Date();
             const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
