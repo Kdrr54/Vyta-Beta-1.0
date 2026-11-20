@@ -697,7 +697,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.wearCalibrationScore !== undefined) {
         updateRing({ wearCalibrationScore: data.wearCalibrationScore, wearCalibrationDate: "Aujourd'hui" });
       }
-      if ((data.steps !== undefined && data.steps > 0) || (Array.isArray(data.stepsHourly) && data.stepsHourly.some((v) => v > 0))) {
+      if (
+        (data.steps !== undefined && data.steps >= 0 && (data.steps > 0 || data.stepsAuthoritative)) ||
+        (Array.isArray(data.stepsHourly) && data.stepsHourly.some((v) => v > 0))
+      ) {
         // Guard & auto-repair if a 24-bit Little-Endian step value (> 120000) ever arrives
         const rawSteps = data.steps ?? 0;
         const safeSteps = rawSteps > 120000
@@ -710,11 +713,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (idx < 0 || idx >= 7) return prev;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           const prevSteps = cur.steps || 0;
-          const nextSteps = safeSteps > 0 ? Math.max(prevSteps, safeSteps) : prevSteps;
+          const nextSteps = data.stepsAuthoritative
+            ? safeSteps
+            : safeSteps > 0
+            ? (prevSteps > 0 ? Math.max(prevSteps, safeSteps) : safeSteps)
+            : prevSteps;
           cur.steps = nextSteps;
 
           if (Array.isArray(data.stepsHourly) && data.stepsHourly.length === 24 && data.stepsHourly.some((v) => v > 0)) {
             cur.stepsHourly = data.stepsHourly;
+          } else if (data.stepsAuthoritative && nextSteps === 0) {
+            cur.stepsHourly = new Array(24).fill(0);
+          } else if (data.stepsAuthoritative && nextSteps < prevSteps) {
+            const hourlySum = Array.isArray(cur.stepsHourly)
+              ? cur.stepsHourly.reduce((s, v) => s + (v || 0), 0)
+              : 0;
+            if (hourlySum > nextSteps + 100) {
+              const resetHourly = new Array(24).fill(0);
+              if (daysAgo === 0 && nextSteps > 0) {
+                resetHourly[new Date().getHours()] = nextSteps;
+              }
+              cur.stepsHourly = resetHourly;
+            }
           } else if (daysAgo === 0 && prevSteps > 0 && nextSteps > prevSteps && nextSteps - prevSteps <= 2000) {
             const curHour = new Date().getHours();
             const hourly = Array.isArray(cur.stepsHourly) && cur.stepsHourly.length === 24
@@ -724,13 +744,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.stepsHourly = hourly;
           }
 
-          if (data.calories !== undefined && data.calories > 0) {
+          if (data.calories !== undefined && (data.calories > 0 || (data.stepsAuthoritative && nextSteps === 0))) {
             const safeKcal = data.calories > 1500 && nextSteps < 10000 ? Math.round(data.calories / 1000) : data.calories;
-            cur.activeKcal = safeKcal > 0 ? safeKcal : Math.max(1, Math.round(nextSteps * 0.04));
-          } else if (nextSteps > 0 && (!cur.activeKcal || cur.activeKcal === 0 || cur.activeKcal > 1500)) {
+            cur.activeKcal = nextSteps === 0 ? 0 : safeKcal > 0 ? safeKcal : Math.max(1, Math.round(nextSteps * 0.04));
+          } else if (nextSteps > 0 && (!cur.activeKcal || cur.activeKcal === 0 || cur.activeKcal > 1500 || (data.stepsAuthoritative && nextSteps < prevSteps))) {
             cur.activeKcal = Math.max(1, Math.round(nextSteps * 0.04));
+          } else if (data.stepsAuthoritative && nextSteps === 0) {
+            cur.activeKcal = 0;
           }
-          if (data.distanceKm && data.distanceKm > 0) cur.distanceKm = data.distanceKm;
+          if (data.distanceKm && data.distanceKm > 0) {
+            cur.distanceKm = data.distanceKm;
+          } else if (data.stepsAuthoritative && nextSteps < prevSteps) {
+            cur.distanceKm = nextSteps === 0 ? 0 : parseFloat(((nextSteps * 0.72) / 1000).toFixed(2));
+          }
           if (cur.pillars) {
             cur.pillars = {
               ...cur.pillars,

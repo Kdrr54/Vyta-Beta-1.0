@@ -88,6 +88,7 @@ export interface BleRingData {
   maxBpm?: number;
   restingBpm?: number;
   steps?: number;
+  stepsAuthoritative?: boolean;
   stepsHourly?: number[];
   calories?: number;
   distanceKm?: number;
@@ -2046,13 +2047,9 @@ class QRingBleService {
       this.resolveStepsDetailWaiters();
     }
 
-    // 2. QCBand daily total (0x07) + TodaySportData (0x48 on today)
+    // 2. QCBand daily total (0x07) — authoritative daily hardware step/kcal/distance counter
     const p7 = this.makePacket(0x07, [this.requestedStepsDayOffset & 0xFF]);
     const ok7 = await this.writeBytes(p7);
-    if (this.requestedStepsDayOffset === 0) {
-      await new Promise((r) => setTimeout(r, 110));
-      await this.requestTodaySports();
-    }
     await new Promise((r) => setTimeout(r, 180));
     return ok7;
   }
@@ -2300,6 +2297,31 @@ class QRingBleService {
       });
     }
     this.resolveHrLogWaiters();
+  }
+
+  private parseRingDateDaysAgo(bY: number, bM: number, bD: number): number | null {
+    const decodeBcd = (v: number) =>
+      ((v >> 4) & 0x0F) <= 9 && (v & 0x0F) <= 9 ? ((v >> 4) * 10 + (v & 0x0F)) : -1;
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const candidates: Array<[number, number, number]> = [];
+    const by = decodeBcd(bY);
+    const bm = decodeBcd(bM);
+    const bd = decodeBcd(bD);
+    if (by >= 24 && by <= 35 && bm >= 1 && bm <= 12 && bd >= 1 && bd <= 31) {
+      candidates.push([2000 + by, bm - 1, bd]);
+    }
+    if (bY >= 24 && bY <= 35 && bM >= 1 && bM <= 12 && bD >= 1 && bD <= 31) {
+      candidates.push([2000 + bY, bM - 1, bD]);
+    }
+    for (const [yr, mo, dy] of candidates) {
+      const dt = new Date(yr, mo, dy);
+      if (dt.getFullYear() === yr && dt.getMonth() === mo && dt.getDate() === dy) {
+        const diffDays = Math.round((todayMidnight - dt.getTime()) / 86400000);
+        if (diffDays >= 0 && diffDays <= 14) return diffDays;
+      }
+    }
+    return null;
   }
 
   private finalizeStepsDetailLog() {
@@ -2990,12 +3012,9 @@ class QRingBleService {
         await this.requestTemperatureData();
         await tempWait;
 
-        // 9. Steps and activity detail + sports counters
+        // 9. Steps and activity detail (0x43 15-min slots + 0x07 daily register)
         await this.requestStepsData(0);
         await new Promise((r) => setTimeout(r, 140));
-
-        await this.requestTodaySports();
-        await new Promise((r) => setTimeout(r, 120));
 
         console.log('[QRing BLE] === Fast Hardware Data Sync Completed ===');
         return true;
@@ -3717,6 +3736,17 @@ class QRingBleService {
           return;
         }
         if (len >= 13) {
+          const pktDaysAgo = this.parseRingDateDaysAgo(
+            dataView.getUint8(1),
+            dataView.getUint8(2),
+            dataView.getUint8(3)
+          );
+          if (pktDaysAgo !== null && pktDaysAgo !== this.requestedStepsDayOffset) {
+            console.log(
+              `[QRing BLE] Cmd 0x43 ignoring stale-day slot: pktDaysAgo=${pktDaysAgo}, requested=${this.requestedStepsDayOffset}`
+            );
+            return;
+          }
           const timeIndex = dataView.getUint8(4);
           const cal = dataView.getUint16(7, true);
           const st = dataView.getUint16(9, true);
@@ -3877,6 +3907,18 @@ class QRingBleService {
       if (len >= 15) {
         const pocketIndex = dataView.getUint8(1);
         if (pocketIndex === 0) {
+          const b2 = dataView.getUint8(2);
+          const b3 = dataView.getUint8(3);
+          const b4 = dataView.getUint8(4);
+          const b5 = dataView.getUint8(5);
+          const pktDaysAgo =
+            this.parseRingDateDaysAgo(b2, b3, b4) ??
+            this.parseRingDateDaysAgo(b3, b4, b5);
+          const effectiveDaysAgo =
+            pktDaysAgo !== null && pktDaysAgo >= 0 && pktDaysAgo <= 6
+              ? pktDaysAgo
+              : this.requestedStepsDayOffset;
+
           const s0 = dataView.getUint8(6);
           const s1 = dataView.getUint8(7);
           const s2 = dataView.getUint8(8);
@@ -3890,11 +3932,21 @@ class QRingBleService {
           // Ex: 103 pas = 3438 cal = 3 kcal
           const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
 
-          if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
-            console.log('[QRing BLE] Cmd 0x07 (sub-packet 0) Big-Endian activity: j-', this.requestedStepsDayOffset, 'steps:', steps, 'kcal:', cal);
-            this.notify({
-              daysAgo: this.requestedStepsDayOffset,
+          if (steps >= 0 && steps <= 120000) {
+            console.log(
+              '[QRing BLE] Cmd 0x07 (sub-packet 0) authoritative activity: j-',
+              effectiveDaysAgo,
+              'dateBytes:',
+              [b2, b3, b4, b5].map((x) => x.toString(16).padStart(2, '0')).join(' '),
+              'steps:',
               steps,
+              'kcal:',
+              cal
+            );
+            this.notify({
+              daysAgo: effectiveDaysAgo,
+              steps,
+              stepsAuthoritative: true,
               calories: cal,
               isConnected: true,
             });
@@ -3931,41 +3983,16 @@ class QRingBleService {
       }
     }
 
-    // Command 0x48 / 72 (TodaySportDataRsp - BLEDataFormatUtils.bytes2Int Big-Endian MSB first):
-    //   - bytes[1..3]: totalSteps (24-bit Big-Endian: (s0 << 16) | (s1 << 8) | s2)
-    //   - bytes[4..6]: runningSteps (24-bit Big-Endian)
-    //   - bytes[7..9]: calorie (24-bit Big-Endian, in cal -> kcal)
-    //   - bytes[10..12]: walkDistance (24-bit Big-Endian, in meters)
+    // Command 0x48 / 72 (Diagnostic only — do NOT overwrite daily steps, since several firmwares
+    // echo target/status bytes such as 4000 / 0x0FA0 on 0x48 while 0x07 carries the true step register)
     if (header === 72 || header === 0x48) {
       if (len >= 13) {
         const s0 = dataView.getUint8(1);
         const s1 = dataView.getUint8(2);
         const s2 = dataView.getUint8(3);
-        const steps = (s0 << 16) | (s1 << 8) | s2;
-
-        const c0 = dataView.getUint8(7);
-        const c1 = dataView.getUint8(8);
-        const c2 = dataView.getUint8(9);
-        const rawCal = (c0 << 16) | (c1 << 8) | c2;
-        // Le firmware QRing envoie les calories en petites calories (cal). 1 kcal = 1000 cal.
-        const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
-
-        const d0 = dataView.getUint8(10);
-        const d1 = dataView.getUint8(11);
-        const d2 = dataView.getUint8(12);
-        const distMeters = (d0 << 16) | (d1 << 8) | d2;
-        const distKm = parseFloat((distMeters / 1000).toFixed(2));
-
-        if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
-          console.log('[QRing BLE] Command 72 (0x48) Big-Endian activity: steps:', steps, 'kcal:', cal, 'km:', distKm);
-          this.notify({
-            steps,
-            calories: cal,
-            distanceKm: distKm,
-            isConnected: true,
-          });
-          return;
-        }
+        const rawVal = (s0 << 16) | (s1 << 8) | s2;
+        console.log('[QRing BLE] Command 0x48 packet ignored for steps (diag rawVal:', rawVal, ')');
+        return;
       }
     }
 

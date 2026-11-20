@@ -211,7 +211,7 @@ function sanitizeRouteGpsPoints(pts?: [number, number][]): [number, number][] | 
 }
 
 export const FitScreen: React.FC = () => {
-  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile } = useApp();
+  const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile, todayIndex } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const resolveInitialFitSubTab = (): 'steps' | 'run' | 'trajets' | 'gym' => {
@@ -428,7 +428,7 @@ export const FitScreen: React.FC = () => {
   }, []);
 
   // Suivi des pas matériels de la bague en mode Course sur tapis
-  const todayRingSteps = weekData?.[weekData.length - 1]?.steps || 0;
+  const todayRingSteps = weekData?.[todayIndex]?.steps || 0;
   useEffect(() => {
     if (runMode !== 'treadmill' || runState !== 'running') return;
     if (treadmillStartStepsRef.current === null) {

@@ -83,7 +83,7 @@ export const StepsTabView: React.FC = () => {
   }, [selectedDay, weekOffset]);
 
   useEffect(() => {
-    if (hasHourlyData) return;
+    if (hasHourlyData && !(weekOffset === 0 && selectedDay === todayIndex)) return;
     if (!ring.isConnected || !qringBle.isConnected()) return;
     if (weekOffset !== 0 || selectedDay > todayIndex) return;
     const key = `${weekOffset}-${selectedDay}`;
