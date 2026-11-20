@@ -710,6 +710,25 @@ class QRingBleService {
           await this.requestStepsData(0);
           await new Promise((r) => setTimeout(r, 150));
           await this.sendBatteryRequest();
+
+          // Fallback léger VRC uniquement si la bague a sauté le créneau courant (mouvement) en mode <= 30 min
+          const nowDate = new Date();
+          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
+          const minuteInSlot = nowDate.getMinutes() % 30;
+          if (
+            this.configuredIntervalMinutes > 0 &&
+            this.configuredIntervalMinutes <= 30 &&
+            minuteInSlot >= 4 &&
+            minuteInSlot <= 14 &&
+            this.lastAutoMeasureSlot !== currentSlot &&
+            this.hrvLogSlots[currentSlot] === 0 &&
+            !this.isAutoSpotMeasuring &&
+            !this.isRealTimeHrActive &&
+            this.activeLiveDataType === null
+          ) {
+            this.lastAutoMeasureSlot = currentSlot;
+            this.triggerProactiveBiometricSpotCheck();
+          }
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
@@ -2914,8 +2933,8 @@ class QRingBleService {
             }
           } catch (_) {}
         }
-        if (force || this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
-          await this.setAllSensorIntervals(this.configuredIntervalMinutes, force);
+        if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
+          await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
         } else {
           // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted any sensor to OFF
@@ -3446,12 +3465,24 @@ class QRingBleService {
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
   /**
-   * Disabled automatic BLE optical spot-check: forcing 36s of continuous RED/IR/Green LEDs
-   * over BLE every 30 min caused severe ring battery drain. The ring firmware handles
-   * autonomous measurements natively at ultra-low power and stores them to flash.
+   * Relance légère uniquement pour le VRC (14 s, LED verte) lorsque la bague connectée
+   * a sauté le créneau de 30 min courant à cause d'un mouvement.
    */
   public async triggerProactiveBiometricSpotCheck() {
-    return;
+    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive || this.activeLiveDataType !== null) {
+      return;
+    }
+    this.isAutoSpotMeasuring = true;
+    console.log('[QRing BLE] Running lightweight 14s VRC fallback for empty 30-min slot...');
+    try {
+      await this.startRealTimeHrv();
+      await new Promise((r) => setTimeout(r, 14000));
+      await this.stopRealTimeHrv();
+    } catch (err) {
+      console.warn('[QRing BLE] VRC fallback notice:', err);
+    } finally {
+      this.isAutoSpotMeasuring = false;
+    }
   }
 
   /**
