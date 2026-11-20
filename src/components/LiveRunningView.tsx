@@ -1083,7 +1083,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         </div>
       )}
 
-      {/* BOTTOM ACTION DRAWER (EXPANDABLE SHEET) */}
+      {/* SLIDING CHARTS DRAWER (PURE GPU TRANSFORM, ZERO MAX-HEIGHT/BLUR JANK) */}
       <div
         ref={sheetScrollRef}
         onTouchStart={(e) => {
@@ -1099,15 +1099,17 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           const dy = e.touches[0].clientY - sheetDragStartYRef.current;
           if (isSheetExpanded && dy > 0) {
             setSheetDragY(dy);
+            if (e.cancelable) e.preventDefault();
           } else if (!isSheetExpanded && dy < 0) {
-            setSheetDragY(Math.max(-44, dy));
+            setSheetDragY(Math.max(-240, dy));
+            if (e.cancelable) e.preventDefault();
           }
         }}
         onTouchEnd={() => {
           if (sheetDragStartYRef.current === null) return;
           const dt = Math.max(16, Date.now() - sheetDragStartTsRef.current);
           const velocity = Math.abs(sheetDragY) / dt;
-          if (isSheetExpanded && (sheetDragY > 42 || (velocity > 0.35 && sheetDragY > 18))) {
+          if (isSheetExpanded && (sheetDragY > 46 || (velocity > 0.35 && sheetDragY > 18))) {
             setIsSheetExpanded(false);
           } else if (!isSheetExpanded && (sheetDragY < -24 || (velocity > 0.3 && sheetDragY < -12))) {
             setIsSheetExpanded(true);
@@ -1121,27 +1123,28 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
         }}
         style={{
           position: 'absolute',
-          bottom: 0,
           left: 0,
           right: 0,
-          background: isSheetExpanded ? 'rgba(16, 16, 20, 0.98)' : '#0D0D0F',
-          backdropFilter: 'blur(28px)',
-          WebkitBackdropFilter: 'blur(28px)',
+          bottom: 'calc(max(18px, env(safe-area-inset-bottom)) + 72px)',
+          maxHeight: 'calc(100dvh - 185px)',
+          background: '#0F0F13',
           borderTop: '1px solid rgba(255, 255, 255, 0.12)',
           borderTopLeftRadius: '24px',
           borderTopRightRadius: '24px',
-          padding: isSheetExpanded
-            ? '12px 16px calc(max(24px, env(safe-area-inset-bottom)) + 12px) 16px'
-            : '8px 16px calc(max(20px, env(safe-area-inset-bottom)) + 12px) 16px',
+          padding: '8px 16px 12px 16px',
           zIndex: 600,
-          maxHeight: isSheetExpanded ? 'calc(100dvh - 110px)' : '100px',
           overflowY: isSheetExpanded ? 'auto' : 'hidden',
-          transform: sheetDragY !== 0 ? `translate3d(0, ${sheetDragY}px, 0)` : 'translate3d(0, 0, 0)',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          transform: isSheetExpanded
+            ? `translate3d(0, ${Math.max(0, sheetDragY)}px, 0)`
+            : `translate3d(0, calc(100% - 42px + ${Math.min(0, sheetDragY)}px), 0)`,
           transition:
             sheetDragY !== 0
               ? 'none'
-              : 'max-height 380ms cubic-bezier(0.16, 1, 0.3, 1), transform 360ms cubic-bezier(0.16, 1, 0.3, 1), background 240ms ease',
-          boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.7)',
+              : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
+          boxShadow: '0 -10px 28px rgba(0, 0, 0, 0.72)',
         }}
       >
         {/* Drawer Drag Pill Handle - Interactive Button + Swipe */}
@@ -1150,7 +1153,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           onClick={() => setIsSheetExpanded(!isSheetExpanded)}
           style={{
             cursor: 'pointer',
-            padding: '4px 0 10px 0',
+            padding: '2px 0 10px 0',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -1162,9 +1165,9 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           <div
             style={{
               width: '42px',
-              height: '5px',
+              height: '4.5px',
               borderRadius: '2.5px',
-              background: '#4E4E52',
+              background: '#5A5A60',
             }}
           />
           <span style={{ fontSize: '10.5px', color: '#8E8E93', fontWeight: 600 }}>
@@ -1172,21 +1175,41 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           </span>
         </div>
 
-        {/* EXPANDED CONTENT: Telemetry Charts + Share Button */}
-        {isSheetExpanded && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
-            {/* Complete Interactive Telemetry Charts (Distance, Vitesse, BPM) */}
-            <RunTelemetryCharts
-              runState={runState}
-              runDurationSec={runDurationSec}
-              runDistanceKm={runDistanceKm}
-              liveSpeedKmh={liveSpeedKmh || 0}
-              liveHr={liveHr || 0}
-              telemetryHistory={telemetryHistory}
-            />
-          </div>
-        )}
+        {/* TELEMETRY CHARTS CONTENT (kept mounted for zero-frame-drop GPU glide) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+            marginBottom: '6px',
+            opacity: isSheetExpanded || sheetDragY < -8 ? 1 : 0,
+            pointerEvents: isSheetExpanded ? 'auto' : 'none',
+            transition: 'opacity 220ms ease',
+          }}
+        >
+          <RunTelemetryCharts
+            runState={runState}
+            runDurationSec={runDurationSec}
+            runDistanceKm={runDistanceKm}
+            liveSpeedKmh={liveSpeedKmh || 0}
+            liveHr={liveHr || 0}
+            telemetryHistory={telemetryHistory}
+          />
+        </div>
+      </div>
 
+      {/* PINNED STATIONARY BOTTOM ACTION BAR */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: '#0D0D10',
+          padding: '8px 16px calc(max(18px, env(safe-area-inset-bottom)) + 10px) 16px',
+          zIndex: 620,
+        }}
+      >
         {/* RUNNING STATE: Full-Width Bright Orange "❚❚ Pause" Button */}
         {runState === 'running' && (
           <button
