@@ -1751,24 +1751,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
                   {[
                     {
-                      id: '1h',
-                      title: isEn ? 'Balanced' : 'Équilibré',
-                      sub: '1h · ~8j',
-                      isActive: sensorIntervals?.heartRate === '1h',
+                      id: '15min',
+                      title: isEn ? 'Test 15m' : 'Test 15m',
+                      sub: '15m · ~3j',
+                      isActive: sensorIntervals?.heartRate === '15min',
                       action: () => {
                         triggerHaptic();
                         updateSensorIntervals({
-                          heartRate: '1h',
-                          hrv: '1h',
-                          spo2: '1h',
-                          temperature: '1h',
-                          stress: '1h',
-                          bloodPressure: '1h',
-                          glucose: '1h',
-                          respiratory: '1h',
+                          heartRate: '15min',
+                          hrv: '15min',
+                          spo2: '15min',
+                          temperature: '15min',
+                          stress: '15min',
+                          bloodPressure: '15min',
+                          glucose: '15min',
+                          respiratory: '15min',
                         });
                       },
                     },
@@ -1788,6 +1788,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           bloodPressure: '30min',
                           glucose: '30min',
                           respiratory: '30min',
+                        });
+                      },
+                    },
+                    {
+                      id: '1h',
+                      title: isEn ? 'Balanced' : 'Équilibré',
+                      sub: '1h · ~8j',
+                      isActive: sensorIntervals?.heartRate === '1h',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '1h',
+                          hrv: '1h',
+                          spo2: '1h',
+                          temperature: '1h',
+                          stress: '1h',
+                          bloodPressure: '1h',
+                          glucose: '1h',
+                          respiratory: '1h',
                         });
                       },
                     },
@@ -1816,7 +1835,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       type="button"
                       onClick={preset.action}
                       style={{
-                        padding: '10px 6px',
+                        padding: '10px 4px',
                         borderRadius: '12px',
                         background: preset.isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
                         border: preset.isActive ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
@@ -1829,10 +1848,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      <span style={{ fontSize: '11px', fontWeight: preset.isActive ? 700 : 500 }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: preset.isActive ? 700 : 500, whiteSpace: 'nowrap' }}>
                         {preset.title}
                       </span>
-                      <span style={{ fontSize: '9.5px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontSize: '9px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
                         {preset.sub}
                       </span>
                     </button>
