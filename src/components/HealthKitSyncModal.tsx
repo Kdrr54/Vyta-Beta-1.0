@@ -54,8 +54,8 @@ export const HealthKitSyncModal: React.FC<HealthKitSyncModalProps> = ({ onClose 
               <h2 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
                 Apple Santé & Fitness
               </h2>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Pont bidirectionnel HealthKit actif
+              <span style={{ fontSize: '11px', color: state.isAuthorized ? '#30D158' : '#FF9F0A' }}>
+                {state.isAuthorized ? 'Pont Apple Santé activé' : 'Synchronisation en pause'}
               </span>
             </div>
           </div>

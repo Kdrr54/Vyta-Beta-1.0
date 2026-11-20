@@ -294,7 +294,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 3 &&
+            parsed?.cfgVer === 4 &&
             typeof parsed?.minutes === 'number' &&
             typeof parsed?.strict === 'boolean' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
@@ -1522,6 +1522,31 @@ class QRingBleService {
   }
 
   /**
+   * Pré-initialise CoreBluetooth (sur iOS/Android natif) ou vérifie Web Bluetooth
+   * lors de l'étape d'autorisations de l'onboarding.
+   */
+  public async requestBluetoothPermission(): Promise<{ granted: boolean; error?: string }> {
+    if (!this.isSupported()) {
+      return { granted: false, error: 'Bluetooth non supporté sur cet appareil.' };
+    }
+    if (!Capacitor.isNativePlatform()) {
+      return { granted: true };
+    }
+    try {
+      if (!this.isNativeInitialized) {
+        await BleClient.initialize();
+        this.isNativeInitialized = true;
+      }
+      return { granted: true };
+    } catch (err: any) {
+      return {
+        granted: false,
+        error: err?.message || 'Autorisation Bluetooth refusée.',
+      };
+    }
+  }
+
+  /**
    * Start a passive Bluetooth LE discovery scan without auto-connecting,
    * so the UI can list detected rings and let the user select one.
    */
@@ -1815,7 +1840,7 @@ class QRingBleService {
         localStorage.setItem(
           'vyta_hw_programmed_interval',
           JSON.stringify({
-            cfgVer: 3,
+            cfgVer: 4,
             deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
             minutes: mins,
             strict: strictNow,
@@ -1831,8 +1856,7 @@ class QRingBleService {
       this.boundaryAlignTimer = null;
     }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    // When strict single-LED mode is ON (default), disable 0x2C (SpO2), 0x38 (HRV), 0x36 (Stress)
-    // because R21 firmware runs those on a fixed 30m schedule (:30 + :32 red LED) even when 1h is requested.
+    // When strict single-LED mode is ON, disable 0x2C (SpO2), 0x38 (HRV), 0x36 (Stress)
     const secondaryEnabledByte = mins > 0 && !strictNow ? 0x01 : 0x02;
     const secondaryMinsByte = secondaryEnabledByte === 0x01 ? (mins & 0xFF) : 0x00;
     console.log(
@@ -1841,23 +1865,23 @@ class QRingBleService {
 
     // 1. Heart rate (0x16) — primary scheduled green LED timer
     await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 70));
+    await new Promise((r) => setTimeout(r, 140));
 
     // 2. SpO2 (0x2C) — RED LED
     await this.writeBytes(this.makePacket(0x2C, [0x02, secondaryEnabledByte, secondaryMinsByte]));
-    await new Promise((r) => setTimeout(r, 70));
+    await new Promise((r) => setTimeout(r, 140));
 
     // 3. HRV (0x38)
     await this.writeBytes(this.makePacket(0x38, [0x02, secondaryEnabledByte, secondaryMinsByte]));
-    await new Promise((r) => setTimeout(r, 70));
+    await new Promise((r) => setTimeout(r, 140));
 
     // 4. Stress (0x36)
     await this.writeBytes(this.makePacket(0x36, [0x02, secondaryEnabledByte, secondaryMinsByte]));
-    await new Promise((r) => setTimeout(r, 70));
+    await new Promise((r) => setTimeout(r, 140));
 
     // 5. Temperature (0x3A) — NTC thermistor (0 LEDs)
     await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, mins & 0xFF]));
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((r) => setTimeout(r, 120));
 
     return true;
   }
@@ -2928,9 +2952,11 @@ class QRingBleService {
           await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
         } else {
-          // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted to OFF/15m
-          await this.writeBytes(this.makePacket(0x16, [0x01]));
-          await new Promise((r) => setTimeout(r, 90));
+          // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted any sensor to OFF
+          for (const cmd of [0x16, 0x2C, 0x38, 0x36]) {
+            await this.writeBytes(this.makePacket(cmd, [0x01]));
+            await new Promise((r) => setTimeout(r, 80));
+          }
         }
 
         // 3. Stored full-day heart rate logs (await full multi-frame 0x15 completion so recent slots aren't cut off)
@@ -3609,8 +3635,27 @@ class QRingBleService {
     // 1c. Ring Sensor Monitoring Acknowledgment (0x2C SpO2, 0x36 Stress, 0x38 HRV)
     if ([44, 0x2C, 54, 0x36, 56, 0x38].includes(header)) {
       const sensorName = (header === 44 || header === 0x2C) ? 'SpO2' : (header === 56 || header === 0x38) ? 'HRV' : 'Stress';
-      const isEnabled = len >= 3 ? dataView.getUint8(2) === 1 : true;
-      console.log(`[QRing BLE] Ring Sensor ${sensorName} (0x${header.toString(16)}) preference confirmed: enabled=${isEnabled}`);
+      const subType = len >= 2 ? dataView.getUint8(1) : 0;
+      const enabledRaw = len >= 3 ? dataView.getUint8(2) : 1;
+      const isEnabled = enabledRaw === 1;
+      console.log(`[QRing BLE] Ring Sensor ${sensorName} (0x${header.toString(16)}) preference confirmed: enabled=${isEnabled} (sub=${subType})`);
+
+      const wantSecondaryOn = this.configuredIntervalMinutes > 0 && !this.isStrictLedModeEnabled();
+      const validReadOrWrite = len >= 3 && (subType === 1 || subType === 2) && (enabledRaw === 0 || enabledRaw === 1 || enabledRaw === 2);
+      if (validReadOrWrite && isEnabled !== wantSecondaryOn && Date.now() - this.lastIntervalFixAt > 10000) {
+        this.lastIntervalFixAt = Date.now();
+        console.warn(
+          `[QRing BLE] Sensor ${sensorName} mismatch detected (ring=${isEnabled ? 'ON' : 'OFF'}, expected=${wantSecondaryOn ? 'ON' : 'OFF'}). Re-arming...`
+        );
+        this.recordLiveMeasureEvent(
+          'led',
+          `${sensorName} réarmé`,
+          `${isEnabled ? 'ON' : 'OFF'} → ${wantSecondaryOn ? 'ON' : 'OFF'}`,
+          'amber',
+          'live'
+        );
+        this.setAllSensorIntervals(this.configuredIntervalMinutes, true).catch(() => {});
+      }
       return;
     }
 

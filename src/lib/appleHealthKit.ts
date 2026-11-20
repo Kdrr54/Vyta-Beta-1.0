@@ -24,14 +24,14 @@ export interface HealthKitSyncState {
 
 const STORAGE_KEY = 'vyta_healthkit_sync_state';
 
-function buildDynamicMetrics() {
+function buildDynamicMetrics(isAuthorized = true) {
   const today = weekMetrics[TODAY_INDEX] || weekMetrics[3];
   const totalSleepMin = today.sleep.deepMin + today.sleep.remMin + today.sleep.lightMin;
   const sleepH = Math.floor(totalSleepMin / 60);
   const sleepM = totalSleepMin % 60;
 
   return {
-    isAuthorized: true,
+    isAuthorized,
     lastSyncTimestamp: Date.now(),
     rings: {
       moveCal: today.activeKcal,
@@ -42,30 +42,41 @@ function buildDynamicMetrics() {
       standGoal: 12,
     },
     syncedMetrics: [
-      { id: 'hrv', label: 'Variabilité Cardiaque (VRC)', value: String(today.hrv), unit: 'ms', status: 'synced' as const },
-      { id: 'rhr', label: 'Fréquence Cardiaque Repos', value: String(today.restingBpm), unit: 'bpm', status: 'synced' as const },
-      { id: 'sleep', label: 'Analyse du Sommeil (Profond & REM)', value: `${sleepH}h ${sleepM}m`, unit: '', status: 'synced' as const },
-      { id: 'wrist_temp', label: 'Température Cutanée Nocturne', value: (today.tempDelta >= 0 ? '+' : '') + today.tempDelta.toFixed(1), unit: '°C', status: 'synced' as const },
-      { id: 'spo2', label: 'Oxygénation Sanguine (SpO2)', value: today.spo2.toFixed(1), unit: '%', status: 'synced' as const },
-      { id: 'steps', label: 'Nombre de pas quotidiens', value: today.steps.toLocaleString('fr-FR'), unit: 'pas', status: 'synced' as const },
+      { id: 'hrv', label: 'Variabilité Cardiaque (VRC)', value: String(today.hrv), unit: 'ms', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
+      { id: 'rhr', label: 'Fréquence Cardiaque Repos', value: String(today.restingBpm), unit: 'bpm', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
+      { id: 'sleep', label: 'Analyse du Sommeil (Profond & REM)', value: `${sleepH}h ${sleepM}m`, unit: '', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
+      { id: 'wrist_temp', label: 'Température Cutanée Nocturne', value: (today.tempDelta >= 0 ? '+' : '') + today.tempDelta.toFixed(1), unit: '°C', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
+      { id: 'spo2', label: 'Oxygénation Sanguine (SpO2)', value: today.spo2.toFixed(1), unit: '%', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
+      { id: 'steps', label: 'Nombre de pas quotidiens', value: today.steps.toLocaleString('fr-FR'), unit: 'pas', status: (isAuthorized ? 'synced' : 'pending') as 'synced' | 'pending' },
     ],
   };
 }
 
 export const getHealthKitState = (): HealthKitSyncState => {
-  const dynamic = buildDynamicMetrics();
+  const dynamic = buildDynamicMetrics(true);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return dynamic;
     const parsed = JSON.parse(raw);
-    return { ...dynamic, ...parsed };
+    const authorized = typeof parsed.isAuthorized === 'boolean' ? parsed.isAuthorized : true;
+    return { ...buildDynamicMetrics(authorized), ...parsed, isAuthorized: authorized };
   } catch {
     return dynamic;
   }
 };
 
+export const setHealthKitAuthorization = (authorized: boolean): HealthKitSyncState => {
+  const updated = buildDynamicMetrics(authorized);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.error(e);
+  }
+  return updated;
+};
+
 export const syncWithHealthKit = (): HealthKitSyncState => {
-  const updated = buildDynamicMetrics();
+  const updated = buildDynamicMetrics(true);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {

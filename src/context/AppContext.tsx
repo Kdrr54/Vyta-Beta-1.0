@@ -295,11 +295,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return defaultSensorIntervals;
   });
 
+  const intervalOptionToMinutes = (opt?: SensorIntervalOption | string): number => {
+    if (opt === '15min') return 15;
+    if (opt === '30min') return 30;
+    if (opt === '1h') return 60;
+    if (opt === '2h') return 120;
+    if (opt === 'pause') return 0;
+    return 60;
+  };
+
   const updateSensorIntervals = (partial: Partial<SensorIntervals>) => {
     setSensorIntervals(prev => {
       const next = { ...prev, ...partial };
       const hr = partial.heartRate || next.heartRate;
-      const mins = hr === '30min' ? 30 : hr === '1h' ? 60 : hr === 'pause' ? 0 : 60;
+      const mins = intervalOptionToMinutes(hr);
       qringBle.setAllSensorIntervals(mins, true);
       try {
         localStorage.setItem('vyta_sensor_intervals', JSON.stringify(next));
@@ -309,7 +318,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   useEffect(() => {
-    const mins = sensorIntervals?.heartRate === '30min' ? 30 : sensorIntervals?.heartRate === '1h' ? 60 : sensorIntervals?.heartRate === 'pause' ? 0 : 60;
+    const mins = intervalOptionToMinutes(sensorIntervals?.heartRate);
     qringBle.setAllSensorIntervals(mins, false);
   }, []);
 

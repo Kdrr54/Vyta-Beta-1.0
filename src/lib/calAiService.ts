@@ -455,3 +455,33 @@ export function getDailyTargets(): CalAiDailyTarget {
     return DEFAULT_DAILY_TARGET;
   }
 }
+
+export function saveDailyTargets(target: CalAiDailyTarget): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CALAI_TARGET_STORAGE, JSON.stringify(target));
+  } catch (_) {}
+}
+
+/**
+ * Calcule des objectifs journaliers initiaux (Mifflin-St Jeor + répartition macros équilibrée)
+ * à partir du profil biométrique saisi lors de l'onboarding.
+ */
+export function computeRecommendedDailyTargets(params: {
+  sex: 'femme' | 'homme';
+  age: number;
+  heightCm: number;
+  weightKg: number;
+}): CalAiDailyTarget {
+  const bmr =
+    10 * params.weightKg +
+    6.25 * params.heightCm -
+    5 * params.age +
+    (params.sex === 'homme' ? 5 : -161);
+  const calories = Math.max(1350, Math.min(4200, Math.round((bmr * 1.45) / 10) * 10));
+  const protein = Math.max(70, Math.round(params.weightKg * 1.8));
+  const fat = Math.max(40, Math.round((calories * 0.27) / 9));
+  const remainingKcal = Math.max(200, calories - protein * 4 - fat * 9);
+  const carbs = Math.round(remainingKcal / 4);
+  return { calories, protein, carbs, fat };
+}
