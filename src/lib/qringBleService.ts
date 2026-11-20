@@ -2028,6 +2028,10 @@ class QRingBleService {
   }
 
   public async requestStepsData(dayOffset: number = 0): Promise<boolean> {
+    if (!this.isConnected()) {
+      const reconnected = await this.attemptSilentReconnect(true);
+      if (!reconnected || !this.isConnected()) return false;
+    }
     console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
     this.requestedStepsDayOffset = Math.max(0, Math.min(6, Math.round(dayOffset)));
     this.stepsQuarterSlots = new Array(96).fill(0);
@@ -2042,9 +2046,15 @@ class QRingBleService {
       this.resolveStepsDetailWaiters();
     }
 
-    // 2. QCBand daily total
+    // 2. QCBand daily total (0x07) + TodaySportData (0x48 on today)
     const p7 = this.makePacket(0x07, [this.requestedStepsDayOffset & 0xFF]);
-    return await this.writeBytes(p7);
+    const ok7 = await this.writeBytes(p7);
+    if (this.requestedStepsDayOffset === 0) {
+      await new Promise((r) => setTimeout(r, 110));
+      await this.requestTodaySports();
+    }
+    await new Promise((r) => setTimeout(r, 180));
+    return ok7;
   }
 
   /**

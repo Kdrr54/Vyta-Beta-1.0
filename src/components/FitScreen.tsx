@@ -17,7 +17,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import { qringBle } from '../lib/qringBleService';
-import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
+import { run, zones, routeRaw, fitRoute, toPath } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
 import { StoryData, convertGpsPointsToSvgPath } from '../lib/story';
 import { AppleWorkoutMap } from './AppleWorkoutMap';
@@ -213,26 +213,26 @@ export const FitScreen: React.FC = () => {
   const { language, openStory, isLiveRunningViewOpen, setIsLiveRunningViewOpen, liveBpm, isLiveHrActive, setIsLiveHrActive, selectedDateKey, weekData, profile } = useApp();
   const isEn = language === 'en';
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const resolveInitialFitSubTab = (): 'steps' | 'run' | 'trajets' | 'gym' | 'feed' => {
+  const resolveInitialFitSubTab = (): 'steps' | 'run' | 'trajets' | 'gym' => {
     if (typeof window !== 'undefined') {
       try {
         const pending = sessionStorage.getItem('vyta_pending_fit_subtab');
-        if (pending === 'steps' || pending === 'run' || pending === 'trajets' || pending === 'gym' || pending === 'feed') {
+        if (pending === 'steps' || pending === 'run' || pending === 'trajets' || pending === 'gym') {
           sessionStorage.removeItem('vyta_pending_fit_subtab');
           return pending;
         }
       } catch (_) {}
     }
     const q = params?.get('fit');
-    if (q === 'steps' || q === 'run' || q === 'trajets' || q === 'gym' || q === 'feed') return q;
+    if (q === 'steps' || q === 'run' || q === 'trajets' || q === 'gym') return q;
     return 'steps';
   };
-  const [subTab, setSubTab] = useState<'steps' | 'run' | 'trajets' | 'gym' | 'feed'>(resolveInitialFitSubTab);
+  const [subTab, setSubTab] = useState<'steps' | 'run' | 'trajets' | 'gym'>(resolveInitialFitSubTab);
 
   useEffect(() => {
     const onOpenSubTab = (e: Event) => {
       const target = (e as CustomEvent<string>)?.detail;
-      if (target === 'steps' || target === 'run' || target === 'trajets' || target === 'gym' || target === 'feed') {
+      if (target === 'steps' || target === 'run' || target === 'trajets' || target === 'gym') {
         setSubTab(target);
         try { sessionStorage.removeItem('vyta_pending_fit_subtab'); } catch (_) {}
       }
@@ -1462,25 +1462,6 @@ export const FitScreen: React.FC = () => {
   const totalSetsCount = exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
   const doneSetsCount = exercises.reduce((acc, ex) => acc + ex.sets.filter((s) => s.done).length, 0);
 
-  // ------------------ CERCLE VYTA (SOCIAL FEED) ------------------
-  const [posts, setPosts] = useState<FeedPost[]>(feedSeed);
-  const [boostedPosts, setBoostedPosts] = useState<Record<number, boolean>>({});
-
-  const handleBoost = (id: number) => {
-    setBoostedPosts((prev) => {
-      const isBoosted = !!prev[id];
-      const nextBoosted = !isBoosted;
-
-      setPosts((currentPosts) =>
-        currentPosts.map((p) =>
-          p.id === id ? { ...p, boosts: p.boosts + (nextBoosted ? 1 : -1) } : p
-        )
-      );
-
-      return { ...prev, [id]: nextBoosted };
-    });
-  };
-
   // Handlers for Story Generator
   const openRunStory = () => {
     const finalDist = parseFloat(runDistanceKm.toFixed(2));
@@ -1538,7 +1519,7 @@ export const FitScreen: React.FC = () => {
         <h1 className="header-title">Fit</h1>
       </div>
 
-      {/* 5-Section Segmented Control (Pas, Course, Trajets, Musculation, Cercle) */}
+      {/* 4-Section Segmented Control (Pas, Course, Trajets, Musculation) */}
       <div className="segmented-control" role="tablist">
         <button
           type="button"
@@ -1567,13 +1548,6 @@ export const FitScreen: React.FC = () => {
           onClick={() => setSubTab('gym')}
         >
           {isEn ? 'Strength' : 'Musculation'}
-        </button>
-        <button
-          type="button"
-          className={`segmented-btn ${subTab === 'feed' ? 'active' : ''}`}
-          onClick={() => setSubTab('feed')}
-        >
-          {isEn ? 'Circle' : 'Cercle'}
         </button>
       </div>
 
@@ -2757,66 +2731,6 @@ export const FitScreen: React.FC = () => {
             )}
           </div>
         )
-      )}
-
-      {/* ==================== 3. CERCLE VYTA (SOCIAL FEED) ==================== */}
-      {subTab === 'feed' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {posts.map((post) => {
-            const isBoosted = !!boostedPosts[post.id];
-            return (
-              <div key={post.id} className="feed-post-card">
-                <div className="post-header">
-                  <div className="post-author">
-                    <div className="author-avatar">{post.initials}</div>
-                    <div>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', display: 'block' }}>
-                        {post.name}
-                      </span>
-                      <span style={{ fontSize: '10.5px', color: 'var(--text-secondary)' }}>
-                        {post.kind} • {post.when}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Kudos / Aurel Boost button */}
-                  <button
-                    type="button"
-                    className={`boost-btn ${isBoosted ? 'boosted' : ''}`}
-                    onClick={() => handleBoost(post.id)}
-                    title="Envoyer un Aurel Boost"
-                  >
-                    <Flame size={13} color={isBoosted ? 'var(--gold)' : '#FFFFFF'} />
-                    <span>{post.boosts} Boosts</span>
-                  </button>
-                </div>
-
-                <p style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
-                  {post.title}
-                </p>
-
-                {/* Stats pill list */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {post.stats.map((s, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '8px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.07)',
-                        fontSize: '11px',
-                      }}
-                    >
-                      <span style={{ color: 'var(--text-secondary)' }}>{s.label} : </span>
-                      <span style={{ color: '#FFFFFF', fontWeight: 600 }}>{s.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       )}
       </div>
 

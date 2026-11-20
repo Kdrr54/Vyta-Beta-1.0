@@ -131,15 +131,16 @@ export const StepsTabView: React.FC = () => {
   };
 
   const handleSyncSteps = async () => {
-    if (syncing || !ring.isConnected || !qringBle.isConnected()) return;
+    if (syncing || !isToday) return;
     setSyncing(true);
     setSyncSuccess(false);
     try {
-      const dayOffset = weekOffset === 0 ? Math.max(0, todayIndex - selectedDay) : 0;
-      await qringBle.requestStepsData(dayOffset);
+      const ok = await qringBle.requestStepsData(0);
       setCheckedHourlyOnce(true);
-      setSyncSuccess(true);
-      setTimeout(() => setSyncSuccess(false), 1800);
+      if (ok) {
+        setSyncSuccess(true);
+        setTimeout(() => setSyncSuccess(false), 1800);
+      }
     } finally {
       setSyncing(false);
     }
@@ -212,35 +213,37 @@ export const StepsTabView: React.FC = () => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSyncSteps}
-            disabled={!ring.isConnected || syncing}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '7px 11px',
-              borderRadius: '999px',
-              border: `1px solid ${ring.isConnected ? accentBorder : 'rgba(255, 255, 255, 0.12)'}`,
-              background: ring.isConnected ? accentSoft : 'rgba(255, 255, 255, 0.04)',
-              color: ring.isConnected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.4)',
-              fontSize: '11.5px',
-              fontWeight: 600,
-              cursor: ring.isConnected ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {syncSuccess ? (
-              <Check size={13} color="#30D158" />
-            ) : (
-              <RefreshCw
-                size={13}
-                color={ring.isConnected ? accent : 'currentColor'}
-                style={syncing ? { animation: 'spin 0.9s linear infinite' } : undefined}
-              />
-            )}
-            <span>{syncSuccess ? (isEn ? 'Synced' : 'À jour') : isEn ? 'Sync' : 'Actualiser'}</span>
-          </button>
+          {isToday && (
+            <button
+              type="button"
+              onClick={handleSyncSteps}
+              disabled={syncing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '7px 11px',
+                borderRadius: '999px',
+                border: `1px solid ${ring.isConnected ? accentBorder : 'rgba(255, 255, 255, 0.16)'}`,
+                background: ring.isConnected ? accentSoft : 'rgba(255, 255, 255, 0.06)',
+                color: '#FAF7F2',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: syncing ? 'wait' : 'pointer',
+              }}
+            >
+              {syncSuccess ? (
+                <Check size={13} color="#30D158" />
+              ) : (
+                <RefreshCw
+                  size={13}
+                  color={ring.isConnected ? accent : 'currentColor'}
+                  style={syncing ? { animation: 'spin 0.9s linear infinite' } : undefined}
+                />
+              )}
+              <span>{syncSuccess ? (isEn ? 'Synced' : 'À jour') : isEn ? 'Sync' : 'Actualiser'}</span>
+            </button>
+          )}
         </div>
 
         {/* Center Radial Progress Gauge */}
