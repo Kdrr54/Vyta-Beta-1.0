@@ -208,6 +208,8 @@ class QRingBleService {
   private hrLogReadings: number[] = [];
   private hrLogDebounceTimer: any = null;
   private hrLogRangeMinutes = 5;
+  private hrLogDoneResolvers: Array<() => void> = [];
+  private bigDataWaiters: Array<{ ids: number[]; resolve: () => void }> = [];
 
   // Stored 30-min Stress (0x37) & HRV (0x39) multi-packet accumulators (48 slots/day)
   private stressLogSlots: number[] = new Array(48).fill(0);
@@ -232,6 +234,7 @@ class QRingBleService {
   private lastPeriodicSyncTime = 0;
   private isSyncing = false;
   private activeSyncPromise: Promise<boolean> | null = null;
+  private activeActivityRefreshPromise: Promise<boolean> | null = null;
   // Default 60-minute autonomous cadence (0 continuous, preserves 5-7d ring battery)
   private configuredIntervalMinutes = 60;
   private lastProgrammedIntervalMinutes: number | null = null;
@@ -681,8 +684,7 @@ class QRingBleService {
         if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
           await this.syncAllRingData();
         } else {
-          await this.requestHeartRateLog();
-          await new Promise((r) => setTimeout(r, 450));
+          await this.requestHeartRateLog(true);
           await this.requestStepsData(0);
           await new Promise((r) => setTimeout(r, 200));
           await this.sendBatteryRequest();
@@ -1897,14 +1899,65 @@ class QRingBleService {
    * Sending localMidnightSec in CET (UTC+1) equals 23:00 UTC of YESTERDAY and returns yesterday's log!
    * Therefore we MUST send utcMidnightSec FIRST!
    */
-  public async requestHeartRateLog(): Promise<boolean> {
+  private resolveHrLogWaiters() {
+    if (this.hrLogDoneResolvers.length > 0) {
+      const resolvers = this.hrLogDoneResolvers.splice(0);
+      resolvers.forEach((r) => r());
+    }
+  }
+
+  private waitForHrLogCompletion(timeoutMs = 1150): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        const idx = this.hrLogDoneResolvers.indexOf(finish);
+        if (idx >= 0) this.hrLogDoneResolvers.splice(idx, 1);
+        resolve();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      this.hrLogDoneResolvers.push(finish);
+    });
+  }
+
+  private resolveBigDataWaiters(dataId: number) {
+    for (const w of [...this.bigDataWaiters]) {
+      if (w.ids.includes(dataId)) {
+        w.resolve();
+      }
+    }
+  }
+
+  private waitForBigData(ids: number[], timeoutMs = 600): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false;
+      const waiterRef = {
+        ids,
+        resolve: () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          const idx = this.bigDataWaiters.indexOf(waiterRef);
+          if (idx >= 0) this.bigDataWaiters.splice(idx, 1);
+          resolve();
+        },
+      };
+      this.bigDataWaiters.push(waiterRef);
+      const timer = setTimeout(waiterRef.resolve, timeoutMs);
+    });
+  }
+
+  public async requestHeartRateLog(waitForCompletion = false): Promise<boolean> {
     console.log('[QRing BLE] Requesting full-day 30-min heart rate logs from ring memory (Command 21 / 0x15)...');
     this.hrLogReadings = [];
+    this.hrLogFramesExpected = 0;
+
+    const waitPromise = waitForCompletion ? this.waitForHrLogCompletion(1150) : null;
 
     const now = new Date();
     const utcMidnightSec = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0) / 1000);
-    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const localMidnightSec = Math.floor(todayMidnight.getTime() / 1000);
 
     const send0x15 = async (tsSec: number) => {
       const t0 = tsSec & 0xFF;
@@ -1918,6 +1971,13 @@ class QRingBleService {
     // Primary query: UTC midnight of today's calendar date (matches BCD clock epoch on QRing/Colmi).
     // Never send localMidnightSec in UTC+ timezones as it equals 23:00 UTC of yesterday and returns yesterday's log!
     const ok = await send0x15(utcMidnightSec);
+    if (waitPromise) {
+      if (ok) {
+        await waitPromise;
+      } else {
+        this.resolveHrLogWaiters();
+      }
+    }
 
     return ok;
   }
@@ -2061,7 +2121,10 @@ class QRingBleService {
       clearTimeout(this.hrLogDebounceTimer);
       this.hrLogDebounceTimer = null;
     }
-    if (this.hrLogReadings.length === 0) return;
+    if (this.hrLogReadings.length === 0) {
+      this.resolveHrLogWaiters();
+      return;
+    }
 
     const now = new Date();
     // Derive exact slot duration from actual array length returned by ring hardware:
@@ -2168,6 +2231,7 @@ class QRingBleService {
         isConnected: true,
       });
     }
+    this.resolveHrLogWaiters();
   }
 
   /**
@@ -2279,11 +2343,11 @@ class QRingBleService {
       chunk[0] === 0xBC &&
       chunk.length >= 6 &&
       (this.bigDataBuffer.length === 0 ||
-        [0x27, 0x2A, 0x25, 0x26, 0x74].includes(chunk[1]))
+        [0x27, 0x2A, 0x25, 0x26, 0x74, 0x75].includes(chunk[1]))
     ) {
       // If a previous packet was sitting in buffer, flush it before starting the new 0xBC header
       if (this.bigDataBuffer.length >= 7) {
-        this.parseCompleteBigDataPacket(new Uint8Array(this.bigDataBuffer));
+        this.dispatchCompleteBigDataPacket(new Uint8Array(this.bigDataBuffer));
       }
       this.bigDataBuffer = [...chunk];
       this.bigDataExpectedPayloadLen = chunk[2] | (chunk[3] << 8);
@@ -2302,16 +2366,26 @@ class QRingBleService {
       const fullPacket = new Uint8Array(this.bigDataBuffer);
       this.bigDataBuffer = [];
       this.bigDataExpectedPayloadLen = 0;
-      this.parseCompleteBigDataPacket(fullPacket);
+      this.dispatchCompleteBigDataPacket(fullPacket);
     } else {
       this.bigDataDebounceTimer = setTimeout(() => {
         if (this.bigDataBuffer.length >= 7) {
           const fullPacket = new Uint8Array(this.bigDataBuffer);
           this.bigDataBuffer = [];
           this.bigDataExpectedPayloadLen = 0;
-          this.parseCompleteBigDataPacket(fullPacket);
+          this.dispatchCompleteBigDataPacket(fullPacket);
         }
       }, 300);
+    }
+  }
+
+  private dispatchCompleteBigDataPacket(bytes: Uint8Array) {
+    try {
+      this.parseCompleteBigDataPacket(bytes);
+    } finally {
+      if (bytes.length >= 2) {
+        this.resolveBigDataWaiters(bytes[1] & 0xFF);
+      }
     }
   }
 
@@ -2796,29 +2870,31 @@ class QRingBleService {
           await new Promise((r) => setTimeout(r, 70));
         }
 
-        // 3. Stored full-day heart rate logs
-        await this.requestHeartRateLog();
-        await new Promise((r) => setTimeout(r, 420));
+        // 3. Stored full-day heart rate logs (await full multi-frame 0x15 completion so recent slots aren't cut off)
+        await this.requestHeartRateLog(true);
 
         // 4. Stored sleep logs
+        const sleepWait = this.waitForBigData([0x27], 500);
         await this.requestSleepData();
-        await new Promise((r) => setTimeout(r, 220));
+        await sleepWait;
 
         // 5. Stored SpO2 logs
+        const spo2Wait = this.waitForBigData([0x2A], 480);
         await this.requestSpo2Data();
-        await new Promise((r) => setTimeout(r, 200));
+        await spo2Wait;
 
         // 6. Stored 30-min HRV (VRC) logs
         await this.requestHrvLog();
-        await new Promise((r) => setTimeout(r, 180));
+        await new Promise((r) => setTimeout(r, 320));
 
         // 7. Stored 30-min Stress logs
         await this.requestStressLog();
-        await new Promise((r) => setTimeout(r, 180));
+        await new Promise((r) => setTimeout(r, 320));
 
         // 8. Stored Skin Temperature logs
+        const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 450);
         await this.requestTemperatureData();
-        await new Promise((r) => setTimeout(r, 140));
+        await tempWait;
 
         // 9. Steps and activity detail + sports counters
         await this.requestStepsData(0);
@@ -2842,31 +2918,44 @@ class QRingBleService {
   }
 
   /**
-   * Fast flash-only sensor activity refresh (0 LEDs, ~0.9s):
-   * Reads HR (0x15), Temp (0xBC 0x25/0x26), SpO2 (0xBC 0x2A), HRV (0x39), Stress (0x37)
-   * so recent autonomous ring LED cycles show up in Activité Temp immediately.
+   * Fast flash-only sensor activity refresh (0 LEDs):
+   * Reads HR (0x15 full completion), Temp (0xBC 0x25/0x26), SpO2 (0xBC 0x2A), HRV (0x39), Stress (0x37)
+   * so recent autonomous ring LED cycles show up in Activité Temp immediately without frame truncation.
    */
   public async refreshMeasureActivity(): Promise<boolean> {
     if (!this.isConnected()) return false;
     if (this.activeSyncPromise) return this.activeSyncPromise;
+    if (this.activeActivityRefreshPromise) return this.activeActivityRefreshPromise;
     if (this.activeLiveDataType !== null || this.isRealTimeHrActive) return false;
-    try {
-      await this.writeBytes(this.makePacket(0x16, [0x01]));
-      await new Promise((r) => setTimeout(r, 70));
-      await this.requestHeartRateLog();
-      await new Promise((r) => setTimeout(r, 320));
-      await this.requestTemperatureData();
-      await new Promise((r) => setTimeout(r, 140));
-      await this.requestSpo2Data();
-      await new Promise((r) => setTimeout(r, 160));
-      await this.requestHrvLog();
-      await new Promise((r) => setTimeout(r, 140));
-      await this.requestStressLog();
-      await new Promise((r) => setTimeout(r, 140));
-      return true;
-    } catch (_) {
-      return false;
-    }
+
+    this.activeActivityRefreshPromise = (async () => {
+      try {
+        await this.writeBytes(this.makePacket(0x16, [0x01]));
+        await new Promise((r) => setTimeout(r, 70));
+        await this.requestHeartRateLog(true);
+
+        const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 450);
+        await this.requestTemperatureData();
+        await tempWait;
+
+        const spo2Wait = this.waitForBigData([0x2A], 450);
+        await this.requestSpo2Data();
+        await spo2Wait;
+
+        await this.requestHrvLog();
+        await new Promise((r) => setTimeout(r, 320));
+
+        await this.requestStressLog();
+        await new Promise((r) => setTimeout(r, 320));
+        return true;
+      } catch (_) {
+        return false;
+      } finally {
+        this.activeActivityRefreshPromise = null;
+      }
+    })();
+
+    return this.activeActivityRefreshPromise;
   }
 
   /**
@@ -3916,6 +4005,8 @@ class QRingBleService {
         } else if (subType === 0x0C && val >= 1 && val <= 100) {
           console.log('[QRing BLE] Notification 0x73 (type=0x0C) Battery:', val, '%');
           this.notify({ batteryPct: val, isConnected: true });
+        } else if (subType === 0x01) {
+          this.recordLiveMeasureEvent('bpm', 'BPM', 'LED verte (mesure non captée)', 'green', 'live');
         } else if (subType === 0x03) {
           this.recordLiveMeasureEvent('spo2', 'SpO2', 'LED rouge (cycle auto)', 'red', 'live');
         } else if (subType === 44 || subType === 0x2C) {
