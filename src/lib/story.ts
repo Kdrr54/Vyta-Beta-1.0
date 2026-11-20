@@ -7,6 +7,8 @@ export interface StoryData {
   stats: { label: string; value: string; unit?: string }[];
   accentText?: string;
   tonnageKg?: number;
+  /** Indique une séance en salle / sur tapis de course (pas de tracé GPS) */
+  isIndoor?: boolean;
   /** Progression réelle du parcours entre 0 et 1 */
   routeProgress?: number;
   /** Points GPS réels de la course pour tracer l'itinéraire exact (ligne droite, virages, etc.) */
@@ -317,6 +319,75 @@ export function generateStoryDataUrl(
       ctx.restore();
     };
 
+    const drawTreadmillOnCanvas = (
+      centerX: number,
+      centerY: number,
+      widthPx: number,
+      primaryColor: string,
+      subtleColor: string
+    ) => {
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      const s = widthPx / 200;
+      ctx.scale(s, s);
+      ctx.strokeStyle = primaryColor;
+      ctx.fillStyle = primaryColor;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Socle / tapis roulant incliné minimaliste
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(-66, 20);
+      ctx.lineTo(44, 14);
+      ctx.stroke();
+
+      // Bande de course supérieure & rouleaux
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(-64, 11);
+      ctx.lineTo(44, 5);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(-65, 15.5, 5, 0, Math.PI * 2);
+      ctx.arc(44, 9.5, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Colonne & console avant
+      ctx.lineWidth = 6.5;
+      ctx.beginPath();
+      ctx.moveTo(42, 10);
+      ctx.lineTo(58, -32);
+      ctx.lineTo(38, -36);
+      ctx.stroke();
+
+      // Poignée latérale
+      ctx.lineWidth = 4.5;
+      ctx.beginPath();
+      ctx.moveTo(51, -14);
+      ctx.lineTo(28, -14);
+      ctx.stroke();
+
+      // Lignes de vitesse sous la bande
+      ctx.strokeStyle = subtleColor;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-78, 34);
+      ctx.lineTo(-22, 34);
+      ctx.moveTo(-58, 46);
+      ctx.lineTo(-8, 46);
+      ctx.stroke();
+
+      // Libellé descriptif
+      ctx.fillStyle = subtleColor;
+      ctx.font = '700 18px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TAPIS DE COURSE', 0, 82);
+
+      ctx.restore();
+    };
+
     // ==================== VARIANT 1: TRANSPARENT STICKER (NOIR & BLANC) ====================
     if (variant === 'transparent') {
       ctx.clearRect(0, 0, 1080, 1920);
@@ -361,9 +432,13 @@ export function generateStoryDataUrl(
         1088
       );
 
-      // 4. Trajectoire réelle de la course en Blanc pur (Course uniquement)
+      // 4. Trajectoire réelle OU visuel Tapis de course
       if (data.mode === 'run') {
-        drawRunTrajectoryOnCanvas(270, 1150, 540, 350, '#FFFFFF', 16);
+        if (data.isIndoor) {
+          drawTreadmillOnCanvas(540, 1315, 420, '#FFFFFF', 'rgba(255, 255, 255, 0.72)');
+        } else {
+          drawRunTrajectoryOnCanvas(270, 1150, 540, 350, '#FFFFFF', 16);
+        }
       }
 
       // 5. Logo AUREL en bas
@@ -385,19 +460,21 @@ export function generateStoryDataUrl(
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, 1080, 1920);
 
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-      ctx.lineWidth = 3;
-      for (let i = -200; i < 1920; i += 110) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(1080, i + 180);
-        ctx.stroke();
-      }
-      for (let x = 80; x < 1080; x += 140) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x - 120, 1920);
-        ctx.stroke();
+      if (!data.isIndoor) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 3;
+        for (let i = -200; i < 1920; i += 110) {
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(1080, i + 180);
+          ctx.stroke();
+        }
+        for (let x = 80; x < 1080; x += 140) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x - 120, 1920);
+          ctx.stroke();
+        }
       }
 
       const topVig = ctx.createLinearGradient(0, 0, 0, 550);
@@ -413,7 +490,11 @@ export function generateStoryDataUrl(
       ctx.fillRect(0, 1250, 1080, 670);
 
       if (data.mode === 'run') {
-        drawRunTrajectoryOnCanvas(180, 560, 720, 560, '#FFFFFF', 20, 'rgba(255, 255, 255, 0.45)');
+        if (data.isIndoor) {
+          drawTreadmillOnCanvas(540, 840, 500, '#FFFFFF', 'rgba(255, 255, 255, 0.72)');
+        } else {
+          drawRunTrajectoryOnCanvas(180, 560, 720, 560, '#FFFFFF', 20, 'rgba(255, 255, 255, 0.45)');
+        }
       }
 
       ctx.textAlign = 'left';
@@ -477,7 +558,17 @@ export function generateStoryDataUrl(
     );
 
     if (data.mode === 'run') {
-      drawRunTrajectoryOnCanvas(270, 1140, 540, 350, fgPrimary, 16);
+      if (data.isIndoor) {
+        drawTreadmillOnCanvas(
+          540,
+          1310,
+          420,
+          fgPrimary,
+          isLightCard ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.72)'
+        );
+      } else {
+        drawRunTrajectoryOnCanvas(270, 1140, 540, 350, fgPrimary, 16);
+      }
     }
 
     ctx.fillStyle = fgPrimary;

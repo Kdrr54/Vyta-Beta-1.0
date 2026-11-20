@@ -45,13 +45,39 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
       : 1;
   const runnerPos = getRunnerPosition(currentProg);
 
-  const hasRealRoute = !!(data.realGpsPoints && data.realGpsPoints.length >= 2);
+  const isIndoorRun = !!data.isIndoor;
+  const hasRealRoute = !isIndoorRun && !!(data.realGpsPoints && data.realGpsPoints.length >= 2);
   const trajectoryInfo = useMemo(() => {
-    if (data.realGpsPoints && data.realGpsPoints.length >= 2) {
+    if (!isIndoorRun && data.realGpsPoints && data.realGpsPoints.length >= 2) {
       return convertGpsPointsToSvgPath(data.realGpsPoints, 360, 230, 36);
     }
     return null;
-  }, [data.realGpsPoints]);
+  }, [data.realGpsPoints, isIndoorRun]);
+
+  const renderTreadmillBadge = (fgColor: string, subColor: string, width = 128, height = 74) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+      <svg width={width} height={height} viewBox="-100 -50 200 110" fill="none">
+        <path d="M -66 20 L 44 14" stroke={fgColor} strokeWidth="7" strokeLinecap="round" />
+        <path d="M -64 11 L 44 5" stroke={fgColor} strokeWidth="5" strokeLinecap="round" />
+        <circle cx="-65" cy="15.5" r="5" fill={fgColor} />
+        <circle cx="44" cy="9.5" r="5.5" fill={fgColor} />
+        <path d="M 42 10 L 58 -32 L 38 -36" stroke={fgColor} strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M 51 -14 L 28 -14" stroke={fgColor} strokeWidth="4.5" strokeLinecap="round" />
+        <path d="M -78 34 L -22 34 M -58 46 L -8 46" stroke={subColor} strokeWidth="4" strokeLinecap="round" />
+      </svg>
+      <span
+        style={{
+          fontSize: '8.5px',
+          fontWeight: 800,
+          letterSpacing: '0.16em',
+          color: subColor,
+          textTransform: 'uppercase',
+        }}
+      >
+        TAPIS DE COURSE
+      </span>
+    </div>
+  );
 
   useEffect(() => {
     const variant = SLIDE_VARIANTS[activeSlide] || 'transparent';
@@ -269,10 +295,12 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
             </div>
           </div>
 
-          {/* Trajectoire réelle synchronisée de la course (Course uniquement) */}
+          {/* Trajectoire réelle OU Tapis de course (Course uniquement) */}
           {data.mode === 'run' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0' }}>
-              {hasRealRoute && trajectoryInfo ? (
+              {isIndoorRun ? (
+                renderTreadmillBadge('#FFFFFF', 'rgba(255, 255, 255, 0.72)', 124, 68)
+              ) : hasRealRoute && trajectoryInfo ? (
                 <svg width="130" height="85" viewBox="0 0 360 230" fill="none">
                   <path
                     d={trajectoryInfo.pathD}
@@ -330,42 +358,46 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
             userSelect: 'none',
           }}
         >
-          {/* Monochrome Aerial Map Blocks & Streets */}
-          <svg
-            viewBox="0 0 200 340"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              opacity: 0.5,
-              pointerEvents: 'none',
-            }}
-            preserveAspectRatio="xMidYMid slice"
-          >
-            <g stroke="#3A3A3E" strokeWidth="1.5" fill="#18181B">
-              <polygon points="10,45 85,38 92,85 15,92" />
-              <polygon points="102,35 188,48 180,98 100,86" />
-              <polygon points="18,105 90,98 84,165 12,158" />
-              <polygon points="102,98 185,110 175,175 96,165" />
-              <polygon points="15,178 88,175 82,248 10,240" />
-              <polygon points="98,178 182,186 172,255 94,248" />
-              <polygon points="14,258 175,266 168,330 12,325" />
-            </g>
-            <path
-              d="M -10 95 Q 95 85 210 105 M 95 20 L 88 340"
-              stroke="#525258"
-              strokeWidth="3.5"
-              fill="none"
-            />
-          </svg>
+          {/* Monochrome Aerial Map Blocks & Streets (GPS uniquement, masqué sur tapis) */}
+          {!isIndoorRun && (
+            <svg
+              viewBox="0 0 200 340"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                opacity: 0.5,
+                pointerEvents: 'none',
+              }}
+              preserveAspectRatio="xMidYMid slice"
+            >
+              <g stroke="#3A3A3E" strokeWidth="1.5" fill="#18181B">
+                <polygon points="10,45 85,38 92,85 15,92" />
+                <polygon points="102,35 188,48 180,98 100,86" />
+                <polygon points="18,105 90,98 84,165 12,158" />
+                <polygon points="102,98 185,110 175,175 96,165" />
+                <polygon points="15,178 88,175 82,248 10,240" />
+                <polygon points="98,178 182,186 172,255 94,248" />
+                <polygon points="14,258 175,266 168,330 12,325" />
+              </g>
+              <path
+                d="M -10 95 Q 95 85 210 105 M 95 20 L 88 340"
+                stroke="#525258"
+                strokeWidth="3.5"
+                fill="none"
+              />
+            </svg>
+          )}
 
           <div style={{ position: 'relative', zIndex: 2 }} />
 
-          {/* Center Route Trace on Monochrome Map (Course uniquement) */}
+          {/* Center Route Trace OR Treadmill Visual (Course uniquement) */}
           {data.mode === 'run' && (
             <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'center' }}>
-              {hasRealRoute && trajectoryInfo ? (
+              {isIndoorRun ? (
+                renderTreadmillBadge('#FFFFFF', 'rgba(255, 255, 255, 0.72)', 136, 76)
+              ) : hasRealRoute && trajectoryInfo ? (
                 <svg width="140" height="90" viewBox="0 0 360 230" fill="none">
                   <path
                     d={trajectoryInfo.pathD}
@@ -497,7 +529,9 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         </div>
 
         {data.mode === 'run' && (
-          hasRealRoute && trajectoryInfo ? (
+          isIndoorRun ? (
+            renderTreadmillBadge(fg, subFg, 122, 68)
+          ) : hasRealRoute && trajectoryInfo ? (
             <svg width="125" height="85" viewBox="0 0 360 230" fill="none">
               <path
                 d={trajectoryInfo.pathD}

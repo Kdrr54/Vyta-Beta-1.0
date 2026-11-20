@@ -1106,6 +1106,7 @@ export const FitScreen: React.FC = () => {
         { label: 'Temps', value: fmtClockSec(route.durationSec) },
         { label: 'FC Moyenne', value: route.avgHr > 0 ? `${route.avgHr}` : '--', unit: 'bpm' },
       ],
+      isIndoor: !!route.isIndoor,
       routeProgress: 1,
       realGpsPoints: !route.isIndoor && route.distanceKm >= 0.05 && route.realGpsPoints && route.realGpsPoints.length >= 2 ? route.realGpsPoints : undefined,
     });
@@ -1502,6 +1503,7 @@ export const FitScreen: React.FC = () => {
         { label: 'Temps', value: fmtClockSec(finalDur) },
         { label: 'FC Moyenne', value: finalHr > 0 ? `${finalHr}` : '--', unit: 'bpm' },
       ],
+      isIndoor: runMode === 'treadmill',
       realGpsPoints: runMode === 'outdoor' && realGpsPoints && realGpsPoints.length >= 2 ? realGpsPoints : undefined,
     });
   };
@@ -1675,34 +1677,28 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
 
-            <div className="run-control-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  className={`gps-beacon-tag ${
-                    runState === 'running'
-                      ? ''
-                      : runState === 'paused'
-                      ? 'paused'
-                      : 'idle'
-                  }`}
-                >
-                  <span className="gps-pulse-dot" />
-                  <span>
-                    {runMode === 'treadmill'
-                      ? runState === 'running'
-                        ? (isEn ? 'Treadmill Active (Live)' : 'Tapis Actif (Live)')
-                        : runState === 'paused'
-                        ? (isEn ? 'Treadmill Paused' : 'Tapis en pause')
-                        : (isEn ? 'Treadmill Ready (Indoor)' : 'Tapis Prêt (Intérieur)')
-                      : runState === 'running'
-                        ? (isEn ? 'Aurel GPS Active (Live)' : 'GPS Aurel Actif (Live)')
-                        : runState === 'paused'
-                        ? (isEn ? 'GPS Paused' : 'GPS en pause')
-                        : (isEn ? 'Aurel GPS Ready' : 'GPS Aurel Prêt')}
+            {(runState === 'running' || runState === 'paused') && (
+              <div className="run-control-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    className={`gps-beacon-tag ${
+                      runState === 'running' ? '' : 'paused'
+                    }`}
+                  >
+                    <span className="gps-pulse-dot" />
+                    <span>
+                      {runMode === 'treadmill'
+                        ? runState === 'running'
+                          ? (isEn ? 'Treadmill Active (Live)' : 'Tapis Actif (Live)')
+                          : (isEn ? 'Treadmill Paused' : 'Tapis en pause')
+                        : runState === 'running'
+                          ? (isEn ? 'Aurel GPS Active (Live)' : 'GPS Aurel Actif (Live)')
+                          : (isEn ? 'GPS Paused' : 'GPS en pause')}
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Run Action Buttons */}
             {(runState === 'idle' || runState === 'finished') && (
@@ -3353,7 +3349,28 @@ export const FitScreen: React.FC = () => {
               </button>
             </div>
 
-            {/* Segmented Switcher: Carte & Replay vs Diagrammes Télémétrie */}
+            {/* Segmented Switcher: Carte & Replay vs Diagrammes Télémétrie (masqué pour séance tapis) */}
+            {viewingRouteForMap.isIndoor ? (
+              <div
+                style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  borderRadius: '12px',
+                  background: 'rgba(252, 82, 0, 0.12)',
+                  border: '1px solid rgba(252, 82, 0, 0.3)',
+                  color: '#FDBA74',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                <Activity size={13} color="#FC5200" />
+                <span>{isEn ? 'Indoor Treadmill Session · No GPS Route' : 'Course sur tapis · Intérieur sans GPS'}</span>
+              </div>
+            ) : (
             <div
               style={{
                 flexShrink: 0,
@@ -3411,6 +3428,7 @@ export const FitScreen: React.FC = () => {
                 <span>{isEn ? 'Telemetry Charts' : 'Diagrammes de course'}</span>
               </button>
             </div>
+            )}
 
             {routeModalTab === 'charts' ? (
               <div
