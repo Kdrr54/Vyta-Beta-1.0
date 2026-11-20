@@ -2914,8 +2914,8 @@ class QRingBleService {
             }
           } catch (_) {}
         }
-        if (this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
-          await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
+        if (force || this.lastProgrammedIntervalMinutes !== this.configuredIntervalMinutes) {
+          await this.setAllSensorIntervals(this.configuredIntervalMinutes, force);
           await new Promise((r) => setTimeout(r, 90));
         } else {
           // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted any sensor to OFF
