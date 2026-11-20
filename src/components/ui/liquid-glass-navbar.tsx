@@ -63,24 +63,24 @@ const PAD = 14 // canvas bleed around the pill, for shadows and ripples
 
 /* ---------- styles ---------- */
 const NIMBUS_CSS = `
-.nimbus-nav{--n-tint:rgba(255,255,255,.14);--n-fg:#0B132B;--n-fg-soft:rgba(11,19,43,.6);--n-rim:rgba(255,255,255,.7);
+.nimbus-nav{--n-tint:rgba(255,255,255,.14);--n-fg:#0A0A0C;--n-fg-soft:rgba(10,10,12,.6);--n-rim:rgba(255,255,255,.7);
   position:relative;display:inline-flex;align-items:center;gap:2px;padding:6px;border-radius:999px;isolation:isolate;
-  font-family:ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none;-webkit-tap-highlight-color:transparent}
-.nimbus-nav[data-tone="dark"]{--n-tint:rgba(18,22,28,.78);--n-fg:#FFFFFF;--n-fg-soft:rgba(255,255,255,.62);--n-rim:rgba(255,255,255,.28)}
+  font-family:ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.nimbus-nav[data-tone="dark"]{--n-tint:rgba(8,8,10,.86);--n-fg:#FFFFFF;--n-fg-soft:rgba(255,255,255,.62);--n-rim:rgba(255,255,255,.26)}
 .nimbus-glass{position:absolute;inset:0;border-radius:inherit;z-index:-2;overflow:hidden;background:var(--n-tint);
-  -webkit-backdrop-filter:blur(16px) saturate(1.4) brightness(1.08);backdrop-filter:blur(16px) saturate(1.4) brightness(1.08);
-  box-shadow:inset 0 1px 1px var(--n-rim),inset 0 0 0 1px rgba(255,255,255,.16),0 16px 36px -10px rgba(0,0,0,.7),0 4px 12px rgba(0,0,0,.35)}
-.nimbus-nav[data-refract="on"] .nimbus-glass{-webkit-backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1.2) brightness(1.08);backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1.2) brightness(1.08)}
+  -webkit-backdrop-filter:blur(18px) saturate(1) brightness(1.04);backdrop-filter:blur(18px) saturate(1) brightness(1.04);
+  box-shadow:inset 0 1px 1px var(--n-rim),inset 0 0 0 1px rgba(255,255,255,.16),0 16px 36px -10px rgba(0,0,0,.78),0 4px 12px rgba(0,0,0,.45)}
+.nimbus-nav[data-refract="on"] .nimbus-glass{-webkit-backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1) brightness(1.04);backdrop-filter:url(#nimbus-refract) blur(2px) saturate(1) brightness(1.04)}
 .nimbus-water{position:absolute;left:${-PAD}px;top:${-PAD}px;z-index:-1;pointer-events:none}
 .nimbus-nav[data-gl="off"] .nimbus-water{display:none}
 .nimbus-drop{display:none;position:absolute;top:6px;bottom:6px;left:0;border-radius:999px;z-index:-1;pointer-events:none;will-change:transform,width;
-  background:radial-gradient(120% 140% at 30% 0%,rgba(255,255,255,.75),rgba(255,255,255,0) 55%),rgba(255,255,255,.38);
-  box-shadow:inset 0 1px 1px rgba(255,255,255,.95),inset 0 -2px 6px rgba(0,162,255,.22),inset 0 0 0 1px rgba(255,255,255,.55),0 6px 16px -6px rgba(0,70,140,.45)}
+  background:radial-gradient(120% 140% at 30% 0%,rgba(255,255,255,.65),rgba(255,255,255,0) 55%),rgba(255,255,255,.24);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.9),inset 0 -2px 6px rgba(255,255,255,.16),inset 0 0 0 1px rgba(255,255,255,.48),0 6px 16px -6px rgba(0,0,0,.55)}
 .nimbus-nav[data-gl="off"] .nimbus-drop{display:block}
 .nimbus-item{position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;height:42px;padding:0 14px;border:0;border-radius:999px;background:none;color:var(--n-fg-soft);
   font-family:inherit;font-weight:600;font-size:12.5px;line-height:1;letter-spacing:-.01em;text-decoration:none;cursor:pointer;transition:color .25s}
 .nimbus-item:hover,.nimbus-item[aria-current="page"]{color:var(--n-fg)}
-.nimbus-item:focus-visible{outline:2px solid #00A2FF;outline-offset:2px}
+.nimbus-item:focus-visible{outline:2px solid #FFFFFF;outline-offset:2px}
 .nv-ico{position:relative;display:inline-flex;flex:none}
 .nv-ico svg{transition:transform .45s cubic-bezier(.3,1.6,.5,1)}
 .nimbus-item[aria-current="page"] .nv-ico svg{transform:translateY(-1px) scale(1.08)}
@@ -104,7 +104,7 @@ const NIMBUS_CSS = `
 .nv-ico[data-fx="glow"] svg{animation:nvHop .8s cubic-bezier(.3,1.4,.5,1) both;transform-origin:50% 100%}
 @keyframes nvHop{0%{transform:none}30%{transform:translateY(-5px) scale(1.04,.96)}55%{transform:translateY(0) scale(1.12,.88)}75%{transform:translateY(-2px) scale(.98,1.04)}100%{transform:translateY(-1px) scale(1.08)}}
 .nv-ico[data-fx="glow"] .nv-door{animation:nvDoor 1.3s ease both}
-@keyframes nvDoor{0%{fill:transparent}30%{fill:#FFF3A8}100%{fill:rgba(126,232,255,.6)}}
+@keyframes nvDoor{0%{fill:transparent}30%{fill:rgba(255,255,255,.8)}100%{fill:rgba(255,255,255,.45)}}
 .nv-ico[data-fx="wave"] svg{animation:nvWave .9s ease-in-out both;transform-origin:50% 92%}
 @keyframes nvWave{0%{transform:none}20%{transform:rotate(-15deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-8deg)}80%{transform:rotate(4deg)}100%{transform:translateY(-1px) scale(1.08)}}
 .nimbus-nav[data-compact="true"] .nimbus-item{padding:0 13px}
@@ -140,23 +140,23 @@ void main(){
  float spec=pow(max(dot(reflect(-normalize(vec3(-.45,-.8,.85)),n),V),0.),70.);
  float spec2=pow(max(dot(reflect(-normalize(vec3(.6,.75,.7)),n),V),0.),22.)*.3;
  float fres=clamp((1.-n.z)*4.,0.,1.);
- vec3 irid=.5+.5*cos(6.2831*(vec3(0.,.33,.67)+fres*.85+p.x*.0028+uTime*.035));
+ vec3 irid=vec3(1.);
  float pm=smoothstep(1.,-1.,dp);float dm=smoothstep(1.,-1.,dd)*smoothstep(1.,-2.,dp);
  float sh=smoothstep(9.,-9.,dropD(p-vec2(0.,5.)))*(1.-dm)*pm*(.11+.07*uDark);
- vec3 c=vec3(0.,.14,.36)*sh;float a=sh;
- float pa=clamp(pm*(fres*.5+spec*.9+spec2),0.,1.);
- c=mix(vec3(1.),irid,.5*fres)*pa+c*(1.-pa);a=pa+a*(1.-pa);
+ vec3 c=vec3(0.)*sh;float a=sh;
+ float pa=clamp(pm*(fres*.4+spec*.9+spec2),0.,1.);
+ c=vec3(1.)*pa+c*(1.-pa);a=pa+a*(1.-pa);
  float th=lens(dd,11.);
  float cs=caus((p+n.xy*th*18.)*.085,uTime*.9);
- vec3 tint=mix(vec3(.80,.95,1.),vec3(.55,.82,1.),uDark);
+ vec3 tint=mix(vec3(.96),vec3(.88),uDark);
  float rim=dm*(1.-smoothstep(0.,8.,-dd));
  float cres=dm*smoothstep(.12,.55,dot(n.xy,normalize(vec2(.55,.85))))*smoothstep(0.,3.,-dd);
  float body=.5+.5*clamp(-n.y*3.,-1.,1.);
- float da=dm*(.26+.14*body)*(1.-.35*uDark);vec3 dc=mix(tint,vec3(1.),body*.6);
- float la=rim*.22;vec3 lc=mix(vec3(0.,.42,.78),vec3(.1,.55,.95),uDark);dc=lc*la+dc*da*(1.-la);da=la+da*(1.-la);
- la=clamp(cres*.7+smoothstep(.6,1.,cs)*.28*th*dm,0.,1.);dc=vec3(1.)*la+dc*(1.-la);da=la+da*(1.-la);
+ float da=dm*(.22+.12*body)*(1.-.3*uDark);vec3 dc=mix(tint,vec3(1.),body*.6);
+ float la=rim*.24;vec3 lc=mix(vec3(.92),vec3(1.),uDark);dc=lc*la+dc*da*(1.-la);da=la+da*(1.-la);
+ la=clamp(cres*.7+smoothstep(.6,1.,cs)*.24*th*dm,0.,1.);dc=vec3(1.)*la+dc*(1.-la);da=la+da*(1.-la);
  la=clamp(dm*(spec*1.2+spec2*.5),0.,1.);dc=vec3(1.)*la+dc*(1.-la);da=la+da*(1.-la);
- la=dm*smoothstep(-2.,0.,dd)*.4;dc=mix(vec3(1.),irid,.35)*la+dc*(1.-la);da=la+da*(1.-la);
+ la=dm*smoothstep(-2.,0.,dd)*.38;dc=vec3(1.)*la+dc*(1.-la);da=la+da*(1.-la);
  c=dc+c*(1.-da);a=da+a*(1.-da);
  gl_FragColor=vec4(c,a);
 }`
