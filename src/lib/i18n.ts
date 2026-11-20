@@ -99,7 +99,7 @@ export const translations = {
     'immunity.diag_step2_desc': "Remplacement de la séance d'intensité par 20 min de respiration guidée.",
     'immunity.diag_step3_title': 'Coucher anticipé :',
     'immunity.diag_step3_desc': 'Fenêtre de sommeil impérative à 22h45 pour stimuler les cytokines.',
-    'immunity.unlock_btn': 'Débloquer le Protocole Stoïk IA',
+    'immunity.unlock_btn': 'Débloquer le Protocole Aurel IA',
 
     // Sleep Phases
     'sleep.title': 'Phases de Sommeil',
@@ -276,7 +276,7 @@ export const translations = {
     'immunity.diag_step2_desc': 'Replace intense workout with 20 min guided breathwork.',
     'immunity.diag_step3_title': 'Early bedtime:',
     'immunity.diag_step3_desc': 'Sleep window required by 10:45 PM to trigger cytokines.',
-    'immunity.unlock_btn': 'Unlock Stoïk AI Protocol',
+    'immunity.unlock_btn': 'Unlock Aurel AI Protocol',
 
     // Sleep Phases
     'sleep.title': 'Sleep Stages',

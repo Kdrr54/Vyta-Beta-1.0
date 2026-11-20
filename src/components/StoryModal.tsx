@@ -5,7 +5,6 @@ import {
   getRunTrajectorySvgPath,
   StoryData,
   StoryTemplateVariant,
-  DEFAULT_ROUTE_PATH_D,
   convertGpsPointsToSvgPath,
   getRunnerPosition,
 } from '../lib/story';
@@ -46,15 +45,12 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
       : 1;
   const runnerPos = getRunnerPosition(currentProg);
 
+  const hasRealRoute = !!(data.realGpsPoints && data.realGpsPoints.length >= 2);
   const trajectoryInfo = useMemo(() => {
     if (data.realGpsPoints && data.realGpsPoints.length >= 2) {
       return convertGpsPointsToSvgPath(data.realGpsPoints, 360, 230, 36);
     }
-    return {
-      pathD: DEFAULT_ROUTE_PATH_D,
-      startPoint: { x: 40, y: 170 },
-      endPoint: { x: 320, y: 60 },
-    };
+    return null;
   }, [data.realGpsPoints]);
 
   useEffect(() => {
@@ -276,23 +272,27 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
           {/* Trajectoire réelle synchronisée de la course (Course uniquement) */}
           {data.mode === 'run' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0' }}>
-              <svg width="130" height="85" viewBox="0 0 360 230" fill="none">
-                <path
-                  d={trajectoryInfo.pathD}
-                  pathLength={100}
-                  strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
-                  strokeDashoffset={0}
-                  stroke="#FFFFFF"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ filter: 'drop-shadow(0 2px 8px rgba(255,255,255,0.6))' }}
-                />
-                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
-                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
-                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
-              </svg>
+              {hasRealRoute && trajectoryInfo ? (
+                <svg width="130" height="85" viewBox="0 0 360 230" fill="none">
+                  <path
+                    d={trajectoryInfo.pathD}
+                    stroke="#FFFFFF"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ filter: 'drop-shadow(0 2px 8px rgba(255,255,255,0.6))' }}
+                  />
+                  <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
+                  <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
+                  <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
+                  <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
+                </svg>
+              ) : (
+                <svg width="130" height="85" viewBox="0 0 360 230" fill="none">
+                  <circle cx="180" cy="115" r="22" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+                  <circle cx="180" cy="115" r="8" fill="#FFFFFF" />
+                </svg>
+              )}
             </div>
           )}
 
@@ -306,7 +306,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
               fontFamily: 'var(--font-display), -apple-system, BlinkMacSystemFont, sans-serif',
             }}
           >
-            STOÏK
+            AUREL
           </div>
         </div>
       );
@@ -365,23 +365,27 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
           {/* Center Route Trace on Monochrome Map (Course uniquement) */}
           {data.mode === 'run' && (
             <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'center' }}>
-              <svg width="140" height="90" viewBox="0 0 360 230" fill="none">
-                <path
-                  d={trajectoryInfo.pathD}
-                  pathLength={100}
-                  strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
-                  strokeDashoffset={0}
-                  stroke="#FFFFFF"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ filter: 'drop-shadow(0 2px 10px rgba(255,255,255,0.6))' }}
-                />
-                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
-                <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
-                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
-                <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
-              </svg>
+              {hasRealRoute && trajectoryInfo ? (
+                <svg width="140" height="90" viewBox="0 0 360 230" fill="none">
+                  <path
+                    d={trajectoryInfo.pathD}
+                    stroke="#FFFFFF"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ filter: 'drop-shadow(0 2px 10px rgba(255,255,255,0.6))' }}
+                  />
+                  <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill="#FFFFFF" stroke="#000000" strokeWidth="2.5" />
+                  <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill="#000000" />
+                  <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill="#007AFF" stroke="#FFFFFF" strokeWidth="2.5" />
+                  <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill="#FFFFFF" />
+                </svg>
+              ) : (
+                <svg width="140" height="90" viewBox="0 0 360 230" fill="none">
+                  <circle cx="180" cy="115" r="24" fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+                  <circle cx="180" cy="115" r="9" fill="#FFFFFF" />
+                </svg>
+              )}
             </div>
           )}
 
@@ -435,7 +439,7 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
                 color: '#FFFFFF',
               }}
             >
-              STOÏK
+              AUREL
             </div>
           </div>
         </div>
@@ -493,26 +497,30 @@ export const StoryModal: React.FC<StoryModalProps> = ({ data, onClose }) => {
         </div>
 
         {data.mode === 'run' && (
-          <svg width="125" height="85" viewBox="0 0 360 230" fill="none">
-            <path
-              d={trajectoryInfo.pathD}
-              pathLength={100}
-              strokeDasharray={`${Math.max(1, currentProg * 100)} 200`}
-              strokeDashoffset={0}
-              stroke={fg}
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
-            <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
-            <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
-            <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
-          </svg>
+          hasRealRoute && trajectoryInfo ? (
+            <svg width="125" height="85" viewBox="0 0 360 230" fill="none">
+              <path
+                d={trajectoryInfo.pathD}
+                stroke={fg}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
+              <circle cx={trajectoryInfo.startPoint.x} cy={trajectoryInfo.startPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
+              <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="7" fill={fg} stroke={isLight ? '#F5F5F7' : '#050507'} strokeWidth="2.5" />
+              <circle cx={trajectoryInfo.endPoint.x} cy={trajectoryInfo.endPoint.y} r="3" fill={isLight ? '#F5F5F7' : '#050507'} />
+            </svg>
+          ) : (
+            <svg width="125" height="85" viewBox="0 0 360 230" fill="none">
+              <circle cx="180" cy="115" r="22" fill={isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)'} stroke={subFg} strokeWidth="2" />
+              <circle cx="180" cy="115" r="8" fill={fg} />
+            </svg>
+          )
         )}
 
         <div style={{ fontSize: '17px', fontWeight: 900, color: fg, letterSpacing: '0.14em' }}>
-          STOÏK
+          AUREL
         </div>
       </div>
     );

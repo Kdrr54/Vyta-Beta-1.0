@@ -13,8 +13,7 @@ export interface StoryData {
   realGpsPoints?: [number, number][];
 }
 
-export const DEFAULT_ROUTE_PATH_D =
-  'M 40 170 Q 110 160, 160 120 T 260 90 T 320 60';
+export const DEFAULT_ROUTE_PATH_D = '';
 
 /**
  * Convertit un tableau de coordonnées GPS réelles [latitude, longitude]
@@ -28,9 +27,9 @@ export function convertGpsPointsToSvgPath(
 ): { pathD: string; startPoint: Pt; endPoint: Pt } {
   if (!points || points.length < 2) {
     return {
-      pathD: DEFAULT_ROUTE_PATH_D,
-      startPoint: { x: 40, y: 170 },
-      endPoint: { x: 320, y: 60 },
+      pathD: '',
+      startPoint: { x: viewWidth / 2, y: viewHeight / 2 },
+      endPoint: { x: viewWidth / 2, y: viewHeight / 2 },
     };
   }
 
@@ -267,17 +266,16 @@ export function generateStoryDataUrl(
         startPt = fitted[0];
         endPt = fitted[fitted.length - 1];
       } else {
-        // Tracé fluide par défaut (aucun circuit prédéfini)
-        const defaultCurve: Pt[] = [
-          { x: boxW * 0.15, y: boxH * 0.72 },
-          { x: boxW * 0.35, y: boxH * 0.62 },
-          { x: boxW * 0.55, y: boxH * 0.44 },
-          { x: boxW * 0.72, y: boxH * 0.34 },
-          { x: boxW * 0.85, y: boxH * 0.22 },
-        ];
-        fitted = defaultCurve;
-        startPt = fitted[0];
-        endPt = fitted[fitted.length - 1];
+        // Aucun déplacement GPS réel (< 2 points) : dessiner un repère statique centré sans faux tracé
+        ctx.save();
+        const cx = boxX + boxW / 2;
+        const cy = boxY + boxH / 2;
+        ctx.fillStyle = strokeColor;
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.max(8, lineWidth * 0.7), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
       }
 
       if (fitted.length < 2) return;
@@ -368,11 +366,11 @@ export function generateStoryDataUrl(
         drawRunTrajectoryOnCanvas(270, 1150, 540, 350, '#FFFFFF', 16);
       }
 
-      // 5. Logo STOÏK en bas
+      // 5. Logo AUREL en bas
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '900 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
       ctx.letterSpacing = '6px';
-      ctx.fillText('STOÏK', 540, 1620);
+      ctx.fillText('AUREL', 540, 1620);
 
       resolve(canvas.toDataURL('image/png'));
       return;
@@ -435,7 +433,7 @@ export function generateStoryDataUrl(
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '900 52px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
       ctx.letterSpacing = '6px';
-      ctx.fillText('STOÏK', 540, 1775);
+      ctx.fillText('AUREL', 540, 1775);
 
       resolve(canvas.toDataURL('image/png'));
       return;
@@ -485,7 +483,7 @@ export function generateStoryDataUrl(
     ctx.fillStyle = fgPrimary;
     ctx.font = '900 60px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
     ctx.letterSpacing = '6px';
-    ctx.fillText('STOÏK', 540, 1620);
+    ctx.fillText('AUREL', 540, 1620);
 
     resolve(canvas.toDataURL('image/png'));
   });

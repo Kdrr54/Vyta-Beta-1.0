@@ -19,7 +19,7 @@ import { useApp } from '../context/AppContext';
 import { qringBle } from '../lib/qringBleService';
 import { run, zones, routeRaw, fitRoute, toPath, feedSeed, FeedPost } from '../data/fit';
 import { fmtClockSec, fmtMMSS, fmtNum } from '../lib/format';
-import { StoryData, DEFAULT_ROUTE_PATH_D, convertGpsPointsToSvgPath } from '../lib/story';
+import { StoryData, convertGpsPointsToSvgPath } from '../lib/story';
 import { AppleWorkoutMap } from './AppleWorkoutMap';
 import { LiveRunningView } from './LiveRunningView';
 import { ExerciseSettingsModal } from './ExerciseSettingsModal';
@@ -1106,8 +1106,8 @@ export const FitScreen: React.FC = () => {
         { label: 'Temps', value: fmtClockSec(route.durationSec) },
         { label: 'FC Moyenne', value: route.avgHr > 0 ? `${route.avgHr}` : '--', unit: 'bpm' },
       ],
-      routeProgress: route.progress ?? 1,
-      realGpsPoints: route.realGpsPoints,
+      routeProgress: 1,
+      realGpsPoints: !route.isIndoor && route.distanceKm >= 0.05 && route.realGpsPoints && route.realGpsPoints.length >= 2 ? route.realGpsPoints : undefined,
     });
   };
 
