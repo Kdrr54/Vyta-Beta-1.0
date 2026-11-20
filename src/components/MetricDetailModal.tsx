@@ -451,6 +451,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const liveTempRef = useRef(liveTemp);
   liveTempRef.current = liveTemp;
 
+  const [liveHrv, setLiveHrv] = useState<number | null>(null);
+  const liveHrvRef = useRef(liveHrv);
+  liveHrvRef.current = liveHrv;
+
   const liveBpmRef = useRef(liveBpm);
   liveBpmRef.current = liveBpm;
 
@@ -488,11 +492,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       qringBle.stopRealTimeBloodOxygen();
     } else if (metricId === 'temp') {
       qringBle.stopRealTimeTemperature();
+    } else if (metricId === 'hrv') {
+      qringBle.stopRealTimeHrv();
     }
 
     const finalBpm = liveBpmRef.current;
     const finalSpo2 = liveSpo2Ref.current;
     const finalTemp = liveTempRef.current;
+    const finalHrv = liveHrvRef.current;
     if (metricId === 'bpm' && !wasExternalLiveHrRef.current) {
       setLiveBpm(0);
     }
@@ -566,6 +573,27 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           setMeasureFeedback(language === 'fr' ? 'Capteur thermique en cours d’acquisition (gardez la bague au doigt)' : 'Thermal sensor acquiring (keep ring on finger)');
           setTimeout(() => setMeasureFeedback(null), 4500);
         }
+      } else if (metricId === 'hrv') {
+        if (finalHrv && finalHrv >= 5 && finalHrv < 250) {
+          setMeasureFeedback(language === 'fr' ? `✓ ${finalHrv} ms VRC mesuré et enregistré` : `✓ ${finalHrv} ms HRV measured & saved`);
+          setTimeout(() => setMeasureFeedback(null), 4500);
+          setWeekData((prev) => {
+            const next = [...prev];
+            const idx = Math.min(6, Math.max(0, modalDay));
+            const cur = { ...(next[idx] || {}) } as DayMetrics;
+            cur.hrv = finalHrv;
+            const prevLog = Array.isArray(cur.hrvLog) && cur.hrvLog.length === 48 ? [...cur.hrvLog] : new Array(48).fill(0);
+            const now = new Date();
+            const curHalf = Math.min(47, Math.max(0, now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0)));
+            prevLog[curHalf] = finalHrv;
+            cur.hrvLog = prevLog;
+            next[idx] = cur;
+            return next;
+          });
+        } else {
+          setMeasureFeedback(language === 'fr' ? 'Signal VRC faible (restez parfaitement immobile)' : 'Weak HRV signal (remain perfectly still)');
+          setTimeout(() => setMeasureFeedback(null), 4500);
+        }
       }
     }
   }, [language, modalDay, metricId, setWeekData]);
@@ -577,6 +605,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
     if (metricId === 'spo2') setLiveSpo2(null);
     if (metricId === 'temp') setLiveTemp(null);
+    if (metricId === 'hrv') setLiveHrv(null);
     setMeasureFeedback(null);
     setCountdown(25);
     setIsMeasuring(true);
@@ -623,7 +652,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   useEffect(() => {
     if (!isMeasuring) return;
-    if (metricId !== 'bpm' && metricId !== 'spo2' && metricId !== 'temp') return;
+    if (metricId !== 'bpm' && metricId !== 'spo2' && metricId !== 'temp' && metricId !== 'hrv') return;
     let cancelled = false;
 
     const unsubscribe = qringBle.subscribe((data) => {
@@ -640,6 +669,10 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         if (data.skinTemp && data.skinTemp >= 30 && data.skinTemp <= 43 && !qringBle.isSyncingNow()) {
           setLiveTemp(data.skinTemp);
         }
+      } else if (metricId === 'hrv') {
+        if (data.hrv && data.hrv >= 5 && data.hrv < 250 && !qringBle.isSyncingNow()) {
+          setLiveHrv(data.hrv);
+        }
       }
     });
 
@@ -648,6 +681,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         ? qringBle.startRealTimeHeartRate()
         : metricId === 'spo2'
         ? qringBle.startRealTimeBloodOxygen()
+        : metricId === 'hrv'
+        ? qringBle.startRealTimeHrv()
         : qringBle.startRealTimeTemperature();
 
     startPromise.then((started) => {
@@ -687,6 +722,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         }
       } else if (metricId === 'spo2') {
         qringBle.stopRealTimeBloodOxygen();
+      } else if (metricId === 'hrv') {
+        qringBle.stopRealTimeHrv();
       } else if (metricId === 'temp') {
         qringBle.stopRealTimeTemperature();
       }
@@ -1657,8 +1694,8 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             </div>
           )}
 
-          {/* Bouton de mesure optique / thermique en direct 20 secondes si Fréquence Cardiaque, SpO2 ou Température aujourd'hui */}
-          {modalDay === TODAY_INDEX && (metricId === 'bpm' || metricId === 'spo2' || metricId === 'temp') && (
+          {/* Bouton de mesure optique / thermique en direct si Fréquence Cardiaque, SpO2, VRC ou Température aujourd'hui */}
+          {modalDay === TODAY_INDEX && (metricId === 'bpm' || metricId === 'spo2' || metricId === 'temp' || metricId === 'hrv') && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px 0 6px 0', gap: '6px' }}>
               {isMeasuring ? (
                 <button
@@ -1670,14 +1707,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                     gap: '6px',
                     padding: '5px 14px',
                     borderRadius: '999px',
-                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.22)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.22)' : 'rgba(251, 191, 36, 0.22)',
-                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.65)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.65)' : 'rgba(251, 191, 36, 0.65)'}`,
+                    background: metricId === 'bpm' ? 'rgba(255, 69, 58, 0.22)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.22)' : metricId === 'hrv' ? 'rgba(163, 230, 53, 0.22)' : 'rgba(251, 191, 36, 0.22)',
+                    border: `1px solid ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.65)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.65)' : metricId === 'hrv' ? 'rgba(163, 230, 53, 0.65)' : 'rgba(251, 191, 36, 0.65)'}`,
                     color: '#FAF7F2',
                     fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     outline: 'none',
-                    boxShadow: `0 0 14px ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.45)' : 'rgba(251, 191, 36, 0.45)'}`,
+                    boxShadow: `0 0 14px ${metricId === 'bpm' ? 'rgba(255, 69, 58, 0.45)' : metricId === 'spo2' ? 'rgba(217, 70, 239, 0.45)' : metricId === 'hrv' ? 'rgba(163, 230, 53, 0.45)' : 'rgba(251, 191, 36, 0.45)'}`,
                   }}
                 >
                   <span
@@ -1685,17 +1722,18 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       width: '7px',
                       height: '7px',
                       borderRadius: '50%',
-                      backgroundColor: metricId === 'bpm' ? '#FF453A' : metricId === 'spo2' ? '#D946EF' : '#FBBF24',
+                      backgroundColor: metricId === 'bpm' ? '#FF453A' : metricId === 'spo2' ? '#D946EF' : metricId === 'hrv' ? '#A3E635' : '#FBBF24',
                       animation: 'restingDotBreathe 0.8s ease-in-out infinite alternate',
                     }}
                   />
-                  <span style={{ color: metricId === 'bpm' ? '#FF5A52' : metricId === 'spo2' ? '#F0ABFC' : '#FCD34D', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ color: metricId === 'bpm' ? '#FF5A52' : metricId === 'spo2' ? '#F0ABFC' : metricId === 'hrv' ? '#BEF264' : '#FCD34D', fontFamily: 'var(--font-mono)' }}>
                     {metricId === 'bpm'
                       ? (liveBpm ? `${liveBpm} BPM • LIVE` : (language === 'fr' ? 'EN DIRECT...' : 'LIVE...'))
                       : (
                         <>
                           {metricId === 'spo2' && liveSpo2 ? `${liveSpo2}% • ` : ''}
                           {metricId === 'temp' && liveTemp ? `${liveTemp.toFixed(1)} °C • ` : ''}
+                          {metricId === 'hrv' && liveHrv ? `${liveHrv} ms • ` : ''}
                           {countdown}s
                         </>
                       )}
@@ -1749,6 +1787,15 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
                       fill="#D946EF"
                       style={{
                         filter: 'drop-shadow(0 0 4px rgba(217, 70, 239, 0.6))',
+                        animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
+                      }}
+                    />
+                  ) : metricId === 'hrv' ? (
+                    <Activity
+                      size={12}
+                      color="#A3E635"
+                      style={{
+                        filter: 'drop-shadow(0 0 4px rgba(163, 230, 53, 0.6))',
                         animation: 'restingDotBreathe 1.5s ease-in-out infinite alternate',
                       }}
                     />

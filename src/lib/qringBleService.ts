@@ -718,8 +718,8 @@ class QRingBleService {
           if (
             this.configuredIntervalMinutes > 0 &&
             this.configuredIntervalMinutes <= 30 &&
-            minuteInSlot >= 4 &&
-            minuteInSlot <= 14 &&
+            minuteInSlot >= 3 &&
+            minuteInSlot <= 27 &&
             this.lastAutoMeasureSlot !== currentSlot &&
             this.hrvLogSlots[currentSlot] === 0 &&
             !this.isAutoSpotMeasuring &&
