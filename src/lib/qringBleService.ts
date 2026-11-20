@@ -223,6 +223,8 @@ class QRingBleService {
   private hrvTotalPackets = 0;
   private hrvPeriodMinutes = 60;
   private stepsQuarterSlots: number[] = new Array(96).fill(0);
+  private stepsDetailCalSum = 0;
+  private stepsDetailDistMetersSum = 0;
   private stepsDetailDebounceTimer: any = null;
   private stepsDetailWaiters: Array<() => void> = [];
   private requestedStepsDayOffset = 0;
@@ -1982,8 +1984,10 @@ class QRingBleService {
     console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
     this.requestedStepsDayOffset = Math.max(0, Math.min(6, Math.round(dayOffset)));
     this.stepsQuarterSlots = new Array(96).fill(0);
+    this.stepsDetailCalSum = 0;
+    this.stepsDetailDistMetersSum = 0;
 
-    const detailWait = this.waitForStepsDetail(650);
+    const detailWait = this.waitForStepsDetail(1000);
     // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
     const p43 = this.makePacket(0x43, [this.requestedStepsDayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
     const ok43 = await this.writeBytes(p43);
@@ -2272,11 +2276,20 @@ class QRingBleService {
       }
     }
     if (total > 0) {
+      const calKcal = this.stepsDetailCalSum > 0
+        ? Math.max(1, Math.round(this.stepsDetailCalSum / 1000))
+        : Math.max(1, Math.round(total * 0.04));
+      const distKm = this.stepsDetailDistMetersSum > 0
+        ? parseFloat((this.stepsDetailDistMetersSum / 1000).toFixed(2))
+        : undefined;
       console.log(`[QRing BLE] Finalized 0x43 Hourly Steps Log (daysAgo=${this.requestedStepsDayOffset}): total=${total}`);
       this.notify({
         daysAgo: this.requestedStepsDayOffset,
         stepsHourly: hourly,
         steps: total,
+        stepsAuthoritative: true,
+        calories: calKcal,
+        ...(distKm && distKm > 0 ? { distanceKm: distKm } : {}),
         isConnected: true,
       });
     }
@@ -3690,8 +3703,18 @@ class QRingBleService {
         const sub = dataView.getUint8(1);
         if (sub === 0xF0) {
           this.stepsQuarterSlots = new Array(96).fill(0);
+          this.stepsDetailCalSum = 0;
+          this.stepsDetailDistMetersSum = 0;
           const totalBlocks = len >= 3 ? dataView.getUint8(2) : 0;
           if (totalBlocks === 0) {
+            this.notify({
+              daysAgo: this.requestedStepsDayOffset,
+              stepsHourly: new Array(24).fill(0),
+              steps: 0,
+              stepsAuthoritative: true,
+              calories: 0,
+              isConnected: true,
+            });
             this.resolveStepsDetailWaiters();
           }
           return;
@@ -3723,6 +3746,8 @@ class QRingBleService {
             (this.requestedStepsDayOffset > 0 || timeIndex <= currentQuarter);
           if (isValidSlot && st > 0 && st <= 25000) {
             this.stepsQuarterSlots[timeIndex] = st;
+            if (cal > 0 && cal < 5000) this.stepsDetailCalSum += cal;
+            if (dist > 0 && dist < 50000) this.stepsDetailDistMetersSum += dist;
             if (this.stepsDetailDebounceTimer) clearTimeout(this.stepsDetailDebounceTimer);
             this.stepsDetailDebounceTimer = setTimeout(() => this.finalizeStepsDetailLog(), 260);
           }
