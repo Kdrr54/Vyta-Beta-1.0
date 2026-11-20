@@ -223,6 +223,8 @@ class QRingBleService {
   private hrvPeriodMinutes = 60;
   private stepsQuarterSlots: number[] = new Array(96).fill(0);
   private stepsDetailDebounceTimer: any = null;
+  private stepsDetailWaiters: Array<() => void> = [];
+  private requestedStepsDayOffset = 0;
 
   private listeners: Set<RingListener> = new Set();
   private discoveryListeners: Set<DeviceDiscoveryListener> = new Set();
@@ -584,7 +586,15 @@ class QRingBleService {
     if (cmd === 0x3A) return `Temp 0x3A (b1=${b1}, b2=${b2}, b3=${b3})`;
     if (cmd === 0x37) return dir === 'TX' ? 'Lecture Flash Stress (0x37)' : `Log Stress 0x37 pkt=${b1}`;
     if (cmd === 0x39) return dir === 'TX' ? 'Lecture Flash VRC (0x39)' : `Log VRC 0x39 pkt=${b1}`;
-    if (cmd === 0x43 || cmd === 0x07 || cmd === 0x48) return `Activité/Pas (0x${cmd.toString(16)})`;
+    if (cmd === 0x43) {
+      if (dir === 'TX') return `Detail Pas 0x43 (j-${b1})`;
+      if (b1 === 0xF0) return `Detail Pas 0x43 header (total=${b2})`;
+      if (b1 === 0xFF) return 'Detail Pas 0x43 fin/vide';
+      const b4 = bytes.length > 4 ? bytes[4] & 0xFF : 0;
+      const st = bytes.length > 10 ? (bytes[9] & 0xFF) | ((bytes[10] & 0xFF) << 8) : 0;
+      return `Detail Pas 0x43 slot=${b4} (${st} pas)`;
+    }
+    if (cmd === 0x07 || cmd === 0x48) return `Activité/Pas (0x${cmd.toString(16)})`;
     if (cmd === 0x69) {
       const tName = b1 === 1 ? 'FC' : b1 === 3 ? 'SpO2' : b1 === 5 ? 'Temp' : b1 === 10 ? 'VRC' : `type=${b1}`;
       const act = dir === 'TX' ? (b2 === 1 ? 'START' : b2 === 3 ? 'CONTINUE' : b2 === 4 ? 'STOP' : `act=${b2}`) : `val=[${b2},${b3}]`;
@@ -1990,18 +2000,46 @@ class QRingBleService {
    * Command 67 (0x43): Colmi R02 15-minute sport detail blocks
    * Command 7 (0x07): QCBand daily totals
    */
+  private resolveStepsDetailWaiters() {
+    if (this.stepsDetailWaiters.length > 0) {
+      const resolvers = this.stepsDetailWaiters.splice(0);
+      resolvers.forEach((r) => r());
+    }
+  }
+
+  private waitForStepsDetail(timeoutMs = 650): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        const idx = this.stepsDetailWaiters.indexOf(finish);
+        if (idx >= 0) this.stepsDetailWaiters.splice(idx, 1);
+        resolve();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      this.stepsDetailWaiters.push(finish);
+    });
+  }
+
   public async requestStepsData(dayOffset: number = 0): Promise<boolean> {
     console.log('[QRing BLE] Requesting steps & activity data (Command 67 / 0x43 and 0x07, dayOffset:', dayOffset, ')...');
-    if (dayOffset === 0) {
-      this.stepsQuarterSlots = new Array(96).fill(0);
-    }
+    this.requestedStepsDayOffset = Math.max(0, Math.min(6, Math.round(dayOffset)));
+    this.stepsQuarterSlots = new Array(96).fill(0);
+
+    const detailWait = this.waitForStepsDetail(650);
     // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
-    const p43 = this.makePacket(0x43, [dayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
-    await this.writeBytes(p43);
-    await new Promise((r) => setTimeout(r, 120));
+    const p43 = this.makePacket(0x43, [this.requestedStepsDayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
+    const ok43 = await this.writeBytes(p43);
+    if (ok43) {
+      await detailWait;
+    } else {
+      this.resolveStepsDetailWaiters();
+    }
 
     // 2. QCBand daily total
-    const p7 = this.makePacket(0x07, [dayOffset & 0xFF]);
+    const p7 = this.makePacket(0x07, [this.requestedStepsDayOffset & 0xFF]);
     return await this.writeBytes(p7);
   }
 
@@ -2255,13 +2293,15 @@ class QRingBleService {
       }
     }
     if (total > 0) {
-      console.log('[QRing BLE] Finalized 0x43 Hourly Steps Log: total=', total);
+      console.log(`[QRing BLE] Finalized 0x43 Hourly Steps Log (daysAgo=${this.requestedStepsDayOffset}): total=${total}`);
       this.notify({
+        daysAgo: this.requestedStepsDayOffset,
         stepsHourly: hourly,
         steps: total,
         isConnected: true,
       });
     }
+    this.resolveStepsDetailWaiters();
   }
 
   /**
@@ -3617,6 +3657,10 @@ class QRingBleService {
         const sub = dataView.getUint8(1);
         if (sub === 0xF0) {
           this.stepsQuarterSlots = new Array(96).fill(0);
+          const totalBlocks = len >= 3 ? dataView.getUint8(2) : 0;
+          if (totalBlocks === 0) {
+            this.resolveStepsDetailWaiters();
+          }
           return;
         }
         if (sub === 0xFF || sub === 255) {
@@ -3630,13 +3674,16 @@ class QRingBleService {
           const dist = dataView.getUint16(11, true);
           const now = new Date();
           const currentQuarter = now.getHours() * 4 + Math.floor(now.getMinutes() / 15);
-          if (timeIndex < 96 && timeIndex <= currentQuarter && st > 0 && st <= 25000) {
+          const isValidSlot =
+            timeIndex < 96 &&
+            (this.requestedStepsDayOffset > 0 || timeIndex <= currentQuarter);
+          if (isValidSlot && st > 0 && st <= 25000) {
             this.stepsQuarterSlots[timeIndex] = st;
             if (this.stepsDetailDebounceTimer) clearTimeout(this.stepsDetailDebounceTimer);
-            this.stepsDetailDebounceTimer = setTimeout(() => this.finalizeStepsDetailLog(), 280);
+            this.stepsDetailDebounceTimer = setTimeout(() => this.finalizeStepsDetailLog(), 260);
           }
           if (st > 0 || cal > 0) {
-            console.log('[QRing BLE] Cmd 0x43 Activity detail: slot=', timeIndex, 'steps:', st, 'cal:', cal, 'dist:', dist);
+            console.log('[QRing BLE] Cmd 0x43 Activity detail: j-', this.requestedStepsDayOffset, 'slot=', timeIndex, 'steps:', st, 'cal:', cal, 'dist:', dist);
           }
         }
       }
@@ -3795,8 +3842,9 @@ class QRingBleService {
           const cal = rawCal > 0 ? Math.max(1, Math.round(rawCal / 1000)) : (steps > 0 ? Math.max(1, Math.round(steps * 0.04)) : 0);
 
           if (steps >= 0 && steps <= 120000 && (steps > 0 || cal > 0)) {
-            console.log('[QRing BLE] Cmd 0x07 (sub-packet 0) Big-Endian activity: steps:', steps, 'kcal:', cal);
+            console.log('[QRing BLE] Cmd 0x07 (sub-packet 0) Big-Endian activity: j-', this.requestedStepsDayOffset, 'steps:', steps, 'kcal:', cal);
             this.notify({
+              daysAgo: this.requestedStepsDayOffset,
               steps,
               calories: cal,
               isConnected: true,
@@ -3824,7 +3872,7 @@ class QRingBleService {
           if ((distMeters >= 0 && distMeters <= 150000 && distKm > 0) || realSleepHours !== undefined) {
             console.log('[QRing BLE] Cmd 0x07 (sub-packet 1) Big-Endian distance km:', distKm, 'sleepMin:', sleepMin);
             this.notify({
-              ...(distMeters > 0 && distKm > 0 ? { distanceKm: distKm } : {}),
+              ...(distMeters > 0 && distKm > 0 ? { daysAgo: this.requestedStepsDayOffset, distanceKm: distKm } : {}),
               ...(realSleepHours !== undefined ? { daysAgo: 0, sleepHours: realSleepHours } : {}),
               isConnected: true,
             });

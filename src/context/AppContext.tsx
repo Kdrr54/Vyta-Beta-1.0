@@ -732,9 +732,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const safeSteps = rawSteps > 120000
           ? (((rawSteps & 0xFF) << 16) | (rawSteps & 0xFF00) | ((rawSteps >> 16) & 0xFF))
           : rawSteps;
+        const daysAgo = data.daysAgo ?? 0;
         setWeekData((prev) => {
           const next = [...prev];
-          const idx = TODAY_INDEX;
+          const idx = TODAY_INDEX - daysAgo;
+          if (idx < 0 || idx >= 7) return prev;
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           const prevSteps = cur.steps || 0;
           const nextSteps = safeSteps > 0 ? Math.max(prevSteps, safeSteps) : prevSteps;
@@ -742,7 +744,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (Array.isArray(data.stepsHourly) && data.stepsHourly.length === 24 && data.stepsHourly.some((v) => v > 0)) {
             cur.stepsHourly = data.stepsHourly;
-          } else if (prevSteps > 0 && nextSteps > prevSteps) {
+          } else if (daysAgo === 0 && prevSteps > 0 && nextSteps > prevSteps && nextSteps - prevSteps <= 2000) {
             const curHour = new Date().getHours();
             const hourly = Array.isArray(cur.stepsHourly) && cur.stepsHourly.length === 24
               ? [...cur.stepsHourly]

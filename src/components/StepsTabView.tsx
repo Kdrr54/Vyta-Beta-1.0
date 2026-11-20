@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flame, Footprints, MapPin, RefreshCw, SlidersHorizontal, Target, Timer, Check } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { emptyDayMetrics, weekMetrics } from '../data/health';
@@ -73,6 +73,32 @@ export const StepsTabView: React.FC = () => {
   const maxHourly = Math.max(100, ...hourly);
   const peakHourIdx = hasHourlyData ? hourly.indexOf(Math.max(...hourly)) : -1;
 
+  const autoFetchedKeyRef = useRef<string | null>(null);
+  const [checkedHourlyOnce, setCheckedHourlyOnce] = useState(false);
+
+  useEffect(() => {
+    setSelectedHour(null);
+    setCheckedHourlyOnce(false);
+  }, [selectedDay, weekOffset]);
+
+  useEffect(() => {
+    if (hasHourlyData) return;
+    if (!ring.isConnected || !qringBle.isConnected()) return;
+    if (weekOffset !== 0 || selectedDay > todayIndex) return;
+    const key = `${weekOffset}-${selectedDay}`;
+    if (autoFetchedKeyRef.current === key) return;
+    autoFetchedKeyRef.current = key;
+    const dayOffset = Math.max(0, todayIndex - selectedDay);
+    setSyncing(true);
+    qringBle
+      .requestStepsData(dayOffset)
+      .catch(() => false)
+      .finally(() => {
+        setSyncing(false);
+        setCheckedHourlyOnce(true);
+      });
+  }, [hasHourlyData, ring.isConnected, selectedDay, weekOffset, todayIndex]);
+
   const weeklyStats = useMemo(() => {
     const items = weekDays.map((d, idx) => {
       const m = weekData && weekData[idx];
@@ -111,7 +137,7 @@ export const StepsTabView: React.FC = () => {
     try {
       const dayOffset = weekOffset === 0 ? Math.max(0, todayIndex - selectedDay) : 0;
       await qringBle.requestStepsData(dayOffset);
-      await new Promise((r) => setTimeout(r, 380));
+      setCheckedHourlyOnce(true);
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 1800);
     } finally {
@@ -591,9 +617,13 @@ export const StepsTabView: React.FC = () => {
             }}
           >
             {steps > 0
-              ? isEn
-                ? `${fmtNum(steps)} total steps recorded today. Hourly blocks appear automatically when sent by the ring.`
-                : `${fmtNum(steps)} pas enregistrés au total. Le détail heure par heure s'affiche dès réception des blocs 15 min de la bague.`
+              ? checkedHourlyOnce
+                ? isEn
+                  ? `${fmtNum(steps)} total steps synced for this day. This ring firmware stores the daily cumulative count only (no 15-min hourly blocks sent for this day).`
+                  : `${fmtNum(steps)} pas synchronisés pour ce jour. Ce firmware ne renvoie que le total cumulé (aucun bloc 15 min envoyé pour cette journée).`
+                : isEn
+                ? `${fmtNum(steps)} total steps recorded. Syncing hourly blocks from the ring...`
+                : `${fmtNum(steps)} pas enregistrés au total. Récupération des blocs 15 min depuis la bague...`
               : isEn
               ? 'No steps detected yet for this day. Walk naturally for ~15s while wearing your ring.'
               : 'Aucun pas détecté pour cette journée. Marchez quelques secondes bague au doigt puis synchronisez.'}
