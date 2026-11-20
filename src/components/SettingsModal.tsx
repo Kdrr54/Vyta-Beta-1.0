@@ -1778,7 +1778,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                       id: '30min',
                       title: isEn ? 'Precision' : 'Précision',
                       sub: '30m · ~5j',
-                      isActive: (sensorIntervals?.heartRate || '30min') === '30min',
+                      isActive: (sensorIntervals?.heartRate || '1h') === '30min',
                       action: () => {
                         triggerHaptic();
                         updateSensorIntervals({
@@ -1950,7 +1950,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                           borderRadius: '6px',
                         }}
                       >
-                        {sensorIntervals?.[s.key] || '30min'}
+                        {sensorIntervals?.[s.key] || '1h'}
                       </span>
                     </div>
                   ))}

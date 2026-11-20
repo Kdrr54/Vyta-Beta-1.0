@@ -294,13 +294,14 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
+            parsed?.cfgVer === 3 &&
             typeof parsed?.minutes === 'number' &&
             typeof parsed?.strict === 'boolean' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
             this.lastProgrammedStrictMode = parsed.strict;
-            this.needsBoundaryAlign = Boolean(parsed?.needsAlign);
+            this.needsBoundaryAlign = false;
           }
         }
       } catch (_) {}
@@ -1750,11 +1751,11 @@ class QRingBleService {
    * - Command 0x36 (CMD_PRESSURE / Stress): [0x02, enabledByte, intervalMin]
    */
   public isStrictLedModeEnabled(): boolean {
-    if (typeof window === 'undefined') return true;
+    if (typeof window === 'undefined') return false;
     try {
-      return localStorage.getItem('vyta_strict_led_schedule') !== 'false';
+      return localStorage.getItem('vyta_strict_led_schedule') === 'true';
     } catch {
-      return true;
+      return false;
     }
   }
 
@@ -1803,14 +1804,10 @@ class QRingBleService {
 
     // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence & strict LED mode
     if (!force && this.lastProgrammedIntervalMinutes === mins && this.lastProgrammedStrictMode === strictNow) {
-      if (this.needsBoundaryAlign && mins > 0) {
-        this.scheduleBoundaryAlignment(mins);
-      }
       return true;
     }
 
-    const alignedNow = mins > 0 ? this.isNearClockBoundary(mins) : true;
-    this.needsBoundaryAlign = mins > 0 && !alignedNow;
+    this.needsBoundaryAlign = false;
     this.lastProgrammedIntervalMinutes = mins;
     this.lastProgrammedStrictMode = strictNow;
     if (typeof window !== 'undefined') {
@@ -1818,19 +1815,18 @@ class QRingBleService {
         localStorage.setItem(
           'vyta_hw_programmed_interval',
           JSON.stringify({
+            cfgVer: 3,
             deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
             minutes: mins,
             strict: strictNow,
-            needsAlign: this.needsBoundaryAlign,
+            needsAlign: false,
             ts: Date.now(),
           })
         );
       } catch (_) {}
     }
 
-    if (this.needsBoundaryAlign && mins > 0) {
-      this.scheduleBoundaryAlignment(mins);
-    } else if (this.boundaryAlignTimer) {
+    if (this.boundaryAlignTimer) {
       clearTimeout(this.boundaryAlignTimer);
       this.boundaryAlignTimer = null;
     }
@@ -1868,46 +1864,6 @@ class QRingBleService {
 
   public async setHeartRateInterval(minutes?: number): Promise<boolean> {
     return this.setAllSensorIntervals(minutes);
-  }
-
-  private isNearClockBoundary(intervalMins: number, now: Date = new Date()): boolean {
-    if (intervalMins <= 0) return true;
-    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, intervalMins);
-    const modMin = now.getMinutes() % stepMin;
-    const modSec = modMin * 60 + now.getSeconds();
-    const stepSec = stepMin * 60;
-    return modSec <= 90 || modSec >= stepSec - 90;
-  }
-
-  private scheduleBoundaryAlignment(intervalMins: number): void {
-    if (this.boundaryAlignTimer) {
-      clearTimeout(this.boundaryAlignTimer);
-      this.boundaryAlignTimer = null;
-    }
-    if (intervalMins <= 0) return;
-
-    const now = new Date();
-    if (this.isNearClockBoundary(intervalMins, now)) {
-      if (this.isConnected() && this.needsBoundaryAlign) {
-        this.setAllSensorIntervals(intervalMins, true);
-      }
-      return;
-    }
-
-    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, intervalMins);
-    const currentMin = now.getMinutes();
-    const nextSlotMin = Math.floor(currentMin / stepMin) * stepMin + stepMin;
-    const target = new Date(now.getTime());
-    target.setMinutes(nextSlotMin, 2, 0);
-    const delayMs = Math.max(2000, target.getTime() - now.getTime());
-
-    this.boundaryAlignTimer = setTimeout(() => {
-      this.boundaryAlignTimer = null;
-      if (this.isConnected() && this.needsBoundaryAlign && this.configuredIntervalMinutes === intervalMins) {
-        console.log(`[QRing BLE] Aligning hardware timer cleanly onto :00/:30 clock boundary (${intervalMins}m)...`);
-        this.setAllSensorIntervals(intervalMins, true);
-      }
-    }, delayMs);
   }
 
   /**
@@ -2142,17 +2098,13 @@ class QRingBleService {
    * Request stored Skin Temperature history from ring flash memory (BigData 0xBC 0x25, 0x26, 0x74)
    */
   public async requestTemperatureData(): Promise<boolean> {
-    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 / 0x26 / 0x74 - 0 LEDs)...');
+    console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 - 0 LEDs)...');
     await this.writeBytes(this.makePacket(0x75, [0x00]));
     await new Promise((r) => setTimeout(r, 60));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       await this.writeBigDataBytes([0xBC, 0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
-      await new Promise((r) => setTimeout(r, 70));
-      await this.writeBigDataBytes([0xBC, 0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
     } else {
       await this.writeBytes(this.makePacket(0xBC, [0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
-      await new Promise((r) => setTimeout(r, 70));
-      await this.writeBytes(this.makePacket(0xBC, [0x26, 0x01, 0x00, 0xFF, 0x00, 0xFF]));
     }
     return true;
   }
@@ -2975,15 +2927,10 @@ class QRingBleService {
         ) {
           await this.setAllSensorIntervals(this.configuredIntervalMinutes, false);
           await new Promise((r) => setTimeout(r, 90));
-        } else if (this.needsBoundaryAlign && this.isNearClockBoundary(this.configuredIntervalMinutes)) {
-          await this.setAllSensorIntervals(this.configuredIntervalMinutes, true);
-          await new Promise((r) => setTimeout(r, 90));
-        } else if (this.needsBoundaryAlign && !this.boundaryAlignTimer) {
-          this.scheduleBoundaryAlignment(this.configuredIntervalMinutes);
         } else {
-          // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted to 15m/30m
+          // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted to OFF/15m
           await this.writeBytes(this.makePacket(0x16, [0x01]));
-          await new Promise((r) => setTimeout(r, 70));
+          await new Promise((r) => setTimeout(r, 90));
         }
 
         // 3. Stored full-day heart rate logs (await full multi-frame 0x15 completion so recent slots aren't cut off)
