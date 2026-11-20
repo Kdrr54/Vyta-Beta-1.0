@@ -237,6 +237,7 @@ class QRingBleService {
   private lastProgrammedIntervalMinutes: number | null = null;
   private needsBoundaryAlign = false;
   private boundaryAlignTimer: any = null;
+  private lastIntervalFixAt = 0;
   private isRealTimeHrActive = false;
   private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
@@ -2738,6 +2739,10 @@ class QRingBleService {
           await new Promise((r) => setTimeout(r, 90));
         } else if (this.needsBoundaryAlign && !this.boundaryAlignTimer) {
           this.scheduleBoundaryAlignment(this.configuredIntervalMinutes);
+        } else {
+          // Silent readback (0 LED, 0 timer reset) to detect if ring firmware reverted to 15m/30m
+          await this.writeBytes(this.makePacket(0x16, [0x01]));
+          await new Promise((r) => setTimeout(r, 70));
         }
 
         // 3. Stored full-day heart rate logs
@@ -2795,6 +2800,8 @@ class QRingBleService {
     if (this.activeSyncPromise) return this.activeSyncPromise;
     if (this.activeLiveDataType !== null || this.isRealTimeHrActive) return false;
     try {
+      await this.writeBytes(this.makePacket(0x16, [0x01]));
+      await new Promise((r) => setTimeout(r, 70));
       await this.requestHeartRateLog();
       await new Promise((r) => setTimeout(r, 320));
       await this.requestTemperatureData();
@@ -3331,13 +3338,23 @@ class QRingBleService {
         const intervalMins = dataView.getUint8(3);
         const isEnabled = enabledByte === 1;
         console.log(`[QRing BLE] Ring Hardware Interval confirmed: ${intervalMins} min (enabled=${isEnabled}, subType=${subType})`);
-        if (intervalMins >= 5 && intervalMins <= 120) {
-          this.configuredIntervalMinutes = intervalMins;
-          try {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('vyta_ring_interval', String(intervalMins));
-            }
-          } catch (_) {}
+
+        // Enforce the user's configured setting: NEVER let ring's stale 15m overwrite 60m!
+        const wantOn = this.configuredIntervalMinutes > 0;
+        const mismatch = isEnabled !== wantOn || (wantOn && intervalMins !== this.configuredIntervalMinutes);
+        if (mismatch && Date.now() - this.lastIntervalFixAt > 10000) {
+          this.lastIntervalFixAt = Date.now();
+          console.warn(
+            `[QRing BLE] Hardware interval mismatch detected (ring=${isEnabled ? `${intervalMins}m` : 'OFF'}, expected=${wantOn ? `${this.configuredIntervalMinutes}m` : 'OFF'}). Re-enforcing setting...`
+          );
+          this.recordLiveMeasureEvent(
+            'led',
+            'Config bague corrigée',
+            `${isEnabled ? `${intervalMins}m` : 'OFF'} → ${wantOn ? `${this.configuredIntervalMinutes}m` : 'Veille'}`,
+            'amber',
+            'live'
+          );
+          this.setAllSensorIntervals(this.configuredIntervalMinutes, true).catch(() => {});
         }
       }
       return;
