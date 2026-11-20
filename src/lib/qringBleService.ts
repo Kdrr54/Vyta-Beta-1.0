@@ -2930,8 +2930,6 @@ class QRingBleService {
 
     this.activeActivityRefreshPromise = (async () => {
       try {
-        await this.writeBytes(this.makePacket(0x16, [0x01]));
-        await new Promise((r) => setTimeout(r, 70));
         await this.requestHeartRateLog(true);
 
         const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 450);
@@ -3480,8 +3478,11 @@ class QRingBleService {
         console.log(`[QRing BLE] Ring Hardware Interval confirmed: ${intervalMins} min (enabled=${isEnabled}, subType=${subType})`);
 
         // Enforce the user's configured setting: NEVER let ring's stale 15m overwrite 60m!
+        // Note: R21/QRing firmware often returns intervalMins=0 in 0x16 [0x01] read responses even when 30m/60m is active;
+        // ignore intervalMins === 0 when enabled so we never falsely reset the ring's hardware timer mid-cycle.
         const wantOn = this.configuredIntervalMinutes > 0;
-        const mismatch = isEnabled !== wantOn || (wantOn && intervalMins !== this.configuredIntervalMinutes);
+        const realMinuteMismatch = wantOn && isEnabled && intervalMins > 0 && intervalMins !== this.configuredIntervalMinutes;
+        const mismatch = isEnabled !== wantOn || realMinuteMismatch;
         if (mismatch && Date.now() - this.lastIntervalFixAt > 10000) {
           this.lastIntervalFixAt = Date.now();
           console.warn(
