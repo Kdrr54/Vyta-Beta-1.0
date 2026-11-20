@@ -587,9 +587,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.hrvLog = data.hrvLog;
           } else {
             const now = new Date();
-            const rawSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
-            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
-            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
             const log = Array.isArray(cur.hrvLog) && cur.hrvLog.length === 48 ? [...cur.hrvLog] : new Array(48).fill(0);
             log[currentSlot] = data.hrv!;
             cur.hrvLog = log;
@@ -666,11 +664,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.tempLog = clamped;
           } else {
             const now = new Date();
-            const rawSlot = daysAgo === 0
+            const currentSlot = daysAgo === 0
               ? Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)))
               : 46;
-            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
-            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
             const slots = Array.isArray(cur.tempLog) && cur.tempLog.length === 48 ? [...cur.tempLog] : new Array(48).fill(0);
             slots[currentSlot] = parseFloat(data.skinTemp!.toFixed(1));
             cur.tempLog = slots;
@@ -909,9 +905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             cur.spo2Log = data.spo2Log;
           } else {
             const now = new Date();
-            const rawSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
-            const isHourlyPref = qringBle.getConfiguredIntervalMinutes() >= 60;
-            const currentSlot = isHourlyPref ? Math.floor(rawSlot / 2) * 2 : rawSlot;
+            const currentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
             const log = Array.isArray(cur.spo2Log) && cur.spo2Log.length === 48 ? [...cur.spo2Log] : new Array(48).fill(0);
             log[currentSlot] = data.spo2!;
             cur.spo2Log = log;

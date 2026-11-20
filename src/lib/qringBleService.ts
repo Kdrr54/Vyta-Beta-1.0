@@ -2747,8 +2747,8 @@ class QRingBleService {
                 source: 'auto',
               }]);
             }
-            // Jamais répliquer v0 sur :30 ; enregistrer v1 sur :30 uniquement si v1 est réel et cadence < 60 min
-            if (this.configuredIntervalMinutes < 60 && v1 > 0 && slot1 <= currentHalfSlot) {
+            // Enregistrer la vraie mesure SpO2 sur :30 si v1 est présent dans la flash de la bague
+            if (v1 > 0 && slot1 <= currentHalfSlot) {
               latestSpo2 = v1;
               if (v1 < minSpo2) minSpo2 = v1;
               if (v1 > maxSpo2) maxSpo2 = v1;
