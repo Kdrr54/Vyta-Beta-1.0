@@ -32,15 +32,15 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
     const checkViewport = () => {
       const vv = window.visualViewport;
       const curH = vv ? vv.height : window.innerHeight;
-      const baseH = initialViewportHeightRef.current;
-      const isKb = curH < baseH - 120 || window.innerHeight < baseH - 120;
+      const baseH = Math.max(initialViewportHeightRef.current, window.screen?.height ? Math.min(window.innerHeight, window.screen.height) : window.innerHeight);
+      const isKb = curH < baseH - 110 || window.innerHeight < baseH - 110;
       setVvLayout({
         top: isKb && vv ? Math.max(0, Math.round(vv.offsetTop)) : 0,
-        height: isKb ? Math.max(260, Math.round(curH)) : null,
+        height: isKb ? Math.max(280, Math.round(curH)) : null,
         isKeyboard: isKb,
       });
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
     };
+    checkViewport();
     const vv = window.visualViewport;
     vv?.addEventListener('resize', checkViewport);
     vv?.addEventListener('scroll', checkViewport);
@@ -109,11 +109,14 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
       style={{
         zIndex: 9100,
         position: 'fixed',
-        top: 0,
+        top: vvLayout.isKeyboard ? `${vvLayout.top}px` : 0,
         left: 0,
         right: 0,
-        bottom: 0,
-        paddingTop: 'max(64px, calc(env(safe-area-inset-top, 44px) + 10px))',
+        bottom: vvLayout.isKeyboard && vvLayout.height ? 'auto' : 0,
+        height: vvLayout.isKeyboard && vvLayout.height ? `${vvLayout.height}px` : '100%',
+        paddingTop: vvLayout.isKeyboard
+          ? 'max(48px, env(safe-area-inset-top, 44px))'
+          : 'max(64px, calc(env(safe-area-inset-top, 44px) + 10px))',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -177,8 +180,8 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
           width: '100%',
           maxWidth: '430px',
           height: '100%',
-          maxHeight: '820px',
-          borderRadius: '34px 34px 0 0',
+          maxHeight: vvLayout.isKeyboard && vvLayout.height ? '100%' : '820px',
+          borderRadius: vvLayout.isKeyboard ? '26px 26px 0 0' : '34px 34px 0 0',
           background: isMono
             ? 'radial-gradient(ellipse at 50% 110%, rgba(255, 255, 255, 0.08) 0%, rgba(10, 10, 12, 0.98) 58%), #0A0A0C'
             : 'radial-gradient(ellipse at 50% 110%, rgba(192, 132, 252, 0.16) 0%, rgba(168, 85, 247, 0.05) 42%, rgba(10, 10, 12, 0.98) 74%), #0A0A0C',
@@ -195,7 +198,7 @@ export const PrismModal: React.FC<PrismModalProps> = ({ onClose }) => {
         <div
           style={{
             position: 'relative',
-            height: '62px',
+            height: vvLayout.isKeyboard ? '52px' : '62px',
             flexShrink: 0,
             padding: '0 16px',
             display: 'flex',

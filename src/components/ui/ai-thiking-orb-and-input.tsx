@@ -45,11 +45,17 @@ const cardW = (el?: HTMLElement | null) => {
   const w = el && el.clientWidth > 100 ? el.clientWidth : window.innerWidth;
   return Math.min(360, w - 32);
 };
-const homeDy = (el?: HTMLElement | null, _elevated = false, viewportHeight?: number | null) => {
-  const h = el && el.clientHeight > 120 ? el.clientHeight : (viewportHeight && viewportHeight > 160 ? viewportHeight : window.innerHeight);
-  // Keep pill comfortably anchored near bottom of .mo-root so it glides seamlessly with native keyboard resize
-  const bottomMargin = h < 480 ? 40 : 54;
-  return Math.max(16, h * 0.54 - bottomMargin);
+const homeDy = (el?: HTMLElement | null, elevated = false, viewportHeight?: number | null) => {
+  const h =
+    el && el.clientHeight > 120
+      ? el.clientHeight
+      : viewportHeight && viewportHeight > 160
+      ? viewportHeight
+      : window.innerHeight;
+  const isCompact = elevated || h < 500 || (viewportHeight !== null && viewportHeight !== undefined && viewportHeight < 520);
+  // Bottom of 60px pill sits at 0.46*h + H + 30. Keep bottomPadding cleanly above bottom edge / iOS keyboard.
+  const bottomPadding = isCompact ? 14 : 44;
+  return Math.max(16, Math.round(h * 0.54 - 30 - bottomPadding));
 };
 
 /* ───────────────────────── math + easing ───────────────────────── */
@@ -1054,6 +1060,8 @@ export default function MorphOrb(props: MorphOrbProps) {
       data-elevated={isElevated ? "true" : "false"}
       ref={rootRef}
       onPointerDown={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('[data-mo-suggestion="true"]')) return;
         if (isElevated && formRef.current && !formRef.current.contains(e.target as Node)) {
           inputRef.current?.blur();
           setIsFocused(false);
@@ -1087,8 +1095,8 @@ export default function MorphOrb(props: MorphOrbProps) {
           }}
         >
           {phase === "idle" && (
-            <div style={{ pointerEvents: "none", marginBottom: compactForKeyboard ? "-10px" : "-6px" }}>
-              <AureliusOrb status="idle" size={compactForKeyboard ? 56 : 88} accentMode={accentMode} />
+            <div style={{ pointerEvents: "none", marginBottom: compactForKeyboard ? "-8px" : "-6px" }}>
+              <AureliusOrb status="idle" size={compactForKeyboard ? 46 : 88} accentMode={accentMode} />
             </div>
           )}
 
@@ -1096,7 +1104,7 @@ export default function MorphOrb(props: MorphOrbProps) {
             <div style={{ display: "flex", flexDirection: "column", gap: "3px", maxWidth: "320px" }}>
               <h3
                 style={{
-                  fontSize: compactForKeyboard ? "16px" : "19px",
+                  fontSize: compactForKeyboard ? "15.5px" : "19px",
                   fontWeight: 700,
                   color: "#FAF7F2",
                   letterSpacing: "-0.4px",
@@ -1120,24 +1128,31 @@ export default function MorphOrb(props: MorphOrbProps) {
             </div>
           )}
 
-          {suggestions && suggestions.length > 0 && !compactForKeyboard && (
+          {suggestions && suggestions.length > 0 && (
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: "7px",
-                marginTop: "4px",
-                maxWidth: "360px",
+                flexWrap: compactForKeyboard ? "nowrap" : "wrap",
+                justifyContent: compactForKeyboard ? "flex-start" : "center",
+                overflowX: compactForKeyboard ? "auto" : "visible",
+                scrollbarWidth: "none",
+                gap: compactForKeyboard ? "6px" : "7px",
+                marginTop: compactForKeyboard ? "2px" : "4px",
+                maxWidth: compactForKeyboard ? "100%" : "360px",
+                width: compactForKeyboard ? "100%" : undefined,
+                paddingBottom: compactForKeyboard ? "2px" : 0,
               }}
             >
               {suggestions.map((s) => (
                 <button
                   key={s}
                   type="button"
+                  data-mo-suggestion="true"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSuggestionClick(s)}
                   style={{
-                    padding: "7px 12px",
+                    flexShrink: 0,
+                    padding: compactForKeyboard ? "5.5px 10px" : "7px 12px",
                     borderRadius: "999px",
                     background:
                       accentMode === "mono"
@@ -1148,11 +1163,12 @@ export default function MorphOrb(props: MorphOrbProps) {
                         ? "1px solid rgba(255, 248, 240, 0.14)"
                         : "1px solid rgba(192, 132, 252, 0.24)",
                     color: "rgba(250, 247, 242, 0.92)",
-                    fontSize: "12.5px",
+                    fontSize: compactForKeyboard ? "11.5px" : "12.5px",
                     fontWeight: 500,
                     cursor: "pointer",
                     touchAction: "manipulation",
                     WebkitTapHighlightColor: "transparent",
+                    whiteSpace: "nowrap",
                     transition: "transform 0.12s ease, background 0.15s ease",
                   }}
                 >
@@ -1198,16 +1214,11 @@ export default function MorphOrb(props: MorphOrbProps) {
               spellCheck={false}
               onFocus={() => {
                 setIsFocused(true);
-                const resetScroll = () => {
-                  if (typeof window !== "undefined" && window.scrollY !== 0) window.scrollTo(0, 0);
-                  if (rootRef.current) rootRef.current.scrollTop = 0;
-                };
-                resetScroll();
-                if (typeof window !== "undefined") {
-                  window.setTimeout(resetScroll, 60);
-                  window.setTimeout(resetScroll, 180);
-                  window.setTimeout(resetScroll, 320);
-                }
+                window.requestAnimationFrame(() => {
+                  if (phaseRef.current === "idle" && rtRef.current && !rtRef.current.busy()) {
+                    rtRef.current.home();
+                  }
+                });
               }}
               onBlur={() => setIsFocused(false)}
               onChange={onChange}
