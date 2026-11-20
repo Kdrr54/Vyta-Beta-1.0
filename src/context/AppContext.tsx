@@ -1057,20 +1057,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (updated.hrvLog) updated.hrvLog = clampLog(updated.hrvLog);
                 if (updated.stressLog) updated.stressLog = clampLog(updated.stressLog);
 
-                // Élimination des relevés fantômes enregistrés lorsque la bague était posée sans être portée (après-midi statique)
-                if (now.getHours() >= 15 && (updated.steps || 0) < 250) {
-                  const clearOffFinger = (arr?: number[]) => {
-                    if (Array.isArray(arr) && arr.length === 48) {
-                      return arr.map((v, i) => (i >= 31 && i <= currentSlot ? 0 : v));
-                    }
-                    return arr;
-                  };
-                  if (updated.hrLog) updated.hrLog = clearOffFinger(updated.hrLog);
-                  if (updated.hrvLog) updated.hrvLog = clearOffFinger(updated.hrvLog);
-                  if (updated.stressLog) updated.stressLog = clearOffFinger(updated.stressLog);
-                  if (updated.spo2Log) updated.spo2Log = clearOffFinger(updated.spo2Log);
-                }
-
                 // Verrou sommeil strict pour AUJOURD'HUI :
                 // 1) En pleine nuit avant 6h du matin (nowMin < 360), l'utilisateur n'a pas dormi / nuit non terminée :
                 //    toute session nocturne antérieurement persistée dans localStorage (ex: 00:00 -> 03:00 ou 00:00 -> 03:30) est immédiatement purgée à 0 !

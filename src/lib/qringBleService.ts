@@ -2940,11 +2940,11 @@ class QRingBleService {
 
         // 6. Stored 30-min HRV (VRC) logs
         await this.requestHrvLog();
-        await new Promise((r) => setTimeout(r, 320));
+        await new Promise((r) => setTimeout(r, 550));
 
         // 7. Stored 30-min Stress logs
         await this.requestStressLog();
-        await new Promise((r) => setTimeout(r, 320));
+        await new Promise((r) => setTimeout(r, 550));
 
         // 8. Stored Skin Temperature logs
         const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 450);
