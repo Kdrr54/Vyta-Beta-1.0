@@ -1227,12 +1227,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const now = Date.now();
       if (now - lastForegroundSyncRef.current < 45000) return;
       lastForegroundSyncRef.current = now;
-      qringBle.requestHeartRateLog().catch(() => {});
-      setTimeout(() => {
-        if (qringBle.isConnected() && !qringBle.isSyncingNow() && !qringBle.isRealTimeHeartRateActive()) {
-          qringBle.requestStepsData(0).catch(() => {});
-        }
-      }, 450);
+      qringBle
+        .refreshMeasureActivity()
+        .then(() => {
+          if (qringBle.isConnected() && !qringBle.isSyncingNow() && !qringBle.isRealTimeHeartRateActive()) {
+            return qringBle.requestStepsData(0);
+          }
+          return false;
+        })
+        .catch(() => {});
     };
 
     const checkMidnightAndRollover = () => {

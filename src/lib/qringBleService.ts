@@ -249,6 +249,7 @@ class QRingBleService {
   private boundaryAlignTimer: any = null;
   private lastIntervalFixAt = 0;
   private isRealTimeHrActive = false;
+  private usedLiveFallbackPackets = false;
   private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
   private lastLiveDataAt = 0;
@@ -699,9 +700,9 @@ class QRingBleService {
         if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
           await this.syncAllRingData();
         } else {
-          await this.requestHeartRateLog(true);
+          await this.refreshMeasureActivity();
           await this.requestStepsData(0);
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) => setTimeout(r, 150));
           await this.sendBatteryRequest();
         }
       } catch (e) {
@@ -1972,7 +1973,7 @@ class QRingBleService {
     this.hrLogReadings = [];
     this.hrLogFramesExpected = 0;
 
-    const waitPromise = waitForCompletion ? this.waitForHrLogCompletion(1150) : null;
+    const waitPromise = waitForCompletion ? this.waitForHrLogCompletion(1800) : null;
 
     const now = new Date();
     const utcMidnightSec = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0) / 1000);
@@ -2198,12 +2199,12 @@ class QRingBleService {
     const slotMin =
       rawLen > 96
         ? 5
+        : this.hrLogRangeMinutes === 5 || this.hrLogRangeMinutes === 15 || this.hrLogRangeMinutes === 30 || this.hrLogRangeMinutes === 60
+        ? this.hrLogRangeMinutes
         : rawLen > 48
         ? 15
         : rawLen > 24
         ? 30
-        : this.hrLogRangeMinutes >= 1 && this.hrLogRangeMinutes <= 60
-        ? this.hrLogRangeMinutes
         : 5;
     const slotsPerDay = Math.floor(1440 / slotMin);
     const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
@@ -2889,10 +2890,9 @@ class QRingBleService {
                     source: 'auto',
                   }]);
                 }
-                if (this.configuredIntervalMinutes < 60 || half === 0) {
-                  dayLatestTemp = t;
-                  tempLog[slotIdx] = t;
-                }
+                // Enregistrer la vraie mesure dans le créneau réel (:00 ou :30) si la bague l'a mesurée
+                dayLatestTemp = t;
+                tempLog[slotIdx] = t;
               }
             }
           }
@@ -3043,21 +3043,25 @@ class QRingBleService {
 
     this.activeActivityRefreshPromise = (async () => {
       try {
+        // Silent readback (0 LEDs) to verify ring autonomous timer didn't get disabled (e.g. after live HR stop)
+        await this.writeBytes(this.makePacket(0x16, [0x01]));
+        await new Promise((r) => setTimeout(r, 70));
+
         await this.requestHeartRateLog(true);
 
-        const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 450);
+        const tempWait = this.waitForBigData([0x25, 0x26, 0x74, 0x75], 750);
         await this.requestTemperatureData();
         await tempWait;
 
-        const spo2Wait = this.waitForBigData([0x2A], 450);
+        const spo2Wait = this.waitForBigData([0x2A], 750);
         await this.requestSpo2Data();
         await spo2Wait;
 
         await this.requestHrvLog();
-        await new Promise((r) => setTimeout(r, 320));
+        await new Promise((r) => setTimeout(r, 550));
 
         await this.requestStressLog();
-        await new Promise((r) => setTimeout(r, 320));
+        await new Promise((r) => setTimeout(r, 550));
         return true;
       } catch (_) {
         return false;
@@ -3132,6 +3136,7 @@ class QRingBleService {
     this.lastLiveDataAt = 0;
     this.lastLiveAckAt = 0;
     this.lastLiveRearmAt = startedAt;
+    this.usedLiveFallbackPackets = false;
     let sentFallback = false;
 
     // 1. Send Action.START (0x01) once to open the photodiode / thermal stream
@@ -3191,6 +3196,7 @@ class QRingBleService {
         (!sentFallback || Math.floor((now - this.lastLiveRearmAt) / 4500) !== Math.floor((now - 2200 - this.lastLiveRearmAt) / 4500))
       ) {
         sentFallback = true;
+        this.usedLiveFallbackPackets = true;
         try {
           for (const pktBytes of fallbackPackets) {
             await this.writeBytes(pktBytes);
@@ -3245,15 +3251,29 @@ class QRingBleService {
 
     if (!this.isConnected()) return false;
 
+    const wasFallbackUsed = this.usedLiveFallbackPackets;
+    this.usedLiveFallbackPackets = false;
+
     const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x04]));
     await new Promise((r) => setTimeout(r, 70));
     await this.writeBytes(this.makePacket(0x6A, [dataType, 0x00, 0x00]));
 
-    for (const pktBytes of legacyStopPackets) {
-      await new Promise((r) => setTimeout(r, 70));
-      try {
-        await this.writeBytes(pktBytes);
-      } catch (_) {}
+    if (wasFallbackUsed) {
+      for (const pktBytes of legacyStopPackets) {
+        await new Promise((r) => setTimeout(r, 70));
+        try {
+          await this.writeBytes(pktBytes);
+        } catch (_) {}
+      }
+    }
+
+    // Verify autonomous ring measurement schedule stays enabled after closing a live stream
+    if (this.configuredIntervalMinutes > 0) {
+      setTimeout(() => {
+        if (this.isConnected() && this.activeLiveDataType === null) {
+          this.writeBytes(this.makePacket(0x16, [0x01])).catch(() => {});
+        }
+      }, 220);
     }
 
     return ok;
@@ -3817,9 +3837,8 @@ class QRingBleService {
                     source: 'auto',
                   }]);
                 }
-                if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
-                  this.stressLogSlots[slotIdx] = val;
-                }
+                // Enregistrer la vraie mesure Stress même si le créneau matériel tombe à :30
+                this.stressLogSlots[slotIdx] = val;
               }
             }
           }
@@ -3882,9 +3901,8 @@ class QRingBleService {
                     source: 'auto',
                   }]);
                 }
-                if (this.configuredIntervalMinutes < 60 || slotIdx % 2 === 0) {
-                  this.hrvLogSlots[slotIdx] = val;
-                }
+                // Enregistrer la vraie mesure VRC même si le créneau matériel tombe à :30
+                this.hrvLogSlots[slotIdx] = val;
               }
             }
           }
