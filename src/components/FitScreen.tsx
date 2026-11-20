@@ -484,9 +484,9 @@ export const FitScreen: React.FC = () => {
               return updated;
             });
           } else {
-            // Mode auto-bague sur tapis : lire les pas réels (0 LED) toutes les 10s sans couper le stream HR
-            if (elapsed > 0 && elapsed % 10 === 0 && qringBle.isConnected() && !qringBle.isSyncingNow()) {
-              qringBle.requestStepsData(0).catch(() => {});
+            // Mode auto-bague sur tapis : lire les pas réels (0x07 léger) toutes les 15s sans couper le stream HR
+            if (elapsed > 0 && elapsed % 15 === 0 && qringBle.isConnected() && !qringBle.isSyncingNow()) {
+              qringBle.requestLiveStepsOnly().catch(() => {});
             }
             const distNow = runDistanceKmRef.current;
             curSpeed = elapsed >= 5 && distNow > 0.005 ? Math.min(25, distNow / (elapsed / 3600)) : 0;

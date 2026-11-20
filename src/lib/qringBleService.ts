@@ -251,6 +251,7 @@ class QRingBleService {
   private activeLiveDataType: number | null = null;
   private realTimeHrTimer: any = null;
   private lastLiveDataAt = 0;
+  private lastLiveAckAt = 0;
   private lastLiveRearmAt = 0;
   private lastAutoMeasureSlot = -1;
   private isAutoSpotMeasuring = false;
@@ -2044,6 +2045,16 @@ class QRingBleService {
   }
 
   /**
+   * Lightweight single-packet live step count read (no 0x43 multi-frame dump),
+   * safe to run during active workout without interrupting live 0x69 PPG HR.
+   */
+  public async requestLiveStepsOnly(): Promise<boolean> {
+    if (!this.isConnected()) return false;
+    this.requestedStepsDayOffset = 0;
+    return await this.writeBytes(this.makePacket(0x07, [0x00]));
+  }
+
+  /**
    * Request today's sports summary
    * Command 72 (0x48) & Command 19 (0x13)
    */
@@ -3051,11 +3062,12 @@ class QRingBleService {
   /**
    * Unified live biometric stream starter for HR (0x01), SpO2 (0x03), Temp (0x05), HRV (0x0A).
    * Ensures silent reconnect without 5s flash-sync delay, spaces BLE writes cleanly for CoreBluetooth,
-   * and sustains Action.CONTINUE (0x03) every 1400ms so optical LEDs stay locked without timing out.
+   * and sustains Action.CONTINUE (0x03) every 1400ms so optical LEDs finish acquiring (~8-18s) without resetting.
    */
   private async startLiveStream(
     dataType: number,
-    legacyPackets: number[][] = []
+    immediatePackets: number[][] = [],
+    fallbackPackets: number[][] = []
   ): Promise<boolean> {
     if (this.realTimeHrTimer) {
       clearInterval(this.realTimeHrTimer);
@@ -3084,8 +3096,11 @@ class QRingBleService {
       await new Promise((r) => setTimeout(r, 90));
     }
 
+    const startedAt = Date.now();
     this.lastLiveDataAt = 0;
-    this.lastLiveRearmAt = Date.now();
+    this.lastLiveAckAt = 0;
+    this.lastLiveRearmAt = startedAt;
+    let sentFallback = false;
 
     // 1. Send Action.START (0x01) once to open the photodiode / thermal stream
     const ok = await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
@@ -3101,16 +3116,16 @@ class QRingBleService {
       }
     }
 
-    // 2. Spaced secondary/legacy commands to prevent CoreBluetooth RX collisions
-    for (const pktBytes of legacyPackets) {
+    // 2. Spaced secondary commands (used for sensors requiring explicit companion reads like Temp)
+    for (const pktBytes of immediatePackets) {
       await new Promise((r) => setTimeout(r, 100));
       try {
         await this.writeBytes(pktBytes);
       } catch (_) {}
     }
 
-    // 3. Maintain stream with Action.CONTINUE (0x03) every 1400ms (inside firmware ~2s watchdog)
-    // and auto-rearm START (0x01) + legacy poll if firmware timed out or BLE reconnected.
+    // 3. Maintain stream with Action.CONTINUE (0x03) every 1400ms (inside firmware ~2s watchdog).
+    // Never interrupt the 8-18s optical PPG acquisition loop with premature Action.START resets!
     this.realTimeHrTimer = setInterval(async () => {
       if (this.activeLiveDataType !== dataType) {
         if (this.realTimeHrTimer) clearInterval(this.realTimeHrTimer);
@@ -3122,9 +3137,10 @@ class QRingBleService {
         const reconnected = await this.attemptSilentReconnect(true);
         if (reconnected && this.isConnected() && this.activeLiveDataType === dataType) {
           this.lastLiveRearmAt = Date.now();
+          this.lastLiveAckAt = 0;
           try {
             await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
-            for (const pktBytes of legacyPackets) {
+            for (const pktBytes of immediatePackets) {
               await new Promise((r) => setTimeout(r, 90));
               await this.writeBytes(pktBytes);
             }
@@ -3134,17 +3150,34 @@ class QRingBleService {
       }
 
       const now = Date.now();
+      // If 0x69 produced neither data nor acquiring ACK after 9s, try legacy poll (e.g. 0x1E) once
+      if (
+        !sentFallback &&
+        fallbackPackets.length > 0 &&
+        this.lastLiveDataAt === 0 &&
+        this.lastLiveAckAt === 0 &&
+        now - this.lastLiveRearmAt >= 9000
+      ) {
+        sentFallback = true;
+        try {
+          for (const pktBytes of fallbackPackets) {
+            await this.writeBytes(pktBytes);
+            await new Promise((r) => setTimeout(r, 90));
+          }
+        } catch (_) {}
+      }
+
       const staleDuration = this.lastLiveDataAt > 0
         ? now - this.lastLiveDataAt
-        : now - this.lastLiveRearmAt;
+        : Math.min(now - this.lastLiveRearmAt, this.lastLiveAckAt > 0 ? now - this.lastLiveAckAt + 12000 : now - this.lastLiveRearmAt);
 
-      // Some Colmi/R21 firmwares auto-close optical streaming after ~30-45s or after a missed ACK;
-      // re-arming Action.START + legacy packet recovers continuous live BPM instead of freezing.
-      if (staleDuration >= 6000 && now - this.lastLiveRearmAt >= 6000) {
+      // Only re-arm Action.START after a real timeout (>= 22s silent, e.g. firmware 30-45s auto-stop)
+      if (staleDuration >= 22000 && now - this.lastLiveRearmAt >= 22000) {
         this.lastLiveRearmAt = now;
+        sentFallback = false;
         try {
           await this.writeBytes(this.makePacket(0x69, [dataType, 0x01]));
-          for (const pktBytes of legacyPackets) {
+          for (const pktBytes of immediatePackets) {
             await new Promise((r) => setTimeout(r, 90));
             await this.writeBytes(pktBytes);
           }
@@ -3193,7 +3226,7 @@ class QRingBleService {
 
   public async startRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Starting live optical PPG Heart Rate measurement...');
-    return await this.startLiveStream(0x01, [this.makePacket(0x1E, [0x03])]);
+    return await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x03])]);
   }
 
   public async stopRealTimeHeartRate(): Promise<boolean> {
@@ -3936,6 +3969,9 @@ class QRingBleService {
     // Note: dataType === 6 is ECG/raw PPG (~96) and must NEVER be parsed as BPM!
     if ((header === 0x69 || header === 105) && len >= 3) {
       const dataType = dataView.getUint8(1);
+      if (dataType === this.activeLiveDataType) {
+        this.lastLiveAckAt = Date.now();
+      }
 
       if (dataType === 0x01) {
         let bpm = 0;
