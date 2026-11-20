@@ -222,6 +222,11 @@ class QRingBleService {
   private hrvDebounceTimer: any = null;
   private hrvTotalPackets = 0;
   private hrvPeriodMinutes = 60;
+  private hrvLiveFallbackActive = false;
+  private hrvLiveNativeReceived = false;
+  private hrvLiveFallbackTimer: any = null;
+  private hrvRrSamples: number[] = [];
+  private hrvLastSampleAt = 0;
   private stepsQuarterSlots: number[] = new Array(96).fill(0);
   private stepsDetailCalSum = 0;
   private stepsDetailDistMetersSum = 0;
@@ -3259,12 +3264,47 @@ class QRingBleService {
 
   public async startRealTimeHrv(): Promise<boolean> {
     console.log('[QRing BLE] Starting live optical HRV measurement...');
-    return await this.startLiveStream(0x0A);
+    if (this.hrvLiveFallbackTimer) {
+      clearTimeout(this.hrvLiveFallbackTimer);
+      this.hrvLiveFallbackTimer = null;
+    }
+    this.hrvLiveFallbackActive = false;
+    this.hrvLiveNativeReceived = false;
+    this.hrvRrSamples = [];
+    this.hrvLastSampleAt = 0;
+
+    const ok = await this.startLiveStream(0x0A);
+    if (ok) {
+      // Many Colmi R02 / R21 firmwares ignore 0x69 [0x0A]; fall back to optical PPG R-R RMSSD via 0x69 [0x01] after 3.5s
+      this.hrvLiveFallbackTimer = setTimeout(async () => {
+        this.hrvLiveFallbackTimer = null;
+        if (this.activeLiveDataType === 0x0A && !this.hrvLiveNativeReceived && this.isConnected()) {
+          console.log('[QRing BLE] Native 0x69 0x0A silent — switching to optical PPG R-R RMSSD fallback...');
+          this.hrvLiveFallbackActive = true;
+          await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
+        }
+      }, 3500);
+    }
+    return ok;
   }
 
   public async stopRealTimeHrv(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live optical HRV measurement...');
-    return await this.stopLiveStream(0x0A);
+    if (this.hrvLiveFallbackTimer) {
+      clearTimeout(this.hrvLiveFallbackTimer);
+      this.hrvLiveFallbackTimer = null;
+    }
+    const wasFallback = this.hrvLiveFallbackActive;
+    this.hrvLiveFallbackActive = false;
+    const ok = wasFallback
+      ? await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])])
+      : await this.stopLiveStream(0x0A);
+    setTimeout(() => {
+      if (this.isConnected() && this.activeLiveDataType === null && !this.isSyncingNow()) {
+        this.requestHrvLog().catch(() => {});
+      }
+    }, 450);
+    return ok;
   }
 
   public async startRealTimeTemperature(): Promise<boolean> {
@@ -3473,10 +3513,10 @@ class QRingBleService {
       return;
     }
     this.isAutoSpotMeasuring = true;
-    console.log('[QRing BLE] Running lightweight 14s VRC fallback for empty 30-min slot...');
+    console.log('[QRing BLE] Running lightweight 20s VRC fallback for empty 30-min slot...');
     try {
       await this.startRealTimeHrv();
-      await new Promise((r) => setTimeout(r, 14000));
+      await new Promise((r) => setTimeout(r, 20000));
       await this.stopRealTimeHrv();
     } catch (err) {
       console.warn('[QRing BLE] VRC fallback notice:', err);
@@ -4104,6 +4144,32 @@ class QRingBleService {
 
         if (bpm >= 40 && bpm <= 220) {
           this.lastLiveDataAt = Date.now();
+          if (this.hrvLiveFallbackActive) {
+            const nowMs = Date.now();
+            if (nowMs - this.hrvLastSampleAt >= 650) {
+              this.hrvLastSampleAt = nowMs;
+              const rrMs = 60000 / bpm;
+              this.hrvRrSamples.push(rrMs);
+              if (this.hrvRrSamples.length >= 6) {
+                let sumSq = 0;
+                let count = 0;
+                for (let i = 1; i < this.hrvRrSamples.length; i++) {
+                  const diff = this.hrvRrSamples[i] - this.hrvRrSamples[i - 1];
+                  if (Math.abs(diff) <= 350) {
+                    sumSq += diff * diff;
+                    count++;
+                  }
+                }
+                if (count >= 4) {
+                  const rmssd = Math.round(Math.min(180, Math.max(10, Math.sqrt(sumSq / count))));
+                  console.log('[QRing BLE] Optical PPG R-R RMSSD HRV computed:', rmssd, 'ms from', this.hrvRrSamples.length, 'samples');
+                  this.recordLiveMeasureEvent('hrv', 'VRC', `${rmssd} ms`, 'green', 'live');
+                  this.notify({ hrv: rmssd, isConnected: true });
+                }
+              }
+            }
+            return;
+          }
           console.log('[QRing BLE] Command 105 Real PPG Heart Rate Received:', bpm, 'bpm (status:', statusOrErr, ')');
           this.recordLiveMeasureEvent('bpm', 'BPM', `${bpm} bpm`, 'green', 'live');
           this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
@@ -4137,6 +4203,8 @@ class QRingBleService {
           }
         }
         if (hrvVal > 0) {
+          this.lastLiveDataAt = Date.now();
+          this.hrvLiveNativeReceived = true;
           console.log('[QRing BLE] Command 105 HRV Received:', hrvVal, 'ms');
           this.recordLiveMeasureEvent('hrv', 'VRC', `${hrvVal} ms`, 'green', 'live');
           this.notify({ hrv: hrvVal, isConnected: true });

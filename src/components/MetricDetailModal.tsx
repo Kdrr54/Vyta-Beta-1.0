@@ -430,18 +430,9 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   const bpmUserPausedRef = useRef(false);
   const wasExternalLiveHrRef = useRef(isLiveHrActive);
 
-  // Démarrer automatiquement le BPM en direct continu (sans limite de 25s) à l'ouverture de la fiche aujourd'hui
   useEffect(() => {
     bpmUserPausedRef.current = false;
   }, [metricId, modalDay]);
-
-  useEffect(() => {
-    if (metricId !== 'bpm' || modalDay !== TODAY_INDEX) return;
-    if (bpmUserPausedRef.current) return;
-    if (qringBle.isConnected() || ring.isConnected) {
-      setIsMeasuring(true);
-    }
-  }, [metricId, modalDay, ring.isConnected]);
 
   const [liveSpo2, setLiveSpo2] = useState<number | null>(null);
   const liveSpo2Ref = useRef(liveSpo2);
@@ -626,6 +617,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.bpm || 0;
     }
     if (metricId === 'hrv') {
+      if (modalDay === TODAY_INDEX && isMeasuring && liveHrv) return liveHrv;
       return dayData?.hrv || 0;
     }
     if (metricId === 'temp') {
@@ -648,7 +640,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.glucose?.valueMmol || 0;
     }
     return 0;
-  }, [metricId, modalDay, dayData, isMeasuring, liveBpm, liveSpo2, liveTemp]);
+  }, [metricId, modalDay, dayData, isMeasuring, liveBpm, liveSpo2, liveTemp, liveHrv]);
 
   useEffect(() => {
     if (!isMeasuring) return;
