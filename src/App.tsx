@@ -6,6 +6,7 @@ import { TabBar } from './components/TabBar';
 import { HealthScreen } from './components/HealthScreen';
 import { AppleNotificationBanner } from './components/AppleNotificationBanner';
 import { TODAY_INDEX } from './data/health';
+import { installGlobalModalSheetDrag } from './hooks/useModalAnimation';
 
 const SleepScreen = lazy(() => import('./components/SleepScreen').then((m) => ({ default: m.SleepScreen })));
 const CycleScreen = lazy(() => import('./components/CycleScreen').then((m) => ({ default: m.CycleScreen })));
@@ -109,7 +110,9 @@ const AppInner: React.FC = () => {
     syncScrollLock();
     const observer = new MutationObserver(syncScrollLock);
     observer.observe(document.body, { childList: true, subtree: true });
+    const uninstallSheetDrag = installGlobalModalSheetDrag();
     return () => {
+      uninstallSheetDrag();
       observer.disconnect();
       const scroller = document.querySelector('.app-scroll-container') as HTMLElement | null;
       if (scroller) {

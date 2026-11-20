@@ -1418,7 +1418,10 @@ class QRingBleService {
               const is16Bit = (flags & 0x01) !== 0;
               const bpm = is16Bit ? val.getUint16(1, true) : val.getUint8(1);
               if (bpm >= 40 && bpm <= 220) {
+                this.lastLiveDataAt = Date.now();
+                this.lastLiveAckAt = Date.now();
                 console.log('[QRing BLE Native] Standard GATT 0x180D Heart Rate:', bpm, 'bpm');
+                this.recordLiveMeasureEvent('bpm', 'BPM', `${bpm} bpm`, 'green', 'live');
                 this.notify({ heartRate: bpm, liveHeartRate: bpm, isConnected: true });
               }
             }
@@ -3150,13 +3153,13 @@ class QRingBleService {
       }
 
       const now = Date.now();
-      // If 0x69 produced neither data nor acquiring ACK after 9s, try legacy poll (e.g. 0x1E) once
+      // If 0x69 produced no BPM yet after 7s (silent) or 25s (ACKs without BPM), try legacy fallback (e.g. 0x1E)
       if (
         !sentFallback &&
         fallbackPackets.length > 0 &&
         this.lastLiveDataAt === 0 &&
-        this.lastLiveAckAt === 0 &&
-        now - this.lastLiveRearmAt >= 9000
+        ((this.lastLiveAckAt === 0 && now - this.lastLiveRearmAt >= 7000) ||
+          (now - this.lastLiveRearmAt >= 25000))
       ) {
         sentFallback = true;
         try {
@@ -3226,7 +3229,7 @@ class QRingBleService {
 
   public async startRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Starting live optical PPG Heart Rate measurement...');
-    return await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x03])]);
+    return await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
   }
 
   public async stopRealTimeHeartRate(): Promise<boolean> {
@@ -4075,11 +4078,14 @@ class QRingBleService {
     if ((header === 30 || header === 0x1E) && len >= 2) {
       const b1 = dataView.getUint8(1);
       const b2 = len >= 3 ? dataView.getUint8(2) : 0;
+      const b3 = len >= 4 ? dataView.getUint8(3) : 0;
       let bpm = 0;
       if (b1 >= 40 && b1 <= 220) {
         bpm = b1;
       } else if (b2 >= 40 && b2 <= 220) {
         bpm = b2;
+      } else if (b1 === 0 && b3 >= 40 && b3 <= 220) {
+        bpm = b3;
       }
 
       if (bpm >= 40 && bpm <= 220) {

@@ -59,9 +59,9 @@
 
   /* Motion Physics (Apple HIG Springs) */
   --spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);
-  --spring-gentle: cubic-bezier(0.25, 1, 0.5, 1);
-  --duration-quick: 180ms;
-  --duration-medium: 300ms;
+  --spring-gentle: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-quick: 240ms;
+  --duration-medium: 380ms;
 
   /* Safe Area Defaults */
   --safe-top: env(safe-area-inset-top, 47px);

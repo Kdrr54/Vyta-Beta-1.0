@@ -66,6 +66,10 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
   const isEn = language === 'en';
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState<boolean>(false);
+  const [sheetDragY, setSheetDragY] = useState<number>(0);
+  const sheetDragStartYRef = useRef<number | null>(null);
+  const sheetDragStartTsRef = useRef<number>(0);
+  const sheetScrollRef = useRef<HTMLDivElement>(null);
   const [realGpsPoints, setRealGpsPoints] = useState<[number, number][]>(() => propRealGpsPoints || []);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(() => {
     if (propUserPosition) return propUserPosition;
@@ -566,7 +570,11 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
                 fill={liveHr > 0 ? '#FF453A' : 'none'}
               />
               <span style={{ fontSize: '14px', fontWeight: 700, color: '#FAF7F2', fontVariantNumeric: 'tabular-nums' }}>
-                {liveHr > 0 ? `${liveHr} BPM` : (isEn ? 'Acquiring BPM...' : 'Acquisition BPM...')}
+                {liveHr > 0
+                  ? `${liveHr} BPM`
+                  : !ring.isConnected
+                  ? (isEn ? 'Ring disconnected' : 'Bague hors ligne')
+                  : (isEn ? 'Measuring pulse...' : 'Mesure du pouls...')}
               </span>
               <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.5)' }}>•</span>
               <span style={{ fontSize: '12px', fontWeight: 600, color: '#FDBA74', fontVariantNumeric: 'tabular-nums' }}>
@@ -1077,6 +1085,40 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
 
       {/* BOTTOM ACTION DRAWER (EXPANDABLE SHEET) */}
       <div
+        ref={sheetScrollRef}
+        onTouchStart={(e) => {
+          if (e.touches.length !== 1) return;
+          const scroller = sheetScrollRef.current;
+          const inHandle = (e.target as HTMLElement | null)?.closest('[data-drawer-handle="true"]');
+          if (!inHandle && isSheetExpanded && scroller && scroller.scrollTop > 2) return;
+          sheetDragStartYRef.current = e.touches[0].clientY;
+          sheetDragStartTsRef.current = Date.now();
+        }}
+        onTouchMove={(e) => {
+          if (sheetDragStartYRef.current === null || e.touches.length !== 1) return;
+          const dy = e.touches[0].clientY - sheetDragStartYRef.current;
+          if (isSheetExpanded && dy > 0) {
+            setSheetDragY(dy);
+          } else if (!isSheetExpanded && dy < 0) {
+            setSheetDragY(Math.max(-44, dy));
+          }
+        }}
+        onTouchEnd={() => {
+          if (sheetDragStartYRef.current === null) return;
+          const dt = Math.max(16, Date.now() - sheetDragStartTsRef.current);
+          const velocity = Math.abs(sheetDragY) / dt;
+          if (isSheetExpanded && (sheetDragY > 42 || (velocity > 0.35 && sheetDragY > 18))) {
+            setIsSheetExpanded(false);
+          } else if (!isSheetExpanded && (sheetDragY < -24 || (velocity > 0.3 && sheetDragY < -12))) {
+            setIsSheetExpanded(true);
+          }
+          sheetDragStartYRef.current = null;
+          setSheetDragY(0);
+        }}
+        onTouchCancel={() => {
+          sheetDragStartYRef.current = null;
+          setSheetDragY(0);
+        }}
         style={{
           position: 'absolute',
           bottom: 0,
@@ -1094,12 +1136,17 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
           zIndex: 600,
           maxHeight: isSheetExpanded ? 'calc(100dvh - 110px)' : '100px',
           overflowY: isSheetExpanded ? 'auto' : 'hidden',
-          transition: 'max-height 320ms cubic-bezier(0.16, 1, 0.3, 1), background 200ms ease',
+          transform: sheetDragY !== 0 ? `translate3d(0, ${sheetDragY}px, 0)` : 'translate3d(0, 0, 0)',
+          transition:
+            sheetDragY !== 0
+              ? 'none'
+              : 'max-height 380ms cubic-bezier(0.16, 1, 0.3, 1), transform 360ms cubic-bezier(0.16, 1, 0.3, 1), background 240ms ease',
           boxShadow: '0 -8px 30px rgba(0, 0, 0, 0.7)',
         }}
       >
-        {/* Drawer Drag Pill Handle - Interactive Button */}
+        {/* Drawer Drag Pill Handle - Interactive Button + Swipe */}
         <div
+          data-drawer-handle="true"
           onClick={() => setIsSheetExpanded(!isSheetExpanded)}
           style={{
             cursor: 'pointer',
@@ -1108,6 +1155,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             flexDirection: 'column',
             alignItems: 'center',
             gap: '4px',
+            touchAction: 'none',
           }}
           title={isSheetExpanded ? 'Réduire' : 'Déplier les métriques et graphiques'}
         >
@@ -1120,7 +1168,7 @@ export const LiveRunningView: React.FC<LiveRunningViewProps> = ({
             }}
           />
           <span style={{ fontSize: '10.5px', color: '#8E8E93', fontWeight: 600 }}>
-            {isSheetExpanded ? 'Glisser ou toucher pour réduire ▼' : 'Toucher pour voir les graphiques ▲'}
+            {isSheetExpanded ? 'Glisser ou toucher pour réduire ▼' : 'Glisser ou toucher pour voir les graphiques ▲'}
           </span>
         </div>
 
