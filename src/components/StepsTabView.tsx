@@ -147,9 +147,9 @@ export const StepsTabView: React.FC = () => {
     }
   };
 
-  const accent = isMono ? '#FAF7F2' : goalReached ? '#30D158' : '#FB923C';
-  const accentSoft = isMono ? 'rgba(255, 255, 255, 0.14)' : goalReached ? 'rgba(48, 209, 88, 0.16)' : 'rgba(251, 146, 60, 0.16)';
-  const accentBorder = isMono ? 'rgba(255, 255, 255, 0.32)' : goalReached ? 'rgba(48, 209, 88, 0.45)' : 'rgba(251, 146, 60, 0.45)';
+  const accent = isMono ? '#FAF7F2' : goalReached ? '#FBBF24' : '#FB923C';
+  const accentSoft = isMono ? 'rgba(255, 255, 255, 0.14)' : goalReached ? 'rgba(251, 191, 36, 0.16)' : 'rgba(251, 146, 60, 0.16)';
+  const accentBorder = isMono ? 'rgba(255, 255, 255, 0.32)' : goalReached ? 'rgba(251, 191, 36, 0.48)' : 'rgba(251, 146, 60, 0.45)';
 
   // SVG Ring Geometry
   const radius = 72;
@@ -234,7 +234,7 @@ export const StepsTabView: React.FC = () => {
               }}
             >
               {syncSuccess ? (
-                <Check size={13} color="#30D158" />
+                <Check size={13} color="#FBBF24" />
               ) : (
                 <RefreshCw
                   size={13}
@@ -253,8 +253,8 @@ export const StepsTabView: React.FC = () => {
             <svg width="184" height="184" viewBox="0 0 180 180" style={{ transform: 'rotate(-90deg)' }}>
               <defs>
                 <linearGradient id="stepsArcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={isMono ? '#FFFFFF' : goalReached ? '#30D158' : '#F97316'} />
-                  <stop offset="100%" stopColor={isMono ? 'rgba(255,255,255,0.65)' : goalReached ? '#6EE7B7' : '#FBBF24'} />
+                  <stop offset="0%" stopColor={isMono ? '#FFFFFF' : goalReached ? '#F59E0B' : '#F97316'} />
+                  <stop offset="100%" stopColor={isMono ? 'rgba(255,255,255,0.65)' : goalReached ? '#FDE68A' : '#FBBF24'} />
                 </linearGradient>
               </defs>
               <circle
@@ -279,7 +279,7 @@ export const StepsTabView: React.FC = () => {
                   transition: 'stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1)',
                   filter: isMono
                     ? 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.35))'
-                    : `drop-shadow(0 0 10px ${goalReached ? 'rgba(48, 209, 88, 0.5)' : 'rgba(251, 146, 60, 0.5)'})`,
+                    : `drop-shadow(0 0 10px ${goalReached ? 'rgba(251, 191, 36, 0.52)' : 'rgba(251, 146, 60, 0.5)'})`,
                 }}
               />
             </svg>
@@ -329,7 +329,7 @@ export const StepsTabView: React.FC = () => {
 
           {/* Goal Summary + Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <span style={{ fontSize: '12px', color: goalReached ? '#30D158' : 'rgba(250, 247, 242, 0.72)', fontWeight: 600 }}>
+            <span style={{ fontSize: '12px', color: goalReached ? '#FBBF24' : 'rgba(250, 247, 242, 0.72)', fontWeight: 600 }}>
               {goalReached
                 ? isEn
                   ? 'Daily goal reached'
@@ -513,7 +513,7 @@ export const StepsTabView: React.FC = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>
-            <Timer size={13} color={isMono ? '#FAF7F2' : '#30D158'} />
+            <Timer size={13} color={isMono ? '#FAF7F2' : '#FB923C'} />
             <span>{isEn ? 'Active' : 'Actif'}</span>
           </div>
           <div style={{ fontSize: '17px', fontWeight: 700, color: '#FAF7F2', fontVariantNumeric: 'tabular-nums' }}>
@@ -703,7 +703,7 @@ export const StepsTabView: React.FC = () => {
                       background:
                         d.steps > 0
                           ? hitGoal && !isMono
-                            ? 'linear-gradient(180deg, #34D399 0%, #10B981 100%)'
+                            ? 'linear-gradient(180deg, #FDE68A 0%, #F59E0B 100%)'
                             : isMono
                             ? 'rgba(255, 255, 255, 0.8)'
                             : 'linear-gradient(180deg, #FBBF24 0%, #F97316 100%)'

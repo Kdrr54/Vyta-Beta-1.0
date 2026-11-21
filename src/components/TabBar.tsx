@@ -37,7 +37,7 @@ export const TabBar: React.FC = () => {
         id: 'fit',
         label: t('tab.fit') || 'Activité',
         icon: <Dumbbell size={18} strokeWidth={2.1} />,
-        fx: 'plane',
+        fx: 'pop',
       },
     ];
 
