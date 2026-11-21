@@ -753,13 +753,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     : metricId === 'bpm' && dayData?.bpm && dayData.bpm > 0
     ? [
         { label: 'Minimum', value: `${dayData.minBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-        { label: 'Moyenne', value: `${dayData.restingBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: isEn ? 'Average' : 'Moyenne', value: `${dayData.restingBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         { label: 'Maximum', value: `${dayData.maxBpm || dayData.bpm} bpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
       ]
     : metricId === 'spo2' && dayData?.spo2 && dayData.spo2 > 0
     ? [
         { label: 'Minimum', value: `${dayData.spo2Min || dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-        { label: 'Moyenne', value: `${dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: isEn ? 'Average' : 'Moyenne', value: `${dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         { label: 'Maximum', value: `${dayData.spo2Max || dayData.spo2} %`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
       ]
     : metricId === 'resp' && dayData?.resp && dayData.resp > 0
@@ -769,14 +769,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         const maxR = parseFloat((baseR + 1.8).toFixed(1));
         return [
           { label: 'Minimum', value: `${minR} rpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          { label: 'Moyenne', value: `${baseR} rpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: isEn ? 'Average' : 'Moyenne', value: `${baseR} rpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           { label: 'Maximum', value: `${maxR} rpm`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         ];
       })()
     : metricId === 'stress' && dayData?.stress && dayData.stress > 0
     ? [
         { label: 'Minimum', value: `${dayData.stressMin || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-        { label: 'Moyenne', value: `${dayData.stressAvg || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+        { label: isEn ? 'Average' : 'Moyenne', value: `${dayData.stressAvg || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         { label: 'Maximum', value: `${dayData.stressMax || dayData.stress}`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
       ]
     : metricId === 'hrv' && dayData?.hrv && dayData.hrv > 0
@@ -790,7 +790,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             : dayData.hrv;
         return [
           { label: 'Minimum', value: `${minH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          { label: 'Moyenne', value: `${avgH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: isEn ? 'Average' : 'Moyenne', value: `${avgH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           { label: 'Maximum', value: `${maxH} ms`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         ];
       })()
@@ -809,7 +809,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           const avgT = parseFloat(((validTemps.reduce((a, b) => a + b, 0) / validTemps.length) - 36.5).toFixed(2));
           return [
             { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-            { label: 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: isEn ? 'Average' : 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
             { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           ];
         }
@@ -817,7 +817,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         const maxT = parseFloat((delta + 0.12).toFixed(2));
         return [
           { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          { label: 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: isEn ? 'Average' : 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         ];
       })()

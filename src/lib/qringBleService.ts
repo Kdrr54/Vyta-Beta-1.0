@@ -724,7 +724,7 @@ class QRingBleService {
             this.configuredIntervalMinutes > 0 &&
             this.configuredIntervalMinutes <= 30 &&
             minuteInSlot >= 1 &&
-            minuteInSlot <= 3 &&
+            minuteInSlot <= 4 &&
             this.lastAutoMeasureSlot !== currentSlot &&
             this.hrvLogSlots[currentSlot] === 0 &&
             !this.isAutoSpotMeasuring &&
@@ -3570,7 +3570,7 @@ class QRingBleService {
       this.hrvLastSampleAt = 0;
       const started = await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
       if (started) {
-        await new Promise((r) => setTimeout(r, 16000));
+        await new Promise((r) => setTimeout(r, 20000));
         await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])]);
       }
     } catch (err) {
