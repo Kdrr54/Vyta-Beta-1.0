@@ -154,7 +154,7 @@ export const SleepScreen: React.FC = () => {
       targetRange: [20, 25],
       minutes: sleep.deepMin,
       pct: deepPct,
-      color: '#818CF8',
+      color: '#6366F1',
       tag: isEn ? 'Physical Repair' : 'Régénération physique',
       desc: isEn
         ? 'Physical repair, muscle growth, cellular rejuvenation and growth hormone release.'
@@ -168,7 +168,7 @@ export const SleepScreen: React.FC = () => {
       targetRange: [20, 25],
       minutes: sleep.remMin,
       pct: remPct,
-      color: '#C084FC',
+      color: '#A855F7',
       tag: isEn ? 'Memory & Brain' : 'Mémoire & Plasticité',
       desc: isEn
         ? 'Memory consolidation, creative synthesis, emotional regulation, and vivid dreams.'
@@ -182,7 +182,7 @@ export const SleepScreen: React.FC = () => {
       targetRange: [45, 55],
       minutes: sleep.lightMin,
       pct: lightPct,
-      color: '#67E8F9',
+      color: '#38BDF8',
       tag: isEn ? 'Nervous Rest' : 'Détente nerveuse',
       desc: isEn
         ? 'Neuromuscular transition and core body temperature reduction.'
@@ -196,7 +196,7 @@ export const SleepScreen: React.FC = () => {
       targetRange: [0, 10],
       minutes: sleep.awakeMin,
       pct: awakePct,
-      color: 'rgba(255, 255, 255, 0.45)',
+      color: 'rgba(226, 232, 240, 0.65)',
       tag: isEn ? 'Micro-transitions' : 'Micro-transitions',
       desc: isEn
         ? 'Natural physiological micro-arousals during ultradian 90-min cycle transitions.'
@@ -544,67 +544,68 @@ export const SleepScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. CARTE UNIQUE & COMPACTE : HYPNOGRAMME & 4 PHASES DE SOMMEIL */}
+        {/* 3. CARTE REDESIGNÉE : HYPNOGRAMME CONNECTÉ & 4 PHASES DE SOMMEIL */}
         <div
           style={{
-            background: '#11121A',
+            background: 'linear-gradient(180deg, rgba(19, 20, 31, 0.96) 0%, rgba(12, 13, 21, 0.98) 100%)',
             border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '24px',
-            padding: '18px 20px',
+            borderRadius: '26px',
+            padding: '18px 18px 16px',
             display: 'flex',
             flexDirection: 'column',
             gap: '14px',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            boxShadow: '0 14px 36px rgba(0, 0, 0, 0.5)',
           }}
         >
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
               <span
                 style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  background: 'rgba(129, 140, 248, 0.15)',
-                  border: '1px solid rgba(129, 140, 248, 0.35)',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.14)',
+                  border: '1px solid rgba(99, 102, 241, 0.32)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Layers size={13} color="#818CF8" />
+                <Layers size={14} color="#818CF8" />
               </span>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
-                {isEn ? 'Sleep Cycles & Hypnogram' : 'Cycles & Phases Nocturnes'}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#FAF7F2', letterSpacing: '-0.01em' }}>
+                  {isEn ? 'Sleep Cycles & Phases' : 'Cycles & Phases Nocturnes'}
+                </span>
+                <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.48)', fontFamily: 'var(--font-mono)' }}>
+                  {!hasSlept
+                    ? (isEn ? '0 cycle recorded' : '0 cycle enregistré')
+                    : `${cycleCount} ${isEn ? 'cycles • ~90 min' : 'cycles • ~90 min'}`}
+                </span>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.6)', fontFamily: 'var(--font-mono)' }}>
-                {!hasSlept ? (isEn ? '0 Cycle' : '0 Cycle') : `${cycleCount} ${isEn ? 'Cycles (90m)' : 'Cycles (90m)'}`}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setShowClinicalRatioModal(!showClinicalRatioModal)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '10px',
-                  padding: '3px 7px',
-                  color: 'rgba(250, 247, 242, 0.8)',
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                }}
-              >
-                <Info size={11} color="#A78BFA" />
-                <span>{isEn ? 'Target' : 'Cible'}</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowClinicalRatioModal(!showClinicalRatioModal)}
+              style={{
+                background: showClinicalRatioModal ? 'rgba(168, 85, 247, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+                border: showClinicalRatioModal ? '1px solid rgba(168, 85, 247, 0.42)' : '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '999px',
+                padding: '4px 9px',
+                color: showClinicalRatioModal ? '#E9D5FF' : 'rgba(250, 247, 242, 0.8)',
+                fontSize: '10px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <Info size={11} color="#A855F7" />
+              <span>{isEn ? 'Targets' : 'Repères'}</span>
+            </button>
           </div>
 
           {/* Clinical Ratio Info Dropdown */}
@@ -612,42 +613,103 @@ export const SleepScreen: React.FC = () => {
             <div
               style={{
                 padding: '10px 12px',
-                borderRadius: '12px',
-                background: 'rgba(167, 139, 250, 0.08)',
-                border: '1px solid rgba(167, 139, 250, 0.25)',
+                borderRadius: '14px',
+                background: 'rgba(168, 85, 247, 0.08)',
+                border: '1px solid rgba(168, 85, 247, 0.24)',
                 fontSize: '11px',
                 color: 'rgba(250, 247, 242, 0.85)',
                 lineHeight: 1.45,
               }}
             >
-              <strong style={{ color: '#A78BFA' }}>{isEn ? 'Clinical Standards:' : 'Architecture clinique de référence :'}</strong>{' '}
+              <strong style={{ color: '#C084FC' }}>{isEn ? 'Clinical Standards:' : 'Architecture clinique de référence :'}</strong>{' '}
               {isEn
                 ? 'Deep (20-25%) for muscle and tissue repair, REM (20-25%) for neural plasticity, Light (45-55%) for nervous rest, Awake (<10%) for micro-transitions.'
                 : 'Profond (20-25%) régénération musculaire, Paradoxal (20-25%) plasticité cérébrale, Léger (45-55%) détente nerveuse, Éveil (<10%) micro-transitions normales.'}
             </div>
           )}
 
-          {/* Hypnogram Step Chart */}
-          <div style={{ position: 'relative', width: '100%' }}>
-            <svg width="100%" height="86" viewBox="0 0 320 86" preserveAspectRatio="none">
+          {/* Selected Hypnogram Block Pill (Tap / Hover) */}
+          {hasSlept && hoverBlockIndex !== null && hypnogram[hoverBlockIndex] && (() => {
+            const blk = hypnogram[hoverBlockIndex];
+            const baseStart = sleep.startMin ?? 0;
+            const stageObj = stages.find((s) => s.id === blk.stage);
+            const blkStartStr = fmtClockMin(baseStart + blk.startMin);
+            const blkEndStr = fmtClockMin(baseStart + blk.startMin + blk.durationMin);
+            return (
+              <div
+                onClick={() => setHoverBlockIndex(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 11px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${stageObj?.color || 'rgba(255,255,255,0.16)'}`,
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#FAF7F2' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: stageObj?.color }} />
+                  {stageObj?.label}
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.78)' }}>
+                  {blkStartStr} → {blkEndStr} ({Math.round(blk.durationMin)} min)
+                </span>
+              </div>
+            );
+          })()}
+
+          {/* Connected Apple Health-Style Hypnogram */}
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              borderRadius: '16px',
+              padding: '10px 10px 8px',
+            }}
+          >
+            <svg width="100%" viewBox="0 0 340 116" style={{ display: 'block', overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="wash-deep" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366F1" stopOpacity="0.26" />
+                  <stop offset="100%" stopColor="#6366F1" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="wash-rem" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#A855F7" stopOpacity="0.24" />
+                  <stop offset="100%" stopColor="#A855F7" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="wash-light" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="wash-awake" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#E2E8F0" stopOpacity="0.16" />
+                  <stop offset="100%" stopColor="#E2E8F0" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+
               {/* Horizontal level grid lines */}
               {[
-                { label: isEn ? 'Awake' : 'Éveil', y: 14, color: 'rgba(255,255,255,0.4)' },
-                { label: isEn ? 'REM' : 'REM', y: 36, color: '#C084FC' },
-                { label: isEn ? 'Light' : 'Léger', y: 58, color: '#67E8F9' },
-                { label: isEn ? 'Deep' : 'Profond', y: 80, color: '#818CF8' },
+                { label: isEn ? 'Awake' : 'Éveil', y: 16, color: 'rgba(226, 232, 240, 0.6)' },
+                { label: isEn ? 'REM' : 'REM', y: 44, color: '#C084FC' },
+                { label: isEn ? 'Light' : 'Léger', y: 72, color: '#38BDF8' },
+                { label: isEn ? 'Deep' : 'Profond', y: 100, color: '#818CF8' },
               ].map((lvl, i) => (
                 <g key={i}>
                   <line
-                    x1="45"
+                    x1="50"
                     y1={lvl.y}
-                    x2="315"
+                    x2="334"
                     y2={lvl.y}
-                    stroke="rgba(255, 255, 255, 0.07)"
-                    strokeDasharray="2 2"
+                    stroke="rgba(255, 255, 255, 0.06)"
+                    strokeDasharray="2 3"
                   />
                   <text
-                    x="40"
+                    x="44"
                     y={lvl.y + 3}
                     textAnchor="end"
                     fill={lvl.color}
@@ -660,37 +722,73 @@ export const SleepScreen: React.FC = () => {
                 </g>
               ))}
 
-              {/* Hypnogram Blocks */}
-              {hasSlept && hypnogram.map((block, idx) => {
-                const xStart = 48 + (block.startMin / totalMin) * (315 - 48);
-                const blockWidth = Math.max(2.5, (block.durationMin / totalMin) * (315 - 48));
-                const yMap: Record<string, { y: number; h: number; color: string }> = {
-                  awake: { y: 10, h: 8, color: 'rgba(255,255,255,0.5)' },
-                  rem: { y: 32, h: 8, color: '#C084FC' },
-                  light: { y: 54, h: 8, color: '#67E8F9' },
-                  deep: { y: 76, h: 8, color: '#818CF8' },
+              {/* Connected Step Hypnogram Blocks */}
+              {hasSlept && (() => {
+                const chartLeft = 52;
+                const chartW = 280;
+                const yMap: Record<string, { y: number; center: number; h: number; color: string; wash: string }> = {
+                  awake: { y: 11, center: 16, h: 10, color: 'rgba(226, 232, 240, 0.72)', wash: 'url(#wash-awake)' },
+                  rem: { y: 39, center: 44, h: 10, color: '#A855F7', wash: 'url(#wash-rem)' },
+                  light: { y: 67, center: 72, h: 10, color: '#38BDF8', wash: 'url(#wash-light)' },
+                  deep: { y: 95, center: 100, h: 10, color: '#6366F1', wash: 'url(#wash-deep)' },
                 };
-                const meta = yMap[block.stage];
-                const isHovered = hoverBlockIndex === idx;
 
-                return (
-                  <rect
-                    key={idx}
-                    x={xStart}
-                    y={meta.y}
-                    width={blockWidth}
-                    height={meta.h}
-                    rx="2.5"
-                    fill={meta.color}
-                    style={{
-                      opacity: hoverBlockIndex === null ? 0.92 : isHovered ? 1 : 0.45,
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={() => setHoverBlockIndex(idx)}
-                    onMouseLeave={() => setHoverBlockIndex(null)}
-                  />
-                );
-              })}
+                return hypnogram.map((block, idx) => {
+                  const xStart = chartLeft + (block.startMin / Math.max(1, totalMin)) * chartW;
+                  const blockWidth = Math.max(3, (block.durationMin / Math.max(1, totalMin)) * chartW);
+                  const meta = yMap[block.stage];
+                  const isHovered = hoverBlockIndex === idx;
+                  const prevBlock = idx > 0 ? hypnogram[idx - 1] : null;
+                  const prevMeta = prevBlock ? yMap[prevBlock.stage] : null;
+
+                  return (
+                    <g
+                      key={idx}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setHoverBlockIndex(isHovered ? null : idx)}
+                      onMouseEnter={() => setHoverBlockIndex(idx)}
+                      onMouseLeave={() => setHoverBlockIndex(null)}
+                    >
+                      {/* Subtle vertical column glow */}
+                      <rect
+                        x={xStart}
+                        y={meta.y + 5}
+                        width={blockWidth}
+                        height={Math.max(4, 112 - (meta.y + 5))}
+                        fill={meta.wash}
+                        opacity={hoverBlockIndex === null ? 0.85 : isHovered ? 1 : 0.25}
+                      />
+
+                      {/* Vertical connector between consecutive stage transitions */}
+                      {prevMeta && prevMeta.center !== meta.center && (
+                        <line
+                          x1={xStart}
+                          y1={prevMeta.center}
+                          x2={xStart}
+                          y2={meta.center}
+                          stroke="rgba(255, 255, 255, 0.24)"
+                          strokeWidth="1.25"
+                        />
+                      )}
+
+                      {/* Stage Capsule */}
+                      <rect
+                        x={xStart}
+                        y={meta.y}
+                        width={blockWidth}
+                        height={meta.h}
+                        rx="4"
+                        fill={meta.color}
+                        style={{
+                          opacity: hoverBlockIndex === null ? 0.95 : isHovered ? 1 : 0.35,
+                          filter: isHovered ? `drop-shadow(0 0 6px ${meta.color})` : undefined,
+                          transition: 'opacity 150ms ease',
+                        }}
+                      />
+                    </g>
+                  );
+                });
+              })()}
             </svg>
 
             {/* Time axis below chart */}
@@ -698,17 +796,17 @@ export const SleepScreen: React.FC = () => {
               <div
                 style={{
                   textAlign: 'center',
-                  padding: '6px 0',
+                  padding: '8px 0 4px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '7px',
                 }}
               >
                 <div
                   style={{
-                    fontSize: '9.5px',
-                    color: 'rgba(250, 247, 242, 0.4)',
+                    fontSize: '10px',
+                    color: 'rgba(250, 247, 242, 0.45)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
@@ -718,11 +816,11 @@ export const SleepScreen: React.FC = () => {
                   type="button"
                   onClick={() => setShowAdjustSleepModal(true)}
                   style={{
-                    background: 'rgba(167, 139, 250, 0.12)',
-                    border: '1px solid rgba(167, 139, 250, 0.35)',
+                    background: 'rgba(168, 85, 247, 0.14)',
+                    border: '1px solid rgba(168, 85, 247, 0.35)',
                     borderRadius: '999px',
-                    padding: '4px 12px',
-                    color: '#A78BFA',
+                    padding: '5px 13px',
+                    color: '#E9D5FF',
                     fontSize: '10.5px',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -731,7 +829,7 @@ export const SleepScreen: React.FC = () => {
                     gap: '5px',
                   }}
                 >
-                  <Moon size={11} color="#A78BFA" />
+                  <Moon size={11} color="#C084FC" />
                   <span>{isEn ? 'Log sleep hours' : 'Renseigner mes heures de sommeil'}</span>
                 </button>
               </div>
@@ -740,11 +838,12 @@ export const SleepScreen: React.FC = () => {
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  paddingLeft: '45px',
+                  paddingLeft: '50px',
+                  paddingRight: '4px',
                   fontSize: '9px',
-                  color: 'rgba(250, 247, 242, 0.45)',
+                  color: 'rgba(250, 247, 242, 0.42)',
                   fontFamily: 'var(--font-mono)',
-                  marginTop: '4px',
+                  marginTop: '6px',
                 }}
               >
                 {hypnogramTimeLabels.map((lbl, idx) => (
@@ -755,12 +854,12 @@ export const SleepScreen: React.FC = () => {
           </div>
 
           {/* Unified Proportional Segmented Bar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <div
               style={{
                 width: '100%',
-                height: '10px',
-                borderRadius: '5px',
+                height: '8px',
+                borderRadius: '999px',
                 background: 'rgba(255, 255, 255, 0.05)',
                 display: 'flex',
                 overflow: 'hidden',
@@ -769,26 +868,27 @@ export const SleepScreen: React.FC = () => {
             >
               {hasSlept ? (
                 <>
-                  {deepPct > 0 && <div style={{ width: `${deepPct}%`, height: '100%', background: '#818CF8', borderRadius: '3px' }} />}
-                  {remPct > 0 && <div style={{ width: `${remPct}%`, height: '100%', background: '#C084FC', borderRadius: '3px' }} />}
-                  {lightPct > 0 && <div style={{ width: `${lightPct}%`, height: '100%', background: '#67E8F9', borderRadius: '3px' }} />}
-                  {awakePct > 0 && <div style={{ width: `${awakePct}%`, height: '100%', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '3px' }} />}
+                  {deepPct > 0 && <div style={{ width: `${deepPct}%`, height: '100%', background: '#6366F1', borderRadius: '999px' }} />}
+                  {remPct > 0 && <div style={{ width: `${remPct}%`, height: '100%', background: '#A855F7', borderRadius: '999px' }} />}
+                  {lightPct > 0 && <div style={{ width: `${lightPct}%`, height: '100%', background: '#38BDF8', borderRadius: '999px' }} />}
+                  {awakePct > 0 && <div style={{ width: `${awakePct}%`, height: '100%', background: 'rgba(226, 232, 240, 0.55)', borderRadius: '999px' }} />}
                 </>
               ) : (
                 <>
-                  <div style={{ width: '22%', height: '100%', background: 'rgba(129, 140, 248, 0.25)', borderRadius: '3px' }} />
-                  <div style={{ width: '22%', height: '100%', background: 'rgba(192, 132, 252, 0.25)', borderRadius: '3px' }} />
-                  <div style={{ width: '48%', height: '100%', background: 'rgba(103, 232, 249, 0.25)', borderRadius: '3px' }} />
-                  <div style={{ width: '8%', height: '100%', background: 'rgba(255, 255, 255, 0.15)', borderRadius: '3px' }} />
+                  <div style={{ width: '22%', height: '100%', background: 'rgba(99, 102, 241, 0.25)', borderRadius: '999px' }} />
+                  <div style={{ width: '22%', height: '100%', background: 'rgba(168, 85, 247, 0.25)', borderRadius: '999px' }} />
+                  <div style={{ width: '48%', height: '100%', background: 'rgba(56, 189, 248, 0.25)', borderRadius: '999px' }} />
+                  <div style={{ width: '8%', height: '100%', background: 'rgba(226, 232, 240, 0.16)', borderRadius: '999px' }} />
                 </>
               )}
             </div>
           </div>
 
-          {/* 4 Clean Stage Tiles (2x2 Grid) */}
+          {/* 4 Refined Stage Cards (2x2 Grid) with Clinical Target Progress */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {stages.map((st) => {
               const isSelected = activeStageId === st.id;
+              const barPct = hasSlept ? Math.min(100, Math.max(6, st.pct)) : 0;
               return (
                 <div
                   key={st.id}
@@ -796,42 +896,64 @@ export const SleepScreen: React.FC = () => {
                   style={{
                     background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
                     border: isSelected ? `1px solid ${st.color}` : '1px solid rgba(255, 255, 255, 0.06)',
-                    borderRadius: '14px',
-                    padding: '10px 12px',
+                    borderRadius: '16px',
+                    padding: '11px 12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px',
+                    gap: '6px',
                     cursor: 'pointer',
                     transition: 'border-color 0.2s ease, background 0.2s ease',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                       <span
                         style={{
                           width: '7px',
                           height: '7px',
                           borderRadius: '50%',
                           background: st.color,
+                          boxShadow: `0 0 6px ${st.color}`,
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#FAF7F2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {st.label}
                       </span>
                     </div>
-                    <span style={{ fontSize: '9px', color: st.color, fontWeight: 700 }}>
+                    <span style={{ fontSize: '9.5px', color: st.color, fontWeight: 700, flexShrink: 0 }}>
                       {hasSlept ? `${st.pct}%` : '--'}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginTop: '2px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: 700, color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#FAF7F2', fontFamily: 'var(--font-mono)', letterSpacing: '-0.02em' }}>
                       {hasSlept ? fmtDuration(st.minutes) : '--'}
                     </span>
-                    <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)' }}>
+                    <span style={{ fontSize: '9px', color: 'rgba(250, 247, 242, 0.45)', fontWeight: 600 }}>
                       {st.target}
                     </span>
+                  </div>
+
+                  {/* Mini Progress Bar */}
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '3px',
+                      borderRadius: '999px',
+                      background: 'rgba(255, 255, 255, 0.07)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${barPct}%`,
+                        height: '100%',
+                        borderRadius: '999px',
+                        background: st.color,
+                        transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                      }}
+                    />
                   </div>
                 </div>
               );
@@ -843,13 +965,13 @@ export const SleepScreen: React.FC = () => {
             <div
               style={{
                 padding: '10px 12px',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 background: 'rgba(255, 255, 255, 0.04)',
                 border: `1px solid ${stages.find((s) => s.id === activeStageId)?.color || 'rgba(255,255,255,0.1)'}`,
                 animation: 'fadeIn 160ms ease',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#FAF7F2' }}>
                   {stages.find((s) => s.id === activeStageId)?.label}
                 </span>
@@ -857,7 +979,7 @@ export const SleepScreen: React.FC = () => {
                   {stages.find((s) => s.id === activeStageId)?.status}
                 </span>
               </div>
-              <p style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.75)', lineHeight: 1.4, margin: 0 }}>
+              <p style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.75)', lineHeight: 1.45, margin: 0 }}>
                 {stages.find((s) => s.id === activeStageId)?.desc}
               </p>
             </div>
