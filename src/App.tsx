@@ -156,7 +156,7 @@ const AppInner: React.FC = () => {
         header={!isLiveRunningViewOpen ? <AppHeader /> : null}
         overlay={
           <>
-            {!isLiveRunningViewOpen && !metricDetail && !storyData && !isDateModalOpen && modal !== 'nap' && modal !== 'prism' && modal !== 'calai' && <TabBar />}
+            {!isLiveRunningViewOpen && <TabBar />}
             <AppleNotificationBanner />
             <Suspense fallback={null}>
               {modal === 'settings' && <SettingsModal onClose={closeModal} />}

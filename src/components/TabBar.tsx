@@ -5,7 +5,7 @@ import { TODAY_INDEX } from '../data/health';
 import { LiquidNavbar, LiquidNavItem } from './ui/liquid-glass-navbar';
 
 export const TabBar: React.FC = () => {
-  const { tab, setTab, t, profile, modal, openModal, closeModal, setSelectedDay } = useApp();
+  const { tab, setTab, t, profile, modal, openModal, closeModal, setSelectedDay, metricDetail, closeMetricDetail, storyData, closeStory, isDateModalOpen, setIsDateModalOpen } = useApp();
   const isFemale = profile.sex === 'femme';
   const isSettingsOpen = modal === 'settings';
 
@@ -91,6 +91,15 @@ export const TabBar: React.FC = () => {
     if (modal) {
       closeModal();
     }
+    if (metricDetail) {
+      closeMetricDetail();
+    }
+    if (storyData) {
+      closeStory();
+    }
+    if (isDateModalOpen) {
+      setIsDateModalOpen(false);
+    }
 
     if (item.id === 'health') {
       setSelectedDay(TODAY_INDEX);
@@ -117,7 +126,7 @@ export const TabBar: React.FC = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 90,
+        zIndex: 9500,
         pointerEvents: 'none',
       }}
     >
