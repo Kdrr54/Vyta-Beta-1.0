@@ -300,12 +300,12 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 6 &&
+            parsed?.cfgVer === 7 &&
             typeof parsed?.minutes === 'number' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
             this.lastProgrammedIntervalMinutes = parsed.minutes;
-            this.needsBoundaryAlign = false;
+            this.needsBoundaryAlign = Boolean(parsed?.needsAlign);
           } else {
             // Nettoyage unique des anciens caches pour réactiver tous les capteurs sans mode strict
             localStorage.removeItem('vyta_strict_led_schedule');
@@ -1802,11 +1802,17 @@ class QRingBleService {
 
     // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
     if (!force && this.lastProgrammedIntervalMinutes === mins) {
+      if (this.needsBoundaryAlign && mins > 0 && !this.boundaryAlignTimer) {
+        this.scheduleBoundaryAlignment(mins);
+      }
       return true;
     }
 
-    this.needsBoundaryAlign = false;
-    if (this.boundaryAlignTimer) {
+    const alignedNow = mins > 0 ? this.isNearClockBoundary(mins) : true;
+    this.needsBoundaryAlign = mins > 0 && !alignedNow;
+    if (this.needsBoundaryAlign && mins > 0) {
+      this.scheduleBoundaryAlignment(mins);
+    } else if (this.boundaryAlignTimer) {
       clearTimeout(this.boundaryAlignTimer);
       this.boundaryAlignTimer = null;
     }
@@ -1844,10 +1850,10 @@ class QRingBleService {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 6,
+              cfgVer: 7,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
-              needsAlign: false,
+              needsAlign: this.needsBoundaryAlign,
               ts: Date.now(),
             })
           );
@@ -1860,6 +1866,46 @@ class QRingBleService {
 
   public async setHeartRateInterval(minutes?: number): Promise<boolean> {
     return this.setAllSensorIntervals(minutes);
+  }
+
+  private isNearClockBoundary(intervalMins: number, now: Date = new Date()): boolean {
+    if (intervalMins <= 0) return true;
+    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, Math.min(30, intervalMins));
+    const modMin = now.getMinutes() % stepMin;
+    const modSec = modMin * 60 + now.getSeconds();
+    const stepSec = stepMin * 60;
+    return modSec <= 90 || modSec >= stepSec - 90;
+  }
+
+  private scheduleBoundaryAlignment(intervalMins: number): void {
+    if (this.boundaryAlignTimer) {
+      clearTimeout(this.boundaryAlignTimer);
+      this.boundaryAlignTimer = null;
+    }
+    if (intervalMins <= 0) return;
+
+    const now = new Date();
+    if (this.isNearClockBoundary(intervalMins, now)) {
+      if (this.isConnected() && this.needsBoundaryAlign) {
+        this.setAllSensorIntervals(intervalMins, true);
+      }
+      return;
+    }
+
+    const stepMin = intervalMins >= 60 ? 60 : Math.max(15, Math.min(30, intervalMins));
+    const currentMin = now.getMinutes();
+    const nextSlotMin = Math.floor(currentMin / stepMin) * stepMin + stepMin;
+    const target = new Date(now.getTime());
+    target.setMinutes(nextSlotMin, 2, 0);
+    const delayMs = Math.max(2000, target.getTime() - now.getTime());
+
+    this.boundaryAlignTimer = setTimeout(() => {
+      this.boundaryAlignTimer = null;
+      if (this.isConnected() && this.needsBoundaryAlign && this.configuredIntervalMinutes === intervalMins) {
+        console.log(`[QRing BLE] Aligning hardware timers cleanly onto :00/:30 clock boundary (${intervalMins}m)...`);
+        this.setAllSensorIntervals(intervalMins, true);
+      }
+    }, delayMs);
   }
 
   /**
