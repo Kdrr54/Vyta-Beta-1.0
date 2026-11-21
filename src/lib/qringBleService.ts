@@ -715,25 +715,6 @@ class QRingBleService {
           await this.requestStepsData(0);
           await new Promise((r) => setTimeout(r, 150));
           await this.sendBatteryRequest();
-
-          // Fallback léger VRC uniquement si la bague a sauté le créneau courant (mouvement) en mode <= 30 min
-          const nowDate = new Date();
-          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
-          const minuteInSlot = nowDate.getMinutes() % 30;
-          if (
-            this.configuredIntervalMinutes > 0 &&
-            this.configuredIntervalMinutes <= 30 &&
-            minuteInSlot >= 3 &&
-            minuteInSlot <= 27 &&
-            this.lastAutoMeasureSlot !== currentSlot &&
-            this.hrvLogSlots[currentSlot] === 0 &&
-            !this.isAutoSpotMeasuring &&
-            !this.isRealTimeHrActive &&
-            this.activeLiveDataType === null
-          ) {
-            this.lastAutoMeasureSlot = currentSlot;
-            this.triggerProactiveBiometricSpotCheck();
-          }
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
@@ -3505,24 +3486,10 @@ class QRingBleService {
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
   /**
-   * Relance légère uniquement pour le VRC (14 s, LED verte) lorsque la bague connectée
-   * a sauté le créneau de 30 min courant à cause d'un mouvement.
+   * Désactivé : laisser la bague gérer ses mesures VRC autonomes (0x38 -> 0x39) sans interruption BLE en arrière-plan.
    */
   public async triggerProactiveBiometricSpotCheck() {
-    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive || this.activeLiveDataType !== null) {
-      return;
-    }
-    this.isAutoSpotMeasuring = true;
-    console.log('[QRing BLE] Running lightweight 20s VRC fallback for empty 30-min slot...');
-    try {
-      await this.startRealTimeHrv();
-      await new Promise((r) => setTimeout(r, 20000));
-      await this.stopRealTimeHrv();
-    } catch (err) {
-      console.warn('[QRing BLE] VRC fallback notice:', err);
-    } finally {
-      this.isAutoSpotMeasuring = false;
-    }
+    return;
   }
 
   /**
