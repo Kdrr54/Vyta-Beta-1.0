@@ -715,6 +715,25 @@ class QRingBleService {
           await this.requestStepsData(0);
           await new Promise((r) => setTimeout(r, 150));
           await this.sendBatteryRequest();
+
+          // Si la bague a sauté la VRC à :00/:30, lancer le complément optique PPG (0x69 0x01) juste à :01–:03 / :31–:33
+          const nowDate = new Date();
+          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
+          const minuteInSlot = nowDate.getMinutes() % 30;
+          if (
+            this.configuredIntervalMinutes > 0 &&
+            this.configuredIntervalMinutes <= 30 &&
+            minuteInSlot >= 1 &&
+            minuteInSlot <= 3 &&
+            this.lastAutoMeasureSlot !== currentSlot &&
+            this.hrvLogSlots[currentSlot] === 0 &&
+            !this.isAutoSpotMeasuring &&
+            !this.isRealTimeHrActive &&
+            this.activeLiveDataType === null
+          ) {
+            this.lastAutoMeasureSlot = currentSlot;
+            this.triggerProactiveBiometricSpotCheck();
+          }
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
@@ -3536,10 +3555,30 @@ class QRingBleService {
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
   /**
-   * Désactivé : laisser la bague gérer ses mesures VRC autonomes (0x38 -> 0x39) sans interruption BLE en arrière-plan.
+   * Complément VRC optique direct (16s via 0x69 [0x01]) juste à :01-:03 / :31-:33
+   * uniquement lorsque le créneau :00/:30 de la bague est resté vide (0) en flash.
    */
   public async triggerProactiveBiometricSpotCheck() {
-    return;
+    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive || this.activeLiveDataType !== null) {
+      return;
+    }
+    this.isAutoSpotMeasuring = true;
+    console.log('[QRing BLE] Running 16s optical PPG RMSSD VRC completion (:01/:31)...');
+    try {
+      this.hrvLiveFallbackActive = true;
+      this.hrvRrSamples = [];
+      this.hrvLastSampleAt = 0;
+      const started = await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
+      if (started) {
+        await new Promise((r) => setTimeout(r, 16000));
+        await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])]);
+      }
+    } catch (err) {
+      console.warn('[QRing BLE] VRC optical completion notice:', err);
+    } finally {
+      this.hrvLiveFallbackActive = false;
+      this.isAutoSpotMeasuring = false;
+    }
   }
 
   /**
