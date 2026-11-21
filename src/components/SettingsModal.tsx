@@ -27,7 +27,6 @@ import {
   Compass,
   Radio,
   Cpu,
-  Palette,
   AlertTriangle,
   Info,
   CheckCircle2,
@@ -51,7 +50,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     ring,
     updateRing,
     finish,
-    setFinish,
     language,
     setLanguage,
     cardThemeMode,
@@ -731,80 +729,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              {/* 2. Finition de la Bague (Finish Options) */}
-              <div
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: '20px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.07)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <Palette size={14} color="#FAF7F2" />
-                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Ring Finish' : 'Finition du Titane'}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.55)', fontWeight: 500 }}>
-                    {currentFinish.label}
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                  {finishes.map((f) => {
-                    const isSelected = finish === f.id;
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => {
-                          triggerHaptic();
-                          setFinish(f.id);
-                        }}
-                        style={{
-                          padding: '8px 4px',
-                          borderRadius: '12px',
-                          background: isSelected ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                          border: isSelected ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.05)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '6px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '50%',
-                            background: f.swatch,
-                            boxShadow: isSelected ? '0 0 10px rgba(255, 255, 255, 0.5)' : 'none',
-                            border: '1px solid rgba(255, 255, 255, 0.3)',
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: '9.5px',
-                            color: isSelected ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
-                            fontWeight: isSelected ? 700 : 500,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {f.label.split(' ')[0]}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* 3. Diagnostics & Calibrage de Port */}
               <div
                 style={{
@@ -1072,10 +996,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
                   <span>{isEn ? 'BLE MAC Address' : 'Adresse MAC BLE'}</span>
                   <span style={{ color: '#FAF7F2', fontFamily: 'var(--font-mono)' }}>{ring.macAddress || 'C8:2B:96:4A:99:84'}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(250, 247, 242, 0.5)' }}>
-                  <span>{isEn ? 'Publisher' : 'Société éditrice'}</span>
-                  <span style={{ color: '#FAF7F2', fontWeight: 600 }}>Aurel Labs LLC (New Mexico, USA)</span>
                 </div>
               </div>
 
