@@ -3673,8 +3673,7 @@ class QRingBleService {
         // Note: R21/QRing firmware often returns intervalMins=0 in 0x16 [0x01] read responses even when 30m/60m is active;
         // ignore intervalMins === 0 when enabled so we never falsely reset the ring's hardware timer mid-cycle.
         const wantOn = this.configuredIntervalMinutes > 0;
-        const realMinuteMismatch = wantOn && isEnabled && intervalMins > 0 && intervalMins !== this.configuredIntervalMinutes;
-        const mismatch = isEnabled !== wantOn || realMinuteMismatch;
+        const mismatch = isEnabled !== wantOn;
         if (mismatch && Date.now() - this.lastIntervalFixAt > 10000) {
           this.lastIntervalFixAt = Date.now();
           console.warn(
