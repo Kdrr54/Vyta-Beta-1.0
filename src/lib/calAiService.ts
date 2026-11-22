@@ -341,6 +341,40 @@ export async function compressThumbnailDataUrl(
   });
 }
 
+const YUKA_JSON_SCHEMA_EN = `{
+  "mealName": "Clear meal or product name in English",
+  "totalCalories": 540,
+  "macros": { "protein": 38, "carbs": 48, "fat": 20, "fiber": 7, "sugar": 4 },
+  "items": [
+    { "name": "Food item in English", "portion": "150g", "calories": 250, "protein": 30, "carbs": 0, "fat": 12 }
+  ],
+  "healthScore": 84,
+  "yuka": {
+    "score": 84,
+    "brand": "Brand if known",
+    "nutriscore": "A",
+    "novaGroup": 1,
+    "isOrganic": false,
+    "sugar": 4,
+    "saturatedFat": 3,
+    "salt": 0.6,
+    "positives": [
+      { "label": "Protein", "value": "38 g", "detail": "Excellent source for muscle recovery and satiety" },
+      { "label": "Fiber", "value": "7 g", "detail": "Supports healthy digestion" }
+    ],
+    "negatives": [
+      { "label": "Sodium", "value": "0.6 g", "detail": "Moderate" }
+    ],
+    "additives": [
+      { "code": "E322", "name": "Lecithin", "risk": "low" }
+    ],
+    "alternatives": [
+      { "name": "Healthier alternative", "brand": "Organic", "reason": "Lower sugar and zero additives" }
+    ]
+  },
+  "advice": "Short, actionable nutritional summary in English."
+}`;
+
 const YUKA_JSON_SCHEMA_FR = `{
   "mealName": "Nom clair du plat ou produit",
   "totalCalories": 540,
@@ -389,8 +423,8 @@ export async function analyzeMealWithCalAi(
   const isEn = (options.language || 'fr') === 'en';
   const prompt = isEn
     ? `You are "Aurelius Nutrition Vision" (Cal AI + Yuka-grade quality engine). Analyze the food photo and return ONLY valid JSON (no markdown) matching:
-${YUKA_JSON_SCHEMA_FR}
-Respond in English. Be accurate on portions, cooking oils, sauces, Yuka score (0-100), positives, negatives, additives if packaged, and healthier alternatives if score < 70.`
+${YUKA_JSON_SCHEMA_EN}
+IMPORTANT: ALL text values (mealName, items[].name, items[].portion, positives, negatives, additives[].name, alternatives, advice) MUST be written in English. Be accurate on portions, cooking oils, sauces, Yuka score (0-100), and healthier alternatives if score < 70.`
     : `Tu es "Aurelius Nutrition Vision" (moteur Cal AI + notation qualité type Yuka). Analyse la photo du plat et retourne UNIQUEMENT un JSON valide (sans markdown) conforme à :
 ${YUKA_JSON_SCHEMA_FR}
 Sois réaliste sur les portions visibles, les huiles/sauces, la note Yuka sur 100, les points positifs/négatifs, les additifs éventuels et des alternatives plus saines si le score < 70.`;
@@ -560,8 +594,8 @@ export async function analyzeProductYuka(params: {
 
   // 2. Gemini Vision / Text Yuka analysis (reads barcode, nutrition table, ingredients list, or product name)
   const prompt = isEn
-    ? `You are "Aurelius Yuka Scanner". Read the product photo (packaging, nutrition label, ingredients, or barcode) or product query "${query}" and return ONLY valid JSON (no markdown) with a real Yuka-style 0-100 quality score, Nutri-Score (A-E), NOVA (1-4), additives (E-numbers + risk: low/moderate/high), positives, negatives, and 2 healthier alternatives if score < 70:
-${YUKA_JSON_SCHEMA_FR}`
+    ? `You are "Aurelius Yuka Scanner". Read the product photo (packaging, nutrition label, ingredients, or barcode) or product query "${query}" and return ONLY valid JSON (no markdown) with a real Yuka-style 0-100 quality score, Nutri-Score (A-E), NOVA (1-4), additives (E-numbers + risk: low/moderate/high), positives, negatives, and 2 healthier alternatives if score < 70. ALL text values MUST be in English:
+${YUKA_JSON_SCHEMA_EN}`
     : `Tu es "Aurelius Yuka Scanner". Lis la photo du produit (emballage, tableau nutritionnel, liste d'ingrédients ou code-barres) ou la recherche "${query}" et retourne UNIQUEMENT un JSON valide (sans markdown) avec une vraie note Yuka 0-100, Nutri-Score (A-E), NOVA (1-4), additifs (codes E + risque low/moderate/high), qualités (positives), défauts (negatives) et 2 alternatives plus saines si score < 70 :
 ${YUKA_JSON_SCHEMA_FR}`;
 
@@ -612,8 +646,8 @@ export async function analyzeTextMealWithAurelius(
 ): Promise<CalAiAnalysisResult> {
   const isEn = (options.language || 'fr') === 'en';
   const prompt = isEn
-    ? `You are "Aurelius Nutrition Engine". Estimate exact calories, macros, items, Yuka quality score (0-100), positives, negatives, and advice for this meal description: "${description}". Return ONLY valid JSON matching:
-${YUKA_JSON_SCHEMA_FR}`
+    ? `You are "Aurelius Nutrition Engine". Estimate exact calories, macros, items, Yuka quality score (0-100), positives, negatives, and advice for this meal description: "${description}". ALL text values MUST be written in English. Return ONLY valid JSON matching:
+${YUKA_JSON_SCHEMA_EN}`
     : `Tu es "Aurelius Nutrition Engine". Calcule les calories, macros, ingrédients détaillés, la note qualité Yuka (0-100), points positifs/négatifs et conseils pour ce repas décrit par l'utilisateur : "${description}". Retourne UNIQUEMENT un JSON valide conforme à :
 ${YUKA_JSON_SCHEMA_FR}`;
 
@@ -648,8 +682,8 @@ ${JSON.stringify(snapshot)}
 
 User correction request: "${correctionPrompt}"
 
-Apply the user's correction precisely (add missing food/oil/sauce, adjust portions, remove items, recalculate calories, protein, carbs, fat, fiber, Yuka score 0-100, positives, negatives, and advice). Return ONLY valid JSON matching:
-${YUKA_JSON_SCHEMA_FR}`
+Apply the user's correction precisely (add missing food/oil/sauce, adjust portions, remove items, recalculate calories, protein, carbs, fat, fiber, Yuka score 0-100, positives, negatives, and advice). ALL text values MUST be written in English. Return ONLY valid JSON matching:
+${YUKA_JSON_SCHEMA_EN}`
     : `Tu es "Aurelius Fix Engine". L'utilisateur signale un oubli ou une erreur dans l'analyse de son repas.
 Repas actuel (JSON) :
 ${JSON.stringify(snapshot)}

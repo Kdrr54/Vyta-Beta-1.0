@@ -594,7 +594,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
             {/* Protéines */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
-                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Protéines</span>
+                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Protein' : 'Protéines'}</span>
                 <span style={{ color: proteinTint, fontWeight: 700 }}>{dailySummary.protein}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -605,7 +605,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
             {/* Glucides */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
-                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Glucides</span>
+                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Carbs' : 'Glucides'}</span>
                 <span style={{ color: carbsTint, fontWeight: 700 }}>{dailySummary.carbs}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -616,7 +616,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
             {/* Lipides */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px' }}>
-                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>Lipides</span>
+                <span style={{ color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Fat' : 'Lipides'}</span>
                 <span style={{ color: fatTint, fontWeight: 700 }}>{dailySummary.fat}g</span>
               </div>
               <div style={{ height: '3px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -1071,7 +1071,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         {currentResult.mealName}
                       </div>
                       <div style={{ fontSize: '11.5px', color: accentLight, fontWeight: 600, marginTop: '3px' }}>
-                        Indice Vitalité : {currentResult.healthScore || 85}/100
+                        {isEn ? 'Vitality Index' : 'Indice Vitalité'} : {currentResult.healthScore || 85}/100
                       </div>
                     </div>
 
@@ -1105,7 +1105,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         textAlign: 'center',
                       }}
                     >
-                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Protéines</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Protein' : 'Protéines'}</div>
                       <div style={{ fontSize: '17px', fontWeight: 700, color: proteinTint, marginTop: '2px' }}>
                         {currentResult.macros.protein}g
                       </div>
@@ -1120,7 +1120,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         textAlign: 'center',
                       }}
                     >
-                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Glucides</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Carbs' : 'Glucides'}</div>
                       <div style={{ fontSize: '17px', fontWeight: 700, color: carbsTint, marginTop: '2px' }}>
                         {currentResult.macros.carbs}g
                       </div>
@@ -1135,7 +1135,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         textAlign: 'center',
                       }}
                     >
-                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>Lipides</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.6)' }}>{isEn ? 'Fat' : 'Lipides'}</div>
                       <div style={{ fontSize: '17px', fontWeight: 700, color: fatTint, marginTop: '2px' }}>
                         {currentResult.macros.fat}g
                       </div>
@@ -1421,7 +1421,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         lineHeight: 1.45,
                       }}
                     >
-                      <strong style={{ color: accentLight }}>Synthèse Aurelius :</strong> {currentResult.advice}
+                      <strong style={{ color: accentLight }}>{isEn ? 'Aurelius Summary:' : 'Synthèse Aurelius :'}</strong> {currentResult.advice}
                     </div>
                   )}
 
@@ -1668,7 +1668,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                               {typeLabel} · {m.timestamp}
                             </div>
                             <div style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px' }}>
-                              P: {m.macros?.protein}g · G: {m.macros?.carbs}g · L: {m.macros?.fat}g
+                              P: {m.macros?.protein}g · {isEn ? 'C' : 'G'}: {m.macros?.carbs}g · {isEn ? 'F' : 'L'}: {m.macros?.fat}g
                             </div>
                           </div>
                         </div>
