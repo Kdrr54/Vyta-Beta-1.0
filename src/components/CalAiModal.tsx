@@ -508,6 +508,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
           </button>
         </div>
 
+        {activeTab === 'journal' && (
+          <>
         {/* Sélecteur de jour (Historique & saisie jour par jour) */}
         <div
           style={{
@@ -827,6 +829,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
             </div>
           </div>
         </div>
+          </>
+        )}
 
         {/* Inputs cachés pour Photo ou Galerie */}
         <input
@@ -967,7 +971,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                 style={{
                   position: 'relative',
                   width: '100%',
-                  aspectRatio: currentImagePreview || (scanMode === 'yuka' && !yukaCameraError) ? '4/3' : '16/9',
+                  aspectRatio: currentImagePreview ? '4/3' : (scanMode === 'yuka' && !yukaCameraError ? '3/4' : '16/9'),
                   borderRadius: '24px',
                   overflow: 'hidden',
                   background: '#0A0A0C',
