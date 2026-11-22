@@ -1197,7 +1197,7 @@ export default function MorphOrb(props: MorphOrbProps) {
           <div className="mo-card" aria-hidden="true" />
           <div className="mo-ring" aria-hidden="true" />
 
-          <form className="mo-input" ref={formRef} onSubmit={onFormSubmit} autoComplete="off">
+          <form className="mo-input" ref={formRef} onSubmit={onFormSubmit} autoComplete="off" aria-hidden="true" style={{ opacity: 0, pointerEvents: 'none', visibility: 'hidden' }}>
             <svg className="mo-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10 3.5l1.7 4.8 4.8 1.7-4.8 1.7L10 16.5l-1.7-4.8L3.5 10l4.8-1.7L10 3.5z" />
               <path d="M18 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" />
