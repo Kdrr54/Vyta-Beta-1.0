@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TabType, AppTheme, RingFinish, BiologicalSex, UserProfile, RingDevice, SensorIntervals, SensorIntervalOption, DayMetrics, NapRecord } from '../types';
-import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, detectRingFinish, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek, toLocalDateKey } from '../data/health';
+import { TODAY_INDEX, weekMetrics, ringDevice as defaultRing, defaultSensorIntervals, createEmptyWeekMetrics, emptyDayMetrics, calculateEstimatedBatteryDays, refreshCalendar, computeRealCurrentWeek, toLocalDateKey } from '../data/health';
 import { checkWarrantyForEmail } from '../lib/warrantyService';
 import { dispatchApplePush, requestBrowserNotificationPermission } from '../lib/apnsService';
 import { Language, TranslationKey, getTranslation, detectDefaultLanguage } from '../lib/i18n';
@@ -168,21 +168,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tab, setTab] = useState<TabType>(initialTab);
   const [covytaActive, setCovytaActive] = useState<boolean>(initialCovyta);
   const [selectedDay, setSelectedDay] = useState<number>(initialDay);
-  const [finish, setFinishState] = useState<RingFinish>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('vyta_ring_finish') as RingFinish | null;
-        if (saved === 'champagne' || saved === 'gunmetal' || saved === 'silver' || saved === 'rose') {
-          return saved;
-        }
-      } catch (_) {}
-    }
-    return detectRingFinish(defaultRing.macAddress, defaultRing.serial);
-  });
-  const setFinish = useCallback((nextFinish: RingFinish) => {
-    setFinishState(nextFinish);
+  const [finish] = useState<RingFinish>('gunmetal');
+  const setFinish = useCallback((_nextFinish: RingFinish) => {
     try {
-      localStorage.setItem('vyta_ring_finish', nextFinish);
+      localStorage.setItem('vyta_ring_finish', 'gunmetal');
     } catch (_) {}
   }, []);
   const [modal, setModal] = useState<'settings' | 'healthkit' | 'notifications' | 'pairing' | 'general_state' | 'find_my' | 'prism' | 'nap' | 'calai' | null>(initialModal as any);
@@ -224,17 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Auto-adapt ring finish from hardware IDs only if user has not manually chosen a finish
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('vyta_ring_finish');
-      if (saved === 'champagne' || saved === 'gunmetal' || saved === 'silver' || saved === 'rose') {
-        return;
-      }
-    } catch (_) {}
-    const autoFinish = detectRingFinish(ring.macAddress, ring.serial);
-    setFinishState(autoFinish);
-  }, [ring.macAddress, ring.serial]);
+  // Ring finish locked to gunmetal (black) app-wide
 
 
   // Simulated system date (for test mode)
