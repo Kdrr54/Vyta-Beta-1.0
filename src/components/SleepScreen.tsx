@@ -672,7 +672,47 @@ export const SleepScreen: React.FC = () => {
               padding: '10px 10px 8px',
             }}
           >
-            <svg width="100%" viewBox="0 0 340 116" style={{ display: 'block', overflow: 'visible' }}>
+            <svg
+              width="100%"
+              viewBox="0 0 340 116"
+              style={{ display: 'block', overflow: 'visible', touchAction: 'pan-y', userSelect: 'none' }}
+              onTouchStart={(e) => {
+                if (!hasSlept || hypnogram.length === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.touches[0].clientX;
+                const plotLeft = rect.left + (52 / 340) * rect.width;
+                const plotW = (280 / 340) * rect.width;
+                const rel = Math.max(0, Math.min(1, (x - plotLeft) / Math.max(1, plotW)));
+                const targetMin = rel * Math.max(1, totalMin);
+                let found = hypnogram.findIndex((b) => targetMin >= b.startMin && targetMin <= b.startMin + b.durationMin);
+                if (found < 0) found = rel > 0.5 ? hypnogram.length - 1 : 0;
+                setHoverBlockIndex(found);
+              }}
+              onTouchMove={(e) => {
+                if (!hasSlept || hypnogram.length === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.touches[0].clientX;
+                const plotLeft = rect.left + (52 / 340) * rect.width;
+                const plotW = (280 / 340) * rect.width;
+                const rel = Math.max(0, Math.min(1, (x - plotLeft) / Math.max(1, plotW)));
+                const targetMin = rel * Math.max(1, totalMin);
+                let found = hypnogram.findIndex((b) => targetMin >= b.startMin && targetMin <= b.startMin + b.durationMin);
+                if (found < 0) found = rel > 0.5 ? hypnogram.length - 1 : 0;
+                setHoverBlockIndex(found);
+              }}
+              onMouseMove={(e) => {
+                if (!hasSlept || hypnogram.length === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const plotLeft = rect.left + (52 / 340) * rect.width;
+                const plotW = (280 / 340) * rect.width;
+                const rel = Math.max(0, Math.min(1, (e.clientX - plotLeft) / Math.max(1, plotW)));
+                const targetMin = rel * Math.max(1, totalMin);
+                let found = hypnogram.findIndex((b) => targetMin >= b.startMin && targetMin <= b.startMin + b.durationMin);
+                if (found < 0) found = rel > 0.5 ? hypnogram.length - 1 : 0;
+                setHoverBlockIndex(found);
+              }}
+              onMouseLeave={() => setHoverBlockIndex(null)}
+            >
               <defs>
                 <linearGradient id="wash-deep" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#6366F1" stopOpacity="0.26" />
@@ -785,6 +825,20 @@ export const SleepScreen: React.FC = () => {
                           transition: 'opacity 150ms ease',
                         }}
                       />
+
+                      {/* Active vertical cursor line when scrubbing */}
+                      {isHovered && (
+                        <line
+                          x1={xStart + blockWidth / 2}
+                          y1={6}
+                          x2={xStart + blockWidth / 2}
+                          y2={114}
+                          stroke={meta.color}
+                          strokeWidth="1.2"
+                          strokeDasharray="2 2"
+                          opacity="0.85"
+                        />
+                      )}
                     </g>
                   );
                 });
