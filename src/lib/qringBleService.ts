@@ -1915,7 +1915,7 @@ class QRingBleService {
     const currentMin = now.getMinutes();
     const nextSlotMin = Math.floor(currentMin / stepMin) * stepMin + stepMin;
     const target = new Date(now.getTime());
-    target.setMinutes(nextSlotMin, 2, 0);
+    target.setMinutes(nextSlotMin, -5, 0);
     const delayMs = Math.max(2000, target.getTime() - now.getTime());
 
     this.boundaryAlignTimer = setTimeout(() => {
