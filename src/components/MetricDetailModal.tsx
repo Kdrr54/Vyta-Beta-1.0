@@ -924,19 +924,24 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return slots;
     }
 
-    // VRC / HRV : relevés réels (0x39), sans interpolation artificielle sur :30
-    if (metricId === 'hrv' && Array.isArray(dayData?.hrvLog) && dayData!.hrvLog!.length === 48) {
-      dayData!.hrvLog!.forEach((v, i) => {
-        const allowSlot = !isHourlyMode || i % 2 === 0;
-        if (allowSlot && i <= currentSlotToday && v >= 5 && v < 250) {
-          slots[i].value = v;
-          slots[i].isMeasured = true;
-        } else {
-          slots[i].value = 0;
-          slots[i].isMeasured = false;
-        }
-      });
-      return slots;
+    // VRC / HRV : gradué strictement par heure (24 créneaux 00:00..23:00), en conservant :00 ou :30 réel de chaque heure
+    if (metricId === 'hrv') {
+      const hourlySlots: MetricDataPoint[] = [];
+      const currentHourToday = modalDay === TODAY_INDEX ? new Date().getHours() : 23;
+      const log = Array.isArray(dayData?.hrvLog) && dayData!.hrvLog!.length === 48 ? dayData!.hrvLog! : null;
+      for (let h = 0; h < 24; h++) {
+        const hStr = h.toString().padStart(2, '0');
+        const raw0 = log ? log[h * 2] : 0;
+        const raw30 = log ? log[h * 2 + 1] : 0;
+        const v = raw0 >= 5 && raw0 < 250 ? raw0 : (raw30 >= 5 && raw30 < 250 ? raw30 : 0);
+        const isMeasured = h <= currentHourToday && v >= 5 && v < 250;
+        hourlySlots.push({
+          label: `${hStr}:00`,
+          value: isMeasured ? v : 0,
+          isMeasured,
+        });
+      }
+      return hourlySlots;
     }
 
     // SpO2 : relevés réels de la bague (0xBC 0x2A et 0x5F), sans interpolation sur :30
@@ -1101,7 +1106,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
   // le graphique ne doit tracer AUCUN trait (interruption nette / vide complet) au lieu de relier artificiellement les points.
   // - BPM : mesure toutes les 30 min -> maxGapSlots = 1 (coupure dès > 1 créneau / 30 min sans relevé)
   // - VRC / SpO2 / Stress / Temp : cadence 1h (2 créneaux de 30 min) -> maxGapSlots = 2 (coupure dès > 2 créneaux sans relevé)
-  const maxGapSlots = isHourlyMode || metricId !== 'bpm' ? 2 : 1;
+  const maxGapSlots = metricId === 'hrv' ? 1 : (isHourlyMode || metricId !== 'bpm' ? 2 : 1);
 
   const segments: Array<Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }>> = [];
   let currentSegment: Array<{ x: number; y: number; pt: MetricDataPoint; slotIndex: number }> = [];
@@ -1160,15 +1165,22 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       dataset.length - 1,
       Math.max(0, Math.round(relX * (dataset.length - 1)))
     );
-    if (isHourlyMode && (!isSleepPage || curveMode === '24h')) {
+    if (isHourlyMode && metricId !== 'hrv' && (!isSleepPage || curveMode === '24h')) {
       idx = Math.min(dataset.length - 2, Math.round(idx / 2) * 2);
     }
     if ((!isSleepPage || curveMode === '24h') && modalDay === TODAY_INDEX) {
       const now = new Date();
-      const rawCurrentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
-      const currentSlot = isHourlyMode ? Math.floor(rawCurrentSlot / 2) * 2 : rawCurrentSlot;
-      if (idx > currentSlot) {
-        idx = currentSlot;
+      if (metricId === 'hrv') {
+        const currentHour = Math.min(23, Math.max(0, now.getHours()));
+        if (idx > currentHour) {
+          idx = currentHour;
+        }
+      } else {
+        const rawCurrentSlot = Math.min(47, Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30)));
+        const currentSlot = isHourlyMode ? Math.floor(rawCurrentSlot / 2) * 2 : rawCurrentSlot;
+        if (idx > currentSlot) {
+          idx = currentSlot;
+        }
       }
     }
     setHoverIndex(idx);
@@ -1901,7 +1913,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
             >
               <strong style={{ color: theme.primary }}>
                 {validPoints.length > 0
-                  ? `${validPoints.length} ${isEn ? 'pts' : 'mes.'} · ${isHourlyMode ? '1h' : '30m'}`
+                  ? `${validPoints.length} ${isEn ? 'pts' : 'mes.'} · ${isHourlyMode || metricId === 'hrv' ? '1h' : '30m'}`
                   : '--'}
               </strong>
             </div>
