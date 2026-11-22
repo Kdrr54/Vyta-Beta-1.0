@@ -52,8 +52,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     finish,
     language,
     setLanguage,
-    cardThemeMode,
-    setCardThemeMode,
     t,
     openModal,
     sensorIntervals,
@@ -1979,65 +1977,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   gap: '14px',
                 }}
               >
-                {/* Glow Theme Mode */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.6)' }}>
-                    {isEn ? 'Biometric Cards Visual Style' : 'Style Visuel des Constantes'}
-                  </span>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '8px',
-                      padding: '4px',
-                      borderRadius: '13px',
-                      background: 'rgba(0, 0, 0, 0.4)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic();
-                        setCardThemeMode('colored');
-                      }}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '10px',
-                        background: cardThemeMode === 'colored' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                        border: cardThemeMode === 'colored' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-                        color: cardThemeMode === 'colored' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
-                        fontSize: '11.5px',
-                        fontWeight: cardThemeMode === 'colored' ? 700 : 500,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {isEn ? 'Colored Glow ✨' : 'Coloré ✨'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic();
-                        setCardThemeMode('monochrome');
-                      }}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '10px',
-                        background: cardThemeMode === 'monochrome' ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
-                        border: cardThemeMode === 'monochrome' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
-                        color: cardThemeMode === 'monochrome' ? '#FAF7F2' : 'rgba(250, 247, 242, 0.5)',
-                        fontSize: '11.5px',
-                        fontWeight: cardThemeMode === 'monochrome' ? 700 : 500,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {isEn ? 'Monochrome' : 'Noir & Blanc'}
-                    </button>
-                  </div>
-                </div>
-
                 {/* App Language */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'rgba(250, 247, 242, 0.6)' }}>

@@ -300,7 +300,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 7 &&
+            parsed?.cfgVer === 8 &&
             typeof parsed?.minutes === 'number' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
@@ -715,25 +715,6 @@ class QRingBleService {
           await this.requestStepsData(0);
           await new Promise((r) => setTimeout(r, 150));
           await this.sendBatteryRequest();
-
-          // Si la bague a sauté la VRC à :00/:30, lancer le complément optique PPG (0x69 0x01) juste à :01–:03 / :31–:33
-          const nowDate = new Date();
-          const currentSlot = Math.min(47, Math.max(0, Math.floor((nowDate.getHours() * 60 + nowDate.getMinutes()) / 30)));
-          const minuteInSlot = nowDate.getMinutes() % 30;
-          if (
-            this.configuredIntervalMinutes > 0 &&
-            this.configuredIntervalMinutes <= 30 &&
-            minuteInSlot >= 1 &&
-            minuteInSlot <= 4 &&
-            this.lastAutoMeasureSlot !== currentSlot &&
-            this.hrvLogSlots[currentSlot] === 0 &&
-            !this.isAutoSpotMeasuring &&
-            !this.isRealTimeHrActive &&
-            this.activeLiveDataType === null
-          ) {
-            this.lastAutoMeasureSlot = currentSlot;
-            this.triggerProactiveBiometricSpotCheck();
-          }
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
@@ -1836,30 +1817,30 @@ class QRingBleService {
       this.boundaryAlignTimer = null;
     }
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    const secondaryMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00;
-    const tempMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00;
+    const fastSensorMinsByte = mins > 0 ? (Math.min(30, mins) & 0xFF) : 0x00; // Stress & Temp every 30m
+    const hourlySensorMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // SpO2 & VRC every 1h (like QRing)
     console.log(
-      `[QRing BLE] Programming ring intervals: HR=${mins}m (${enabledByte === 1 ? 'ON' : 'OFF'}), SpO2/VRC/Stress/Temp=${mins > 0 ? `${secondaryMinsByte}m ON` : 'OFF'}`
+      `[QRing BLE] Programming QRing cadence: HR=${mins}m, Stress/Temp=${mins > 0 ? `${fastSensorMinsByte}m` : 'OFF'}, SpO2/VRC=${mins > 0 ? `${hourlySensorMinsByte}m` : 'OFF'}`
     );
 
-    // 1. Heart rate (0x16) — primary scheduled green LED timer
+    // 1. Heart rate (0x16) — primary scheduled green LED timer (30m / 15m)
     const ok16 = await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 160));
 
-    // 2. SpO2 (0x2C) — RED LED (30m cadence)
-    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, secondaryMinsByte]));
+    // 2. SpO2 (0x2C) — RED LED (1h cadence like QRing)
+    await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, hourlySensorMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
-    // 3. HRV (0x38) — 30m cadence
-    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, secondaryMinsByte]));
+    // 3. HRV (0x38) — 1h cadence like QRing
+    await this.writeBytes(this.makePacket(0x38, [0x02, enabledByte, hourlySensorMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
     // 4. Stress (0x36) — 30m cadence
-    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, secondaryMinsByte]));
+    await this.writeBytes(this.makePacket(0x36, [0x02, enabledByte, fastSensorMinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
     // 5. Temperature (0x3A) — NTC thermistor (0 LEDs, 30m cadence)
-    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, tempMinsByte]));
+    await this.writeBytes(this.makePacket(0x3A, [0x02, enabledByte, fastSensorMinsByte]));
     await new Promise((r) => setTimeout(r, 140));
 
     if (ok16) {
@@ -1869,7 +1850,7 @@ class QRingBleService {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 7,
+              cfgVer: 8,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
               needsAlign: this.needsBoundaryAlign,
@@ -3555,30 +3536,10 @@ class QRingBleService {
    * to guarantee fresh 30-min data even if the ring's offline EEPROM has a 1h fallback.
    */
   /**
-   * Complément VRC optique direct (16s via 0x69 [0x01]) juste à :01-:03 / :31-:33
-   * uniquement lorsque le créneau :00/:30 de la bague est resté vide (0) en flash.
+   * Désactivé : cadence native QRing (BPM/Stress/Temp = 30m, SpO2/VRC = 1h) sans relance BLE en arrière-plan.
    */
   public async triggerProactiveBiometricSpotCheck() {
-    if (this.isAutoSpotMeasuring || !this.isConnected() || this.isRealTimeHrActive || this.activeLiveDataType !== null) {
-      return;
-    }
-    this.isAutoSpotMeasuring = true;
-    console.log('[QRing BLE] Running 16s optical PPG RMSSD VRC completion (:01/:31)...');
-    try {
-      this.hrvLiveFallbackActive = true;
-      this.hrvRrSamples = [];
-      this.hrvLastSampleAt = 0;
-      const started = await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
-      if (started) {
-        await new Promise((r) => setTimeout(r, 20000));
-        await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])]);
-      }
-    } catch (err) {
-      console.warn('[QRing BLE] VRC optical completion notice:', err);
-    } finally {
-      this.hrvLiveFallbackActive = false;
-      this.isAutoSpotMeasuring = false;
-    }
+    return;
   }
 
   /**
