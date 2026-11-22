@@ -45,7 +45,6 @@ import {
   ThumbsUp,
   ThumbsDown,
   AlertTriangle,
-  Search,
   Type,
   Send,
 } from 'lucide-react';
@@ -88,8 +87,12 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
   const [activeDateKey, setActiveDateKey] = useState<string>(() => selectedDateKey || todayKey);
   const [activeTab, setActiveTab] = useState<'scan' | 'journal'>('scan');
   const [scanMode, setScanMode] = useState<'plate' | 'yuka' | 'text'>('plate');
-  const [yukaQuery, setYukaQuery] = useState<string>('');
   const [mealTextInput, setMealTextInput] = useState<string>('');
+  const [yukaCameraReady, setYukaCameraReady] = useState<boolean>(false);
+  const [yukaCameraError, setYukaCameraError] = useState<boolean>(false);
+  const yukaVideoRef = useRef<HTMLVideoElement | null>(null);
+  const yukaStreamRef = useRef<MediaStream | null>(null);
+  const yukaScanTimerRef = useRef<any>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanStep, setScanStep] = useState<string>('');
   const [currentResult, setCurrentResult] = useState<CalAiAnalysisResult | null>(null);
@@ -179,29 +182,128 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
     }
   };
 
-  const handleYukaSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const q = yukaQuery.trim();
-    if (!q || isScanning) return;
-    setIsScanning(true);
-    setErrorMessage(null);
-    setCurrentResult(null);
-    setSaveSuccess(false);
-    setCurrentImagePreview(null);
-    setScanStep(isEn ? 'Searching OpenFoodFacts & Yuka score...' : 'Recherche OpenFoodFacts & calcul Yuka...');
-    try {
-      const result = await analyzeProductYuka({
-        barcodeOrQuery: q,
-        language: isEn ? 'en' : 'fr',
-        mealType: selectedMealType,
-        dateKey: activeDateKey,
-      });
-      setCurrentResult(result);
-    } catch (err: any) {
-      setErrorMessage(err?.message || (isEn ? 'Product not found.' : 'Produit introuvable.'));
-    } finally {
-      setIsScanning(false);
+  const stopYukaCamera = () => {
+    if (yukaScanTimerRef.current) {
+      clearInterval(yukaScanTimerRef.current);
+      yukaScanTimerRef.current = null;
     }
+    if (yukaStreamRef.current) {
+      yukaStreamRef.current.getTracks().forEach((tr) => tr.stop());
+      yukaStreamRef.current = null;
+    }
+    if (yukaVideoRef.current) {
+      yukaVideoRef.current.srcObject = null;
+    }
+    setYukaCameraReady(false);
+  };
+
+  useEffect(() => {
+    const shouldRun = activeTab === 'scan' && scanMode === 'yuka' && !isScanning && !currentResult && !currentImagePreview;
+    if (!shouldRun) {
+      stopYukaCamera();
+      return;
+    }
+
+    let cancelled = false;
+    setYukaCameraError(false);
+
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setYukaCameraError(true);
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        yukaStreamRef.current = stream;
+        if (yukaVideoRef.current) {
+          yukaVideoRef.current.srcObject = stream;
+          await yukaVideoRef.current.play().catch(() => {});
+        }
+        setYukaCameraReady(true);
+
+        if ('BarcodeDetector' in window) {
+          try {
+            const detector = new (window as any).BarcodeDetector({
+              formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
+            });
+            yukaScanTimerRef.current = setInterval(async () => {
+              const vid = yukaVideoRef.current;
+              if (!vid || vid.readyState < 2 || cancelled) return;
+              try {
+                const codes = await detector.detect(vid);
+                const rawCode = codes?.[0]?.rawValue?.trim();
+                if (rawCode && /^\d{8,14}$/.test(rawCode)) {
+                  try { navigator.vibrate?.(25); } catch (_) {}
+                  stopYukaCamera();
+                  setIsScanning(true);
+                  setErrorMessage(null);
+                  setCurrentResult(null);
+                  setSaveSuccess(false);
+                  setScanStep(isEn ? `Barcode ${rawCode} detected...` : `Code-barres ${rawCode} détecté…`);
+                  try {
+                    const res = await analyzeProductYuka({
+                      barcodeOrQuery: rawCode,
+                      language: isEn ? 'en' : 'fr',
+                      mealType: selectedMealType,
+                      dateKey: activeDateKey,
+                    });
+                    setCurrentResult(res);
+                  } catch (err: any) {
+                    setErrorMessage(err?.message || (isEn ? 'Product not found.' : 'Produit introuvable.'));
+                  } finally {
+                    setIsScanning(false);
+                  }
+                }
+              } catch (_) {}
+            }, 380);
+          } catch (_) {}
+        }
+      } catch {
+        if (!cancelled) setYukaCameraError(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopYukaCamera();
+    };
+  }, [activeTab, scanMode, isScanning, currentResult, currentImagePreview]);
+
+  const captureYukaFrame = async () => {
+    const vid = yukaVideoRef.current;
+    if (!vid || vid.readyState < 2) {
+      cameraInputRef.current?.click();
+      return;
+    }
+    const maxDim = 1024;
+    let w = vid.videoWidth || 720;
+    let h = vid.videoHeight || 720;
+    if (w > maxDim || h > maxDim) {
+      if (w > h) {
+        h = Math.round((h * maxDim) / w);
+        w = maxDim;
+      } else {
+        w = Math.round((w * maxDim) / h);
+        h = maxDim;
+      }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(vid, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const base64 = dataUrl.split(',')[1];
+    stopYukaCamera();
+    await processImage({ base64, mimeType: 'image/jpeg', dataUrl });
   };
 
   const handleTextMealAnalyze = async (e?: React.FormEvent) => {
@@ -771,47 +873,6 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                 })}
               </div>
 
-              {scanMode === 'yuka' && (
-                <form onSubmit={handleYukaSearch} style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    value={yukaQuery}
-                    onChange={(e) => setYukaQuery(e.target.value)}
-                    placeholder={isEn ? 'Barcode (e.g. 3017620422003) or product name...' : 'Code-barres ou nom du produit (ex: Skyr Danone)...'}
-                    style={{
-                      flex: 1,
-                      padding: '11px 13px',
-                      borderRadius: '14px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.14)',
-                      color: '#FAF7F2',
-                      fontSize: '12.5px',
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isScanning || !yukaQuery.trim()}
-                    style={{
-                      padding: '0 14px',
-                      borderRadius: '14px',
-                      background: accentSoft,
-                      border: `1px solid ${accentBorder}`,
-                      color: accentLight,
-                      fontWeight: 700,
-                      fontSize: '12.5px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Search size={15} />
-                    <span>{isEn ? 'Check' : 'Noter'}</span>
-                  </button>
-                </form>
-              )}
-
               {scanMode === 'text' ? (
                 <form
                   onSubmit={handleTextMealAnalyze}
@@ -874,7 +935,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                 style={{
                   position: 'relative',
                   width: '100%',
-                  aspectRatio: currentImagePreview ? '4/3' : '16/9',
+                  aspectRatio: currentImagePreview || (scanMode === 'yuka' && !yukaCameraError) ? '4/3' : '16/9',
                   borderRadius: '24px',
                   overflow: 'hidden',
                   background: '#0A0A0C',
@@ -928,6 +989,55 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                       </div>
                     )}
                   </>
+                ) : scanMode === 'yuka' && !yukaCameraError ? (
+                  <>
+                    <video
+                      ref={yukaVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    {/* Viseur Yuka avec coins + ligne laser */}
+                    <div style={{ position: 'absolute', inset: '18% 12%', pointerEvents: 'none' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '20px', height: '20px', borderTop: '3px solid #22C55E', borderLeft: '3px solid #22C55E', borderRadius: '6px 0 0 0' }} />
+                      <div style={{ position: 'absolute', top: 0, right: 0, width: '20px', height: '20px', borderTop: '3px solid #22C55E', borderRight: '3px solid #22C55E', borderRadius: '0 6px 0 0' }} />
+                      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '20px', height: '20px', borderBottom: '3px solid #22C55E', borderLeft: '3px solid #22C55E', borderRadius: '0 0 0 6px' }} />
+                      <div style={{ position: 'absolute', bottom: 0, right: 0, width: '20px', height: '20px', borderBottom: '3px solid #22C55E', borderRight: '3px solid #22C55E', borderRadius: '0 0 6px 0' }} />
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: '6%',
+                          right: '6%',
+                          top: '50%',
+                          height: '2px',
+                          background: 'linear-gradient(90deg, transparent, #22C55E, transparent)',
+                          boxShadow: '0 0 12px #22C55E',
+                          animation: 'pulse 1.5s ease-in-out infinite',
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        padding: '4px 12px',
+                        borderRadius: '999px',
+                        background: 'rgba(10, 10, 12, 0.78)',
+                        border: '1px solid rgba(255, 255, 255, 0.16)',
+                        color: '#FAF7F2',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {yukaCameraReady
+                        ? (isEn ? 'Point at barcode or nutrition label' : 'Visez le code-barres ou l’étiquette')
+                        : (isEn ? 'Starting camera...' : 'Activation caméra…')}
+                    </div>
+                  </>
                 ) : (
                   <div
                     style={{
@@ -976,7 +1086,17 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                 <button
                   type="button"
                   disabled={isScanning}
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => {
+                    if (scanMode === 'yuka' && yukaCameraReady && !currentImagePreview && !currentResult) {
+                      captureYukaFrame();
+                    } else {
+                      setCurrentImagePreview(null);
+                      setCurrentResult(null);
+                      if (scanMode !== 'yuka' || yukaCameraError) {
+                        cameraInputRef.current?.click();
+                      }
+                    }
+                  }}
                   style={{
                     flex: 1.2,
                     padding: '13px',
@@ -1000,7 +1120,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                   }}
                 >
                   <Camera size={17} strokeWidth={2} color={accentLight} />
-                  {isEn ? 'Take Photo' : 'Prendre une photo'}
+                  {scanMode === 'yuka' && yukaCameraReady && !currentResult
+                    ? (isEn ? 'Scan Product' : 'Scanner le produit')
+                    : (isEn ? 'Take Photo' : 'Prendre une photo')}
                 </button>
 
                 <button
