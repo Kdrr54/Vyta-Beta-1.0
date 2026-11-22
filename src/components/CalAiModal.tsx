@@ -5,16 +5,23 @@ import {
   compressImageToDataUrl,
   compressThumbnailDataUrl,
   analyzeMealWithCalAi,
+  analyzeProductYuka,
+  analyzeTextMealWithAurelius,
+  fixMealWithAurelius,
+  getYukaMeta,
   getLoggedMeals,
   saveLoggedMeal,
   deleteLoggedMeal,
   getDailyNutritionSummary,
   getDailyTargets,
+  saveDailyTargets,
+  getDailyHydrationMl,
+  saveDailyHydrationMl,
   getLocalDateKey,
   shiftDateKey,
   getAllLoggedMealDates,
 } from '../lib/calAiService';
-import { CalAiAnalysisResult } from '../types/calai';
+import { CalAiAnalysisResult, CalAiDailyTarget } from '../types/calai';
 import { AureliusOrb } from './ui/ai-thiking-orb-and-input';
 import {
   X,
@@ -25,11 +32,22 @@ import {
   Trash2,
   Sparkles,
   Plus,
+  Minus,
   Utensils,
   ChevronLeft,
   ChevronRight,
   Calendar,
   Compass,
+  ScanBarcode,
+  Droplets,
+  Wand2,
+  Pencil,
+  ThumbsUp,
+  ThumbsDown,
+  AlertTriangle,
+  Search,
+  Type,
+  Send,
 } from 'lucide-react';
 
 interface CalAiModalProps {
@@ -69,6 +87,9 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
 
   const [activeDateKey, setActiveDateKey] = useState<string>(() => selectedDateKey || todayKey);
   const [activeTab, setActiveTab] = useState<'scan' | 'journal'>('scan');
+  const [scanMode, setScanMode] = useState<'plate' | 'yuka' | 'text'>('plate');
+  const [yukaQuery, setYukaQuery] = useState<string>('');
+  const [mealTextInput, setMealTextInput] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanStep, setScanStep] = useState<string>('');
   const [currentResult, setCurrentResult] = useState<CalAiAnalysisResult | null>(null);
@@ -81,7 +102,15 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
   const [loggedMeals, setLoggedMeals] = useState<CalAiAnalysisResult[]>(() => getLoggedMeals(selectedDateKey || todayKey));
   const [dailySummary, setDailySummary] = useState(() => getDailyNutritionSummary(selectedDateKey || todayKey));
   const [loggedDates, setLoggedDates] = useState<{ dateKey: string; mealCount: number; calories: number }[]>(() => getAllLoggedMealDates());
-  const dailyTargets = getDailyTargets();
+  const [dailyTargets, setDailyTargets] = useState<CalAiDailyTarget>(() => getDailyTargets());
+  const [isEditingTargets, setIsEditingTargets] = useState<boolean>(false);
+  const [targetDraft, setTargetDraft] = useState<CalAiDailyTarget>(() => getDailyTargets());
+  const [hydrationMl, setHydrationMl] = useState<number>(() => getDailyHydrationMl(selectedDateKey || todayKey));
+
+  const [fixTargetId, setFixTargetId] = useState<string | null>(null);
+  const [fixText, setFixText] = useState<string>('');
+  const [isFixing, setIsFixing] = useState<boolean>(false);
+  const [expandedJournalId, setExpandedJournalId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,6 +120,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
     setLoggedMeals(meals);
     setDailySummary(getDailyNutritionSummary(targetKey));
     setLoggedDates(getAllLoggedMealDates());
+    setHydrationMl(getDailyHydrationMl(targetKey));
   };
 
   useEffect(() => {
@@ -125,11 +155,19 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
     setScanStep(isEn ? 'Aurelius synthesis & calorie calculation...' : 'Calcul des calories & synthèse Aurelius...');
 
     try {
-      const result = await analyzeMealWithCalAi(imgData, {
-        language: isEn ? 'en' : 'fr',
-        mealType: selectedMealType,
-        dateKey: activeDateKey,
-      });
+      const result =
+        scanMode === 'yuka'
+          ? await analyzeProductYuka({
+              imagePayload: imgData,
+              language: isEn ? 'en' : 'fr',
+              mealType: selectedMealType,
+              dateKey: activeDateKey,
+            })
+          : await analyzeMealWithCalAi(imgData, {
+              language: isEn ? 'en' : 'fr',
+              mealType: selectedMealType,
+              dateKey: activeDateKey,
+            });
       setCurrentResult(result);
     } catch (err: any) {
       console.error('[Aurelius Nutrition] Erreur analyse:', err);
@@ -139,6 +177,94 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleYukaSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const q = yukaQuery.trim();
+    if (!q || isScanning) return;
+    setIsScanning(true);
+    setErrorMessage(null);
+    setCurrentResult(null);
+    setSaveSuccess(false);
+    setCurrentImagePreview(null);
+    setScanStep(isEn ? 'Searching OpenFoodFacts & Yuka score...' : 'Recherche OpenFoodFacts & calcul Yuka...');
+    try {
+      const result = await analyzeProductYuka({
+        barcodeOrQuery: q,
+        language: isEn ? 'en' : 'fr',
+        mealType: selectedMealType,
+        dateKey: activeDateKey,
+      });
+      setCurrentResult(result);
+    } catch (err: any) {
+      setErrorMessage(err?.message || (isEn ? 'Product not found.' : 'Produit introuvable.'));
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleTextMealAnalyze = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const txt = mealTextInput.trim();
+    if (!txt || isScanning) return;
+    setIsScanning(true);
+    setErrorMessage(null);
+    setCurrentResult(null);
+    setSaveSuccess(false);
+    setCurrentImagePreview(null);
+    setScanStep(isEn ? 'Aurelius calculating macros & Yuka score...' : 'Calcul des macros & score Yuka...');
+    try {
+      const result = await analyzeTextMealWithAurelius(txt, {
+        language: isEn ? 'en' : 'fr',
+        mealType: selectedMealType,
+        dateKey: activeDateKey,
+      });
+      setCurrentResult(result);
+    } catch (err: any) {
+      setErrorMessage(err?.message || (isEn ? 'Analysis failed.' : 'Échec de l’analyse.'));
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleFixMeal = async (meal: CalAiAnalysisResult, isSavedInJournal: boolean, overrideText?: string) => {
+    const correction = (overrideText ?? fixText).trim();
+    if (!correction || isFixing) return;
+    setIsFixing(true);
+    setErrorMessage(null);
+    try {
+      const fixed = await fixMealWithAurelius(meal, correction, isEn ? 'en' : 'fr');
+      if (isSavedInJournal) {
+        saveLoggedMeal(fixed);
+        refreshJournal(activeDateKey);
+      } else {
+        setCurrentResult(fixed);
+      }
+      setFixTargetId(null);
+      setFixText('');
+    } catch (err: any) {
+      setErrorMessage(err?.message || (isEn ? 'Could not apply fix.' : 'Impossible d’appliquer la correction.'));
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  const handleHydrationDelta = (deltaMl: number) => {
+    const next = saveDailyHydrationMl(hydrationMl + deltaMl, activeDateKey);
+    setHydrationMl(next);
+  };
+
+  const handleSaveTargets = () => {
+    const clean: CalAiDailyTarget = {
+      calories: Math.max(800, Math.min(6000, Math.round(targetDraft.calories) || 2200)),
+      protein: Math.max(20, Math.min(400, Math.round(targetDraft.protein) || 140)),
+      carbs: Math.max(20, Math.min(800, Math.round(targetDraft.carbs) || 240)),
+      fat: Math.max(10, Math.min(300, Math.round(targetDraft.fat) || 65)),
+    };
+    saveDailyTargets(clean);
+    setDailyTargets(clean);
+    setIsEditingTargets(false);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,7 +454,7 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
               : '0 10px 26px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(192, 132, 252, 0.1)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
               <span style={{ fontSize: '24px', fontWeight: 300, color: '#FAF7F2', letterSpacing: '-0.5px' }}>
                 {dailySummary.calories.toLocaleString()}
@@ -337,10 +463,108 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                 / {dailyTargets.calories.toLocaleString()} kcal
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: accentLight, fontWeight: 600 }}>
-              {Math.max(0, dailyTargets.calories - dailySummary.calories)} kcal {isEn ? 'remaining' : 'restantes'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {dailySummary.avgYukaScore !== null && (() => {
+                const yMeta = getYukaMeta(dailySummary.avgYukaScore, isEn);
+                return (
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      color: yMeta.color,
+                      background: yMeta.bg,
+                      border: `1px solid ${yMeta.border}`,
+                    }}
+                  >
+                    Yuka {dailySummary.avgYukaScore}/100
+                  </span>
+                );
+              })()}
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetDraft(dailyTargets);
+                  setIsEditingTargets((v) => !v);
+                }}
+                aria-label={isEn ? 'Edit targets' : 'Modifier les objectifs'}
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: 'rgba(250, 247, 242, 0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Pencil size={12} />
+              </button>
             </div>
           </div>
+
+          {isEditingTargets && (
+            <div
+              style={{
+                padding: '10px',
+                borderRadius: '14px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                marginBottom: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                {([
+                  { key: 'calories', label: 'Kcal' },
+                  { key: 'protein', label: 'Prot (g)' },
+                  { key: 'carbs', label: 'Gluc (g)' },
+                  { key: 'fat', label: 'Lip (g)' },
+                ] as const).map((fld) => (
+                  <label key={fld.key} style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '10px', color: 'rgba(250, 247, 242, 0.6)' }}>
+                    {fld.label}
+                    <input
+                      type="number"
+                      value={targetDraft[fld.key]}
+                      onChange={(e) => setTargetDraft((prev) => ({ ...prev, [fld.key]: Number(e.target.value) }))}
+                      style={{
+                        width: '100%',
+                        padding: '5px 6px',
+                        borderRadius: '8px',
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        color: '#FAF7F2',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveTargets}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '10px',
+                  background: accentSoft,
+                  border: `1px solid ${accentBorder}`,
+                  color: accentLight,
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {isEn ? 'Save Daily Targets' : 'Enregistrer les objectifs'}
+              </button>
+            </div>
+          )}
 
           {/* Jauge Principale d'Énergie */}
           <div
@@ -400,6 +624,74 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
               </div>
             </div>
           </div>
+
+          {/* Écosystème : Bilan Bague + Hydratation */}
+          <div
+            style={{
+              marginTop: '11px',
+              paddingTop: '10px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'rgba(250, 247, 242, 0.7)' }}>
+              <Flame size={13} color="#FB923C" />
+              <span>
+                {isEn ? 'Ring burned:' : 'Brûlés bague :'} <strong style={{ color: '#FAF7F2' }}>{activeKcalBurned} kcal</strong>
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Droplets size={13} color="#38BDF8" />
+              <span style={{ fontSize: '11px', color: '#FAF7F2', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                {(hydrationMl / 1000).toFixed(2).replace(/\.00$/, '')}L / 2L
+              </span>
+              <button
+                type="button"
+                onClick={() => handleHydrationDelta(-250)}
+                aria-label="Retirer 250ml"
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '7px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: 'rgba(250, 247, 242, 0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Minus size={11} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleHydrationDelta(250)}
+                aria-label="Ajouter 250ml"
+                style={{
+                  padding: '2px 7px',
+                  height: '22px',
+                  borderRadius: '7px',
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  color: '#38BDF8',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '2px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={10} /> 250ml
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Inputs cachés pour Photo ou Galerie */}
@@ -431,6 +723,152 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
         >
           {activeTab === 'scan' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Sélecteur 3 Modes : Plat (Photo) | Produit Yuka (Code-barres) | Décrire */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '6px',
+                  padding: '4px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 255, 255, 0.035)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                }}
+              >
+                {([
+                  { id: 'plate', label: isEn ? 'Plate' : 'Plat', icon: <Camera size={13} /> },
+                  { id: 'yuka', label: isEn ? 'Yuka Scan' : 'Produit Yuka', icon: <ScanBarcode size={13} /> },
+                  { id: 'text', label: isEn ? 'Describe' : 'Décrire', icon: <Type size={13} /> },
+                ] as const).map((m) => {
+                  const active = scanMode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setScanMode(m.id);
+                        setErrorMessage(null);
+                      }}
+                      style={{
+                        padding: '8px 6px',
+                        borderRadius: '10px',
+                        background: active ? accentSoft : 'transparent',
+                        border: active ? `1px solid ${accentBorder}` : '1px solid transparent',
+                        color: active ? '#FAF7F2' : 'rgba(250, 247, 242, 0.55)',
+                        fontSize: '11.5px',
+                        fontWeight: active ? 700 : 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '5px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {m.icon}
+                      <span>{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {scanMode === 'yuka' && (
+                <form onSubmit={handleYukaSearch} style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={yukaQuery}
+                    onChange={(e) => setYukaQuery(e.target.value)}
+                    placeholder={isEn ? 'Barcode (e.g. 3017620422003) or product name...' : 'Code-barres ou nom du produit (ex: Skyr Danone)...'}
+                    style={{
+                      flex: 1,
+                      padding: '11px 13px',
+                      borderRadius: '14px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.14)',
+                      color: '#FAF7F2',
+                      fontSize: '12.5px',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isScanning || !yukaQuery.trim()}
+                    style={{
+                      padding: '0 14px',
+                      borderRadius: '14px',
+                      background: accentSoft,
+                      border: `1px solid ${accentBorder}`,
+                      color: accentLight,
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Search size={15} />
+                    <span>{isEn ? 'Check' : 'Noter'}</span>
+                  </button>
+                </form>
+              )}
+
+              {scanMode === 'text' ? (
+                <form
+                  onSubmit={handleTextMealAnalyze}
+                  style={{
+                    padding: '14px',
+                    borderRadius: '20px',
+                    background: 'rgba(255, 255, 255, 0.035)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                  }}
+                >
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
+                    {isEn ? 'Describe what you ate' : 'Décrivez votre repas à Aurelius'}
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={mealTextInput}
+                    onChange={(e) => setMealTextInput(e.target.value)}
+                    placeholder={isEn ? 'e.g. 2 fried eggs, 100g avocado, 2 slices sourdough bread, 1 tbsp olive oil' : 'Ex : 2 œufs au plat, 100g d’avocat, 2 tranches de pain complet, 1 càs d’huile d’olive'}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 0, 0, 0.45)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      color: '#FAF7F2',
+                      fontSize: '12.5px',
+                      resize: 'none',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isScanning || !mealTextInput.trim()}
+                    style={{
+                      padding: '12px',
+                      borderRadius: '14px',
+                      background: accentSoft,
+                      border: `1px solid ${accentBorder}`,
+                      color: '#FAF7F2',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '7px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Sparkles size={15} color={accentLight} />
+                    <span>{isScanning ? scanStep : (isEn ? 'Analyze & Score (Yuka)' : 'Calculer Calories & Note Yuka')}</span>
+                  </button>
+                </form>
+              ) : (
+                <>
               {/* Cadre de Capture Aurel */}
               <div
                 style={{
@@ -519,10 +957,14 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                     </div>
                     <div>
                       <div style={{ fontSize: '16px', fontWeight: 600, color: '#FAF7F2', letterSpacing: '-0.2px' }}>
-                        {isEn ? 'Capture your dish' : 'Capturez votre assiette'}
+                        {scanMode === 'yuka'
+                          ? (isEn ? 'Scan barcode or label' : 'Scannez un produit ou code-barres')
+                          : (isEn ? 'Capture your dish' : 'Capturez votre assiette')}
                       </div>
                       <div style={{ fontSize: '12px', color: 'rgba(250, 247, 242, 0.55)', marginTop: '3px', maxWidth: '280px' }}>
-                        {isEn ? 'Aurelius identifies foods, weights, calories, and macros' : 'Aurelius identifie les aliments, portions, calories et macronutriments'}
+                        {scanMode === 'yuka'
+                          ? (isEn ? 'Yuka score 0–100, additives, Nutri-Score & healthier swaps' : 'Note Yuka 0–100, additifs, Nutri-Score & alternatives plus saines')
+                          : (isEn ? 'Aurelius identifies foods, weights, calories, and macros' : 'Aurelius identifie les aliments, portions, calories et macronutriments')}
                       </div>
                     </div>
                   </div>
@@ -586,6 +1028,8 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                   {isEn ? 'Photo Library' : 'Photothèque'}
                 </button>
               </div>
+                </>
+              )}
 
               {/* Message d'Erreur Élégant */}
               {errorMessage && (
@@ -728,6 +1172,241 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                       ))}
                     </div>
                   )}
+
+                  {/* Note Yuka (0–100) + Additifs + Qualités & Défauts */}
+                  {(() => {
+                    const yScore = currentResult.yuka?.score ?? currentResult.healthScore ?? 80;
+                    const yMeta = getYukaMeta(yScore, isEn);
+                    const yuka = currentResult.yuka;
+                    return (
+                      <div
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '18px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: `1px solid ${yMeta.border}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                background: yMeta.color,
+                                boxShadow: `0 0 10px ${yMeta.color}`,
+                              }}
+                            />
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#FAF7F2' }}>
+                                {isEn ? 'Yuka Quality' : 'Score Yuka'} · {yScore}/100
+                              </div>
+                              <div style={{ fontSize: '10.5px', fontWeight: 700, color: yMeta.color }}>
+                                {yMeta.label}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                            {yuka?.nutriscore && (
+                              <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '7px', background: 'rgba(255,255,255,0.08)', color: '#FAF7F2' }}>
+                                Nutri-Score {yuka.nutriscore}
+                              </span>
+                            )}
+                            {yuka?.novaGroup && (
+                              <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '7px', background: 'rgba(255,255,255,0.08)', color: 'rgba(250,247,242,0.85)' }}>
+                                NOVA {yuka.novaGroup}
+                              </span>
+                            )}
+                            {yuka?.isOrganic && (
+                              <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '7px', background: 'rgba(34,197,94,0.18)', color: '#4ADE80' }}>
+                                BIO
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {yuka && (yuka.positives.length > 0 || yuka.negatives.length > 0) && (
+                          <div style={{ display: 'grid', gridTemplateColumns: yuka.positives.length > 0 && yuka.negatives.length > 0 ? '1fr 1fr' : '1fr', gap: '8px' }}>
+                            {yuka.positives.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, color: '#4ADE80' }}>
+                                  <ThumbsUp size={11} />
+                                  <span>{isEn ? 'Positives' : 'Qualités'}</span>
+                                </div>
+                                {yuka.positives.slice(0, 3).map((p, idx) => (
+                                  <div key={idx} style={{ fontSize: '10.5px', color: 'rgba(250,247,242,0.82)', lineHeight: 1.3 }}>
+                                    • <strong>{p.label}</strong> {p.value ? `(${p.value})` : ''}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {yuka.negatives.length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10.5px', fontWeight: 700, color: '#FB923C' }}>
+                                  <ThumbsDown size={11} />
+                                  <span>{isEn ? 'Negatives' : 'Défauts'}</span>
+                                </div>
+                                {yuka.negatives.slice(0, 3).map((n, idx) => (
+                                  <div key={idx} style={{ fontSize: '10.5px', color: 'rgba(250,247,242,0.82)', lineHeight: 1.3 }}>
+                                    • <strong>{n.label}</strong> {n.value ? `(${n.value})` : ''}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {yuka && yuka.additives.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                            <AlertTriangle size={11} color="#F59E0B" />
+                            <span style={{ fontSize: '10.5px', color: 'rgba(250,247,242,0.7)', fontWeight: 600 }}>
+                              {isEn ? 'Additives:' : 'Additifs :'}
+                            </span>
+                            {yuka.additives.slice(0, 5).map((add, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  fontSize: '9.5px',
+                                  fontWeight: 700,
+                                  padding: '2px 6px',
+                                  borderRadius: '6px',
+                                  background: add.risk === 'high' ? 'rgba(239,68,68,0.18)' : add.risk === 'moderate' ? 'rgba(245,158,11,0.18)' : 'rgba(34,197,94,0.14)',
+                                  color: add.risk === 'high' ? '#FCA5A5' : add.risk === 'moderate' ? '#FCD34D' : '#86EFAC',
+                                }}
+                              >
+                                {add.code}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {yuka?.alternatives && yuka.alternatives.length > 0 && yScore < 75 && (
+                          <div style={{ paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#4ADE80' }}>
+                              {isEn ? 'Healthier swaps:' : 'Alternatives plus saines :'}
+                            </span>
+                            {yuka.alternatives.slice(0, 2).map((alt, idx) => (
+                              <div key={idx} style={{ fontSize: '10.5px', color: 'rgba(250,247,242,0.78)' }}>
+                                → <strong>{alt.name}</strong>{alt.brand ? ` (${alt.brand})` : ''} — {alt.reason}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Bouton & Panneau Fix avec Aurelius */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFixTargetId(fixTargetId === 'current' ? null : 'current');
+                        setFixText('');
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '14px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: `1px solid ${accentBorder}`,
+                        color: accentLight,
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '7px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Wand2 size={14} />
+                      <span>{isEn ? 'Fix with Aurelius (missing item / portion)' : 'Fix avec Aurelius (oubli, portion, sauce…)'}</span>
+                    </button>
+
+                    {fixTargetId === 'current' && (
+                      <div
+                        style={{
+                          padding: '11px',
+                          borderRadius: '16px',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: `1px solid ${accentBorder}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {(isEn
+                            ? ['+ 1 tbsp olive oil', '+ Sauce / dressing', 'Portion x1.5', 'Portion x0.5']
+                            : ['+ Huile d’olive (1 càs)', '+ Sauce / mayo', 'Portion x1.5', 'Portion x0.5']
+                          ).map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              disabled={isFixing}
+                              onClick={() => handleFixMeal(currentResult, false, chip)}
+                              style={{
+                                padding: '4px 9px',
+                                borderRadius: '999px',
+                                background: 'rgba(255, 255, 255, 0.07)',
+                                border: '1px solid rgba(255, 255, 255, 0.14)',
+                                color: '#FAF7F2',
+                                fontSize: '10.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input
+                            type="text"
+                            value={fixText}
+                            onChange={(e) => setFixText(e.target.value)}
+                            placeholder={isEn ? 'e.g. Forgot 2 eggs and 30g cheese…' : 'Ex : Tu as oublié 2 œufs et la sauce…'}
+                            style={{
+                              flex: 1,
+                              padding: '9px 11px',
+                              borderRadius: '11px',
+                              background: 'rgba(0, 0, 0, 0.45)',
+                              border: '1px solid rgba(255, 255, 255, 0.14)',
+                              color: '#FAF7F2',
+                              fontSize: '12px',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={isFixing || !fixText.trim()}
+                            onClick={() => handleFixMeal(currentResult, false)}
+                            style={{
+                              padding: '0 12px',
+                              borderRadius: '11px',
+                              background: accentSoft,
+                              border: `1px solid ${accentBorder}`,
+                              color: '#FAF7F2',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Send size={13} />
+                            <span>{isFixing ? '...' : 'Fix'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Synthèse Aurelius */}
                   {currentResult.advice && (
@@ -914,79 +1593,181 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                     snack: isEn ? 'Snack' : 'Collation',
                   }[m.mealType];
 
+                  const jScore = m.yuka?.score ?? m.healthScore;
+                  const jMeta = jScore ? getYukaMeta(jScore, isEn) : null;
+                  const isExpanded = expandedJournalId === m.id;
+                  const isFixOpen = fixTargetId === m.id;
+
                   return (
                     <div
                       key={m.id}
                       style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
+                        flexDirection: 'column',
+                        gap: '10px',
                         padding: '12px 14px',
                         borderRadius: '18px',
                         background: 'rgba(255, 255, 255, 0.04)',
                         border: '1px solid rgba(255, 255, 255, 0.08)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {m.imageUrl ? (
-                          <img
-                            src={m.imageUrl}
-                            alt={m.mealName}
-                            style={{ width: '46px', height: '46px', borderRadius: '12px', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => setExpandedJournalId(isExpanded ? null : m.id)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                          {m.imageUrl ? (
+                            <img
+                              src={m.imageUrl}
+                              alt={m.mealName}
+                              style={{ width: '46px', height: '46px', borderRadius: '12px', objectFit: 'cover', flexShrink: 0 }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '46px',
+                                height: '46px',
+                                borderRadius: '12px',
+                                background: 'rgba(255, 255, 255, 0.07)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Utensils size={20} color="rgba(250, 247, 242, 0.5)" />
+                            </div>
+                          )}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '14px', fontWeight: 600, color: '#FAF7F2' }}>
+                                {m.mealName}
+                              </span>
+                              {jMeta && jScore && (
+                                <span
+                                  style={{
+                                    fontSize: '9.5px',
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: '999px',
+                                    color: jMeta.color,
+                                    background: jMeta.bg,
+                                    border: `1px solid ${jMeta.border}`,
+                                  }}
+                                >
+                                  Yuka {jScore}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', marginTop: '1px' }}>
+                              {typeLabel} · {m.timestamp}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px' }}>
+                              P: {m.macros?.protein}g · G: {m.macros?.carbs}g · L: {m.macros?.fat}g
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '16px', fontWeight: 300, color: '#FAF7F2' }}>
+                              {m.totalCalories}
+                            </span>
+                            <span style={{ fontSize: '10px', color: accentLight, marginLeft: '3px', fontWeight: 700 }}>
+                              kcal
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFixTargetId(isFixOpen ? null : m.id);
+                              setFixText('');
+                            }}
+                            title={isEn ? 'Fix with Aurelius' : 'Fix avec Aurelius'}
                             style={{
-                              width: '46px',
-                              height: '46px',
-                              borderRadius: '12px',
-                              background: 'rgba(255, 255, 255, 0.07)',
+                              padding: '5px 8px',
+                              borderRadius: '9px',
+                              background: accentSoft,
+                              border: `1px solid ${accentBorder}`,
+                              color: accentLight,
+                              fontSize: '10px',
+                              fontWeight: 700,
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'center',
+                              gap: '3px',
+                              cursor: 'pointer',
                             }}
                           >
-                            <Utensils size={20} color="rgba(250, 247, 242, 0.5)" />
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#FAF7F2' }}>
-                            {m.mealName}
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.45)', marginTop: '1px' }}>
-                            {typeLabel} · {m.timestamp}
-                          </div>
-                          <div style={{ fontSize: '10.5px', color: 'rgba(250, 247, 242, 0.65)', marginTop: '2px' }}>
-                            P: {m.macros?.protein}g · G: {m.macros?.carbs}g · L: {m.macros?.fat}g
-                          </div>
+                            <Wand2 size={11} />
+                            <span>Fix</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMeal(m.id)}
+                            aria-label="Supprimer"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'rgba(255, 90, 82, 0.65)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: '16px', fontWeight: 300, color: '#FAF7F2' }}>
-                            {m.totalCalories}
-                          </span>
-                          <span style={{ fontSize: '10px', color: accentLight, marginLeft: '3px', fontWeight: 700 }}>
-                            kcal
-                          </span>
+                      {isExpanded && m.advice && (
+                        <div style={{ fontSize: '11px', color: 'rgba(250, 247, 242, 0.72)', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          {m.advice}
                         </div>
+                      )}
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMeal(m.id)}
-                          aria-label="Supprimer"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'rgba(255, 90, 82, 0.65)',
-                            cursor: 'pointer',
-                            padding: '4px',
-                          }}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {isFixOpen && (
+                        <div style={{ display: 'flex', gap: '6px', paddingTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          <input
+                            type="text"
+                            value={fixText}
+                            onChange={(e) => setFixText(e.target.value)}
+                            placeholder={isEn ? 'Fix with Aurelius (e.g. +2 eggs, double portion)…' : 'Fix avec Aurelius (ex: oubli 2 œufs, sauce…)…'}
+                            style={{
+                              flex: 1,
+                              padding: '8px 10px',
+                              borderRadius: '10px',
+                              background: 'rgba(0, 0, 0, 0.45)',
+                              border: '1px solid rgba(255, 255, 255, 0.14)',
+                              color: '#FAF7F2',
+                              fontSize: '11.5px',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={isFixing || !fixText.trim()}
+                            onClick={() => handleFixMeal(m, true)}
+                            style={{
+                              padding: '0 11px',
+                              borderRadius: '10px',
+                              background: accentSoft,
+                              border: `1px solid ${accentBorder}`,
+                              color: '#FAF7F2',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {isFixing ? '...' : 'Fix'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })
