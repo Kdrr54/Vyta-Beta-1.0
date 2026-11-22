@@ -1268,16 +1268,22 @@ class QRingBleService {
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
-          // Capture last known location & fire separation alert ONLY if still disconnected after 20s (ignore brief BLE/sleep drops)
+          // Capture last known location & fire separation alert ONLY if still disconnected after 30s and not sleeping
           this.captureCurrentRingLocation('periodic');
           if (!this.userExplicitlyDisconnected) {
             if (typeof window !== 'undefined') {
               try {
                 const sepEnabled = localStorage.getItem('vyta_separation_alert') !== 'false';
                 const now = Date.now();
-                const hour = new Date().getHours();
-                const isNightQuietHours = hour >= 23 || hour < 7;
-                if (sepEnabled && !isNightQuietHours && now - this.lastSeparationAlertAt > 30 * 60 * 1000) {
+                const dNow = new Date();
+                const curQ = Math.min(95, Math.max(0, dNow.getHours() * 4 + Math.floor(dNow.getMinutes() / 15)));
+                const recentSteps =
+                  (this.stepsQuarterSlots[curQ] || 0) +
+                  (curQ > 0 ? this.stepsQuarterSlots[curQ - 1] || 0 : 0) +
+                  (curQ > 1 ? this.stepsQuarterSlots[curQ - 2] || 0 : 0);
+                // If 0 steps in the last ~45 min, user is likely sleeping / stationary — never wake with signal alerts
+                const likelySleeping = recentSteps === 0;
+                if (sepEnabled && !likelySleeping && now - this.lastSeparationAlertAt > 30 * 60 * 1000) {
                   setTimeout(() => {
                     if (!this.isConnected() && !this.userExplicitlyDisconnected && Date.now() - this.lastSeparationAlertAt > 30 * 60 * 1000) {
                       this.lastSeparationAlertAt = Date.now();
@@ -1287,7 +1293,7 @@ class QRingBleService {
                         'battery'
                       );
                     }
-                  }, 20000);
+                  }, 30000);
                 }
               } catch (_) {}
             }
