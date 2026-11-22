@@ -688,7 +688,7 @@ class QRingBleService {
    */
   private startHeartbeat() {
     this.stopHeartbeat();
-    console.log('[QRing BLE] Starting low-power periodic sync check (2m foreground flash check, 10m full sync)...');
+    console.log('[QRing BLE] Starting low-power periodic sync check (15m foreground flash sync)...');
     this.heartbeatInterval = setInterval(async () => {
       if (!this.isConnected()) {
         this.stopHeartbeat();
@@ -708,18 +708,13 @@ class QRingBleService {
       try {
         const now = Date.now();
         this.captureCurrentRingLocation('periodic');
-        if (now - this.lastPeriodicSyncTime > 10 * 60 * 1000) {
+        if (now - this.lastPeriodicSyncTime > 14 * 60 * 1000) {
           await this.syncAllRingData();
-        } else {
-          await this.refreshMeasureActivity();
-          await this.requestStepsData(0);
-          await new Promise((r) => setTimeout(r, 150));
-          await this.sendBatteryRequest();
         }
       } catch (e) {
         console.warn('[QRing BLE] Low-power periodic check notice:', e);
       }
-    }, 2 * 60 * 1000);
+    }, 15 * 60 * 1000);
   }
 
   private stopHeartbeat() {
