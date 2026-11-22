@@ -1268,20 +1268,26 @@ class QRingBleService {
           this.stopHeartbeat();
           this.notify({ isConnected: false, deviceName });
 
-          // Capture last known GPS position & optionally fire separation alert on unexpected drop
-          this.captureCurrentRingLocation('disconnected');
+          // Capture last known location & fire separation alert ONLY if still disconnected after 20s (ignore brief BLE/sleep drops)
+          this.captureCurrentRingLocation('periodic');
           if (!this.userExplicitlyDisconnected) {
             if (typeof window !== 'undefined') {
               try {
                 const sepEnabled = localStorage.getItem('vyta_separation_alert') !== 'false';
                 const now = Date.now();
-                if (sepEnabled && now - this.lastSeparationAlertAt > 60000) {
-                  this.lastSeparationAlertAt = now;
-                  dispatchApplePush(
-                    'Aurel Ring One déconnectée',
-                    'Signal Bluetooth perdu — dernière position enregistrée dans Localiser.',
-                    'battery'
-                  );
+                const hour = new Date().getHours();
+                const isNightQuietHours = hour >= 23 || hour < 7;
+                if (sepEnabled && !isNightQuietHours && now - this.lastSeparationAlertAt > 30 * 60 * 1000) {
+                  setTimeout(() => {
+                    if (!this.isConnected() && !this.userExplicitlyDisconnected && Date.now() - this.lastSeparationAlertAt > 30 * 60 * 1000) {
+                      this.lastSeparationAlertAt = Date.now();
+                      dispatchApplePush(
+                        'Aurel Ring One déconnectée',
+                        'Signal Bluetooth perdu — dernière position enregistrée dans Localiser.',
+                        'battery'
+                      );
+                    }
+                  }, 20000);
                 }
               } catch (_) {}
             }
