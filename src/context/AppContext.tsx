@@ -12,23 +12,32 @@ import { computeImmunityAnomaly } from '../lib/immunityRadar';
  * Synchronise de façon cohérente l'Énergie Corporelle (au réveil, actuelle, prévue au coucher)
  * à partir des vraies données de la bague (sommeil, VFC, stress, activité, siestes).
  */
-function syncBodyEnergy(cur: DayMetrics, isToday: boolean): void {
+function syncBodyEnergy(cur: DayMetrics, isToday: boolean, prevDay?: DayMetrics): void {
   const sleepScore = cur.pillars?.sleep || cur.sleep?.score || 0;
   const recoveryScore = cur.pillars?.recovery || 0;
   const stressVal = cur.stressAvg || cur.stress || 0;
   const stressRecovery = stressVal > 0 ? Math.max(10, Math.min(100, 100 - stressVal + 14)) : 0;
 
-  const hasAnySignal =
-    sleepScore > 0 ||
-    recoveryScore > 0 ||
-    stressRecovery > 0 ||
-    (cur.steps || 0) > 0 ||
-    (cur.naps?.length || 0) > 0;
-
-  if (!hasAnySignal) {
-    cur.bodyEnergy = 0;
-    cur.bodyEnergyWake = 0;
-    cur.bodyEnergyBedtime = 0;
+  // Before today's sleep is recorded (e.g. 02:30 AM before bedtime), carry over yesterday's Body Energy instead of inventing a fresh 90%+ wake score
+  if (sleepScore === 0) {
+    const prevCarry = prevDay && prevDay.bodyEnergy > 0 ? prevDay.bodyEnergy : 0;
+    const prevWake = prevDay && prevDay.bodyEnergyWake > 0 ? prevDay.bodyEnergyWake : prevCarry;
+    if (prevCarry === 0 && (cur.naps?.length || 0) === 0) {
+      cur.bodyEnergy = 0;
+      cur.bodyEnergyWake = 0;
+      cur.bodyEnergyBedtime = 0;
+      return;
+    }
+    const activityDrain = Math.min(
+      45,
+      Math.round((cur.activeKcal || 0) / 30 + (cur.steps || 0) / 1000)
+    );
+    const stressDrain = stressVal > 45 ? Math.min(18, Math.round((stressVal - 45) * 0.45)) : 0;
+    const napBonus = (cur.naps || []).reduce((sum, n) => sum + (n.energyBonus || 0), 0);
+    const startBase = prevCarry > 0 ? prevCarry : 50;
+    cur.bodyEnergyWake = Math.max(5, Math.min(100, prevWake || startBase));
+    cur.bodyEnergy = Math.max(5, Math.min(100, startBase - activityDrain - stressDrain + napBonus));
+    cur.bodyEnergyBedtime = Math.max(5, cur.bodyEnergy - 4);
     return;
   }
 
@@ -585,7 +594,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
-          syncBodyEnergy(cur, true);
+          syncBodyEnergy(cur, true, idx > 0 ? next[idx - 1] : undefined);
           next[idx] = cur;
           cur.anomaly = computeImmunityAnomaly(cur, next, idx);
           try {
@@ -615,7 +624,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activePillars = [cur.pillars.sleep, cur.pillars.recovery, cur.pillars.activity].filter((v) => v > 0);
             cur.score = activePillars.length > 0 ? Math.round(activePillars.reduce((a, b) => a + b, 0) / activePillars.length) : 0;
           }
-          syncBodyEnergy(cur, true);
+          syncBodyEnergy(cur, true, idx > 0 ? next[idx - 1] : undefined);
           next[idx] = cur;
           cur.anomaly = computeImmunityAnomaly(cur, next, idx);
           try {
@@ -757,7 +766,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
             cur.resp = Math.max(12.0, Math.min(17.5, computedResp));
           }
-          syncBodyEnergy(cur, true);
+          syncBodyEnergy(cur, true, idx > 0 ? next[idx - 1] : undefined);
           next[idx] = cur;
           cur.anomaly = computeImmunityAnomaly(cur, next, idx);
           try {
@@ -850,7 +859,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (data.naps && Array.isArray(data.naps)) {
             cur.naps = data.naps;
           }
-          syncBodyEnergy(cur, idx === TODAY_INDEX);
+          syncBodyEnergy(cur, idx === TODAY_INDEX, idx > 0 ? next[idx - 1] : undefined);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -865,7 +874,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const idx = Math.max(0, Math.min(6, TODAY_INDEX - dAgo));
           const cur = { ...(next[idx] || {}) } as DayMetrics;
           cur.naps = data.naps!;
-          syncBodyEnergy(cur, idx === TODAY_INDEX);
+          syncBodyEnergy(cur, idx === TODAY_INDEX, idx > 0 ? next[idx - 1] : undefined);
           next[idx] = cur;
           try {
             localStorage.setItem('vyta_week_data', JSON.stringify(next));
@@ -1072,7 +1081,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 const computedResp = parseFloat((14.4 - (baseHrv - 45) * 0.04 + (baseBpm - 60) * 0.05).toFixed(1));
                 updated.resp = Math.max(12.0, Math.min(17.5, computedResp));
               }
-              syncBodyEnergy(updated, dayIdx === TODAY_INDEX);
+              syncBodyEnergy(updated, dayIdx === TODAY_INDEX, dayIdx > 0 ? parsed[dayIdx - 1] : undefined);
               return updated;
             });
             sanitized.forEach((d, dayIdx) => {
@@ -1391,7 +1400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       curNaps.push(newNap);
       cur.naps = curNaps;
-      syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
+      syncBodyEnergy(cur, selectedDay === TODAY_INDEX, selectedDay > 0 ? next[selectedDay - 1] : undefined);
       next[selectedDay] = cur;
       return next;
     });
@@ -1403,7 +1412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const cur = { ...(next[selectedDay] || emptyDayMetrics) };
       if (!cur.naps) return prev;
       cur.naps = cur.naps.filter((n) => n.id !== napId);
-      syncBodyEnergy(cur, selectedDay === TODAY_INDEX);
+      syncBodyEnergy(cur, selectedDay === TODAY_INDEX, selectedDay > 0 ? next[selectedDay - 1] : undefined);
       next[selectedDay] = cur;
       return next;
     });

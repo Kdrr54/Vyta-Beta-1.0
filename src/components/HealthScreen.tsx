@@ -1218,9 +1218,19 @@ export const HealthScreen: React.FC = () => {
           ===================================================================== */}
       {(() => {
         const sleep = dayData.sleep;
-        const wakeTimeStr = sleep && typeof sleep.endMin === 'number' && sleep.endMin > 0
-          ? `${String(Math.floor((((sleep.endMin % 1440) + 1440) % 1440) / 60)).padStart(2, '0')}:${String((((sleep.endMin % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`
-          : '07:15';
+        const prevSleep = selectedDay > 0 && weekData[selectedDay - 1] ? weekData[selectedDay - 1].sleep : undefined;
+        const wakeEndMin =
+          sleep && typeof sleep.endMin === 'number' && sleep.endMin > 0
+            ? sleep.endMin
+            : (!sleep || !(sleep.deepMin + sleep.remMin + sleep.lightMin > 0)) &&
+              prevSleep &&
+              typeof prevSleep.endMin === 'number' &&
+              prevSleep.endMin > 0
+            ? prevSleep.endMin
+            : 0;
+        const wakeTimeStr = wakeEndMin > 0
+          ? `${String(Math.floor((((wakeEndMin % 1440) + 1440) % 1440) / 60)).padStart(2, '0')}:${String((((wakeEndMin % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`
+          : '--:--';
         return (
           <BodyEnergyGauge
             energy={dayData.bodyEnergy}
