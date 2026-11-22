@@ -388,12 +388,25 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: 16px;
+  resize: none;
+  font-size: 15.5px;
   color: #FAF7F2;
   font-family: inherit;
-  line-height: 1.4;
-  padding: 0 4px;
+  line-height: 1.38;
+  padding: 6px 6px 6px 2px;
+  max-height: 68px;
+  overflow-y: auto;
+  scrollbar-width: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mo-field::-webkit-scrollbar {
+  display: none;
+}
+
+.mo-root:has(.mo-field:focus) .mo-ring {
+  border-color: rgba(192, 132, 252, 0.55);
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.22);
 }
 
 .mo-field::placeholder {

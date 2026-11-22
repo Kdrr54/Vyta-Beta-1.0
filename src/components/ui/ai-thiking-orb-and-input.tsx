@@ -867,7 +867,7 @@ export default function MorphOrb(props: MorphOrbProps) {
   const moverRef = useRef<HTMLDivElement>(null);
   const actorRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pulseRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -977,12 +977,18 @@ export default function MorphOrb(props: MorphOrbProps) {
     timers.current.shake = window.setTimeout(() => a.removeAttribute("data-shake"), 260);
   };
 
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(68, el.scrollHeight)}px`;
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && (e.shiftKey || e.nativeEvent.isComposing)) e.preventDefault();
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
+    }
   };
 
   const onFormSubmit = (e: React.FormEvent) => {
@@ -1197,18 +1203,18 @@ export default function MorphOrb(props: MorphOrbProps) {
           <div className="mo-card" aria-hidden="true" />
           <div className="mo-ring" aria-hidden="true" />
 
-          <form className="mo-input" ref={formRef} onSubmit={onFormSubmit} autoComplete="off" aria-hidden="true" style={{ opacity: 0, pointerEvents: 'none', visibility: 'hidden' }}>
+          <form className="mo-input" ref={formRef} onSubmit={onFormSubmit} autoComplete="off">
             <svg className="mo-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10 3.5l1.7 4.8 4.8 1.7-4.8 1.7L10 16.5l-1.7-4.8L3.5 10l4.8-1.7L10 3.5z" />
               <path d="M18 14.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" />
             </svg>
-            <input
+            <textarea
               ref={inputRef}
               className="mo-field"
-              type="text"
+              rows={1}
               enterKeyHint="send"
               value={value}
-              maxLength={200}
+              maxLength={400}
               placeholder={copy.placeholder}
               aria-label="Ask anything"
               spellCheck={false}
