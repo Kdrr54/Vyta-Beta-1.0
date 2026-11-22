@@ -228,43 +228,75 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
         }
         setYukaCameraReady(true);
 
-        if ('BarcodeDetector' in window) {
-          try {
-            const detector = new (window as any).BarcodeDetector({
-              formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'],
-            });
-            yukaScanTimerRef.current = setInterval(async () => {
-              const vid = yukaVideoRef.current;
-              if (!vid || vid.readyState < 2 || cancelled) return;
-              try {
-                const codes = await detector.detect(vid);
-                const rawCode = codes?.[0]?.rawValue?.trim();
-                if (rawCode && /^\d{8,14}$/.test(rawCode)) {
-                  try { navigator.vibrate?.(25); } catch (_) {}
-                  stopYukaCamera();
-                  setIsScanning(true);
-                  setErrorMessage(null);
-                  setCurrentResult(null);
-                  setSaveSuccess(false);
-                  setScanStep(isEn ? `Barcode ${rawCode} detected...` : `Code-barres ${rawCode} détecté…`);
-                  try {
-                    const res = await analyzeProductYuka({
-                      barcodeOrQuery: rawCode,
-                      language: isEn ? 'en' : 'fr',
-                      mealType: selectedMealType,
-                      dateKey: activeDateKey,
-                    });
-                    setCurrentResult(res);
-                  } catch (err: any) {
-                    setErrorMessage(err?.message || (isEn ? 'Product not found.' : 'Produit introuvable.'));
-                  } finally {
-                    setIsScanning(false);
-                  }
+        // Pure-JS ZXing real-time barcode decoder (works 100% in iOS WKWebView where BarcodeDetector is missing)
+        try {
+          const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+            import('@zxing/browser'),
+            import('@zxing/library'),
+          ]);
+          if (cancelled) return;
+
+          const hints = new Map();
+          hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+            BarcodeFormat.EAN_13,
+            BarcodeFormat.EAN_8,
+            BarcodeFormat.UPC_A,
+            BarcodeFormat.UPC_E,
+            BarcodeFormat.CODE_128,
+          ]);
+          hints.set(DecodeHintType.TRY_HARDER, true);
+          const reader = new BrowserMultiFormatReader(hints);
+          const scanCanvas = document.createElement('canvas');
+          const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+          let decoding = false;
+
+          yukaScanTimerRef.current = setInterval(async () => {
+            const vid = yukaVideoRef.current;
+            if (!vid || vid.readyState < 2 || cancelled || decoding || !scanCtx) return;
+            decoding = true;
+            try {
+              const vw = vid.videoWidth || 640;
+              const vh = vid.videoHeight || 480;
+              // Crop to central scan reticle for fast & accurate curved-package decoding
+              const cw = Math.round(vw * 0.8);
+              const ch = Math.round(vh * 0.55);
+              const sx = Math.round((vw - cw) / 2);
+              const sy = Math.round((vh - ch) / 2);
+              scanCanvas.width = Math.min(720, cw);
+              scanCanvas.height = Math.round((scanCanvas.width * ch) / Math.max(1, cw));
+              scanCtx.drawImage(vid, sx, sy, cw, ch, 0, 0, scanCanvas.width, scanCanvas.height);
+
+              const result = reader.decodeFromCanvas(scanCanvas);
+              const rawCode = result?.getText()?.trim();
+              if (rawCode && /^\d{8,14}$/.test(rawCode)) {
+                try { navigator.vibrate?.(25); } catch (_) {}
+                stopYukaCamera();
+                setIsScanning(true);
+                setErrorMessage(null);
+                setCurrentResult(null);
+                setSaveSuccess(false);
+                setScanStep(isEn ? `Barcode ${rawCode} detected...` : `Code-barres ${rawCode} détecté…`);
+                try {
+                  const res = await analyzeProductYuka({
+                    barcodeOrQuery: rawCode,
+                    language: isEn ? 'en' : 'fr',
+                    mealType: selectedMealType,
+                    dateKey: activeDateKey,
+                  });
+                  setCurrentResult(res);
+                } catch (err: any) {
+                  setErrorMessage(err?.message || (isEn ? 'Product not found.' : 'Produit introuvable.'));
+                } finally {
+                  setIsScanning(false);
                 }
-              } catch (_) {}
-            }, 380);
-          } catch (_) {}
-        }
+              }
+            } catch (_) {
+              // NotFoundException on frames without a clear barcode is normal
+            } finally {
+              decoding = false;
+            }
+          }, 240);
+        } catch (_) {}
       } catch {
         if (!cancelled) setYukaCameraError(true);
       }
@@ -1033,11 +1065,43 @@ export const CalAiModal: React.FC<CalAiModalProps> = ({ onClose, embedded = fals
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {yukaCameraReady
-                        ? (isEn ? 'Point at barcode or nutrition label' : 'Visez le code-barres ou l’étiquette')
-                        : (isEn ? 'Starting camera...' : 'Activation caméra…')}
+                    {yukaCameraReady
+                      ? (isEn ? 'Auto-scanning barcode…' : 'Scan auto du code-barres…')
+                      : (isEn ? 'Starting camera...' : 'Activation caméra…')}
+                  </div>
+                  {isScanning && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(10, 10, 12, 0.84)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        zIndex: 5,
+                      }}
+                    >
+                      <AureliusOrb status="thinking" size={130} accentMode={isMono ? 'mono' : 'amethyst'} />
+                      <span
+                        style={{
+                          color: '#FAF7F2',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          padding: '4px 12px',
+                          borderRadius: '999px',
+                          background: accentSoft,
+                          border: `1px solid ${accentBorder}`,
+                        }}
+                      >
+                        {scanStep}
+                      </span>
                     </div>
-                  </>
+                  )}
+                </>
                 ) : (
                   <div
                     style={{
