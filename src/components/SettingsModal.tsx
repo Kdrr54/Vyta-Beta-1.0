@@ -1711,7 +1711,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     },
                     {
                       id: '1h',
-                      title: isEn ? 'Balanced' : 'Équilibré',
+                      title: isEn ? 'All 1h' : 'Tout 1h',
                       sub: '1h · ~8j',
                       isActive: sensorIntervals?.heartRate === '1h',
                       action: () => {

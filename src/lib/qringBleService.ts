@@ -1820,7 +1820,7 @@ class QRingBleService {
     this.needsBoundaryAlign = false;
 
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    const stressTempMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // Stress & Temp every 1h
+    const stressTempMinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Précision, 1h in Tout 1h)
     const hrvMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // VRC every 1h
     const spo2MinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // SpO2 (Red+IR LED) every 1h
     console.log(
