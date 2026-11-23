@@ -211,6 +211,8 @@ class QRingBleService {
   private hrLogDebounceTimer: any = null;
   private hrLogRangeMinutes = 5;
   private hrLogDoneResolvers: Array<() => void> = [];
+  private lastHalfHourHrLog: number[] = [];
+  private lastHalfHourHrLogDateKey = '';
   private bigDataWaiters: Array<{ ids: number[]; resolve: () => void }> = [];
 
   // Stored 30-min Stress (0x37) & HRV (0x39) multi-packet accumulators (48 slots/day)
@@ -2260,6 +2262,8 @@ class QRingBleService {
 
       // Enregistrer dans l'activité les heures réelles où la bague a mesuré le BPM
       const dateKey = this.getTodayDateKey(now);
+      this.lastHalfHourHrLog = [...halfHourLog];
+      this.lastHalfHourHrLogDateKey = dateKey;
       const bpmEvents: RingMeasureEvent[] = [];
       clampedLog.forEach((bpm, slotIdx) => {
         if (bpm < 40 || bpm > 200) return;
@@ -2593,28 +2597,60 @@ class QRingBleService {
         // Elles ne doivent jamais écraser ni décaler les heures de coucher et de réveil du sommeil de nuit !
         const napBlocks: SleepDayRecord[] = [];
         const nightBlocks: SleepDayRecord[] = [];
+        const todayKey = this.getTodayDateKey(new Date());
+        const hasTodayHrSlots = dAgo === 0 && this.lastHalfHourHrLogDateKey === todayKey && this.lastHalfHourHrLog.length === 48;
 
-        if (dayBlocks.length > 1) {
-          const maxDur = Math.max(...dayBlocks.map((b) => (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart)));
-          for (const b of dayBlocks) {
+        const isRingOffDaytimeBlock = (b: SleepDayRecord): boolean => {
+          // Purely daytime window (10:00 -> 20:30 same day, does not cross midnight)
+          if (b.normStart < 600 || b.normEnd > 1230 || b.normEnd <= b.normStart) return false;
+          // If we have today's HR log and zero valid pulse (>=40 bpm) was detected in that window, ring was off the finger!
+          if (hasTodayHrSlots) {
+            const firstSlot = Math.max(0, Math.floor(b.normStart / 30));
+            const lastSlot = Math.min(47, Math.floor((b.normEnd - 1) / 30));
+            if (lastSlot >= firstSlot) {
+              let validHrCount = 0;
+              for (let s = firstSlot; s <= lastSlot; s++) {
+                if (this.lastHalfHourHrLog[s] >= 40 && this.lastHalfHourHrLog[s] <= 200) {
+                  validHrCount++;
+                }
+              }
+              if (validHrCount === 0) {
+                console.log(`[QRing BLE] Ignoring daytime ring-off block (${b.normStart}->${b.normEnd}m, 0 valid HR slots).`);
+                return true;
+              }
+            }
+          }
+          // Even without HR slots, a purely daytime >2h block (e.g. 16:15->19:15) is ring-off, never nocturnal sleep
+          const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
+          if (dur > 120) {
+            console.log(`[QRing BLE] Ignoring long purely daytime block (${b.normStart}->${b.normEnd}m, ${dur}m) as ring-off.`);
+            return true;
+          }
+          return false;
+        };
+
+        const filteredBlocks = dayBlocks.filter((b) => !isRingOffDaytimeBlock(b));
+
+        if (filteredBlocks.length > 1) {
+          const maxDur = Math.max(...filteredBlocks.map((b) => (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart)));
+          for (const b of filteredBlocks) {
             const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
             const clockStart = ((b.normStart % 1440) + 1440) % 1440;
-            // Véritable fenêtre circadienne de sieste diurne (11:00 à 19:30). Ne jamais fragmenter le sommeil du matin !
-            const isDaytime = clockStart >= 660 && clockStart <= 1170;
+            // Véritable fenêtre circadienne de sieste diurne (10:00 à 20:30). Ne jamais fragmenter le sommeil du matin !
+            const isDaytime = b.normStart >= 600 && b.normEnd <= 1230;
             if (isDaytime && dur >= 15 && dur <= 120 && dur < maxDur) {
               napBlocks.push(b);
-            } else {
+            } else if (!isDaytime) {
               nightBlocks.push(b);
             }
           }
-        } else if (dayBlocks.length === 1) {
-          const b = dayBlocks[0];
+        } else if (filteredBlocks.length === 1) {
+          const b = filteredBlocks[0];
           const dur = (b.lightMin + b.deepMin + b.remMin + b.awakeMin) || (b.normEnd - b.normStart);
-          const clockStart = ((b.normStart % 1440) + 1440) % 1440;
-          const isDaytime = clockStart >= 660 && clockStart <= 1170;
+          const isDaytime = b.normStart >= 600 && b.normEnd <= 1230;
           if (isDaytime && dur <= 120 && dur >= 15) {
             napBlocks.push(b);
-          } else {
+          } else if (!isDaytime) {
             nightBlocks.push(b);
           }
         }

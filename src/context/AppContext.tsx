@@ -1046,8 +1046,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 // 2) Si le réveil enregistré est dans le futur par rapport à l'heure courante (endMin > nowMin), purge immédiate.
                 const hasFutureEnd = updated.sleep?.endMin !== undefined && updated.sleep.endMin > nowMin;
                 const hasPhantomNocturnalSleep = nowMin < 360 && ((updated.sleep?.score || 0) > 0 || (updated.sleep?.startMin === 0 && (updated.sleep?.endMin || 0) > 0));
+                const hasDaytimeRingOffSleep =
+                  updated.sleep?.startMin !== undefined &&
+                  updated.sleep?.endMin !== undefined &&
+                  updated.sleep.startMin >= 600 &&
+                  updated.sleep.endMin <= 1230 &&
+                  updated.sleep.endMin > updated.sleep.startMin;
 
-                if (hasFutureEnd || hasPhantomNocturnalSleep) {
+                if (hasFutureEnd || hasPhantomNocturnalSleep || hasDaytimeRingOffSleep) {
                   updated.sleep = { score: 0, deepMin: 0, remMin: 0, lightMin: 0, awakeMin: 0 };
                   if (updated.pillars) {
                     updated.pillars = { ...updated.pillars, sleep: 0 };
