@@ -301,7 +301,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 9 &&
+            parsed?.cfgVer === 10 &&
             typeof parsed?.minutes === 'number' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
@@ -1820,18 +1820,18 @@ class QRingBleService {
     this.needsBoundaryAlign = false;
 
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    const stressTempMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // Stress & Temp every 1h (saves 50% LED wakeups)
+    const stressTempMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // Stress & Temp every 1h
     const hrvMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // VRC every 1h
-    const spo2MinsByte = mins > 0 ? (Math.max(120, mins) & 0xFF) : 0x00; // SpO2 (Red+IR LED) every 2h
+    const spo2MinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // SpO2 (Red+IR LED) every 1h
     console.log(
-      `[QRing BLE] Programming balanced low-power cadence: HR=${mins}m, Stress/Temp=${mins > 0 ? `${stressTempMinsByte}m` : 'OFF'}, VRC=${mins > 0 ? `${hrvMinsByte}m` : 'OFF'}, SpO2=${mins > 0 ? `${spo2MinsByte}m` : 'OFF'}`
+      `[QRing BLE] Programming cadence: HR=${mins}m, Stress/Temp=${mins > 0 ? `${stressTempMinsByte}m` : 'OFF'}, VRC=${mins > 0 ? `${hrvMinsByte}m` : 'OFF'}, SpO2=${mins > 0 ? `${spo2MinsByte}m` : 'OFF'}`
     );
 
     // 1. Heart rate (0x16) — primary scheduled green LED timer
     const ok16 = await this.writeBytes(this.makePacket(0x16, [0x02, enabledByte, mins & 0xFF]));
     await new Promise((r) => setTimeout(r, 160));
 
-    // 2. SpO2 (0x2C) — RED+IR LED (2h cadence to preserve battery)
+    // 2. SpO2 (0x2C) — RED+IR LED (1h cadence)
     await this.writeBytes(this.makePacket(0x2C, [0x02, enabledByte, spo2MinsByte]));
     await new Promise((r) => setTimeout(r, 160));
 
@@ -1854,7 +1854,7 @@ class QRingBleService {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 9,
+              cfgVer: 10,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
               needsAlign: false,
