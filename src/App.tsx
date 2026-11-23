@@ -4,7 +4,6 @@ import { IPhoneFrame } from './components/IPhoneFrame';
 import { AppHeader } from './components/AppHeader';
 import { TabBar } from './components/TabBar';
 import { HealthScreen } from './components/HealthScreen';
-import { AppleNotificationBanner } from './components/AppleNotificationBanner';
 import { TODAY_INDEX } from './data/health';
 import { installGlobalModalSheetDrag } from './hooks/useModalAnimation';
 
@@ -157,7 +156,6 @@ const AppInner: React.FC = () => {
         overlay={
           <>
             {!isLiveRunningViewOpen && <TabBar />}
-            <AppleNotificationBanner />
             <Suspense fallback={null}>
               {modal === 'settings' && <SettingsModal onClose={closeModal} />}
               {modal === 'prism' && <PrismModal onClose={closeModal} />}

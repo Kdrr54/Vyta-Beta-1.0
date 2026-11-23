@@ -89,7 +89,4 @@ export const dispatchApplePush = (
       console.warn('Native notification dispatch fallback:', e);
     }
   }
-
-  // Dispatch custom window event for in-app banner
-  window.dispatchEvent(new CustomEvent('vyta-inapp-notification', { detail: newNotif }));
 };
