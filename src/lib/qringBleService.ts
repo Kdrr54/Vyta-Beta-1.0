@@ -2149,8 +2149,6 @@ class QRingBleService {
    */
   public async requestTemperatureData(): Promise<boolean> {
     console.log('[QRing BLE] Requesting stored Skin Temperature history (BigData 0xBC 0x25 - 0 LEDs)...');
-    await this.writeBytes(this.makePacket(0x75, [0x00]));
-    await new Promise((r) => setTimeout(r, 60));
     if (this.hasBigDataService && this.activeBigDataRxUuid) {
       await this.writeBigDataBytes([0xBC, 0x25, 0x01, 0x00, 0xFF, 0x00, 0xFF]);
     } else {
