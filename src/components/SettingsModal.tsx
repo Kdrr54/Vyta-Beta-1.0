@@ -1692,7 +1692,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     },
                     {
                       id: '30min',
-                      title: isEn ? 'Precision' : 'Précision',
+                      title: isEn ? 'Performance' : 'Performance',
                       sub: '30m · ~5j',
                       isActive: (sensorIntervals?.heartRate || '1h') === '30min',
                       action: () => {
@@ -1711,7 +1711,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     },
                     {
                       id: '1h',
-                      title: isEn ? 'All 1h' : 'Tout 1h',
+                      title: isEn ? 'Endurance' : 'Endurance',
                       sub: '1h · ~8j',
                       isActive: sensorIntervals?.heartRate === '1h',
                       action: () => {
