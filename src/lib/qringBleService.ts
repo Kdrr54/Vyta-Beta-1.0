@@ -303,7 +303,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 11 &&
+            parsed?.cfgVer === 12 &&
             typeof parsed?.minutes === 'number' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
@@ -1812,14 +1812,20 @@ class QRingBleService {
 
     // Never rewrite hardware intervals repeatedly if the ring was already configured with the same cadence
     if (!force && this.lastProgrammedIntervalMinutes === mins) {
+      if (this.needsBoundaryAlign && mins > 0 && !this.boundaryAlignTimer) {
+        this.scheduleBoundaryAlignment(mins);
+      }
       return true;
     }
 
-    if (this.boundaryAlignTimer) {
+    const alignedNow = mins > 0 ? this.isNearClockBoundary(mins) : true;
+    this.needsBoundaryAlign = mins > 0 && !alignedNow;
+    if (this.needsBoundaryAlign && mins > 0) {
+      this.scheduleBoundaryAlignment(mins);
+    } else if (this.boundaryAlignTimer) {
       clearTimeout(this.boundaryAlignTimer);
       this.boundaryAlignTimer = null;
     }
-    this.needsBoundaryAlign = false;
 
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
     const stressTempMinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Performance, 1h in Endurance)
@@ -1856,10 +1862,10 @@ class QRingBleService {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 11,
+              cfgVer: 12,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
-              needsAlign: false,
+              needsAlign: this.needsBoundaryAlign,
               ts: Date.now(),
             })
           );
@@ -2045,7 +2051,7 @@ class QRingBleService {
     this.stepsDetailDistSlots = new Array(96).fill(0);
 
     const detailWait = this.waitForStepsDetail(1000);
-    // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01]
+    // 1. Colmi R02 15-minute intervals: [dayOffset, 0x0F, 0x00, 0x5F, 0x01] (returns steps, kcal, distance; 0x07 returns 0x87 error on R21)
     const p43 = this.makePacket(0x43, [this.requestedStepsDayOffset & 0xFF, 0x0F, 0x00, 0x5F, 0x01]);
     const ok43 = await this.writeBytes(p43);
     if (ok43) {
@@ -2053,12 +2059,7 @@ class QRingBleService {
     } else {
       this.resolveStepsDetailWaiters();
     }
-
-    // 2. QCBand daily total (0x07) — authoritative daily hardware step/kcal/distance counter
-    const p7 = this.makePacket(0x07, [this.requestedStepsDayOffset & 0xFF]);
-    const ok7 = await this.writeBytes(p7);
-    await new Promise((r) => setTimeout(r, 180));
-    return ok7;
+    return ok43;
   }
 
   /**
