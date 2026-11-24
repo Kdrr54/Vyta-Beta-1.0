@@ -12,25 +12,21 @@ export function buildSleepSummary(
   let totalMin = endMin - startMin;
   if (totalMin <= 0) totalMin += 1440;
 
-  // Plafonnement médical réaliste : minimum 45 min, maximum 16h (960 min)
-  totalMin = Math.max(45, Math.min(960, totalMin));
+  // Plafonnement réaliste : minimum 1 min, maximum 16h (960 min)
+  totalMin = Math.max(1, Math.min(960, totalMin));
 
   const deepMin = Math.round(totalMin * 0.20);
   const remMin = Math.round(totalMin * 0.22);
-  const awakeMin = Math.max(10, Math.round(totalMin * 0.06));
-  const lightMin = Math.max(10, totalMin - deepMin - remMin - awakeMin);
+  const awakeMin = totalMin >= 30 ? Math.max(2, Math.round(totalMin * 0.06)) : Math.round(totalMin * 0.06);
+  const lightMin = Math.max(0, totalMin - deepMin - remMin - awakeMin);
 
-  // Calcul du score Aurel
-  const durationScore = Math.min(100, Math.round((totalMin / 480) * 92));
-  const effRatio = (totalMin - awakeMin) / totalMin;
-  const deepRemRatio = (deepMin + remMin) / totalMin;
-  const score = Math.min(
-    99,
-    Math.max(
-      50,
-      Math.round(durationScore * 0.6 + effRatio * 100 * 0.25 + deepRemRatio * 100 * 0.15)
-    )
-  );
+  // Calcul du score Aurel réaliste (sans plancher artificiel à 50 : 25 min ≈ 5/100, 8h ≈ 95/100)
+  const durationRatio = Math.min(1, totalMin / 480);
+  const durationScore = Math.round(durationRatio * 92);
+  const effRatio = totalMin > 0 ? (totalMin - awakeMin) / totalMin : 0;
+  const deepRemRatio = totalMin > 0 ? (deepMin + remMin) / totalMin : 0;
+  const qualityBonus = Math.round((effRatio * 5 + Math.min(1, deepRemRatio / 0.42) * 3) * durationRatio);
+  const score = Math.min(99, Math.max(1, durationScore + qualityBonus));
 
   return {
     score,

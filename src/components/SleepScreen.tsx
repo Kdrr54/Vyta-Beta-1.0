@@ -77,8 +77,10 @@ export const SleepScreen: React.FC = () => {
   }, [calculatedDurationMin]);
 
   const calculatedScore = useMemo(() => {
-    const durScore = Math.min(100, Math.round((calculatedDurationMin / 480) * 92));
-    return Math.min(99, Math.max(50, Math.round(durScore * 0.7 + 25)));
+    const durationRatio = Math.min(1, Math.max(0, calculatedDurationMin) / 480);
+    const durScore = Math.round(durationRatio * 92);
+    const qualityBonus = Math.round(7 * durationRatio);
+    return Math.min(99, Math.max(1, durScore + qualityBonus));
   }, [calculatedDurationMin]);
 
   const handleSaveSleepSession = () => {
@@ -939,7 +941,7 @@ export const SleepScreen: React.FC = () => {
           </div>
 
           {/* 4 Refined Stage Cards (2x2 Grid) with Clinical Target Progress */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '8px' }}>
             {stages.map((st) => {
               const isSelected = activeStageId === st.id;
               const barPct = hasSlept ? Math.min(100, Math.max(6, st.pct)) : 0;
@@ -948,6 +950,8 @@ export const SleepScreen: React.FC = () => {
                   key={st.id}
                   onClick={() => setActiveStageId(isSelected ? null : st.id)}
                   style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
                     background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
                     border: isSelected ? `1px solid ${st.color}` : '1px solid rgba(255, 255, 255, 0.06)',
                     borderRadius: '16px',
@@ -1605,7 +1609,15 @@ export const SleepScreen: React.FC = () => {
                 <div style={{ fontSize: '11px', color: '#A78BFA', fontWeight: 600, textTransform: 'uppercase' }}>
                   {isEn ? 'Estimated Score' : 'Score estimé'}
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#30D158', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                <div
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 800,
+                    color: calculatedScore >= 75 ? '#30D158' : calculatedScore >= 50 ? '#F59E0B' : '#FF5A52',
+                    fontFamily: 'var(--font-mono)',
+                    marginTop: '2px',
+                  }}
+                >
                   {calculatedScore} / 100
                 </div>
               </div>
