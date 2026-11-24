@@ -3217,29 +3217,11 @@ class QRingBleService {
       }
 
       const now = Date.now();
-      // If 0x69 produced no valid BPM after 7s (either silent or 0 BPM frames), trigger legacy poll (0x1E 0x01)
-      if (
-        fallbackPackets.length > 0 &&
-        this.lastLiveDataAt === 0 &&
-        now - this.lastLiveRearmAt >= 7000 &&
-        (!sentFallback || Math.floor((now - this.lastLiveRearmAt) / 4500) !== Math.floor((now - 2200 - this.lastLiveRearmAt) / 4500))
-      ) {
-        sentFallback = true;
-        this.usedLiveFallbackPackets = true;
-        try {
-          for (const pktBytes of fallbackPackets) {
-            await this.writeBytes(pktBytes);
-            await new Promise((r) => setTimeout(r, 90));
-          }
-        } catch (_) {}
-      }
+      const lastActivityAt = Math.max(this.lastLiveDataAt, this.lastLiveAckAt);
+      const silentMs = lastActivityAt > 0 ? now - lastActivityAt : now - this.lastLiveRearmAt;
 
-      const staleDuration = this.lastLiveDataAt > 0
-        ? now - this.lastLiveDataAt
-        : Math.min(now - this.lastLiveRearmAt, this.lastLiveAckAt > 0 ? now - this.lastLiveAckAt + 12000 : now - this.lastLiveRearmAt);
-
-      // Re-arm Action.START only if genuinely timed out (>= 24s silent)
-      if (staleDuration >= 24000 && now - this.lastLiveRearmAt >= 24000) {
+      // Re-arm Action.START only if genuinely silent for >= 30s
+      if (silentMs >= 30000 && now - this.lastLiveRearmAt >= 30000) {
         this.lastLiveRearmAt = now;
         sentFallback = false;
         try {
@@ -3252,13 +3234,14 @@ class QRingBleService {
         return;
       }
 
-      // Send 0x69 CONTINUE only once 0x69 has acknowledged OR after 3.5s settle window
-      if (this.lastLiveAckAt > 0 || now - this.lastLiveRearmAt >= 3500) {
+      // Do NOT send 0x69 CONTINUE while the ring is already streaming packets (it resets PPG lock on R21);
+      // only send a gentle CONTINUE keepalive if silent for >= 12s.
+      if (silentMs >= 12000) {
         try {
           await this.writeBytes(this.makePacket(0x69, [dataType, 0x03]));
         } catch (_) {}
       }
-    }, 2200);
+    }, 3000);
 
     return ok;
   }
@@ -3310,12 +3293,12 @@ class QRingBleService {
 
   public async startRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Starting live optical PPG Heart Rate measurement...');
-    return await this.startLiveStream(0x01, [], [this.makePacket(0x1E, [0x01])]);
+    return await this.startLiveStream(0x01, [], []);
   }
 
   public async stopRealTimeHeartRate(): Promise<boolean> {
     console.log('[QRing BLE] Stopping live optical PPG Heart Rate measurement...');
-    return await this.stopLiveStream(0x01, [this.makePacket(0x1E, [0x00])]);
+    return await this.stopLiveStream(0x01, []);
   }
 
   public async startRealTimeBloodOxygen(): Promise<boolean> {

@@ -1151,6 +1151,18 @@ export const FitScreen: React.FC = () => {
 
   // ------------------ MUSCULATION (SÉANCE PERSONNALISÉE) ------------------
   const [isWorkoutActive, setIsWorkoutActive] = useState<boolean>(false);
+
+  // Live BPM automatique pendant une séance de musculation ouverte
+  useEffect(() => {
+    if (!isWorkoutActive || runState !== 'idle') return;
+    if (!qringBle.isConnected()) return;
+    setIsLiveHrActive(true);
+    qringBle.startRealTimeHeartRate().catch(() => {});
+    return () => {
+      setIsLiveHrActive(false);
+      qringBle.stopRealTimeHeartRate().catch(() => {});
+    };
+  }, [isWorkoutActive, runState, setIsLiveHrActive]);
   const [sessionTitle, setSessionTitle] = useState<string>(isEn ? 'Custom Workout' : 'Séance libre');
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [exercises, setExercises] = useState<GymExercise[]>(initialWorkoutExercises);
@@ -2361,19 +2373,39 @@ export const FitScreen: React.FC = () => {
                   <ArrowLeft size={13} />
                   <span>{isEn ? 'Workouts' : 'Séances'}</span>
                 </button>
-                <span
-                  className="health-badge"
-                  style={{
-                    background: 'rgba(184, 35, 72, 0.12)',
-                    color: 'var(--gold)',
-                    border: '1px solid var(--gold-border)',
-                    flexShrink: 0,
-                    fontSize: '10px',
-                    padding: '2px 8px',
-                  }}
-                >
-                  {isEn ? 'In progress' : 'En cours'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    className="health-badge"
+                    style={{
+                      background: 'rgba(255, 69, 58, 0.14)',
+                      color: '#FF5A52',
+                      border: '1px solid rgba(255, 69, 58, 0.3)',
+                      flexShrink: 0,
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                      fontFamily: 'var(--font-mono)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <Heart size={10} color="#FF5A52" fill={liveBpm > 0 ? '#FF5A52' : 'none'} />
+                    <span>{liveBpm > 0 ? `${liveBpm} BPM` : '-- BPM'}</span>
+                  </span>
+                  <span
+                    className="health-badge"
+                    style={{
+                      background: 'rgba(184, 35, 72, 0.12)',
+                      color: 'var(--gold)',
+                      border: '1px solid var(--gold-border)',
+                      flexShrink: 0,
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                    }}
+                  >
+                    {isEn ? 'In progress' : 'En cours'}
+                  </span>
+                </div>
               </div>
 
               <div className="session-title-row">
