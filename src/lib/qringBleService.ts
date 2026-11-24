@@ -303,7 +303,7 @@ class QRingBleService {
           const parsed = JSON.parse(saved);
           const savedDevId = localStorage.getItem('vyta_ble_saved_device_id');
           if (
-            parsed?.cfgVer === 10 &&
+            parsed?.cfgVer === 11 &&
             typeof parsed?.minutes === 'number' &&
             (!savedDevId || !parsed?.deviceId || parsed.deviceId === savedDevId)
           ) {
@@ -1822,9 +1822,9 @@ class QRingBleService {
     this.needsBoundaryAlign = false;
 
     const enabledByte = mins > 0 ? 0x01 : 0x02; // 0x01 = enable, 0x02 = disable in Colmi R02 firmware
-    const stressTempMinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Précision, 1h in Tout 1h)
-    const hrvMinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // VRC every 1h
-    const spo2MinsByte = mins > 0 ? (Math.max(60, mins) & 0xFF) : 0x00; // SpO2 (Red+IR LED) every 1h
+    const stressTempMinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Performance, 1h in Endurance)
+    const hrvMinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Performance, 1h in Endurance)
+    const spo2MinsByte = mins > 0 ? (mins & 0xFF) : 0x00; // Follows chosen mode (30m in Performance, 1h in Endurance)
     console.log(
       `[QRing BLE] Programming cadence: HR=${mins}m, Stress/Temp=${mins > 0 ? `${stressTempMinsByte}m` : 'OFF'}, VRC=${mins > 0 ? `${hrvMinsByte}m` : 'OFF'}, SpO2=${mins > 0 ? `${spo2MinsByte}m` : 'OFF'}`
     );
@@ -1856,7 +1856,7 @@ class QRingBleService {
           localStorage.setItem(
             'vyta_hw_programmed_interval',
             JSON.stringify({
-              cfgVer: 10,
+              cfgVer: 11,
               deviceId: this.connectedDeviceId || this.getSavedDeviceId() || '',
               minutes: mins,
               needsAlign: false,
