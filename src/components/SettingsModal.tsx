@@ -41,7 +41,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'ring' | 'profile' | 'sensors' | 'system';
+type SettingsTab = 'ring' | 'profile' | 'system';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const {
@@ -184,75 +184,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'ring', label: isEn ? 'Ring' : 'Bague', icon: <Disc size={13} /> },
     { id: 'profile', label: isEn ? 'Profile' : 'Profil', icon: <User size={13} /> },
-    { id: 'sensors', label: isEn ? 'Sensors' : 'Capteurs', icon: <Zap size={13} /> },
     { id: 'system', label: isEn ? 'System' : 'Système', icon: <Cpu size={13} /> },
-  ];
-
-  const SENSORS_LIST = [
-    {
-      nameFr: 'Fréquence Cardiaque',
-      nameEn: 'Heart Rate',
-      descFr: 'PPG vert haute sensibilité 24/7',
-      descEn: 'Green optical PPG sensor 24/7',
-      key: 'heartRate' as const,
-      color: '#FF2D55',
-    },
-    {
-      nameFr: 'Variabilité Cardiaque (VRC)',
-      nameEn: 'Heart Rate Variability (HRV)',
-      descFr: 'Micro-intervalles R-R & tonus vagal',
-      descEn: 'R-R intervals & parasympathetic tone',
-      key: 'hrv' as const,
-      color: '#AF52DE',
-    },
-    {
-      nameFr: 'Oxygène Sanguin (SpO2)',
-      nameEn: 'Blood Oxygen (SpO2)',
-      descFr: 'LED rouge & infrarouge pulsées',
-      descEn: 'Pulsed red and infrared diodes',
-      key: 'spo2' as const,
-      color: '#38BDF8',
-    },
-    {
-      nameFr: 'Température Cutanée Nocturne',
-      nameEn: 'Nocturnal Skin Temperature',
-      descFr: 'Thermistance haute précision ±0.05°C',
-      descEn: 'High-precision NTC thermistor ±0.05°C',
-      key: 'temperature' as const,
-      color: '#FF9F0A',
-    },
-    {
-      nameFr: 'Niveau de Stress Physiologique',
-      nameEn: 'Physiological Stress Index',
-      descFr: 'Balance sympathique / parasympathique',
-      descEn: 'Sympathetic / parasympathetic balance',
-      key: 'stress' as const,
-      color: '#FFD60A',
-    },
-    {
-      nameFr: 'Dynamique Vasculaire & Tension',
-      nameEn: 'Vascular & Pressure Wave',
-      descFr: 'Analyse d’onde de pouls artérielle',
-      descEn: 'Arterial pulse wave velocity analysis',
-      key: 'bloodPressure' as const,
-      color: '#30D158',
-    },
-    {
-      nameFr: 'Indice Métabolique & Glucose',
-      nameEn: 'Metabolic & Glucose Stability',
-      descFr: 'Estimation énergétique basale continue',
-      descEn: 'Continuous basal energy expenditure',
-      key: 'glucose' as const,
-      color: '#5E5CE6',
-    },
-    {
-      nameFr: 'Fréquence Respiratoire Nocturne',
-      nameEn: 'Nocturnal Respiratory Rate',
-      descFr: 'Cycles respiratoires sinusaux (brpm)',
-      descEn: 'Sinus arrhythmia breath cycles (brpm)',
-      key: 'respiratory' as const,
-      color: '#64D2FF',
-    },
   ];
 
   return (
@@ -1246,6 +1178,124 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                   </>
                 )}
               </div>
+
+              {/* Fréquence de Mesure & Autonomie (Performance / Endurance) */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '22px',
+                  background: 'linear-gradient(180deg, #131317 0%, #0E0E12 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <Zap size={14} color="#30D158" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Sampling Frequency & Battery' : 'Fréquence de mesure & autonomie'}
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#30D158',
+                      background: 'rgba(48, 209, 88, 0.14)',
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      fontFamily: 'var(--font-mono)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ~{estimatedDays} {isEn ? 'd' : 'j'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '8px' }}>
+                  {[
+                    {
+                      id: '30min',
+                      title: 'Performance',
+                      sub: '30m · ~5j',
+                      bio: isEn
+                        ? 'HR, stress & temp every 30 min for detailed tracking.'
+                        : 'FC, stress et température toutes les 30 min pour un suivi précis.',
+                      isActive: (sensorIntervals?.heartRate || '1h') === '30min',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '30min',
+                          hrv: '30min',
+                          spo2: '30min',
+                          temperature: '30min',
+                          stress: '30min',
+                          bloodPressure: '30min',
+                          glucose: '30min',
+                          respiratory: '30min',
+                        });
+                      },
+                    },
+                    {
+                      id: '1h',
+                      title: 'Endurance',
+                      sub: '1h · ~8j',
+                      bio: isEn
+                        ? 'All measurements spaced to 1h to maximize battery life.'
+                        : 'Toutes les mesures espacées à 1 h pour maximiser l’autonomie.',
+                      isActive: sensorIntervals?.heartRate === '1h',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '1h',
+                          hrv: '1h',
+                          spo2: '1h',
+                          temperature: '1h',
+                          stress: '1h',
+                          bloodPressure: '1h',
+                          glucose: '1h',
+                          respiratory: '1h',
+                        });
+                      },
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={preset.action}
+                      style={{
+                        padding: '12px 11px',
+                        borderRadius: '14px',
+                        background: preset.isActive ? 'rgba(255, 255, 255, 0.11)' : 'rgba(255, 255, 255, 0.03)',
+                        border: preset.isActive ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(255, 255, 255, 0.07)',
+                        color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.65)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        textAlign: 'left',
+                        gap: '5px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
+                        <span style={{ fontSize: '12.5px', fontWeight: 700 }}>
+                          {preset.title}
+                        </span>
+                        <span style={{ fontSize: '10px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                          {preset.sub}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10.5px', lineHeight: 1.35, color: 'rgba(250, 247, 242, 0.55)' }}>
+                        {preset.bio}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1630,223 +1680,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           )}
 
           {/* ==========================================================
-              TAB 3: CAPTEURS BIOMÉTRIQUES & AUTONOMIE
-              ========================================================== */}
-          {activeTab === 'sensors' && (
-            <div key="settings-sensors" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Presets d'autonomie Card */}
-              <div
-                style={{
-                  padding: '16px',
-                  borderRadius: '22px',
-                  background: 'linear-gradient(180deg, #131317 0%, #0E0E12 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Zap size={14} color="#30D158" />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Sampling Frequency & Battery' : 'Fréquence de Mesure & Autonomie'}
-                    </span>
-                  </div>
-
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#30D158',
-                      background: 'rgba(48, 209, 88, 0.14)',
-                      padding: '3px 8px',
-                      borderRadius: '999px',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    ~{estimatedDays} {isEn ? 'days autonomy' : 'jours d’autonomie'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
-                  {[
-                    {
-                      id: '15min',
-                      title: isEn ? 'Test 15m' : 'Test 15m',
-                      sub: '15m · ~3j',
-                      isActive: sensorIntervals?.heartRate === '15min',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: '15min',
-                          hrv: '15min',
-                          spo2: '15min',
-                          temperature: '15min',
-                          stress: '15min',
-                          bloodPressure: '15min',
-                          glucose: '15min',
-                          respiratory: '15min',
-                        });
-                      },
-                    },
-                    {
-                      id: '30min',
-                      title: isEn ? 'Performance' : 'Performance',
-                      sub: '30m · ~5j',
-                      isActive: (sensorIntervals?.heartRate || '1h') === '30min',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: '30min',
-                          hrv: '30min',
-                          spo2: '30min',
-                          temperature: '30min',
-                          stress: '30min',
-                          bloodPressure: '30min',
-                          glucose: '30min',
-                          respiratory: '30min',
-                        });
-                      },
-                    },
-                    {
-                      id: '1h',
-                      title: isEn ? 'Endurance' : 'Endurance',
-                      sub: '1h · ~8j',
-                      isActive: sensorIntervals?.heartRate === '1h',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: '1h',
-                          hrv: '1h',
-                          spo2: '1h',
-                          temperature: '1h',
-                          stress: '1h',
-                          bloodPressure: '1h',
-                          glucose: '1h',
-                          respiratory: '1h',
-                        });
-                      },
-                    },
-                    {
-                      id: 'pause',
-                      title: isEn ? 'Standby' : 'Veille',
-                      sub: '0 LED',
-                      isActive: (sensorIntervals?.heartRate as string) === 'pause',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: 'pause' as any,
-                          hrv: 'pause' as any,
-                          spo2: 'pause' as any,
-                          temperature: 'pause' as any,
-                          stress: 'pause' as any,
-                          bloodPressure: 'pause' as any,
-                          glucose: 'pause' as any,
-                          respiratory: 'pause' as any,
-                        });
-                      },
-                    },
-                  ].map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={preset.action}
-                      style={{
-                        padding: '10px 4px',
-                        borderRadius: '12px',
-                        background: preset.isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                        border: preset.isActive ? '1px solid rgba(255, 255, 255, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
-                        color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.6)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '3px',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span style={{ fontSize: '10.5px', fontWeight: preset.isActive ? 700 : 500, whiteSpace: 'nowrap' }}>
-                        {preset.title}
-                      </span>
-                      <span style={{ fontSize: '9px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
-                        {preset.sub}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Les 8 Capteurs Actifs List */}
-              <div
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: '20px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.07)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(250, 247, 242, 0.5)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {isEn ? 'Active Biometric Sensors (8)' : 'Les 8 Capteurs Biométriques Actifs'}
-                </span>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {SENSORS_LIST.map((s) => (
-                    <div
-                      key={s.key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 10px',
-                        borderRadius: '12px',
-                        background: 'rgba(255, 255, 255, 0.025)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                        <span
-                          style={{
-                            width: '7px',
-                            height: '7px',
-                            borderRadius: '50%',
-                            background: s.color,
-                            boxShadow: `0 0 6px ${s.color}`,
-                          }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#FAF7F2' }}>
-                            {isEn ? s.nameEn : s.nameFr}
-                          </span>
-                          <span style={{ fontSize: '10px', color: 'rgba(250, 247, 242, 0.45)' }}>
-                            {isEn ? s.descEn : s.descFr}
-                          </span>
-                        </div>
-                      </div>
-
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          color: '#FAF7F2',
-                          fontFamily: 'var(--font-mono)',
-                          background: 'rgba(255, 255, 255, 0.06)',
-                          padding: '2px 6px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        {sensorIntervals?.[s.key] || '1h'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ==========================================================
-              TAB 4: SYSTÈME, ÉCOSYSTÈME & PRÉFÉRENCES
+              TAB 3: SYSTÈME, ÉCOSYSTÈME & PRÉFÉRENCES
               ========================================================== */}
           {activeTab === 'system' && (
             <div key="settings-system" className="settings-tab-pane" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
