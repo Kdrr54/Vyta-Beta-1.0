@@ -1674,7 +1674,24 @@ export const FitScreen: React.FC = () => {
                   transition: 'all 0.16s ease',
                 }}
               >
-                <Activity size={14} color={runMode === 'treadmill' ? '#FC5200' : 'currentColor'} />
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={runMode === 'treadmill' ? '#FC5200' : 'currentColor'}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16.5 4h3" />
+                  <path d="M18 4l-2.5 11.5" />
+                  <rect x="3" y="15.5" width="15.5" height="3.5" rx="1.75" transform="rotate(-5 10.75 17.25)" />
+                  <circle cx="5" cy="18.2" r="0.9" fill={runMode === 'treadmill' ? '#FC5200' : 'currentColor'} stroke="none" />
+                  <circle cx="16.5" cy="17.2" r="0.9" fill={runMode === 'treadmill' ? '#FC5200' : 'currentColor'} stroke="none" />
+                  <path d="M4.5 11.5h4.5" opacity="0.65" />
+                  <path d="M6 8.5h3.5" opacity="0.45" />
+                </svg>
                 <span>{isEn ? 'Treadmill' : 'Course sur tapis'}</span>
               </button>
             </div>
@@ -1961,10 +1978,34 @@ export const FitScreen: React.FC = () => {
                   <svg viewBox={visual.viewBox} style={{ width: '44px', height: '44px', overflow: 'visible' }}>
                     {route.isIndoor ? (
                       <>
-                        <circle cx="50" cy="46" r="21" fill="none" stroke="rgba(252, 82, 0, 0.22)" strokeWidth="1.2" strokeDasharray="4 3" />
-                        <path d="M 28 54 L 72 54" stroke="#FC5200" strokeWidth="3.2" strokeLinecap="round" />
-                        <path d="M 34 44 L 44 36 L 52 44 L 62 34" fill="none" stroke="#FAF7F2" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                        <text x="50" y="79" textAnchor="middle" fill="#FC5200" fontSize="8.5" fontWeight="800" fontFamily="var(--font-mono)">
+                        <defs>
+                          <linearGradient id="treadmillDeckGrad" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stopColor="#FF7A2F" />
+                            <stop offset="100%" stopColor="#FC5200" />
+                          </linearGradient>
+                        </defs>
+                        {/* Console & upright */}
+                        <path d="M 62 24 L 74 22" stroke="#FAF7F2" strokeWidth="3.2" strokeLinecap="round" />
+                        <path d="M 68 23 L 61 52" stroke="rgba(250, 247, 242, 0.85)" strokeWidth="2.8" strokeLinecap="round" />
+                        <path d="M 55 34 L 65 34" stroke="rgba(250, 247, 242, 0.45)" strokeWidth="2" strokeLinecap="round" />
+                        {/* Speed motion lines */}
+                        <path d="M 24 38 L 38 38" stroke="rgba(252, 82, 0, 0.55)" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M 29 31 L 41 31" stroke="rgba(250, 247, 242, 0.35)" strokeWidth="1.8" strokeLinecap="round" />
+                        {/* Running deck / belt */}
+                        <rect
+                          x="22"
+                          y="50"
+                          width="52"
+                          height="10"
+                          rx="5"
+                          transform="rotate(-6 48 55)"
+                          fill="rgba(252, 82, 0, 0.18)"
+                          stroke="url(#treadmillDeckGrad)"
+                          strokeWidth="2.6"
+                        />
+                        <circle cx="27" cy="57" r="2.2" fill="#FAF7F2" />
+                        <circle cx="68" cy="52.5" r="2.2" fill="#FAF7F2" />
+                        <text x="50" y="81" textAnchor="middle" fill="#FC5200" fontSize="8.5" fontWeight="800" fontFamily="var(--font-mono)" letterSpacing="0.8">
                           TAPIS
                         </text>
                       </>
