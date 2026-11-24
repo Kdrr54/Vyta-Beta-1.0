@@ -843,6 +843,26 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       const totalSpan = Math.max(60, normEnd - normStart);
 
       const sleepSlots: MetricDataPoint[] = [];
+
+      // Pour la VRC en mode horaire (1h), tracer directement les heures réelles de la nuit sans trous artificiels sur les demi-heures
+      if (isHourlyMode && metricId === 'hrv') {
+        const startHourIdx = Math.floor(normStart / 60);
+        const endHourIdx = Math.floor(normEnd / 60);
+        for (let hi = startHourIdx; hi <= endHourIdx; hi++) {
+          const hourClock = ((hi % 24) + 24) % 24;
+          const label = `${String(hourClock).padStart(2, '0')}:00`;
+          const evenVal = dayData?.hrvLog?.[hourClock * 2] || 0;
+          const oddVal = dayData?.hrvLog?.[hourClock * 2 + 1] || 0;
+          const rawVal = evenVal >= 5 && evenVal < 250 ? evenVal : oddVal >= 5 && oddVal < 250 ? oddVal : 0;
+          sleepSlots.push({
+            label,
+            value: rawVal,
+            isMeasured: rawVal >= 5,
+          });
+        }
+        return sleepSlots;
+      }
+
       const SLEEP_POINTS = 25; // 25 points réguliers couvrant strictement la nuit
 
       for (let p = 0; p < SLEEP_POINTS; p++) {
