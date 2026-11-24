@@ -808,17 +808,17 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           const maxT = parseFloat((Math.max(...validTemps) - 36.5).toFixed(2));
           const avgT = parseFloat(((validTemps.reduce((a, b) => a + b, 0) / validTemps.length) - 36.5).toFixed(2));
           return [
-            { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-            { label: isEn ? 'Average' : 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-            { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+            { label: isEn ? 'Average' : 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+            { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
           ];
         }
         const minT = parseFloat((delta - 0.14).toFixed(2));
         const maxT = parseFloat((delta + 0.12).toFixed(2));
         return [
-          { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          { label: isEn ? 'Average' : 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
-          { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+          { label: isEn ? 'Average' : 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+          { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
         ];
       })()
     : [

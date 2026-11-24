@@ -995,7 +995,7 @@ export const HealthScreen: React.FC = () => {
               )}
             </svg>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9.5px', color: isMono ? 'rgba(250, 247, 242, 0.58)' : '#FCD34D', fontWeight: 600 }}>
-              <span>{skinTempAbs !== '--' && dayData?.tempDelta !== undefined ? (language === 'fr' ? `Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C` : `Delta ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C`) : (language === 'fr' ? 'Écart --' : 'Delta --')}</span>
+              <span>{skinTempAbs !== '--' && dayData?.tempDelta !== undefined ? (language === 'fr' ? `Écart ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C vs 36,5°` : `Delta ${dayData.tempDelta > 0 ? '+' : ''}${dayData.tempDelta.toFixed(2)}°C vs 36.5°`) : (language === 'fr' ? 'Écart vs 36,5° --' : 'Delta vs 36.5° --')}</span>
               <span>{skinTempAbs !== '--' ? (language === 'fr' ? 'Stable' : 'Stable') : '--'}</span>
             </div>
           </div>
