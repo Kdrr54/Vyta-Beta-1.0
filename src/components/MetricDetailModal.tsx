@@ -621,9 +621,11 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       return dayData?.hrv || 0;
     }
     if (metricId === 'temp') {
-      if (modalDay === TODAY_INDEX && isMeasuring && liveTemp) return parseFloat((liveTemp - 36.5).toFixed(2));
-      if (dayData?.tempDelta !== undefined && dayData.tempDelta !== null) return dayData.tempDelta;
-      if (dayData?.skinTemp && dayData.skinTemp > 0) return parseFloat((dayData.skinTemp - 36.5).toFixed(2));
+      if (modalDay === TODAY_INDEX && isMeasuring && liveTemp) return parseFloat(liveTemp.toFixed(1));
+      if (dayData?.skinTemp && dayData.skinTemp > 0) return parseFloat(dayData.skinTemp.toFixed(1));
+      if (dayData?.tempDelta !== undefined && dayData.tempDelta !== null && dayData.tempDelta !== 0) {
+        return parseFloat((36.5 + dayData.tempDelta).toFixed(1));
+      }
       return 0;
     }
     if (metricId === 'spo2') {
@@ -796,7 +798,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
       })()
     : metricId === 'temp' && (dayMetricValue !== 0 || (dayData?.skinTemp && dayData.skinTemp > 0) || (dayData?.tempLog && dayData.tempLog.some((v) => v > 0)))
     ? (() => {
-        const delta = dayMetricValue !== 0 ? dayMetricValue : parseFloat(((dayData?.skinTemp || 36.5) - 36.5).toFixed(2));
+        const absTemp = dayMetricValue >= 25 ? dayMetricValue : (dayData?.skinTemp && dayData.skinTemp > 0 ? dayData.skinTemp : 36.5 + (dayData?.tempDelta || 0));
         const rawTemps = dayData?.tempLog || [];
         const now = new Date();
         const maxSlot = modalDay === TODAY_INDEX
@@ -804,21 +806,21 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
           : 47;
         const validTemps = rawTemps.slice(0, maxSlot + 1).filter((v) => v >= 30 && v <= 42);
         if (validTemps.length > 0) {
-          const minT = parseFloat((Math.min(...validTemps) - 36.5).toFixed(2));
-          const maxT = parseFloat((Math.max(...validTemps) - 36.5).toFixed(2));
-          const avgT = parseFloat(((validTemps.reduce((a, b) => a + b, 0) / validTemps.length) - 36.5).toFixed(2));
+          const minT = parseFloat(Math.min(...validTemps).toFixed(1));
+          const maxT = parseFloat(Math.max(...validTemps).toFixed(1));
+          const avgT = parseFloat((validTemps.reduce((a, b) => a + b, 0) / validTemps.length).toFixed(1));
           return [
-            { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
-            { label: isEn ? 'Average' : 'Moyenne', value: `${avgT > 0 ? `+${avgT.toFixed(2)}` : avgT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
-            { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+            { label: 'Minimum', value: `${minT.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: isEn ? 'Average' : 'Moyenne', value: `${avgT.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+            { label: 'Maximum', value: `${maxT.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
           ];
         }
-        const minT = parseFloat((delta - 0.14).toFixed(2));
-        const maxT = parseFloat((delta + 0.12).toFixed(2));
+        const minT = parseFloat((absTemp - 0.14).toFixed(1));
+        const maxT = parseFloat((absTemp + 0.12).toFixed(1));
         return [
-          { label: 'Minimum', value: `${minT > 0 ? `+${minT.toFixed(2)}` : minT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
-          { label: isEn ? 'Average' : 'Moyenne', value: `${delta > 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
-          { label: 'Maximum', value: `${maxT > 0 ? `+${maxT.toFixed(2)}` : maxT.toFixed(2)} °C`, sub: isEn ? 'vs 36.5 °C base' : 'vs base 36,5 °C' },
+          { label: 'Minimum', value: `${minT.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: isEn ? 'Average' : 'Moyenne', value: `${absTemp.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
+          { label: 'Maximum', value: `${maxT.toFixed(1)} °C`, sub: isEn ? 'Ring sync' : 'Relevé bague' },
         ];
       })()
     : [
@@ -858,7 +860,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
         if (metricId === 'temp') {
           if (slot30Idx >= 0 && Array.isArray(dayData?.tempLog) && dayData.tempLog[slot30Idx] && dayData.tempLog[slot30Idx] >= 30) {
-            val = parseFloat((dayData.tempLog[slot30Idx] - 36.5).toFixed(2));
+            val = parseFloat(dayData.tempLog[slot30Idx].toFixed(1));
             isMeasured = true;
           }
         } else if (metricId === 'resp') {
@@ -981,7 +983,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
         dayData!.tempLog!.forEach((v, i) => {
           const allowSlot = !isHourlyMode || i % 2 === 0;
           if (allowSlot && i <= currentSlotToday && v >= 30 && v <= 42) {
-            slots[i].value = parseFloat((v - 36.5).toFixed(2));
+            slots[i].value = parseFloat(v.toFixed(1));
             slots[i].isMeasured = true;
           } else {
             slots[i].value = 0;
@@ -993,13 +995,13 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
       // Si la bague a fourni une température scalaire sans journal 48 créneaux, placer uniquement sur le créneau réel (jamais fabriquer une courbe)
       if (dayData?.skinTemp && dayData.skinTemp > 0) {
-        const delta = parseFloat((dayData.skinTemp - 36.5).toFixed(2));
+        const absVal = parseFloat(dayData.skinTemp.toFixed(1));
         const rawEnd = dayData?.sleep?.endMin !== undefined && dayData.sleep.endMin > 0
           ? Math.min(47, Math.floor(dayData.sleep.endMin / 30))
           : currentSlotToday;
         const singleSlot = isHourlyMode ? Math.floor(rawEnd / 2) * 2 : rawEnd;
         if (slots[singleSlot]) {
-          slots[singleSlot].value = delta;
+          slots[singleSlot].value = absVal;
           slots[singleSlot].isMeasured = true;
         }
         return slots;
@@ -1054,7 +1056,7 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
     }
     const v = ptOrVal;
     if (metricId === 'temp') {
-      return typeof v === 'number' && !isNaN(v) && v !== 0 && v >= -3.0 && v <= 3.0;
+      return typeof v === 'number' && !isNaN(v) && v >= 25 && v <= 45;
     }
     return typeof v === 'number' && !isNaN(v) && v > 0;
   };
@@ -1145,14 +1147,14 @@ export const MetricDetailModal: React.FC<MetricDetailModalProps> = ({ metricId, 
 
   const formatVal = (val: number) => {
     if (metricId === 'temp') {
-      return val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2);
+      return val.toFixed(1);
     }
     return val % 1 === 0 ? val.toString() : val.toFixed(1);
   };
 
   const formatTick = (val: number) => {
     if (metricId === 'temp') {
-      return val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1);
+      return val.toFixed(1);
     }
     return Math.round(val).toString();
   };
