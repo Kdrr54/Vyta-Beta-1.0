@@ -422,7 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const watchdog = setInterval(() => {
       const staleMs = Date.now() - lastLiveBpmAtRef.current;
       const streamActive = isLiveHrActiveRef.current || qringBle.isRealTimeHeartRateActive();
-      if (!qringBle.isConnected() || (!streamActive && staleMs > 12000) || (streamActive && staleMs > 22000)) {
+      if (!qringBle.isConnected() || (!streamActive && staleMs > 12000) || (streamActive && staleMs > 90000)) {
         setLiveBpm(0);
       }
     }, 3000);

@@ -3221,8 +3221,8 @@ class QRingBleService {
       const lastActivityAt = Math.max(this.lastLiveDataAt, this.lastLiveAckAt);
       const silentMs = lastActivityAt > 0 ? now - lastActivityAt : now - this.lastLiveRearmAt;
 
-      // Re-arm Action.START only if genuinely silent for >= 30s
-      if (silentMs >= 30000 && now - this.lastLiveRearmAt >= 30000) {
+      // Re-arm Action.START quickly (5s) as soon as the ring stops streaming so sport HR stays continuous
+      if (silentMs >= 5000 && now - this.lastLiveRearmAt >= 5000) {
         this.lastLiveRearmAt = now;
         sentFallback = false;
         try {
@@ -3232,17 +3232,8 @@ class QRingBleService {
             await this.writeBytes(pktBytes);
           }
         } catch (_) {}
-        return;
       }
-
-      // Do NOT send 0x69 CONTINUE while the ring is already streaming packets (it resets PPG lock on R21);
-      // only send a gentle CONTINUE keepalive if silent for >= 12s.
-      if (silentMs >= 12000) {
-        try {
-          await this.writeBytes(this.makePacket(0x69, [dataType, 0x03]));
-        } catch (_) {}
-      }
-    }, 3000);
+    }, 2000);
 
     return ok;
   }

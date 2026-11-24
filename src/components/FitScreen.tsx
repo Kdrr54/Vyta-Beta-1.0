@@ -523,7 +523,7 @@ export const FitScreen: React.FC = () => {
         }
 
         // BPM en direct avec contrôle de fraîcheur (< 20s pour éviter les lignes plates si perte de contact optique)
-        const isBpmFresh = (Date.now() - lastLiveBpmUpdateRef.current) < 20000;
+        const isBpmFresh = (Date.now() - lastLiveBpmUpdateRef.current) < 90000;
         const activeLiveBpm = liveBpmRef.current;
         const curHr = (activeLiveBpm > 0 && isBpmFresh) ? activeLiveBpm : 0;
         const currentDist = Math.round(runDistanceKmRef.current * 1000) / 1000;
