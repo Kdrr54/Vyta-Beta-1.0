@@ -659,6 +659,134 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </div>
               </div>
 
+              {/* 2. Fréquence de Mesure & Autonomie (Performance / Endurance) */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '20px',
+                  background: 'linear-gradient(180deg, rgba(22, 22, 27, 0.96) 0%, rgba(14, 14, 18, 0.98) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <Zap size={14} color="#30D158" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
+                      {isEn ? 'Sampling Frequency & Battery' : 'Fréquence de mesure & autonomie'}
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#30D158',
+                      background: 'rgba(48, 209, 88, 0.14)',
+                      border: '1px solid rgba(48, 209, 88, 0.28)',
+                      padding: '3px 9px',
+                      borderRadius: '999px',
+                      fontFamily: 'var(--font-mono)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ~{estimatedDays} {isEn ? 'd' : 'j'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '8px' }}>
+                  {[
+                    {
+                      id: '30min',
+                      title: 'Performance',
+                      sub: '30m · ~5j',
+                      bio: isEn
+                        ? 'HR, stress & temp every 30 min for detailed tracking.'
+                        : 'FC, stress et température toutes les 30 min pour un suivi précis.',
+                      accent: '#A78BFA',
+                      accentBg: 'rgba(167, 139, 250, 0.12)',
+                      accentBorder: 'rgba(167, 139, 250, 0.45)',
+                      accentGlow: '0 0 16px rgba(167, 139, 250, 0.14)',
+                      isActive: (sensorIntervals?.heartRate || '1h') === '30min',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '30min',
+                          hrv: '30min',
+                          spo2: '30min',
+                          temperature: '30min',
+                          stress: '30min',
+                          bloodPressure: '30min',
+                          glucose: '30min',
+                          respiratory: '30min',
+                        });
+                      },
+                    },
+                    {
+                      id: '1h',
+                      title: 'Endurance',
+                      sub: '1h · ~8j',
+                      bio: isEn
+                        ? 'All measurements spaced to 1h to maximize battery life.'
+                        : 'Toutes les mesures espacées à 1 h pour maximiser l’autonomie.',
+                      accent: '#30D158',
+                      accentBg: 'rgba(48, 209, 88, 0.11)',
+                      accentBorder: 'rgba(48, 209, 88, 0.45)',
+                      accentGlow: '0 0 16px rgba(48, 209, 88, 0.14)',
+                      isActive: sensorIntervals?.heartRate === '1h',
+                      action: () => {
+                        triggerHaptic();
+                        updateSensorIntervals({
+                          heartRate: '1h',
+                          hrv: '1h',
+                          spo2: '1h',
+                          temperature: '1h',
+                          stress: '1h',
+                          bloodPressure: '1h',
+                          glucose: '1h',
+                          respiratory: '1h',
+                        });
+                      },
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={preset.action}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '14px',
+                        background: preset.isActive ? preset.accentBg : 'rgba(255, 255, 255, 0.03)',
+                        border: preset.isActive ? `1px solid ${preset.accentBorder}` : '1px solid rgba(255, 255, 255, 0.07)',
+                        boxShadow: preset.isActive ? preset.accentGlow : 'none',
+                        color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.65)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        textAlign: 'left',
+                        gap: '6px',
+                        transition: 'all 0.18s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '4px' }}>
+                        <span style={{ fontSize: '12.5px', fontWeight: 700, color: preset.isActive ? '#FFFFFF' : 'rgba(250, 247, 242, 0.85)' }}>
+                          {preset.title}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: preset.isActive ? preset.accent : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
+                          {preset.sub}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10.5px', lineHeight: 1.38, color: preset.isActive ? 'rgba(250, 247, 242, 0.78)' : 'rgba(250, 247, 242, 0.48)' }}>
+                        {preset.bio}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* 3. Diagnostics & Calibrage de Port */}
               <div
                 style={{
@@ -1179,123 +1307,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 )}
               </div>
 
-              {/* Fréquence de Mesure & Autonomie (Performance / Endurance) */}
-              <div
-                style={{
-                  padding: '16px',
-                  borderRadius: '22px',
-                  background: 'linear-gradient(180deg, #131317 0%, #0E0E12 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                    <Zap size={14} color="#30D158" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FAF7F2' }}>
-                      {isEn ? 'Sampling Frequency & Battery' : 'Fréquence de mesure & autonomie'}
-                    </span>
-                  </div>
-
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      color: '#30D158',
-                      background: 'rgba(48, 209, 88, 0.14)',
-                      padding: '3px 8px',
-                      borderRadius: '999px',
-                      fontFamily: 'var(--font-mono)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    ~{estimatedDays} {isEn ? 'd' : 'j'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '8px' }}>
-                  {[
-                    {
-                      id: '30min',
-                      title: 'Performance',
-                      sub: '30m · ~5j',
-                      bio: isEn
-                        ? 'HR, stress & temp every 30 min for detailed tracking.'
-                        : 'FC, stress et température toutes les 30 min pour un suivi précis.',
-                      isActive: (sensorIntervals?.heartRate || '1h') === '30min',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: '30min',
-                          hrv: '30min',
-                          spo2: '30min',
-                          temperature: '30min',
-                          stress: '30min',
-                          bloodPressure: '30min',
-                          glucose: '30min',
-                          respiratory: '30min',
-                        });
-                      },
-                    },
-                    {
-                      id: '1h',
-                      title: 'Endurance',
-                      sub: '1h · ~8j',
-                      bio: isEn
-                        ? 'All measurements spaced to 1h to maximize battery life.'
-                        : 'Toutes les mesures espacées à 1 h pour maximiser l’autonomie.',
-                      isActive: sensorIntervals?.heartRate === '1h',
-                      action: () => {
-                        triggerHaptic();
-                        updateSensorIntervals({
-                          heartRate: '1h',
-                          hrv: '1h',
-                          spo2: '1h',
-                          temperature: '1h',
-                          stress: '1h',
-                          bloodPressure: '1h',
-                          glucose: '1h',
-                          respiratory: '1h',
-                        });
-                      },
-                    },
-                  ].map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={preset.action}
-                      style={{
-                        padding: '12px 11px',
-                        borderRadius: '14px',
-                        background: preset.isActive ? 'rgba(255, 255, 255, 0.11)' : 'rgba(255, 255, 255, 0.03)',
-                        border: preset.isActive ? '1px solid rgba(48, 209, 88, 0.45)' : '1px solid rgba(255, 255, 255, 0.07)',
-                        color: preset.isActive ? '#FAF7F2' : 'rgba(250, 247, 242, 0.65)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        textAlign: 'left',
-                        gap: '5px',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '6px' }}>
-                        <span style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                          {preset.title}
-                        </span>
-                        <span style={{ fontSize: '10px', color: preset.isActive ? '#30D158' : 'rgba(250, 247, 242, 0.45)', fontFamily: 'var(--font-mono)' }}>
-                          {preset.sub}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '10.5px', lineHeight: 1.35, color: 'rgba(250, 247, 242, 0.55)' }}>
-                        {preset.bio}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
